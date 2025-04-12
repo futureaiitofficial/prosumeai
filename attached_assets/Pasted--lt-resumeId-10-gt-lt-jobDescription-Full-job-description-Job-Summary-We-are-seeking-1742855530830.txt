@@ -1,0 +1,37 @@
+&lt;!-- resumeId: 10 --&gt;
+
+&lt;!-- jobDescription: Full job description
+Job Summary
+We are seeking a highly skilled and analytical Senior Data Analyst to join our dynamic team. The ideal candidate will play a pivotal role in transforming data into actionable insights that drive business decisions. You will be responsible for analyzing complex data sets, developing reports, and presenting findings to stakeholders. This position requires a strong understanding of data visualization tools and project management methodologies, along with proficiency in various programming languages and database design.
+
+Duties
+
+Analyze large datasets to identify trends, patterns, and anomalies that inform business strategies.
+Develop and maintain dashboards and reports using tools such as Tableau and Power BI to visualize key performance indicators.
+Collaborate with cross-functional teams to define data requirements and ensure alignment with business objectives.
+Utilize programming languages like Python and VBA for data manipulation and automation of processes.
+Design and optimize databases to support data storage, retrieval, and analysis needs.
+Manage projects throughout the Software Development Life Cycle (SDLC) ensuring timely delivery of analytical solutions.
+Provide training and support to junior analysts on best practices in data analysis and visualization.
+Utilize Talend for data integration tasks to streamline workflows across various systems.
+Requirements
+
+Bachelor’s degree in Data Science, Computer Science, Statistics, or a related field.
+Proven experience as a Data Analyst or in a similar role with a strong portfolio of analytical projects.
+Proficiency in data visualization tools such as Tableau or Power BI is essential.
+Familiarity with project management methodologies and experience managing multiple projects simultaneously.
+Strong knowledge of database design principles and experience with SQL.
+Experience with programming languages such as Python is preferred; knowledge of VBA is a plus.
+Understanding of ETL processes and experience using Talend for data integration is desirable.
+Excellent problem-solving skills combined with attention to detail and accuracy.
+Strong communication skills with the ability to present complex information clearly to non-technical stakeholders.
+Join us in leveraging data to make informed decisions that enhance our business operations!
+
+Job Type: Full-time
+
+Pay: $160,000.00 - $200,000.00 per year
+
+Schedule:
+
+8 hour shift
+Monday to Friday --&gt;

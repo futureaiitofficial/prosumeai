@@ -1,0 +1,472 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Resume</title>
+  <style>
+    @page {
+      size: A4;
+      margin-top: 5mm;  /* Small top margin for second and subsequent pages */
+      margin-right: 0;
+      margin-bottom: 0;
+      margin-left: 0;
+    }
+    
+    /* First page should have no top margin */
+    @page :first {
+      margin: 0;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+      background-color: white;
+      font-family: Arial, sans-serif;
+      width: 100%;
+      height: 100%;
+    }
+    .resume-container {
+      width: 100%;
+      height: 100%;
+      padding: 0;
+      margin: 0;
+      box-sizing: border-box;
+      position: relative;
+      overflow: visible;
+    }
+    /* Support for vertical dividers across page breaks */
+    [data-template-id="elegant-divider"] .vertical-divider {
+      page-break-inside: auto;
+      page-break-before: auto;
+      page-break-after: auto;
+      -webkit-column-break-inside: auto;
+      break-inside: auto;
+      position: absolute;
+      height: 100%;
+    }
+    /* Better approach for showing dividers on each page - ONLY for Elegant Divider template */
+    [data-template-id="elegant-divider"] {
+      position: relative;
+    }
+    
+    [data-template-id="elegant-divider"]::before {
+      content: none;
+    }
+    
+    @media print {
+      [data-template-id="elegant-divider"]::before {
+        content: "";
+        position: fixed;
+        top: 0;
+        left: 32%;
+        height: 100%;
+        width: 1px;
+        background-color: #333;
+        z-index: 1000;
+      }
+    }
+    /* Natural flow styles and overrides */
+    .resume-section {
+      page-break-inside: auto;
+      margin-bottom: 0.2rem;
+      margin-top: 0.5rem;
+    }
+    .resume-section > h2 {
+      page-break-after: avoid;
+      page-break-before: auto;
+      padding-top: 0.2rem;
+      margin-bottom: 0.2rem;
+    }
+    .experience-item, .education-item, .project-item, .certification-item {
+      page-break-inside: avoid;
+      margin-bottom: 0.6rem;
+    }
+    *, ::before, ::after { --tw-border-spacing-x: 0; --tw-border-spacing-y: 0; --tw-translate-x: 0; --tw-translate-y: 0; --tw-rotate: 0; --tw-skew-x: 0; --tw-skew-y: 0; --tw-scale-x: 1; --tw-scale-y: 1; --tw-pan-x: ; --tw-pan-y: ; --tw-pinch-zoom: ; --tw-scroll-snap-strictness: proximity; --tw-gradient-from-position: ; --tw-gradient-via-position: ; --tw-gradient-to-position: ; --tw-ordinal: ; --tw-slashed-zero: ; --tw-numeric-figure: ; --tw-numeric-spacing: ; --tw-numeric-fraction: ; --tw-ring-inset: ; --tw-ring-offset-width: 0px; --tw-ring-offset-color: #fff; --tw-ring-color: rgb(59 130 246 / 0.5); --tw-ring-offset-shadow: 0 0 #0000; --tw-ring-shadow: 0 0 #0000; --tw-shadow: 0 0 #0000; --tw-shadow-colored: 0 0 #0000; --tw-blur: ; --tw-brightness: ; --tw-contrast: ; --tw-grayscale: ; --tw-hue-rotate: ; --tw-invert: ; --tw-saturate: ; --tw-sepia: ; --tw-drop-shadow: ; --tw-backdrop-blur: ; --tw-backdrop-brightness: ; --tw-backdrop-contrast: ; --tw-backdrop-grayscale: ; --tw-backdrop-hue-rotate: ; --tw-backdrop-invert: ; --tw-backdrop-opacity: ; --tw-backdrop-saturate: ; --tw-backdrop-sepia: ; --tw-contain-size: ; --tw-contain-layout: ; --tw-contain-paint: ; --tw-contain-style: ; }
+*, ::before, ::after { box-sizing: border-box; border-width: 0px; border-style: solid; border-color: rgb(229, 231, 235); }
+h1, h2, h3, h4, h5, h6 { font-size: inherit; font-weight: inherit; }
+blockquote, dl, dd, h1, h2, h3, h4, h5, h6, hr, figure, p, pre { margin: 0px; }
+* { border-color: hsl(var(--border)); }
+@media (min-width: 640px) {
+  .container { max-width: 640px; }
+}
+@media (min-width: 768px) {
+  .container { max-width: 768px; }
+}
+@media (min-width: 1024px) {
+  .container { max-width: 1024px; }
+}
+@media (min-width: 1280px) {
+  .container { max-width: 1280px; }
+}
+@media (min-width: 1536px) {
+  .container { max-width: 1536px; }
+}
+.mx-auto { margin-left: auto; margin-right: auto; }
+.mb-1 { margin-bottom: 0.25rem; }
+.mb-6 { margin-bottom: 1.5rem; }
+.mb-8 { margin-bottom: 2rem; }
+.mt-4 { margin-top: 1rem; }
+.w-full { width: 100%; }
+.max-w-\[210mm\] { max-width: 210mm; }
+@keyframes bounce { 
+  0%,100% { transform: translateY(-25%); animation-timing-function: cubic-bezier(0.8, 0, 1, 1); }
+  50% { transform: none; animation-timing-function: cubic-bezier(0, 0, 0.2, 1); }
+}
+@keyframes pulse { 
+  50% { opacity: 0.5; }
+}
+@keyframes spin { 
+  100% { transform: rotate(360deg); }
+}
+.space-y-0\.5 > :not([hidden]) ~ :not([hidden]) { --tw-space-y-reverse: 0; margin-top: calc(0.125rem * calc(1 - var(--tw-space-y-reverse))); margin-bottom: calc(0.125rem * var(--tw-space-y-reverse)); }
+.whitespace-pre-wrap { white-space: pre-wrap; }
+.bg-white { --tw-bg-opacity: 1; background-color: rgb(255 255 255 / var(--tw-bg-opacity)); }
+.px-10 { padding-left: 2.5rem; padding-right: 2.5rem; }
+.py-10 { padding-top: 2.5rem; padding-bottom: 2.5rem; }
+.font-serif { font-family: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif; }
+.text-sm { font-size: 0.875rem; line-height: 1.25rem; }
+.text-xl { font-size: 1.25rem; line-height: 1.75rem; }
+.font-bold { font-weight: 700; }
+.font-medium { font-weight: 500; }
+.leading-relaxed { line-height: 1.625; }
+.text-gray-700 { --tw-text-opacity: 1; color: rgb(55 65 81 / var(--tw-text-opacity)); }
+@keyframes enter { 
+  0% { opacity: var(--tw-enter-opacity, 1); transform: translate3d(var(--tw-enter-translate-x, 0), var(--tw-enter-translate-y, 0), 0) scale3d(var(--tw-enter-scale, 1), var(--tw-enter-scale, 1), var(--tw-enter-scale, 1)) rotate(var(--tw-enter-rotate, 0)); }
+}
+@keyframes exit { 
+  100% { opacity: var(--tw-exit-opacity, 1); transform: translate3d(var(--tw-exit-translate-x, 0), var(--tw-exit-translate-y, 0), 0) scale3d(var(--tw-exit-scale, 1), var(--tw-exit-scale, 1), var(--tw-exit-scale, 1)) rotate(var(--tw-exit-rotate, 0)); }
+}
+@keyframes float { 
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+  100% { transform: translateY(0px); }
+}
+@keyframes float-delayed { 
+  0% { transform: translateY(0px); }
+  30% { transform: translateY(8px); }
+  70% { transform: translateY(-8px); }
+  100% { transform: translateY(0px); }
+}
+@keyframes float-slow { 
+  0% { transform: translateY(0px) rotate(0deg); }
+  33% { transform: translateY(-15px) rotate(5deg); }
+  66% { transform: translateY(10px) rotate(-5deg); }
+  100% { transform: translateY(0px) rotate(0deg); }
+}
+@keyframes spin-slow { 
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+@keyframes accordion-up { 
+  0% { height: var(--radix-accordion-content-height); }
+  100% { height: 0px; }
+}
+@keyframes accordion-down { 
+  0% { height: 0px; }
+  100% { height: var(--radix-accordion-content-height); }
+}
+@media (min-width: 640px) {
+  .sm\:bottom-0 { bottom: 0px; }
+  .sm\:right-0 { right: 0px; }
+  .sm\:top-auto { top: auto; }
+  .sm\:mt-0 { margin-top: 0px; }
+  .sm\:inline { display: inline; }
+  .sm\:flex { display: flex; }
+  .sm\:w-3\/4 { width: 75%; }
+  .sm\:w-\[200px\] { width: 200px; }
+  .sm\:w-auto { width: auto; }
+  .sm\:max-w-\[525px\] { max-width: 525px; }
+  .sm\:max-w-sm { max-width: 24rem; }
+  .sm\:grid-cols-2 { grid-template-columns: repeat(2, minmax(0px, 1fr)); }
+  .sm\:flex-row { flex-direction: row; }
+  .sm\:flex-col { flex-direction: column; }
+  .sm\:items-center { align-items: center; }
+  .sm\:justify-end { justify-content: flex-end; }
+  .sm\:justify-between { justify-content: space-between; }
+  .sm\:gap-2\.5 { gap: 0.625rem; }
+  .sm\:space-x-2 > :not([hidden]) ~ :not([hidden]) { --tw-space-x-reverse: 0; margin-right: calc(0.5rem * var(--tw-space-x-reverse)); margin-left: calc(0.5rem * calc(1 - var(--tw-space-x-reverse))); }
+  .sm\:space-x-4 > :not([hidden]) ~ :not([hidden]) { --tw-space-x-reverse: 0; margin-right: calc(1rem * var(--tw-space-x-reverse)); margin-left: calc(1rem * calc(1 - var(--tw-space-x-reverse))); }
+  .sm\:space-y-0 > :not([hidden]) ~ :not([hidden]) { --tw-space-y-reverse: 0; margin-top: calc(0px * calc(1 - var(--tw-space-y-reverse))); margin-bottom: calc(0px * var(--tw-space-y-reverse)); }
+  .sm\:rounded-lg { border-radius: var(--radius); }
+  .sm\:text-left { text-align: left; }
+  .sm\:text-4xl { font-size: 2.25rem; line-height: 2.5rem; }
+  .data-\[state\=open\]\:sm\:slide-in-from-bottom-full[data-state="open"] { --tw-enter-translate-y: 100%; }
+}
+@media (min-width: 768px) {
+  .md\:absolute { position: absolute; }
+  .md\:col-span-2 { grid-column-start: span 2; grid-column-end: span 2; }
+  .md\:col-span-3 { grid-column-start: span 3; grid-column-end: span 3; }
+  .md\:mt-0 { margin-top: 0px; }
+  .md\:block { display: block; }
+  .md\:inline-block { display: inline-block; }
+  .md\:inline { display: inline; }
+  .md\:flex { display: flex; }
+  .md\:table-cell { display: table-cell; }
+  .md\:hidden { display: none; }
+  .md\:w-2\/3 { width: 66.666667%; }
+  .md\:w-64 { width: 16rem; }
+  .md\:w-\[300px\] { width: 300px; }
+  .md\:w-\[var\(--radix-navigation-menu-viewport-width\)\] { width: var(--radix-navigation-menu-viewport-width); }
+  .md\:w-auto { width: auto; }
+  .md\:max-w-\[420px\] { max-width: 420px; }
+  .md\:grid-cols-2 { grid-template-columns: repeat(2, minmax(0px, 1fr)); }
+  .md\:grid-cols-3 { grid-template-columns: repeat(3, minmax(0px, 1fr)); }
+  .md\:grid-cols-4 { grid-template-columns: repeat(4, minmax(0px, 1fr)); }
+  .md\:grid-cols-5 { grid-template-columns: repeat(5, minmax(0px, 1fr)); }
+  .md\:flex-row { flex-direction: row; }
+  .md\:items-center { align-items: center; }
+  .md\:justify-between { justify-content: space-between; }
+  .md\:gap-4 { gap: 1rem; }
+  .md\:space-x-4 > :not([hidden]) ~ :not([hidden]) { --tw-space-x-reverse: 0; margin-right: calc(1rem * var(--tw-space-x-reverse)); margin-left: calc(1rem * calc(1 - var(--tw-space-x-reverse))); }
+  .md\:space-y-0 > :not([hidden]) ~ :not([hidden]) { --tw-space-y-reverse: 0; margin-top: calc(0px * calc(1 - var(--tw-space-y-reverse))); margin-bottom: calc(0px * var(--tw-space-y-reverse)); }
+  .md\:p-6 { padding: 1.5rem; }
+  .md\:px-6 { padding-left: 1.5rem; padding-right: 1.5rem; }
+  .md\:opacity-0 { opacity: 0; }
+  .after\:md\:hidden::after { content: var(--tw-content); display: none; }
+  .peer[data-variant="inset"] ~ .md\:peer-data-\[variant\=inset\]\:m-2 { margin: 0.5rem; }
+  .peer[data-state="collapsed"][data-variant="inset"] ~ .md\:peer-data-\[state\=collapsed\]\:peer-data-\[variant\=inset\]\:ml-2 { margin-left: 0.5rem; }
+  .peer[data-variant="inset"] ~ .md\:peer-data-\[variant\=inset\]\:ml-0 { margin-left: 0px; }
+  .peer[data-variant="inset"] ~ .md\:peer-data-\[variant\=inset\]\:rounded-xl { border-radius: 0.75rem; }
+  .peer[data-variant="inset"] ~ .md\:peer-data-\[variant\=inset\]\:shadow { --tw-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1); --tw-shadow-colored: 0 1px 3px 0 var(--tw-shadow-color), 0 1px 2px -1px var(--tw-shadow-color); box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow); }
+}
+@media (min-width: 1024px) {
+  .lg\:ml-16 { margin-left: 4rem; }
+  .lg\:ml-64 { margin-left: 16rem; }
+  .lg\:block { display: block; }
+  .lg\:table-cell { display: table-cell; }
+  .lg\:hidden { display: none; }
+  .lg\:w-1\/2 { width: 50%; }
+  .lg\:w-96 { width: 24rem; }
+  .lg\:flex-none { flex: 0 0 auto; }
+  .lg\:grid-cols-2 { grid-template-columns: repeat(2, minmax(0px, 1fr)); }
+  .lg\:grid-cols-3 { grid-template-columns: repeat(3, minmax(0px, 1fr)); }
+  .lg\:grid-cols-4 { grid-template-columns: repeat(4, minmax(0px, 1fr)); }
+  .lg\:p-8 { padding: 2rem; }
+  .lg\:px-20 { padding-left: 5rem; padding-right: 5rem; }
+}
+@media (min-width: 1280px) {
+  .xl\:table-cell { display: table-cell; }
+  .xl\:px-24 { padding-left: 6rem; padding-right: 6rem; }
+}
+@page { size: a4; margin: 5mm 0px 0px; }
+@page :first { margin: 0px; }
+@media print {
+  body { background-color: white; margin: 0px; padding: 0px; width: 100%; height: 100%; print-color-adjust: exact !important; }
+  .cover-letter-container, .cover-letter-standard, .cover-letter-modern { margin: 0px; padding: 0px; width: 100%; height: 100%; box-sizing: border-box; }
+}
+header { break-inside: avoid; }
+.recipient, section:nth-of-type(1) { break-inside: avoid; }
+footer { break-inside: avoid; }
+p { break-inside: avoid; }
+@media print {
+  .cover-letter-standard { width: 210mm; height: 297mm; padding: 25mm 20mm; }
+}
+      /* Page break handling - allow content to flow naturally */
+      .resume-section {
+        page-break-inside: auto;
+        break-inside: auto;
+        margin-bottom: 0.2rem;
+        margin-top: 0.5rem;
+      }
+      
+      /* Only avoid page breaks after headings */
+      h2 {
+        page-break-after: avoid;
+        break-after: avoid;
+        page-break-before: auto;
+        break-before: auto;
+        margin-bottom: 0.2rem;
+      }
+      
+      /* Keep individual items together but allow sections to break */
+      .experience-item, .education-item, .project-item, .certification-item {
+        page-break-inside: avoid;
+        break-inside: avoid;
+        margin-bottom: 0.6rem;
+      }
+      
+      /* Keep together only small items that should stay as a unit */
+      .no-break-inside {
+        page-break-inside: avoid;
+        break-inside: avoid;
+      }
+      
+      /* Avoid breaks after specific elements */
+      .no-break-after {
+        page-break-after: avoid;
+        break-after: avoid;
+      }
+      
+      /* Resume header should stay together */
+      .resume-header {
+        page-break-inside: avoid;
+        break-inside: avoid;
+        margin-bottom: 0.6rem;
+      }
+      
+      /* Add proper page margins */
+      @page {
+        margin-top: 5mm;  /* Small top margin for second and subsequent pages */
+        margin-right: 0;
+        margin-bottom: 0;
+        margin-left: 0;
+      }
+      
+      /* First page should have no top margin */
+      @page :first {
+        margin: 0;
+      }
+      
+      /* Page should fill the entire space */
+      html, body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 0;
+      }
+      
+      /* Print-specific styles */
+      @media print {
+        body {
+          background-color: white;
+          margin: 0;
+          padding: 0;
+          width: 100%;
+          height: 100%;
+        }
+        
+        .resume-container {
+          margin: 0;
+          padding: 0;
+          width: 100%;
+          height: 100%;
+          box-sizing: border-box;
+        }
+      }
+      
+      /* Support for vertical dividers across page breaks - ONLY for Elegant Divider template */
+      [data-template-id="elegant-divider"] .vertical-divider {
+        page-break-inside: auto;
+        break-inside: auto;
+      }
+      
+      /* Better approach for showing dividers on each page - ONLY for Elegant Divider template */
+      @page {
+        size: auto;
+      }
+      
+      /* Add custom divider ONLY for Elegant Divider template */
+      [data-template-id="elegant-divider"] {
+        position: relative;
+      }
+      
+      [data-template-id="elegant-divider"]::before {
+        content: none;
+      }
+      
+      @media print {
+        [data-template-id="elegant-divider"]::before {
+          content: "";
+          position: fixed;
+          top: 0;
+          left: 32%;
+          height: 100%;
+          width: 1px;
+          background-color: #e5e5e5;
+          z-index: 1000;
+        }
+      }
+    
+  </style>
+</head>
+<body>
+  <div class="resume-container">
+    <div class="cover-letter-standard bg-white font-serif w-full" style="font-family: &quot;Times New Roman&quot;, Times, serif;"><div class="px-10 py-10 max-w-[210mm] mx-auto"><header class="mb-8"><h1 class="text-xl font-bold mb-1">raja muppidi</h1><div class="text-sm text-gray-700 space-y-0.5"><p>adade@testimn.com</p><p>12345412</p><p>Kakinada, Andhra pradhes</p></div><div class="mt-4 text-sm text-gray-700">April 2, 2025</div></header><section class="mb-8"><p class="font-medium">John Doe</p><p>Confidential</p></section><section class="mb-8 whitespace-pre-wrap leading-relaxed">I am writing to express my enthusiasm for the Senior Data Analyst position at Confidential, as advertised. With a robust background in data analysis and a passion for transforming complex datasets into strategic business insights, I am excited about the opportunity to contribute to your team and help drive impactful business decisions.
+
+In my previous role as a Data Analyst at [Previous Company], I successfully led a project that utilized Tableau and Power BI to develop interactive dashboards, resulting in a 20% improvement in decision-making efficiency across departments. My proficiency in these data visualization tools, combined with a strong foundation in programming languages such as Python and VBA, has enabled me to streamline data processes and automate workflows effectively. These experiences align perfectly with the requirements of the Senior Data Analyst role at Confidential, where my skills in data manipulation and automation can be leveraged to optimize business operations.
+
+Moreover, my experience in managing projects throughout the Software Development Life Cycle (SDLC) has honed my ability to deliver analytical solutions on time and within scope. I am adept at collaborating with cross-functional teams to define data requirements and ensure alignment with business objectives. My familiarity with SQL and database design principles further supports my capability to design and optimize databases, ensuring data integrity and accessibility for analysis. Additionally, my experience with Talend for data integration tasks has equipped me with the skills to streamline workflows across various systems, making me a valuable asset to your team.
+
+I am eager to bring my expertise in data analysis and project management to Confidential and am confident that my skills will contribute to sustaining and enhancing the company's data-driven strategies. I look forward to the opportunity to discuss how my background, skills, and enthusiasm for data-driven decision-making can align with your team’s goals. Thank you for considering my application.</section><footer><p class="mb-6">Sincerely,</p><p class="font-medium">raja muppidi</p></footer></div><style>
+        
+          /* Page format with minimal margins */
+          @page {
+            size: A4;
+            margin-top: 5mm;
+            margin-right: 0;
+            margin-bottom: 0;
+            margin-left: 0;
+          }
+          
+          /* First page should have no top margin */
+          @page :first {
+            margin: 0;
+          }
+          
+          /* Page should fill the entire space */
+          html, body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+          }
+          
+          /* Print-specific styles */
+          @media print {
+            body {
+              background-color: white;
+              margin: 0;
+              padding: 0;
+              width: 100%;
+              height: 100%;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+            }
+            
+            .cover-letter-container, .cover-letter-standard, .cover-letter-modern {
+              margin: 0;
+              padding: 0;
+              width: 100%;
+              height: 100%;
+              box-sizing: border-box;
+            }
+          }
+          
+          /* Keep logical sections together */
+          header {
+            page-break-inside: avoid;
+            break-inside: avoid;
+          }
+          
+          /* Recipient should stay together */
+          .recipient, section:nth-of-type(1) {
+            page-break-inside: avoid;
+            break-inside: avoid;
+          }
+          
+          /* Footer should stay together */
+          footer {
+            page-break-inside: avoid;
+            break-inside: avoid;
+          }
+          
+          /* Keep paragraphs together when possible */
+          p {
+            page-break-inside: avoid;
+            break-inside: avoid;
+          }
+        
+        
+        @media print {
+          .cover-letter-standard {
+            width: 210mm;
+            height: 297mm;
+            padding: 25mm 20mm;
+          }
+        }
+      </style></div>
+  </div>
+</body>
+</html>

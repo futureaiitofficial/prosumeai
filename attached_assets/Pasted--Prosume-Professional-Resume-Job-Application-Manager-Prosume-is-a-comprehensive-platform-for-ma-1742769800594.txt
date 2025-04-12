@@ -1,0 +1,139 @@
+# Prosume: Professional Resume & Job Application Manager
+
+Prosume is a comprehensive platform for managing your job search process, including resumes, cover letters, and job applications.
+
+## Features
+
+- **Authentication System**: Secure user authentication with email/password and Google OAuth
+- **Email Verification**: Email verification system for enhanced security
+- **Profile Management**: User profile management with customizable settings
+- **Resume Builder**: Create and manage multiple resumes with different formats
+- **Cover Letter Generator**: Generate and customize cover letters for different job applications
+- **Job Application Tracker**: Track the status and progress of your job applications
+- **Dashboard**: Interactive dashboard with overview of your job search progress
+
+## Tech Stack
+
+- **Framework**: Next.js 15 with App Router
+- **Language**: TypeScript
+- **Styling**: Tailwind CSS
+- **Authentication**: NextAuth.js
+- **Database**: PostgreSQL with Prisma ORM
+- **Email**: Nodemailer with React Email templates
+- **UI Components**: Custom component library
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js 18+ and npm/yarn
+- PostgreSQL database
+
+### Installation
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/yourusername/prosume.git
+   cd prosume
+   ```
+
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+
+3. Set up environment variables:
+   Create a `.env` file with the following variables:
+   ```
+   DATABASE_URL="postgresql://username:password@localhost:5432/prosume"
+   NEXTAUTH_SECRET="your-nextauth-secret-key"
+   NEXTAUTH_URL="http://localhost:3000"
+   
+   # Optional: For Google OAuth
+   GOOGLE_CLIENT_ID="your-google-client-id"
+   GOOGLE_CLIENT_SECRET="your-google-client-secret"
+   
+   # Email configuration
+   EMAIL_SERVER="smtp://user:pass@smtp.example.com:587"
+   EMAIL_FROM="noreply@prosume.com"
+   ```
+
+4. Initialize the database:
+   ```bash
+   npx prisma migrate dev
+   ```
+
+5. Start the development server:
+   ```bash
+   npm run dev
+   ```
+
+6. Open your browser to [http://localhost:3000](http://localhost:3000)
+
+## Project Structure
+
+```
+src/
+├── app/                  # Next.js app router pages
+│   ├── api/              # API routes
+│   ├── auth/             # Authentication pages
+│   ├── dashboard/        # Dashboard pages
+│   └── ...
+├── components/           # Reusable UI components
+│   ├── auth/             # Authentication components
+│   ├── dashboard/        # Dashboard components
+│   ├── profile/          # Profile components
+│   ├── ui/               # UI building blocks
+│   └── ...
+├── config/               # Application configuration
+├── emails/               # Email templates
+├── hooks/                # Custom React hooks
+├── lib/                  # Utility libraries
+│   ├── db.ts             # Database client
+│   ├── email.ts          # Email sending utility
+│   └── tokens.ts         # Token management
+├── types/                # TypeScript type definitions
+└── utils/                # Utility functions
+```
+
+## Authentication Flow
+
+1. User signs up with email/password or OAuth provider
+2. Verification email is sent for email/password registration
+3. User verifies email by clicking link in email
+4. User can log in after verification
+5. Protected routes check authentication status
+
+## Database Schema
+
+The database schema includes models for:
+
+- User accounts and profiles
+- Authentication tokens and sessions
+- Resumes with version history
+- Cover letters with templates
+- Job applications with tracking status
+- Application activities and notes
+
+## API Routes
+
+- `/api/auth/[...nextauth]`: Authentication endpoints
+- `/api/user/profile`: User profile management
+- `/api/user/email/verify`: Email verification
+- `/api/user/email/resend-verification`: Resend verification emails
+
+## Contributing
+
+1. Fork the repository
+2. Create a new branch (`git checkout -b feature/your-feature`)
+3. Commit your changes (`git commit -m 'Add some feature'`)
+4. Push to the branch (`git push origin feature/your-feature`)
+5. Open a Pull Request
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Contact
+
+For any inquiries, please reach out to [support@prosume.com](mailto:support@prosume.com).

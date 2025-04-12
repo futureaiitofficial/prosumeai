@@ -1,0 +1,321 @@
+Resume Parser Algorithm Deep Dive
+For the technical curious, this section will dive into the OpenResume parser algorithm and walks through the 4 steps on how it works. (Note that the algorithm is designed to parse single column resume in English language)
+Step 1. Read the text items from a PDF file
+A PDF file is a standardized file format defined by the ISO 32000 specification. When you open up a PDF file using a text editor, you'll notice that the raw content looks encoded and is difficult to read. To display it in a readable format, you would need a PDF reader to decode and view the file. Similarly, the resume parser first needs to decode the PDF file in order to extract its text content.
+While it is possible to write a custom PDF reader function following the ISO 32000 specification, it is much simpler to leverage an existing library. In this case, the resume parser uses Mozilla's open source pdf.js library to first extract all the text items in the file.
+The table below lists 140 text items that are extracted from the resume PDF added. A text item contains the text content and also some metadata about the content, e.g. its x, y positions in the document, whether the font is bolded, or whether it starts a new line. (Note that x,y position is relative to the bottom left corner of the page, which is the origin 0,0)
+#	Text Content	Metadata
+1	Raja Muppidi	X₁=247 X₂=364 Y=759
+2		X=76 Y=748 NewLine
+3	Dublin, CA	X₁=76 X₂=123 Y=748
+4	|	X₁=126 X₂=128 Y=748
+5	(929) 244-9978	X₁=131 X₂=191 Y=748
+6	|	X₁=194 X₂=197 Y=748
+7	dr.rajamuppidi@gmail.com	X₁=200 X₂=308 Y=748
+8	|	X₁=311 X₂=314 Y=748
+9	LinkedIn: in/dr-raja-muppidi	X₁=317 X₂=436 Y=748
+10	|	X₁=439 X₂=441 Y=748
+11	GitHub: /rajamuppidi	X₁=444 X₂=535 Y=748
+12		X=29 Y=723 NewLine
+13	Professional Summary	X₁=29 X₂=160 Y=723
+14		X=29 Y=703 NewLine
+15	Healthcare informatics professional with a Master’s in Health Informatics and extensive experience in data analysis, quality	X₁=29 X₂=582 Y=703 NewLine
+16	improvement, and team leadership. Proven track record in leveraging clinical and operational data to drive strategic initiatives	X₁=29 X₂=582 Y=691 NewLine
+17	and improve healthcare outcomes. Skilled in SQL, Python, and data visualization tools, with a strong understanding of healthcare	X₁=29 X₂=582 Y=679 NewLine
+18	data standards and regulatory requirements.	X₁=29 X₂=223 Y=667
+19		X=29 Y=643 NewLine
+20	Experience	X₁=29 X₂=94 Y=643
+21		X=29 Y=624 NewLine
+22	Data Analyst,	X₁=29 X₂=99 Y=624
+23	Mindaigle, Atlantic Mine, Michigan	X₁=106 X₂=261 Y=624
+24	May 2024 – Present	X₁=490 X₂=582 Y=624
+25		X=29 Y=612 NewLine
+26	•	X₁=29 X₂=32 Y=612
+27	Led a team of 5 analysts, improving team productivity by 30% through effective goal-setting and mentorship.	X₁=37 X₂=480 Y=611
+28		X=29 Y=600 NewLine
+29	•	X₁=29 X₂=32 Y=600
+30	Developed and maintained data models using SQL, resulting in a 40% reduction in report generation time.	X₁=37 X₂=469 Y=599
+31		X=29 Y=588 NewLine
+32	•	X₁=29 X₂=32 Y=588
+33	Implemented data governance methodologies, enhancing data quality and accuracy by 25%.	X₁=37 X₂=408 Y=587
+34		X=29 Y=576 NewLine
+35	•	X₁=29 X₂=32 Y=576
+36	Collaborated with cross-functional teams to drive Value-Based Care initiatives, resulting in a 15% improvement in quality metrics.	X₁=37 X₂=565 Y=575
+37		X=29 Y=557 NewLine
+38	Research Assistant,	X₁=29 X₂=127 Y=557
+39	Michigan Technological University Health Center, Houghton, Michigan	X₁=133 X₂=443 Y=557
+40	September 2023 – April 2024	X₁=447 X₂=582 Y=557
+41		X=29 Y=545 NewLine
+42	•	X₁=29 X₂=32 Y=545
+43	Designed dashboards using Python and Tableau, providing real-time insights on clinical and operational KPIs.	X₁=37 X₂=484 Y=544
+44		X=29 Y=533 NewLine
+45	•	X₁=29 X₂=32 Y=533
+46	Conducted in-depth analysis of healthcare data, identifying trends that led to a 20% reduction in patient wait times.	X₁=37 X₂=510 Y=532
+47		X=29 Y=521 NewLine
+48	•	X₁=29 X₂=32 Y=521
+49	Collaborated with IT to optimize EMR systems, resulting in a 30% increase in data accuracy for quality reporting.	X₁=37 X₂=502 Y=520
+50		X=29 Y=502 NewLine
+51	Healthcare Data Analyst,	X₁=29 X₂=157 Y=502
+52	Corptechsolutions, Kakinada, India	X₁=164 X₂=318 Y=502
+53	August 2019 – December 2022	X₁=441 X₂=582 Y=502
+54		X=29 Y=491 NewLine
+55	•	X₁=29 X₂=32 Y=491
+56	Developed and maintained data models for population health management, improving patient outreach effectiveness by 35%.	X₁=37 X₂=542 Y=490
+57		X=29 Y=479 NewLine
+58	•	X₁=29 X₂=32 Y=479
+59	Generated weekly, monthly, and quarterly reports on clinical and financial trends, supporting data-driven decision-making.	X₁=37 X₂=534 Y=478
+60		X=29 Y=467 NewLine
+61	•	X₁=29 X₂=32 Y=467
+62	Implemented process improvements based on data analysis, resulting in a 25% increase in operational efficiency.	X₁=37 X₂=489 Y=466
+63		X=29 Y=441 NewLine
+64	Projects	X₁=29 X₂=78 Y=441
+65		X=29 Y=419 NewLine
+66	Population Health Analytics Tool	X₁=29 X₂=185 Y=419
+67	|	X₁=188 X₂=191 Y=419
+68	Python, Machine Learning, SQL	X₁=194 X₂=325 Y=419
+69	2023	X₁=562 X₂=583 Y=419
+70		X=29 Y=409 NewLine
+71	•	X₁=29 X₂=32 Y=409
+72	Developed a predictive model to identify high-risk patients, improving early intervention rates by 30%.	X₁=37 X₂=453 Y=407
+73		X=29 Y=396 NewLine
+74	•	X₁=29 X₂=32 Y=396
+75	Implemented data-driven patient outreach strategies, resulting in a 25% increase in preventive care appointments.	X₁=37 X₂=498 Y=395
+76		X=29 Y=384 NewLine
+77	•	X₁=29 X₂=32 Y=384
+78	Created a user-friendly interface for clinicians to access and interpret population health data, enhancing care coordination.	X₁=37 X₂=533 Y=383
+79		X=29 Y=359 NewLine
+80	Education	X₁=29 X₂=88 Y=359
+81		X=29 Y=340 NewLine
+82	Master’s in Health Informatics	X₁=29 X₂=184 Y=340
+83	January 2023 – December 2024	X₁=437 X₂=582 Y=340
+84		X=29 Y=328 NewLine
+85	Michigan Technological University (GPA: 4.00/4.00)	X₁=29 X₂=242 Y=328
+86	Houghton, Michigan	X₁=500 X₂=582 Y=328
+87		X=29 Y=312 NewLine
+88	Bachelor’s: Doctor of Pharmacy (Pharm.D)	X₁=29 X₂=250 Y=312
+89	August 2014 – July 2020	X₁=467 X₂=582 Y=312
+90		X=29 Y=300 NewLine
+91	Jawaharlal Nehru Technological University (GPA: 3.75/4.00)	X₁=29 X₂=276 Y=300
+92	Hyderabad, India	X₁=513 X₂=582 Y=300
+93		X=29 Y=282 NewLine
+94	Skills	X₁=29 X₂=60 Y=282
+95		X=29 Y=263 NewLine
+96	Data Analysis:	X₁=29 X₂=102 Y=263
+97	SQL, Python, R, Excel, Statistical Analysis	X₁=107 X₂=297 Y=263
+98		X=29 Y=249 NewLine
+99	Data Visualization:	X₁=29 X₂=125 Y=249
+100	Tableau, Power BI	X₁=130 X₂=211 Y=249
+101		X=29 Y=235 NewLine
+102	Healthcare Knowledge:	X₁=29 X₂=145 Y=235
+103	Value-Based Care, Population Health Management, Healthcare Regulations, HIPAA, HL7, FHIR.	X₁=149 X₂=576 Y=235
+104		X=29 Y=221 NewLine
+105	Leadership:	X₁=29 X₂=86 Y=221
+106	Team Management, Project Planning, Strategic Initiative Development	X₁=91 X₂=402 Y=221
+107		X=29 Y=207 NewLine
+108	Quality Improvement:	X₁=29 X₂=140 Y=207
+109	Process Optimization, Data Governance, Performance Metrics	X₁=144 X₂=415 Y=207
+110		X=29 Y=193 NewLine
+111	Other:	X₁=29 X₂=61 Y=193
+112	EMR Systems, Data Modeling, Business Intelligence	X₁=66 X₂=295 Y=193
+113		X=29 Y=168 NewLine
+114	Certifications	X₁=29 X₂=108 Y=168
+115		X=29 Y=150 NewLine
+116	•	X₁=29 X₂=32 Y=150
+117	Google Data Analytics Professional Certificate, issued by Google	X₁=37 X₂=299 Y=149
+118		X=29 Y=138 NewLine
+119	•	X₁=29 X₂=32 Y=138
+120	Fundamentals of Visualization with Tableau, issued by University of California	X₁=37 X₂=356 Y=137
+121		X=29 Y=126 NewLine
+122	•	X₁=29 X₂=32 Y=126
+123	Work Smarter with Microsoft Excel, issued by Microsoft	X₁=37 X₂=265 Y=125
+124		X=29 Y=114 NewLine
+125	•	X₁=29 X₂=32 Y=114
+126	Graduate Certificate in Foundation of Health Informatics	X₁=37 X₂=269 Y=113
+127		X=29 Y=102 NewLine
+128	•	X₁=29 X₂=32 Y=102
+129	Graduate Certificate in Artificial Intelligence in Healthcare	X₁=37 X₂=276 Y=101
+130		X=29 Y=71 NewLine
+131	Professional Memberships	X₁=29 X₂=182 Y=71
+132		X=29 Y=53 NewLine
+133	•	X₁=29 X₂=32 Y=53
+134	HIMSS (Health Information and Management Systems Society)	X₁=37 X₂=295 Y=51
+135		X=29 Y=40 NewLine
+136	•	X₁=29 X₂=32 Y=40
+137	AAAI (The Association for the Advancement of Artificial Intelligence)	X₁=37 X₂=322 Y=39
+138		X=29 Y=28 NewLine
+139	•	X₁=29 X₂=32 Y=28
+140	IEEE (Institute of Electrical and Electronics Engineers)	X₁=37 X₂=263 Y=27
+Step 2. Group text items into lines
+The extracted text items aren't ready to use yet and have 2 main issues:
+Issue 1: They have some unwanted noises.
+Some single text items can get broken into multiple ones, as you might observe on the table above, e.g. a phone number "(123) 456-7890" might be broken into 3 text items "(123) 456", "-" and "7890".
+Solution: To tackle this issue, the resume parser connects adjacent text items into one text item if their distance is smaller than the average typical character width, where
+Distance
+=
+RightTextItemX₁
+-
+LeftTextItemX₂
+The average typical character width is calculated by dividing the sum of all text items' widths by the total number characters of the text items (Bolded texts and new line elements are excluded to not skew the results).
+Issue 2: They lack contexts and associations.
+When we read a resume, we scan a resume line by line. Our brains can process each section via visual cues such as texts' boldness and proximity, where we can quickly associate texts closer together to be a related group. The extracted text items however currently don't have those contexts/associations and are just disjointed elements.
+Solution: To tackle this issue, the resume parser reconstructs those contexts and associations similar to how our brain would read and process the resume. It first groups text items into lines since we read text line by line. It then groups lines into sections, which will be discussed in the next step.
+At the end of step 2, the resume parser extracts 48 lines from the resume PDF added, as shown in the table below. The result is much more readable when displayed in lines. (Some lines might have multiple text items, which are separated by a blue vertical divider )
+Lines	Line Content
+1	Raja Muppidi
+2	Dublin, CA | (929) 244-9978 | dr.rajamuppidi@gmail.com | LinkedIn: in/dr-raja-muppidi | GitHub: /rajamuppidi
+3	Professional Summary
+4	Healthcare informatics professional with a Master’s in Health Informatics and extensive experience in data analysis, quality
+5	improvement, and team leadership. Proven track record in leveraging clinical and operational data to drive strategic initiatives
+6	and improve healthcare outcomes. Skilled in SQL, Python, and data visualization tools, with a strong understanding of healthcare
+7	data standards and regulatory requirements.
+8	Experience
+9	Data Analyst,Mindaigle, Atlantic Mine, MichiganMay 2024 – Present
+10	•Led a team of 5 analysts, improving team productivity by 30% through effective goal-setting and mentorship.
+11	•Developed and maintained data models using SQL, resulting in a 40% reduction in report generation time.
+12	•Implemented data governance methodologies, enhancing data quality and accuracy by 25%.
+13	•Collaborated with cross-functional teams to drive Value-Based Care initiatives, resulting in a 15% improvement in quality metrics.
+14	Research Assistant,Michigan Technological University Health Center, Houghton, MichiganSeptember 2023 – April 2024
+15	•Designed dashboards using Python and Tableau, providing real-time insights on clinical and operational KPIs.
+16	•Conducted in-depth analysis of healthcare data, identifying trends that led to a 20% reduction in patient wait times.
+17	•Collaborated with IT to optimize EMR systems, resulting in a 30% increase in data accuracy for quality reporting.
+18	Healthcare Data Analyst,Corptechsolutions, Kakinada, IndiaAugust 2019 – December 2022
+19	•Developed and maintained data models for population health management, improving patient outreach effectiveness by 35%.
+20	•Generated weekly, monthly, and quarterly reports on clinical and financial trends, supporting data-driven decision-making.
+21	•Implemented process improvements based on data analysis, resulting in a 25% increase in operational efficiency.
+22	Projects
+23	Population Health Analytics Tool | Python, Machine Learning, SQL2023
+24	•Developed a predictive model to identify high-risk patients, improving early intervention rates by 30%.
+25	•Implemented data-driven patient outreach strategies, resulting in a 25% increase in preventive care appointments.
+26	•Created a user-friendly interface for clinicians to access and interpret population health data, enhancing care coordination.
+27	Education
+28	Master’s in Health InformaticsJanuary 2023 – December 2024
+29	Michigan Technological University (GPA: 4.00/4.00)Houghton, Michigan
+30	Bachelor’s: Doctor of Pharmacy (Pharm.D)August 2014 – July 2020
+31	Jawaharlal Nehru Technological University (GPA: 3.75/4.00)Hyderabad, India
+32	Skills
+33	Data Analysis:SQL, Python, R, Excel, Statistical Analysis
+34	Data Visualization:Tableau, Power BI
+35	Healthcare Knowledge:Value-Based Care, Population Health Management, Healthcare Regulations, HIPAA, HL7, FHIR.
+36	Leadership:Team Management, Project Planning, Strategic Initiative Development
+37	Quality Improvement:Process Optimization, Data Governance, Performance Metrics
+38	Other:EMR Systems, Data Modeling, Business Intelligence
+39	Certifications
+40	•Google Data Analytics Professional Certificate, issued by Google
+41	•Fundamentals of Visualization with Tableau, issued by University of California
+42	•Work Smarter with Microsoft Excel, issued by Microsoft
+43	•Graduate Certificate in Foundation of Health Informatics
+44	•Graduate Certificate in Artificial Intelligence in Healthcare
+45	Professional Memberships
+46	•HIMSS (Health Information and Management Systems Society)
+47	•AAAI (The Association for the Advancement of Artificial Intelligence)
+48	•IEEE (Institute of Electrical and Electronics Engineers)
+Step 3. Group lines into sections
+At step 2, the resume parser starts building contexts and associations to text items by first grouping them into lines. Step 3 continues the process to build additional associations by grouping lines into sections.
+Note that every section (except the profile section) starts with a section title that takes up the entire line. This is a common pattern not just in resumes but also in books and blogs. The resume parser uses this pattern to group lines into the closest section title above these lines.
+The resume parser applies some heuristics to detect a section title. The main heuristic to determine a section title is to check if it fulfills all 3 following conditions:
+1. It is the only text item in the line
+2. It is bolded
+3. Its letters are all UPPERCASE
+In simple words, if a text item is double emphasized to be both bolded and uppercase, it is most likely a section title in a resume. This is generally true for a well formatted resume. There can be exceptions, but it is likely not a good use of bolded and uppercase in those cases.
+The resume parser also has a fallback heuristic if the main heuristic doesn't apply. The fallback heuristic mainly performs a keyword matching against a list of common resume section title keywords.
+At the end of step 3, the resume parser identifies the sections from the resume and groups those lines with the associated section title, as shown in the table below. Note that the section titles are bolded and the lines associated with the section are highlighted with the same colors.
+Lines	Line Content
+PROFILE
+1	Raja Muppidi
+2	Dublin, CA | (929) 244-9978 | dr.rajamuppidi@gmail.com | LinkedIn: in/dr-raja-muppidi | GitHub: /rajamuppidi
+3	Professional Summary
+4	Healthcare informatics professional with a Master’s in Health Informatics and extensive experience in data analysis, quality
+5	improvement, and team leadership. Proven track record in leveraging clinical and operational data to drive strategic initiatives
+6	and improve healthcare outcomes. Skilled in SQL, Python, and data visualization tools, with a strong understanding of healthcare
+7	data standards and regulatory requirements.
+8	Experience
+9	Data Analyst,Mindaigle, Atlantic Mine, MichiganMay 2024 – Present
+10	•Led a team of 5 analysts, improving team productivity by 30% through effective goal-setting and mentorship.
+11	•Developed and maintained data models using SQL, resulting in a 40% reduction in report generation time.
+12	•Implemented data governance methodologies, enhancing data quality and accuracy by 25%.
+13	•Collaborated with cross-functional teams to drive Value-Based Care initiatives, resulting in a 15% improvement in quality metrics.
+14	Research Assistant,Michigan Technological University Health Center, Houghton, MichiganSeptember 2023 – April 2024
+15	•Designed dashboards using Python and Tableau, providing real-time insights on clinical and operational KPIs.
+16	•Conducted in-depth analysis of healthcare data, identifying trends that led to a 20% reduction in patient wait times.
+17	•Collaborated with IT to optimize EMR systems, resulting in a 30% increase in data accuracy for quality reporting.
+18	Healthcare Data Analyst,Corptechsolutions, Kakinada, IndiaAugust 2019 – December 2022
+19	•Developed and maintained data models for population health management, improving patient outreach effectiveness by 35%.
+20	•Generated weekly, monthly, and quarterly reports on clinical and financial trends, supporting data-driven decision-making.
+21	•Implemented process improvements based on data analysis, resulting in a 25% increase in operational efficiency.
+22	Projects
+23	Population Health Analytics Tool | Python, Machine Learning, SQL2023
+24	•Developed a predictive model to identify high-risk patients, improving early intervention rates by 30%.
+25	•Implemented data-driven patient outreach strategies, resulting in a 25% increase in preventive care appointments.
+26	•Created a user-friendly interface for clinicians to access and interpret population health data, enhancing care coordination.
+27	Education
+28	Master’s in Health InformaticsJanuary 2023 – December 2024
+29	Michigan Technological University (GPA: 4.00/4.00)Houghton, Michigan
+30	Bachelor’s: Doctor of Pharmacy (Pharm.D)August 2014 – July 2020
+31	Jawaharlal Nehru Technological University (GPA: 3.75/4.00)Hyderabad, India
+32	Skills
+33	Data Analysis:SQL, Python, R, Excel, Statistical Analysis
+34	Data Visualization:Tableau, Power BI
+35	Healthcare Knowledge:Value-Based Care, Population Health Management, Healthcare Regulations, HIPAA, HL7, FHIR.
+36	Leadership:Team Management, Project Planning, Strategic Initiative Development
+37	Quality Improvement:Process Optimization, Data Governance, Performance Metrics
+38	Other:EMR Systems, Data Modeling, Business Intelligence
+39	Certifications
+40	•Google Data Analytics Professional Certificate, issued by Google
+41	•Fundamentals of Visualization with Tableau, issued by University of California
+42	•Work Smarter with Microsoft Excel, issued by Microsoft
+43	•Graduate Certificate in Foundation of Health Informatics
+44	•Graduate Certificate in Artificial Intelligence in Healthcare
+45	Professional Memberships
+46	•HIMSS (Health Information and Management Systems Society)
+47	•AAAI (The Association for the Advancement of Artificial Intelligence)
+48	•IEEE (Institute of Electrical and Electronics Engineers)
+Step 4. Extract resume from sections
+Step 4 is the last step of the resume parsing process and is also the core of the resume parser, where it extracts resume information from the sections.
+Feature Scoring System
+The gist of the extraction engine is a feature scoring system. Each resume attribute to be extracted has a custom feature sets, where each feature set consists of a feature matching function and a feature matching score if matched (feature matching score can be a positive or negative number). To compute the final feature score of a text item for a particular resume attribute, it would run the text item through all its feature sets and sum up the matching feature scores. This process is carried out for all text items within the section, and the text item with the highest computed feature score is identified as the extracted resume attribute.
+As a demonstration, the table below shows 3 resume attributes in the profile section of the resume PDF added.
+Resume Attribute	Text (Highest Feature Score)	Feature Scores of Other Texts
+Name	Raja Muppidi	3 Raja Muppidi
+-22 Dublin, CA | (929) 244-9978 | dr.rajamuppidi@gmail.com | LinkedIn: in/dr-raja-muppidi | GitHub: /rajamuppidi
+Email	dr.rajamuppidi@gmail.com	4 dr.rajamuppidi@gmail.com
+0 Raja Muppidi
+-16 Dublin, CA | (929) 244-9978 | dr.rajamuppidi@gmail.com | LinkedIn: in/dr-raja-muppidi | GitHub: /rajamuppidi
+Phone	(929) 244-9978	4 (929) 244-9978
+-4 Raja Muppidi
+-4 Dublin, CA | (929) 244-9978 | dr.rajamuppidi@gmail.com | LinkedIn: in/dr-raja-muppidi | GitHub: /rajamuppidi
+In the resume PDF added, the resume attribute name is likely to be "Raja Muppidi" since its feature score is 3, which is the highest feature score out of all text items in the profile section. (Some text items' feature scores can be negative, indicating they are very unlikely to be the targeted attribute)
+Feature Sets
+Having explained the feature scoring system, we can dive more into how feature sets are constructed for a resume attribute. It follows 2 principles:
+1. A resume attribute's feature sets are designed relative to all other resume attributes within the same section.
+2. A resume attribute's feature sets are manually crafted based on its characteristics and likelihood of each characteristic.
+The table below lists some of the feature sets for the resume attribute name. It contains feature function that matches the name attribute with positive feature score and also feature function that only matches other resume attributes in the section with negative feature score.
+Name Feature Sets
+Feature Function	Feature Matching Score
+Contains only letters, spaces or periods	+3
+Is bolded	+2
+Contains all uppercase letters	+2
+Contains @	-4 (match email)
+Contains number	-4 (match phone)
+Contains ,	-4 (match address)
+Contains /	-4 (match url)
+Core Feature Function
+Each resume attribute has multiple feature sets. They can be found in the source code under the extract-resume-from-sections folder and we won't list them all out here. Each resume attribute usually has a core feature function that greatly identifies them, so we will list out the core feature function below.
+Resume Attribute	Core Feature Function	Regex
+Name	Contains only letters, spaces or periods	/^[a-zA-Z\s\.]+$/
+Email	Match email format xxx@xxx.xxx
+xxx can be anything not space	/\S+@\S+\.\S+/
+Phone	Match phone format (xxx)-xxx-xxxx
+() and - are optional	/\(?\d{3}\)?[\s-]?\d{3}[\s-]?\d{4}/
+Location	Match city and state format City, ST	/[A-Z][a-zA-Z\s]+, [A-Z]{2}/
+Url	Match url format xxx.xxx/xxx	/\S+\.[a-z]+\/\S+/
+School	Contains a school keyword, e.g. College, University, School	
+Degree	Contains a degree keyword, e.g. Associate, Bachelor, Master	
+GPA	Match GPA format x.xx	/[0-4]\.\d{1,2}/
+Date	Contains date keyword related to year, month, seasons or the word Present	Year: /(?:19|20)\d{2}/
+Job Title	Contains a job title keyword, e.g. Analyst, Engineer, Intern	
+Company	Is bolded or doesn't match job title & date	
+Project	Is bolded or doesn't match date	
+Special Case: Subsections
+The last thing that is worth mentioning is subsections. For profile section, we can directly pass all the text items to the feature scoring systems. But for other sections, such as education and work experience, we have to first divide the section into subsections since there can be multiple schools or work experiences in the section. The feature scoring system then process each subsection to retrieve each's resume attributes and append the results.
+The resume parser applies some heuristics to detect a subsection. The main heuristic to determine a subsection is to check if the vertical line gap between 2 lines is larger than the typical line gap * 1.4, since a well formatted resume usually creates a new empty line break before adding the next subsection. There is also a fallback heuristic if the main heuristic doesn't apply to check if the text item is bolded.
+And that is everything about the OpenResume parser algorithm :)

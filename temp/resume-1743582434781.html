@@ -1,0 +1,334 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Resume</title>
+  <style>
+    @page {
+      size: A4;
+      margin-top: 5mm;  /* Small top margin for second and subsequent pages */
+      margin-right: 0;
+      margin-bottom: 0;
+      margin-left: 0;
+    }
+    
+    /* First page should have no top margin */
+    @page :first {
+      margin: 0;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+      background-color: white;
+      font-family: Arial, sans-serif;
+      width: 100%;
+      height: 100%;
+    }
+    .resume-container {
+      width: 100%;
+      height: 100%;
+      padding: 0;
+      margin: 0;
+      box-sizing: border-box;
+      position: relative;
+      overflow: visible;
+    }
+    /* Support for vertical dividers across page breaks */
+    [data-template-id="elegant-divider"] .vertical-divider {
+      page-break-inside: auto;
+      page-break-before: auto;
+      page-break-after: auto;
+      -webkit-column-break-inside: auto;
+      break-inside: auto;
+      position: absolute;
+      height: 100%;
+    }
+    /* Better approach for showing dividers on each page - ONLY for Elegant Divider template */
+    [data-template-id="elegant-divider"] {
+      position: relative;
+    }
+    
+    [data-template-id="elegant-divider"]::before {
+      content: none;
+    }
+    
+    @media print {
+      [data-template-id="elegant-divider"]::before {
+        content: "";
+        position: fixed;
+        top: 0;
+        left: 32%;
+        height: 100%;
+        width: 1px;
+        background-color: #333;
+        z-index: 1000;
+      }
+    }
+    /* Natural flow styles and overrides */
+    .resume-section {
+      page-break-inside: auto;
+      margin-bottom: 0.2rem;
+      margin-top: 0.5rem;
+    }
+    .resume-section > h2 {
+      page-break-after: avoid;
+      page-break-before: auto;
+      padding-top: 0.2rem;
+      margin-bottom: 0.2rem;
+    }
+    .experience-item, .education-item, .project-item, .certification-item {
+      page-break-inside: avoid;
+      margin-bottom: 0.6rem;
+    }
+    *, ::before, ::after { --tw-border-spacing-x: 0; --tw-border-spacing-y: 0; --tw-translate-x: 0; --tw-translate-y: 0; --tw-rotate: 0; --tw-skew-x: 0; --tw-skew-y: 0; --tw-scale-x: 1; --tw-scale-y: 1; --tw-pan-x: ; --tw-pan-y: ; --tw-pinch-zoom: ; --tw-scroll-snap-strictness: proximity; --tw-gradient-from-position: ; --tw-gradient-via-position: ; --tw-gradient-to-position: ; --tw-ordinal: ; --tw-slashed-zero: ; --tw-numeric-figure: ; --tw-numeric-spacing: ; --tw-numeric-fraction: ; --tw-ring-inset: ; --tw-ring-offset-width: 0px; --tw-ring-offset-color: #fff; --tw-ring-color: rgb(59 130 246 / 0.5); --tw-ring-offset-shadow: 0 0 #0000; --tw-ring-shadow: 0 0 #0000; --tw-shadow: 0 0 #0000; --tw-shadow-colored: 0 0 #0000; --tw-blur: ; --tw-brightness: ; --tw-contrast: ; --tw-grayscale: ; --tw-hue-rotate: ; --tw-invert: ; --tw-saturate: ; --tw-sepia: ; --tw-drop-shadow: ; --tw-backdrop-blur: ; --tw-backdrop-brightness: ; --tw-backdrop-contrast: ; --tw-backdrop-grayscale: ; --tw-backdrop-hue-rotate: ; --tw-backdrop-invert: ; --tw-backdrop-opacity: ; --tw-backdrop-saturate: ; --tw-backdrop-sepia: ; --tw-contain-size: ; --tw-contain-layout: ; --tw-contain-paint: ; --tw-contain-style: ; }
+*, ::before, ::after { box-sizing: border-box; border-width: 0px; border-style: solid; border-color: rgb(229, 231, 235); }
+h1, h2, h3, h4, h5, h6 { font-size: inherit; font-weight: inherit; }
+a { color: inherit; text-decoration: inherit; }
+b, strong { font-weight: bolder; }
+blockquote, dl, dd, h1, h2, h3, h4, h5, h6, hr, figure, p, pre { margin: 0px; }
+ol, ul, menu { list-style: none; margin: 0px; padding: 0px; }
+* { border-color: hsl(var(--border)); }
+@media (min-width: 640px) {
+  .container { max-width: 640px; }
+}
+@media (min-width: 768px) {
+  .container { max-width: 768px; }
+}
+@media (min-width: 1024px) {
+  .container { max-width: 1024px; }
+}
+@media (min-width: 1280px) {
+  .container { max-width: 1280px; }
+}
+@media (min-width: 1536px) {
+  .container { max-width: 1536px; }
+}
+@keyframes pulse { 
+  50% { opacity: 0.5; }
+}
+@keyframes spin { 
+  100% { transform: rotate(360deg); }
+}
+@keyframes enter { 
+  0% { opacity: var(--tw-enter-opacity, 1); transform: translate3d(var(--tw-enter-translate-x, 0), var(--tw-enter-translate-y, 0), 0) scale3d(var(--tw-enter-scale, 1), var(--tw-enter-scale, 1), var(--tw-enter-scale, 1)) rotate(var(--tw-enter-rotate, 0)); }
+}
+@keyframes exit { 
+  100% { opacity: var(--tw-exit-opacity, 1); transform: translate3d(var(--tw-exit-translate-x, 0), var(--tw-exit-translate-y, 0), 0) scale3d(var(--tw-exit-scale, 1), var(--tw-exit-scale, 1), var(--tw-exit-scale, 1)) rotate(var(--tw-exit-rotate, 0)); }
+}
+@keyframes accordion-up { 
+  0% { height: var(--radix-accordion-content-height); }
+  100% { height: 0px; }
+}
+@keyframes accordion-down { 
+  0% { height: 0px; }
+  100% { height: var(--radix-accordion-content-height); }
+}
+@media (min-width: 640px) {
+  .sm\:bottom-0 { bottom: 0px; }
+  .sm\:right-0 { right: 0px; }
+  .sm\:top-auto { top: auto; }
+  .sm\:mt-0 { margin-top: 0px; }
+  .sm\:inline { display: inline; }
+  .sm\:flex { display: flex; }
+  .sm\:w-3\/4 { width: 75%; }
+  .sm\:w-\[200px\] { width: 200px; }
+  .sm\:w-auto { width: auto; }
+  .sm\:max-w-\[525px\] { max-width: 525px; }
+  .sm\:max-w-sm { max-width: 24rem; }
+  .sm\:grid-cols-2 { grid-template-columns: repeat(2, minmax(0px, 1fr)); }
+  .sm\:flex-row { flex-direction: row; }
+  .sm\:flex-col { flex-direction: column; }
+  .sm\:items-center { align-items: center; }
+  .sm\:justify-end { justify-content: flex-end; }
+  .sm\:justify-between { justify-content: space-between; }
+  .sm\:gap-2\.5 { gap: 0.625rem; }
+  .sm\:space-x-2 > :not([hidden]) ~ :not([hidden]) { --tw-space-x-reverse: 0; margin-right: calc(0.5rem * var(--tw-space-x-reverse)); margin-left: calc(0.5rem * calc(1 - var(--tw-space-x-reverse))); }
+  .sm\:space-x-4 > :not([hidden]) ~ :not([hidden]) { --tw-space-x-reverse: 0; margin-right: calc(1rem * var(--tw-space-x-reverse)); margin-left: calc(1rem * calc(1 - var(--tw-space-x-reverse))); }
+  .sm\:space-y-0 > :not([hidden]) ~ :not([hidden]) { --tw-space-y-reverse: 0; margin-top: calc(0px * calc(1 - var(--tw-space-y-reverse))); margin-bottom: calc(0px * var(--tw-space-y-reverse)); }
+  .sm\:rounded-lg { border-radius: var(--radius); }
+  .sm\:text-left { text-align: left; }
+  .sm\:text-4xl { font-size: 2.25rem; line-height: 2.5rem; }
+  .data-\[state\=open\]\:sm\:slide-in-from-bottom-full[data-state="open"] { --tw-enter-translate-y: 100%; }
+}
+@media (min-width: 768px) {
+  .md\:absolute { position: absolute; }
+  .md\:col-span-2 { grid-column-start: span 2; grid-column-end: span 2; }
+  .md\:col-span-3 { grid-column-start: span 3; grid-column-end: span 3; }
+  .md\:mt-0 { margin-top: 0px; }
+  .md\:block { display: block; }
+  .md\:inline-block { display: inline-block; }
+  .md\:inline { display: inline; }
+  .md\:flex { display: flex; }
+  .md\:table-cell { display: table-cell; }
+  .md\:hidden { display: none; }
+  .md\:w-2\/3 { width: 66.666667%; }
+  .md\:w-64 { width: 16rem; }
+  .md\:w-\[300px\] { width: 300px; }
+  .md\:w-\[var\(--radix-navigation-menu-viewport-width\)\] { width: var(--radix-navigation-menu-viewport-width); }
+  .md\:w-auto { width: auto; }
+  .md\:max-w-\[420px\] { max-width: 420px; }
+  .md\:grid-cols-2 { grid-template-columns: repeat(2, minmax(0px, 1fr)); }
+  .md\:grid-cols-3 { grid-template-columns: repeat(3, minmax(0px, 1fr)); }
+  .md\:grid-cols-5 { grid-template-columns: repeat(5, minmax(0px, 1fr)); }
+  .md\:flex-row { flex-direction: row; }
+  .md\:items-center { align-items: center; }
+  .md\:justify-between { justify-content: space-between; }
+  .md\:gap-4 { gap: 1rem; }
+  .md\:space-x-4 > :not([hidden]) ~ :not([hidden]) { --tw-space-x-reverse: 0; margin-right: calc(1rem * var(--tw-space-x-reverse)); margin-left: calc(1rem * calc(1 - var(--tw-space-x-reverse))); }
+  .md\:space-y-0 > :not([hidden]) ~ :not([hidden]) { --tw-space-y-reverse: 0; margin-top: calc(0px * calc(1 - var(--tw-space-y-reverse))); margin-bottom: calc(0px * var(--tw-space-y-reverse)); }
+  .md\:p-6 { padding: 1.5rem; }
+  .md\:px-6 { padding-left: 1.5rem; padding-right: 1.5rem; }
+  .md\:opacity-0 { opacity: 0; }
+  .after\:md\:hidden::after { content: var(--tw-content); display: none; }
+  .peer[data-variant="inset"] ~ .md\:peer-data-\[variant\=inset\]\:m-2 { margin: 0.5rem; }
+  .peer[data-state="collapsed"][data-variant="inset"] ~ .md\:peer-data-\[state\=collapsed\]\:peer-data-\[variant\=inset\]\:ml-2 { margin-left: 0.5rem; }
+  .peer[data-variant="inset"] ~ .md\:peer-data-\[variant\=inset\]\:ml-0 { margin-left: 0px; }
+  .peer[data-variant="inset"] ~ .md\:peer-data-\[variant\=inset\]\:rounded-xl { border-radius: 0.75rem; }
+  .peer[data-variant="inset"] ~ .md\:peer-data-\[variant\=inset\]\:shadow { --tw-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1); --tw-shadow-colored: 0 1px 3px 0 var(--tw-shadow-color), 0 1px 2px -1px var(--tw-shadow-color); box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow); }
+}
+@media (min-width: 1024px) {
+  .lg\:ml-16 { margin-left: 4rem; }
+  .lg\:ml-64 { margin-left: 16rem; }
+  .lg\:block { display: block; }
+  .lg\:table-cell { display: table-cell; }
+  .lg\:hidden { display: none; }
+  .lg\:w-1\/2 { width: 50%; }
+  .lg\:w-96 { width: 24rem; }
+  .lg\:flex-none { flex: 0 0 auto; }
+  .lg\:grid-cols-2 { grid-template-columns: repeat(2, minmax(0px, 1fr)); }
+  .lg\:grid-cols-3 { grid-template-columns: repeat(3, minmax(0px, 1fr)); }
+  .lg\:grid-cols-4 { grid-template-columns: repeat(4, minmax(0px, 1fr)); }
+  .lg\:p-8 { padding: 2rem; }
+  .lg\:px-20 { padding-left: 5rem; padding-right: 5rem; }
+}
+@media (min-width: 1280px) {
+  .xl\:table-cell { display: table-cell; }
+  .xl\:px-24 { padding-left: 6rem; padding-right: 6rem; }
+}
+      /* Page break handling - allow content to flow naturally */
+      .resume-section {
+        page-break-inside: auto;
+        break-inside: auto;
+        margin-bottom: 0.2rem;
+        margin-top: 0.5rem;
+      }
+      
+      /* Only avoid page breaks after headings */
+      h2 {
+        page-break-after: avoid;
+        break-after: avoid;
+        page-break-before: auto;
+        break-before: auto;
+        margin-bottom: 0.2rem;
+      }
+      
+      /* Keep individual items together but allow sections to break */
+      .experience-item, .education-item, .project-item, .certification-item {
+        page-break-inside: avoid;
+        break-inside: avoid;
+        margin-bottom: 0.6rem;
+      }
+      
+      /* Keep together only small items that should stay as a unit */
+      .no-break-inside {
+        page-break-inside: avoid;
+        break-inside: avoid;
+      }
+      
+      /* Avoid breaks after specific elements */
+      .no-break-after {
+        page-break-after: avoid;
+        break-after: avoid;
+      }
+      
+      /* Resume header should stay together */
+      .resume-header {
+        page-break-inside: avoid;
+        break-inside: avoid;
+        margin-bottom: 0.6rem;
+      }
+      
+      /* Add proper page margins */
+      @page {
+        margin-top: 5mm;  /* Small top margin for second and subsequent pages */
+        margin-right: 0;
+        margin-bottom: 0;
+        margin-left: 0;
+      }
+      
+      /* First page should have no top margin */
+      @page :first {
+        margin: 0;
+      }
+      
+      /* Page should fill the entire space */
+      html, body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 0;
+      }
+      
+      /* Print-specific styles */
+      @media print {
+        body {
+          background-color: white;
+          margin: 0;
+          padding: 0;
+          width: 100%;
+          height: 100%;
+        }
+        
+        .resume-container {
+          margin: 0;
+          padding: 0;
+          width: 100%;
+          height: 100%;
+          box-sizing: border-box;
+        }
+      }
+      
+      /* Support for vertical dividers across page breaks - ONLY for Elegant Divider template */
+      [data-template-id="elegant-divider"] .vertical-divider {
+        page-break-inside: auto;
+        break-inside: auto;
+      }
+      
+      /* Better approach for showing dividers on each page - ONLY for Elegant Divider template */
+      @page {
+        size: auto;
+      }
+      
+      /* Add custom divider ONLY for Elegant Divider template */
+      [data-template-id="elegant-divider"] {
+        position: relative;
+      }
+      
+      [data-template-id="elegant-divider"]::before {
+        content: none;
+      }
+      
+      @media print {
+        [data-template-id="elegant-divider"]::before {
+          content: "";
+          position: fixed;
+          top: 0;
+          left: 32%;
+          height: 100%;
+          width: 1px;
+          background-color: #e5e5e5;
+          z-index: 1000;
+        }
+      }
+    
+  </style>
+</head>
+<body>
+  <div class="resume-container">
+    <div class="resume-container" style="width: 210mm; height: auto; max-width: 100%; background-color: rgb(255, 255, 255); font-family: &quot;Times New Roman&quot;; font-size: 9pt; padding: 8mm; color: rgb(31, 41, 55); margin: 0px auto; box-sizing: border-box; line-height: 1.3; overflow: visible; position: relative;"><div class="resume-header no-break-inside no-break-after" style="text-align: center; margin-bottom: 0.3rem; width: 100%; display: block; break-after: avoid;"><h1 class="no-break-after" style="font-family: &quot;Times New Roman&quot;; font-size: 1.4rem; font-weight: bold; color: rgb(30, 41, 59); margin: 0px 0px 0.2rem; padding: 0px; text-align: center; line-height: 1.3; display: block;">Raja Muppidi</h1><p class="no-break-after" style="font-size: 1rem; color: rgb(51, 65, 85); margin: 0px 0px 0.4rem; padding: 0px;">Software Engineer III, Infrastructure, Core</p><div class="no-break-inside" style="display: flex; justify-content: center; flex-wrap: wrap; gap: 0.6rem; font-size: 0.85rem; margin-bottom: 0.4rem; width: 100%; white-space: normal; overflow-wrap: break-word; line-height: 1.3;"><span>demo@demo.com</span><span> | 111342453</span><span> | Glendale, CA</span></div></div><section class="resume-section summary-section no-break-inside" style="margin-bottom: 0rem; width: 100%; display: block; break-inside: auto;"><h2 class="no-break-after" style="font-family: &quot;Times New Roman&quot;; font-size: 1.1rem; font-weight: bold; color: rgb(30, 41, 59); border-bottom-width: 2px; border-bottom-style: solid; border-bottom-color: rgb(30, 41, 59); padding-bottom: 0.2rem; margin-bottom: 0.2rem; margin-top: 0.5rem; width: 100%; display: block; break-before: auto; break-after: avoid;">Professional Summary</h2><p class="no-break-inside" style="font-size: 0.9rem; line-height: 1.3; margin: 0.15rem 0px 0.4rem; padding: 0px; display: block;">Experienced Software Engineer with expertise in infrastructure and distributed systems. Proven track record in software development, algorithms, and data structures. Skilled in building scalable, accessible technologies. Ready to drive innovation and efficiency in core infrastructure solutions.</p></section><section class="resume-section experience-section" style="margin-bottom: 0rem; width: 100%; display: block; break-inside: auto;"><h2 class="no-break-after" style="font-family: &quot;Times New Roman&quot;; font-size: 1.1rem; font-weight: bold; color: rgb(30, 41, 59); border-bottom-width: 2px; border-bottom-style: solid; border-bottom-color: rgb(30, 41, 59); padding-bottom: 0.2rem; margin-bottom: 0.2rem; margin-top: 0.5rem; width: 100%; display: block; break-before: auto; break-after: avoid;">Work Experience</h2><div class="experience-item no-break-inside" style="margin-bottom: 0.5rem; width: 100%; display: block; break-inside: avoid;"><div class="no-break-after" style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.4rem; width: 100%;"><div style="flex: 1 1 70%;"><h3 class="no-break-after" style="font-weight: bold; font-size: 1rem; margin: 0px 0px 0.2rem; padding: 0px; break-after: avoid;">Sotware Engineer</h3><h4 class="no-break-after" style="font-size: 0.9rem; color: rgb(51, 65, 85); margin: 0px; padding: 0px;">Mindaigle | New York</h4></div><div style="font-size: 0.85rem; color: rgb(51, 65, 85); text-align: right; margin-top: 0.25rem;">2024-08-12 - Present</div></div><ul class="achievements-list no-break-inside" style="list-style: none; padding: 0px; margin: 0.4rem 0px 0px;"><li class="no-break-inside" style="margin: 0px 0px 0.3rem; padding: 0px 0px 0px 1rem; text-indent: -0.7rem; line-height: 1.3;"><span style="display: inline-block; width: 0.7rem; text-align: center;">•</span>Designed and implemented a structured filing system, increasing organizational efficiency by 30% through improved data retrieval processes.</li><li class="no-break-inside" style="margin: 0px 0px 0.3rem; padding: 0px 0px 0px 1rem; text-indent: -0.7rem; line-height: 1.3;"><span style="display: inline-block; width: 0.7rem; text-align: center;">•</span>Led cross-functional team meetings to streamline operations, enhancing team collaboration and reducing project timelines by 15%.</li><li class="no-break-inside" style="margin: 0px 0px 0.3rem; padding: 0px 0px 0px 1rem; text-indent: -0.7rem; line-height: 1.3;"><span style="display: inline-block; width: 0.7rem; text-align: center;">•</span>Analyzed operational workflows, identifying key areas for automation, which resulted in a 20% increase in productivity.</li><li class="no-break-inside" style="margin: 0px 0px 0.3rem; padding: 0px 0px 0px 1rem; text-indent: -0.7rem; line-height: 1.3;"><span style="display: inline-block; width: 0.7rem; text-align: center;">•</span>Managed project timelines and resources effectively, ensuring all deliverables were met within budget and ahead of schedule.</li></ul></div><div class="experience-item no-break-inside" style="margin-bottom: 0.5rem; width: 100%; display: block; break-inside: avoid;"><div class="no-break-after" style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.4rem; width: 100%;"><div style="flex: 1 1 70%;"><h3 class="no-break-after" style="font-weight: bold; font-size: 1rem; margin: 0px 0px 0.2rem; padding: 0px; break-after: avoid;">Sotware Engineer</h3><h4 class="no-break-after" style="font-size: 0.9rem; color: rgb(51, 65, 85); margin: 0px; padding: 0px;">Mindaigle | New York</h4></div><div style="font-size: 0.85rem; color: rgb(51, 65, 85); text-align: right; margin-top: 0.25rem;">2024-08-12 - Present</div></div><ul class="achievements-list no-break-inside" style="list-style: none; padding: 0px; margin: 0.4rem 0px 0px;"><li class="no-break-inside" style="margin: 0px 0px 0.3rem; padding: 0px 0px 0px 1rem; text-indent: -0.7rem; line-height: 1.3;"><span style="display: inline-block; width: 0.7rem; text-align: center;">•</span>Designed and implemented a structured filing system, increasing organizational efficiency by 30% through improved data retrieval processes.</li><li class="no-break-inside" style="margin: 0px 0px 0.3rem; padding: 0px 0px 0px 1rem; text-indent: -0.7rem; line-height: 1.3;"><span style="display: inline-block; width: 0.7rem; text-align: center;">•</span>Led cross-functional team meetings to streamline operations, enhancing team collaboration and reducing project timelines by 15%.</li><li class="no-break-inside" style="margin: 0px 0px 0.3rem; padding: 0px 0px 0px 1rem; text-indent: -0.7rem; line-height: 1.3;"><span style="display: inline-block; width: 0.7rem; text-align: center;">•</span>Analyzed operational workflows, identifying key areas for automation, which resulted in a 20% increase in productivity.</li><li class="no-break-inside" style="margin: 0px 0px 0.3rem; padding: 0px 0px 0px 1rem; text-indent: -0.7rem; line-height: 1.3;"><span style="display: inline-block; width: 0.7rem; text-align: center;">•</span>Managed project timelines and resources effectively, ensuring all deliverables were met within budget and ahead of schedule.</li></ul></div><div class="experience-item no-break-inside" style="margin-bottom: 0.5rem; width: 100%; display: block; break-inside: avoid;"><div class="no-break-after" style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.4rem; width: 100%;"><div style="flex: 1 1 70%;"><h3 class="no-break-after" style="font-weight: bold; font-size: 1rem; margin: 0px 0px 0.2rem; padding: 0px; break-after: avoid;">Sotware Engineer</h3><h4 class="no-break-after" style="font-size: 0.9rem; color: rgb(51, 65, 85); margin: 0px; padding: 0px;">Mindaigle | New York</h4></div><div style="font-size: 0.85rem; color: rgb(51, 65, 85); text-align: right; margin-top: 0.25rem;">2024-08-12 - Present</div></div><ul class="achievements-list no-break-inside" style="list-style: none; padding: 0px; margin: 0.4rem 0px 0px;"><li class="no-break-inside" style="margin: 0px 0px 0.3rem; padding: 0px 0px 0px 1rem; text-indent: -0.7rem; line-height: 1.3;"><span style="display: inline-block; width: 0.7rem; text-align: center;">•</span>Designed and implemented a structured filing system, increasing organizational efficiency by 30% through improved data retrieval processes.</li><li class="no-break-inside" style="margin: 0px 0px 0.3rem; padding: 0px 0px 0px 1rem; text-indent: -0.7rem; line-height: 1.3;"><span style="display: inline-block; width: 0.7rem; text-align: center;">•</span>Led cross-functional team meetings to streamline operations, enhancing team collaboration and reducing project timelines by 15%.</li><li class="no-break-inside" style="margin: 0px 0px 0.3rem; padding: 0px 0px 0px 1rem; text-indent: -0.7rem; line-height: 1.3;"><span style="display: inline-block; width: 0.7rem; text-align: center;">•</span>Analyzed operational workflows, identifying key areas for automation, which resulted in a 20% increase in productivity.</li><li class="no-break-inside" style="margin: 0px 0px 0.3rem; padding: 0px 0px 0px 1rem; text-indent: -0.7rem; line-height: 1.3;"><span style="display: inline-block; width: 0.7rem; text-align: center;">•</span>Managed project timelines and resources effectively, ensuring all deliverables were met within budget and ahead of schedule.</li></ul></div><div class="experience-item no-break-inside" style="margin-bottom: 0.5rem; width: 100%; display: block; break-inside: avoid;"><div class="no-break-after" style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.4rem; width: 100%;"><div style="flex: 1 1 70%;"><h3 class="no-break-after" style="font-weight: bold; font-size: 1rem; margin: 0px 0px 0.2rem; padding: 0px; break-after: avoid;">Sotware Engineer</h3><h4 class="no-break-after" style="font-size: 0.9rem; color: rgb(51, 65, 85); margin: 0px; padding: 0px;">Mindaigle | New York</h4></div><div style="font-size: 0.85rem; color: rgb(51, 65, 85); text-align: right; margin-top: 0.25rem;">2024-08-12 - Present</div></div><ul class="achievements-list no-break-inside" style="list-style: none; padding: 0px; margin: 0.4rem 0px 0px;"><li class="no-break-inside" style="margin: 0px 0px 0.3rem; padding: 0px 0px 0px 1rem; text-indent: -0.7rem; line-height: 1.3;"><span style="display: inline-block; width: 0.7rem; text-align: center;">•</span>Designed and implemented a structured filing system, increasing organizational efficiency by 30% through improved data retrieval processes.</li><li class="no-break-inside" style="margin: 0px 0px 0.3rem; padding: 0px 0px 0px 1rem; text-indent: -0.7rem; line-height: 1.3;"><span style="display: inline-block; width: 0.7rem; text-align: center;">•</span>Led cross-functional team meetings to streamline operations, enhancing team collaboration and reducing project timelines by 15%.</li><li class="no-break-inside" style="margin: 0px 0px 0.3rem; padding: 0px 0px 0px 1rem; text-indent: -0.7rem; line-height: 1.3;"><span style="display: inline-block; width: 0.7rem; text-align: center;">•</span>Analyzed operational workflows, identifying key areas for automation, which resulted in a 20% increase in productivity.</li><li class="no-break-inside" style="margin: 0px 0px 0.3rem; padding: 0px 0px 0px 1rem; text-indent: -0.7rem; line-height: 1.3;"><span style="display: inline-block; width: 0.7rem; text-align: center;">•</span>Managed project timelines and resources effectively, ensuring all deliverables were met within budget and ahead of schedule.</li></ul></div></section><section class="resume-section education-section" style="margin-bottom: 0rem; width: 100%; display: block; break-inside: auto;"><h2 class="no-break-after" style="font-family: &quot;Times New Roman&quot;; font-size: 1.1rem; font-weight: bold; color: rgb(30, 41, 59); border-bottom-width: 2px; border-bottom-style: solid; border-bottom-color: rgb(30, 41, 59); padding-bottom: 0.2rem; margin-bottom: 0.2rem; margin-top: 0.5rem; width: 100%; display: block; break-before: auto; break-after: avoid;">Education</h2><div class="education-item no-break-inside" style="margin-bottom: 0.5rem; width: 100%; display: block; break-inside: avoid;"><div class="no-break-after" style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.2rem; width: 100%;"><div style="flex: 1 1 70%;"><h3 class="no-break-after" style="font-weight: bold; font-size: 1rem; margin: 0px 0px 0.2rem; padding: 0px; break-after: avoid;">Masters in Computer Science</h3><h4 class="no-break-after" style="font-size: 0.9rem; color: rgb(51, 65, 85); margin: 0px; padding: 0px;">University of california</h4></div><div style="font-size: 0.85rem; color: rgb(51, 65, 85); text-align: right; margin-top: 0.25rem;">2023-10-03 - 2024-06-25</div></div></div></section><section class="resume-section skills-section" style="margin-bottom: 0rem; width: 100%; display: block; break-inside: auto;"><h2 class="no-break-after" style="font-family: &quot;Times New Roman&quot;; font-size: 1.1rem; font-weight: bold; color: rgb(30, 41, 59); border-bottom-width: 2px; border-bottom-style: solid; border-bottom-color: rgb(30, 41, 59); padding-bottom: 0.2rem; margin-bottom: 0.2rem; margin-top: 0.5rem; width: 100%; display: block; break-before: auto; break-after: avoid;">Skills</h2><div class="skills-content no-break-inside" style="font-size: 0.9rem; width: 100%;"><div class="technical-skills no-break-inside" style="margin-bottom: 0.4rem; width: 100%; display: block;"><h3 class="no-break-after" style="font-weight: bold; font-size: 1rem; margin: 0px 0px 0.2rem; padding: 0px; break-after: avoid;">Technical Skills</h3><p style="margin: 0px; padding: 0px;">Software development, Programming languages, Data structures, Algorithms, Infrastructure development, Distributed systems, Networking, Compute technologies, Storage, Hardware architecture</p></div><div class="soft-skills no-break-inside" style="width: 100%; display: block;"><h3 class="no-break-after" style="font-weight: bold; font-size: 1rem; margin: 0px 0px 0.2rem; padding: 0px; break-after: avoid;">Soft Skills</h3><p style="margin: 0px; padding: 0px;">Versatility, Leadership qualities, Enthusiasm, Problem-solving, Project management, Prioritization, Deadline management, Team collaboration, Adaptability, adadad</p></div></div></section><section class="resume-section projects-section" style="margin-bottom: 0rem; width: 100%; display: block; break-inside: auto;"><h2 class="no-break-after" style="font-family: &quot;Times New Roman&quot;; font-size: 1.1rem; font-weight: bold; color: rgb(30, 41, 59); border-bottom-width: 2px; border-bottom-style: solid; border-bottom-color: rgb(30, 41, 59); padding-bottom: 0.2rem; margin-bottom: 0.2rem; margin-top: 0.5rem; width: 100%; display: block; break-before: auto; break-after: avoid;">Projects</h2><div class="project-item no-break-inside" style="margin-bottom: 0.5rem; width: 100%; display: block; break-inside: avoid;"><div class="no-break-after" style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.2rem; width: 100%;"><h3 class="no-break-after" style="font-weight: bold; font-size: 1rem; margin: 0px 0px 0.2rem; padding: 0px; break-after: avoid;">E-Commerce Website</h3><div style="font-size: 0.85rem; color: rgb(51, 65, 85); text-align: right; margin-top: 0.25rem;">2022-09-02 - Present</div></div><a href="https://rajamupid.locm" target="_blank" rel="noopener noreferrer" style="font-size: 0.85rem; color: rgb(30, 41, 59); text-decoration: none; margin: 0px 0px 0.3rem; display: block; padding: 0px; word-break: break-all;">rajamupid.locm</a><p class="no-break-inside" style="font-size: 0.9rem; margin: 0.2rem 0px; line-height: 1.3; padding: 0px;">Built a full stack E-Commerce application</p><div class="no-break-inside" style="margin: 0.2rem 0px 0px; font-size: 0.85rem; padding: 0px;"><strong>Technologies:</strong> Reacjs</div></div></section><section class="resume-section certifications-section" style="margin-bottom: 0rem; width: 100%; display: block; break-inside: auto;"><h2 class="no-break-after" style="font-family: &quot;Times New Roman&quot;; font-size: 1.1rem; font-weight: bold; color: rgb(30, 41, 59); border-bottom-width: 2px; border-bottom-style: solid; border-bottom-color: rgb(30, 41, 59); padding-bottom: 0.2rem; margin-bottom: 0.2rem; margin-top: 0.5rem; width: 100%; display: block; break-before: auto; break-after: avoid;">Certifications</h2><div class="certification-item no-break-inside" style="margin-bottom: 0.5rem; width: 100%; display: block; break-inside: avoid;"><div class="no-break-after" style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.2rem; width: 100%;"><div style="flex: 1 1 70%;"><h3 class="no-break-after" style="font-weight: bold; font-size: 1rem; margin: 0px 0px 0.2rem; padding: 0px; break-after: avoid;">Google Engineer</h3><h4 class="no-break-after" style="font-size: 0.9rem; color: rgb(51, 65, 85); margin: 0px; padding: 0px;">Google</h4></div><div style="font-size: 0.85rem; color: rgb(51, 65, 85); text-align: right; margin-top: 0.25rem;">2023-10-04 - 2025-03-31</div></div></div></section></div>
+  </div>
+</body>
+</html>
