@@ -122,6 +122,93 @@ export class DatabaseStorage implements IStorage {
      return db.select().from(users); // Return as is
   }
   
+  // User statistics methods
+  async getUserStatistics(): Promise<any> {
+    try {
+      // Get total counts
+      const userCount = await db.select({ count: sql`count(*)` }).from(users);
+      const resumeCount = await db.select({ count: sql`count(*)` }).from(resumes);
+      const coverLetterCount = await db.select({ count: sql`count(*)` }).from(coverLetters);
+      const jobApplicationCount = await db.select({ count: sql`count(*)` }).from(jobApplications);
+      
+      // Get recent user registrations (last 7 days)
+      const lastWeek = new Date();
+      lastWeek.setDate(lastWeek.getDate() - 7);
+      
+      const recentUsers = await db.select({ count: sql`count(*)` })
+        .from(users)
+        .where(sql`created_at > ${lastWeek.toISOString()}`);
+      
+      // Get users who have logged in recently (last 7 days)
+      const recentLogins = await db.select({ count: sql`count(*)` })
+        .from(users)
+        .where(sql`last_login > ${lastWeek.toISOString()}`);
+      
+      return {
+        totalUsers: userCount[0]?.count || 0,
+        totalResumes: resumeCount[0]?.count || 0,
+        totalCoverLetters: coverLetterCount[0]?.count || 0,
+        totalJobApplications: jobApplicationCount[0]?.count || 0,
+        recentRegistrations: recentUsers[0]?.count || 0,
+        recentLogins: recentLogins[0]?.count || 0
+      };
+    } catch (error) {
+      console.error("Error getting user statistics:", error);
+      return {
+        totalUsers: 0,
+        totalResumes: 0,
+        totalCoverLetters: 0,
+        totalJobApplications: 0,
+        recentRegistrations: 0,
+        recentLogins: 0,
+        error: error instanceof Error ? error.message : "Unknown error"
+      };
+    }
+  }
+  
+  // Session methods
+  async getActiveSessions(): Promise<any[]> {
+    try {
+      // Get active sessions from the session store
+      if (!this.sessionStore) {
+        return [];
+      }
+      
+      // This implementation depends on the session store
+      // For PostgreSQL session store, we can query the session table
+      const activeSessions = await db.execute(
+        sql`SELECT sid, sess, expire FROM session WHERE expire > NOW()`
+      );
+      
+      // Parse session data
+      return activeSessions.map((session: any) => {
+        try {
+          // Session data is typically stored as JSON
+          const sessionData = typeof session.sess === 'string' 
+            ? JSON.parse(session.sess) 
+            : session.sess;
+            
+          return {
+            id: session.sid,
+            userId: sessionData.passport?.user,
+            expires: new Date(session.expire).toISOString(),
+            createdAt: sessionData.cookie?._expires 
+              ? new Date(sessionData.cookie._expires).toISOString() 
+              : null
+          };
+        } catch (e) {
+          return {
+            id: session.sid,
+            error: "Failed to parse session data"
+          };
+        }
+      });
+    } catch (error) {
+      console.error("Error getting active sessions:", error);
+      return [];
+    }
+  }
+  
   // Job Description methods
   async getJobDescription(id: number): Promise<JobDescription | null> {
     const [jobDescription] = await db.select().from(jobDescriptions).where(eq(jobDescriptions.id, id));
