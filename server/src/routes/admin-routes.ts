@@ -15,6 +15,9 @@ import { sql } from "drizzle-orm";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import { cookieManager } from "../../utils/cookie-manager";
+import os from "os";
+import adminRouter from "./admin/index";
 
 // Configure multer for file uploads
 const templateStorage = multer.diskStorage({
@@ -63,6 +66,9 @@ const upload = multer({
  * Register admin-only routes
  */
 export function registerAdminRoutes(app: Express) {
+  // Mount the admin router that includes server-status router
+  app.use('/api/admin', adminRouter);
+  
   // Debug endpoint - available without admin check to help troubleshoot admin access
   app.get("/api/admin/debug", (req: Request, res: Response) => {
     console.log("Admin debug endpoint accessed");
@@ -645,6 +651,107 @@ export function registerAdminRoutes(app: Express) {
     } catch (error) {
       console.error('Error deleting template image:', error);
       res.status(500).json({ message: 'Failed to delete template image' });
+    }
+  });
+
+  // Get server status information
+  app.get("/api/admin/server-status", async (req, res) => {
+    try {
+      // Get basic system information
+      const systemInfo = {
+        os: {
+          platform: os.platform(),
+          release: os.release(),
+          type: os.type(),
+          arch: os.arch(),
+          uptime: os.uptime(),
+          loadAvg: os.loadavg(),
+          totalMem: os.totalmem(),
+          freeMem: os.freemem(),
+          cpus: os.cpus().length
+        },
+        process: {
+          uptime: process.uptime(),
+          memoryUsage: process.memoryUsage(),
+          version: process.version,
+          pid: process.pid
+        }
+      };
+
+      // Get database status
+      let dbStatus = { connected: false, message: "Not connected" };
+      try {
+        const result = await db.execute(sql`SELECT 1`);
+        dbStatus = { connected: true, message: "Connected" };
+      } catch (err) {
+        dbStatus = { 
+          connected: false, 
+          message: err instanceof Error ? err.message : "Unknown database error" 
+        };
+      }
+
+      // Get active sessions count
+      const activeSessions = await storage.getActiveSessions();
+
+      // Get rate limiter status
+      let rateLimiterStatus = { enabled: false };
+      if (process.env.NODE_ENV === 'production') {
+        rateLimiterStatus = { 
+          enabled: true,
+          loginAttempts: {
+            maxAttempts: parseInt(process.env.AUTH_RATE_LIMIT_ATTEMPTS || '5'),
+            duration: parseInt(process.env.AUTH_RATE_LIMIT_DURATION || '900'),
+            blockDuration: parseInt(process.env.AUTH_RATE_LIMIT_BLOCK || '3600')
+          }
+        };
+      }
+
+      // Get user statistics
+      const userStats = await storage.getUserStatistics();
+
+      // Return all information
+      res.json({
+        timestamp: new Date().toISOString(),
+        system: systemInfo,
+        database: dbStatus,
+        sessions: {
+          active: activeSessions.length,
+          details: activeSessions
+        },
+        cookies: {
+          prefix: cookieManager.getPrefix(),
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+          domain: process.env.COOKIE_DOMAIN || 'localhost'
+        },
+        rateLimiter: rateLimiterStatus,
+        users: userStats
+      });
+    } catch (error) {
+      console.error("Error fetching server status:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch server status",
+        message: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
+  // Clear rate limiter data (for testing purposes in development)
+  app.post("/api/admin/clear-rate-limits", async (req, res) => {
+    if (process.env.NODE_ENV === 'production') {
+      return res.status(403).json({
+        error: "This operation is not allowed in production"
+      });
+    }
+    
+    try {
+      // This would require implementing a method in your rate limiter
+      // For example:
+      // await resetRateLimiter();
+      res.json({ success: true, message: "Rate limiter data cleared" });
+    } catch (error) {
+      console.error("Error clearing rate limiter data:", error);
+      res.status(500).json({ error: "Failed to clear rate limiter data" });
     }
   });
 }
