@@ -273,3 +273,48 @@ To use AI features, you need an OpenAI API key:
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Recent Improvements
+
+### Enhanced Cookie Management System
+
+We've implemented a robust cookie management architecture that provides:
+
+- Centralized cookie handling through a dedicated CookieManager class
+- Improved security with environment-aware settings
+- Rate limiting for authentication endpoints to prevent brute force attacks
+- Better session management with secure defaults
+- Support for user preferences and consent tracking
+
+See [Cookie Management Documentation](./docs/cookie-management.md) for details.
+
+### Installation and Upgrade
+
+To install dependencies and run migrations for the new cookie system:
+
+```bash
+# Run the upgrade script
+./upgrade.sh
+```
+
+Or manually:
+
+```bash
+# Install dependencies
+npm install
+
+# Run migrations
+npm run db:migrate
+
+# Start the application
+npm run dev
+```
+
+### Environment Variables
+
+Configure the cookie system with these environment variables:
+
+- `COOKIE_DOMAIN` - Domain for cookies in production
+- `COOKIE_SECRET` - Secret for signed cookies (defaults to SESSION_SECRET)
+- `SESSION_SECRET` - Secret for session cookies
+- `SESSION_MAX_AGE` - Maximum age for session cookies
