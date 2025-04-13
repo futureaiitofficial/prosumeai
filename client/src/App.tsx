@@ -28,8 +28,9 @@ import { AuthProvider } from "./hooks/use-auth";
 import { SidebarProvider } from "./hooks/use-sidebar";
 import { useEffect } from "react";
 import AdminDashboard from "./pages/admin/dashboard";
-import AdminUsersPage from "./pages/admin/users";
-import AdminTemplatesPage from "./pages/admin/templates";
+import AdminUsersPage from "@/pages/admin/users";
+import AdminTemplatesPage from "@/pages/admin/templates";
+import SystemStatusPage from "@/pages/admin/system-status";
 import { LocationProvider } from "./hooks/use-location";
 
 function Router() {
@@ -55,6 +56,7 @@ function Router() {
       <AdminRoute path="/admin/templates" component={AdminTemplatesPage} />
       <AdminRoute path="/admin/analytics" component={AdminDashboard} />
       <AdminRoute path="/admin/settings" component={AdminDashboard} />
+      <AdminRoute path="/admin/system-status" component={SystemStatusPage} />
       
       <Route component={NotFound} />
     </Switch>
