@@ -7,6 +7,9 @@ const connectionString = process.env.DATABASE_URL!;
 const client = postgres(connectionString);
 export const db = drizzle(client, { schema });
 
+// Export the client for use in other modules (like rate limiter)
+export const pool = client;
+
 // For safety, add a sync function that performs schema validation
 export async function validateSchema() {
   try {

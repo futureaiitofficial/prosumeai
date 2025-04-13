@@ -4,9 +4,11 @@ import { registerRoutes } from './src/routes/routes';
 import { setupVite, serveStatic, log } from "./vite";
 import cors from 'cors';
 import bodyParser from 'body-parser';
+import cookieParser from 'cookie-parser';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import { db } from './config/db';
+import { cookieManager } from './utils/cookie-manager';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -25,6 +27,10 @@ app.use(cors({
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
+// Add cookie-parser middleware 
+const cookieSecret = process.env.COOKIE_SECRET || process.env.SESSION_SECRET || 'prosumeai-cookie-secret';
+app.use(cookieParser(cookieSecret));
+
 // Serve static files from the public directory
 app.use(express.static('public'));
 console.log('Static file serving configured for public directory');
@@ -32,6 +38,30 @@ console.log('Static file serving configured for public directory');
 // Add a middleware to log all requests
 app.use((req, res, next) => {
   console.log(`${req.method} ${req.path}`);
+  next();
+});
+
+// Enhance response with cookie manager methods
+app.use((req: Request, res: Response, next: NextFunction) => {
+  // Add custom methods to response object
+  (res as any).setCookie = (name: string, value: string, options = {}) => {
+    cookieManager.setCookie(res, name, value, options);
+  };
+  
+  (res as any).clearCookie = (name: string, options = {}) => {
+    cookieManager.clearCookie(res, name, options);
+  };
+  
+  // Add helper to get cookie from request
+  (req as any).getCookie = (name: string) => {
+    return cookieManager.getCookie(req, name);
+  };
+  
+  // Add helper to get user preferences
+  (req as any).getUserPreferences = () => {
+    return cookieManager.getUserPreferences(req);
+  };
+  
   next();
 });
 
@@ -107,7 +137,8 @@ app.use((req, res, next) => {
         email: req.user.email
       } : null,
       sessionID: req.sessionID,
-      cookies: req.headers.cookie
+      cookies: req.headers.cookie,
+      prefsCookie: (req as any).getUserPreferences()
     });
   });
 
@@ -129,4 +160,18 @@ app.use((req, res, next) => {
       } : null
     });
   });
+
+  // Test endpoint for setting and getting cookies
+  if (app.get("env") !== "production") {
+    app.get("/api/debug/cookie-test", (req, res) => {
+      // Set a test cookie
+      (res as any).setCookie('test', 'Cookie is working!', { httpOnly: false });
+      
+      // Send back current cookies
+      res.json({
+        message: "Test cookie set",
+        existingCookies: req.cookies
+      });
+    });
+  }
 })();

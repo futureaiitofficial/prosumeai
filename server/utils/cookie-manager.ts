@@ -136,13 +136,6 @@ export class CookieManager {
   }
 
   /**
-   * Get the prefix used for cookies
-   */
-  getPrefix(): string {
-    return this.cookiePrefix;
-  }
-
-  /**
    * Clear all application cookies
    */
   clearAllCookies(req: Request, res: Response): void {

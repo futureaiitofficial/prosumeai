@@ -6,6 +6,7 @@ import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import { storage } from "./storage";
 import { User as SelectUser } from "@shared/schema";
+import { penalizeFailedLogin } from "../middleware/rate-limit";
 
 declare global {
   namespace Express {
@@ -31,28 +32,53 @@ export async function comparePasswords(
   return timingSafeEqual(hashedBuffer, derivedKey);
 }
 
+// Enhanced cookie configuration with security best practices
+export function getCookieConfig(env: string): session.CookieOptions {
+  return {
+    // Set max age to 7 days by default, can be overridden by environment variables
+    maxAge: parseInt(process.env.SESSION_MAX_AGE || '604800000'), // 7 days in ms
+    httpOnly: true, // Prevent client-side JS from reading the cookie
+    secure: env === "production", // Only use HTTPS in production
+    sameSite: env === "production" ? 'strict' as const : 'lax' as const, // Protect against CSRF
+    path: '/', // Cookie available across the entire site
+    // Domain restriction for production environments
+    domain: env === "production" ? process.env.COOKIE_DOMAIN || undefined : undefined,
+  };
+}
+
 export function setupAuth(app: Express) {
-  const sessionSecret = process.env.SESSION_SECRET || "prosume-secret-key";
+  const env = process.env.NODE_ENV || 'development';
+  const sessionSecret = process.env.SESSION_SECRET || randomBytes(32).toString('hex');
   
-  // Configure more robust session settings
+  if (env === 'production' && (!process.env.SESSION_SECRET || process.env.SESSION_SECRET === 'prosume-secret-key')) {
+    console.warn('WARNING: Using default session secret in production is a security risk!');
+  }
+  
+  // Enhanced session settings with better configuration
   const sessionSettings: session.SessionOptions = {
     secret: sessionSecret,
     resave: false,
     saveUninitialized: false,
     store: storage.sessionStore,
-    cookie: {
-      maxAge: 1000 * 60 * 60 * 24 * 7, // 1 week
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: 'lax' as 'lax', // Explicitly set SameSite
-      path: '/' // Ensure cookie is available across the entire site
-    }
+    name: 'prosumeai.sid', // Custom cookie name for better security
+    cookie: getCookieConfig(env),
   };
 
-  app.set("trust proxy", 1);
+  // Set trust proxy for production behind load balancers
+  if (env === 'production') {
+    app.set("trust proxy", 1);
+  }
+  
   app.use(session(sessionSettings));
   app.use(passport.initialize());
   app.use(passport.session());
+
+  // Rate limiting for authentication attempts (implementation in middleware/rate-limit.ts)
+  if (env === 'production') {
+    const { authRateLimiter } = require('../middleware/rate-limit');
+    app.use('/api/login', authRateLimiter);
+    app.use('/api/register', authRateLimiter);
+  }
 
   passport.use(
     new LocalStrategy(async (username, password, done) => {
@@ -133,13 +159,22 @@ export function setupAuth(app: Express) {
   });
 
   app.post("/api/login", (req, res, next) => {
-    passport.authenticate("local", (err, user, info) => {
+    passport.authenticate("local", (err: Error | null, user: SelectUser | false, info: { message: string } | undefined) => {
       if (err) {
         console.error("Login error:", err);
         return next(err);
       }
       
       if (!user) {
+        // If login failed, penalize this attempt using the rate limiter
+        const username = req.body.username;
+        const ip = req.ip || '0.0.0.0'; // Provide a fallback IP if undefined
+        
+        if (username && typeof username === 'string') {
+          penalizeFailedLogin(username, ip)
+            .catch(err => console.error('Failed to penalize login attempt:', err));
+        }
+        
         return res.status(401).json({ message: "Invalid username or password" });
       }
       
@@ -152,18 +187,19 @@ export function setupAuth(app: Express) {
         const { password, ...userData } = user;
         console.log(`User logged in: ${user.username} (ID: ${user.id})`);
         
-        // Set session cookie more explicitly
-        if (req.session) {
-          // Don't try to add custom properties to session
-          // Just save the session to ensure cookie is set
-          req.session.save((err) => {
-            if (err) {
-              console.error("Error saving session:", err);
-            }
-          });
-        }
-        
-        res.status(200).json(userData);
+        // Save session to ensure cookie is set
+        req.session.save((err) => {
+          if (err) {
+            console.error("Error saving session:", err);
+            return next(err);
+          }
+          
+          // Set last login time
+          storage.updateUser(user.id, { lastLogin: new Date() })
+            .catch(err => console.error(`Failed to update last login time: ${err}`));
+            
+          res.status(200).json(userData);
+        });
       });
     })(req, res, next);
   });
@@ -178,15 +214,29 @@ export function setupAuth(app: Express) {
         return next(err);
       }
       
-      // Destroy the session completely
-      req.session.destroy((err) => {
+      // Regenerate session ID for security
+      req.session.regenerate((err) => {
         if (err) {
-          console.error("Session destruction error:", err);
-          return next(err);
+          console.error("Session regeneration error:", err);
         }
         
-        console.log(`User logged out: ${username} (ID: ${userId})`);
-        res.sendStatus(200);
+        // Then destroy the session
+        req.session.destroy((err) => {
+          if (err) {
+            console.error("Session destruction error:", err);
+            return next(err);
+          }
+          
+          console.log(`User logged out: ${username} (ID: ${userId})`);
+          
+          // Clear the cookie on the client side
+          res.clearCookie('prosumeai.sid', { 
+            path: '/',
+            domain: env === 'production' ? process.env.COOKIE_DOMAIN : undefined
+          });
+          
+          res.sendStatus(200);
+        });
       });
     });
   });
@@ -202,18 +252,20 @@ export function setupAuth(app: Express) {
     res.json(userData);
   });
   
-  // Add a debug endpoint to check session status
-  app.get("/api/debug/session", (req, res) => {
-    res.json({
-      isAuthenticated: req.isAuthenticated(),
-      user: req.user ? { 
-        id: req.user.id, 
-        username: req.user.username,
-        email: req.user.email 
-      } : null,
-      sessionID: req.sessionID,
-      // Don't expose the full session for security reasons
-      sessionExists: !!req.session
+  // Add a debug endpoint to check session status (disable in production)
+  if (env !== 'production') {
+    app.get("/api/debug/session", (req, res) => {
+      res.json({
+        isAuthenticated: req.isAuthenticated(),
+        user: req.user ? { 
+          id: req.user.id, 
+          username: req.user.username,
+          email: req.user.email 
+        } : null,
+        sessionID: req.sessionID,
+        // Don't expose the full session for security reasons
+        sessionExists: !!req.session
+      });
     });
-  });
+  }
 }

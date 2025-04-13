@@ -17,7 +17,8 @@ import {
   Bell,
   Search,
   HelpCircle,
-  ChevronRight
+  ChevronRight,
+  Server
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
@@ -97,6 +98,11 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
       title: "Analytics",
       href: "/admin/analytics",
       icon: <TrendingUp className="h-5 w-5" />,
+    },
+    {
+      title: "System Status",
+      href: "/admin/system-status",
+      icon: <Server className="h-5 w-5" />,
     },
     {
       title: "Settings",
