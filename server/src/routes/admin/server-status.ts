@@ -105,7 +105,7 @@ router.get('/server-status', requireAdmin, async (req: Request, res: Response) =
     const cookieManagerInfo = {
       enabled: !!cookieManager,
       settings: {
-        prefix: cookieManager.getPrefix(),
+        prefix: cookieManager ? (cookieManager as any).prefix || 'prosume' : 'prosume',
         secure: process.env.NODE_ENV === 'production',
         sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax'
       }
@@ -156,6 +156,58 @@ router.post('/clear-rate-limits', requireAdmin, (req: Request, res: Response) =>
     res.status(500).json({
       status: 'error',
       message: 'Failed to clear rate limits',
+      error: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
+/**
+ * GET /api/admin/server-status-debug
+ * Simplified endpoint to help diagnose server status issues
+ */
+router.get('/server-status-debug', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    // Basic system info
+    const systemInfo = {
+      platform: os.platform(),
+      uptime: os.uptime(),
+      nodeVersion: process.version
+    };
+
+    // Test database separately
+    let dbTest = { success: false, error: null as string | null };
+    try {
+      await db.execute(sql`SELECT 1`);
+      dbTest.success = true;
+    } catch (error) {
+      dbTest.error = error instanceof Error ? error.message : String(error);
+      console.error('Database test failed:', error);
+    }
+
+    // Test storage separately
+    let storageTest = { success: false, error: null as string | null };
+    try {
+      const stats = await storage.getUserStatistics();
+      storageTest.success = true;
+    } catch (error) {
+      storageTest.error = error instanceof Error ? error.message : String(error);
+      console.error('Storage test failed:', error);
+    }
+
+    res.json({
+      system: systemInfo,
+      database: dbTest,
+      storage: storageTest,
+      env: {
+        NODE_ENV: process.env.NODE_ENV,
+        DATABASE_URL: process.env.DATABASE_URL ? '****' : 'not set'
+      }
+    });
+  } catch (error) {
+    console.error('Error in debug endpoint:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Debug test failed',
       error: error instanceof Error ? error.message : String(error)
     });
   }

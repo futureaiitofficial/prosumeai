@@ -25,8 +25,60 @@ interface ServerStatusProps {
   isAdmin: boolean;
 }
 
+// Define interface for server status data to match dashboard
+interface ServerStatusData {
+  status: string;
+  timestamp: string;
+  system: {
+    platform: string;
+    architecture: string;
+    cpus: number;
+    totalMemory: number;
+    freeMemory: number;
+    uptime: number;
+    load: number[];
+    nodeVersion: string;
+    nodeEnv: string;
+  };
+  database: {
+    connected: boolean;
+    error: string | null;
+  };
+  users: {
+    total: number;
+    active: number;
+    admins: number;
+    totalResumes: number;
+    totalCoverLetters: number;
+    totalJobApplications: number;
+  };
+  session: {
+    isAuthenticated: boolean;
+    sessionID: string;
+    cookie: {
+      maxAge: number;
+      httpOnly: boolean;
+      secure: boolean;
+      sameSite: string;
+    };
+  };
+  rateLimiter: {
+    enabled: boolean;
+    windowMs: number;
+    max: number;
+  };
+  cookieManager: {
+    enabled: boolean;
+    settings: {
+      prefix: string;
+      secure: boolean;
+      sameSite: string;
+    };
+  };
+}
+
 export default function ServerStatus({ isAdmin }: ServerStatusProps) {
-  const [status, setStatus] = useState<any>(null);
+  const [status, setStatus] = useState<ServerStatusData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
@@ -180,7 +232,7 @@ export default function ServerStatus({ isAdmin }: ServerStatusProps) {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                 <div className="bg-slate-50 p-3 rounded-md">
                   <div className="text-xs text-slate-500">Platform</div>
-                  <div className="font-medium">{status.system.platform} ({status.system.architecture || status.system.arch})</div>
+                  <div className="font-medium">{status.system.platform} ({status.system.architecture})</div>
                 </div>
                 <div className="bg-slate-50 p-3 rounded-md">
                   <div className="text-xs text-slate-500">Uptime</div>
@@ -193,8 +245,8 @@ export default function ServerStatus({ isAdmin }: ServerStatusProps) {
                 <div className="bg-slate-50 p-3 rounded-md">
                   <div className="text-xs text-slate-500">Load Average</div>
                   <div className="font-medium">
-                    {Array.isArray(status.system.load) || Array.isArray(status.system.loadAvg) 
-                      ? (status.system.load || status.system.loadAvg).map((load: number) => load.toFixed(2)).join(', ')
+                    {Array.isArray(status.system.load) 
+                      ? status.system.load.map((load: number) => load.toFixed(2)).join(', ')
                       : '?'}
                   </div>
                 </div>
@@ -206,16 +258,16 @@ export default function ServerStatus({ isAdmin }: ServerStatusProps) {
                   <span>Memory Usage</span>
                   <span>
                     {formatBytes(
-                      (status.system.totalMemory || status.system.totalMem || 0) - 
-                      (status.system.freeMemory || status.system.freeMem || 0)
-                    )} / {formatBytes(status.system.totalMemory || status.system.totalMem || 0)}
+                      (status.system.totalMemory) - 
+                      (status.system.freeMemory)
+                    )} / {formatBytes(status.system.totalMemory)}
                   </span>
                 </div>
                 <Progress 
                   value={((
-                    (status.system.totalMemory || status.system.totalMem || 0) - 
-                    (status.system.freeMemory || status.system.freeMem || 0)
-                  ) / (status.system.totalMemory || status.system.totalMem || 1)) * 100} 
+                    (status.system.totalMemory) - 
+                    (status.system.freeMemory)
+                  ) / (status.system.totalMemory)) * 100} 
                 />
               </div>
             </div>
@@ -248,29 +300,66 @@ export default function ServerStatus({ isAdmin }: ServerStatusProps) {
               </h3>
               
               <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell className="w-[200px]">Type</TableCell>
+                    <TableCell>Status</TableCell>
+                    <TableCell>Settings</TableCell>
+                  </TableRow>
+                </TableHead>
                 <TableBody>
                   <TableRow>
-                    <TableCell className="font-medium">Cookie Prefix</TableCell>
+                    <TableCell className="font-medium">Cookie Manager</TableCell>
                     <TableCell>
-                      {status.cookieManager?.settings?.prefix || status.cookieManager?.prefix || 'N/A'}
+                      <Badge variant={status.cookieManager.enabled ? "outline" : "destructive"}>
+                        {status.cookieManager.enabled ? "Enabled" : "Disabled"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-xs text-muted-foreground">
+                        Prefix: {status.cookieManager.settings.prefix}
+                      </span>
                     </TableCell>
                   </TableRow>
                   <TableRow>
-                    <TableCell className="font-medium">Active Sessions</TableCell>
-                    <TableCell>{status.sessions?.count || 0}</TableCell>
+                    <TableCell className="font-medium">Session</TableCell>
+                    <TableCell>
+                      <Badge variant={status.session.isAuthenticated ? "outline" : "destructive"}>
+                        {status.session.isAuthenticated ? "Active" : "Inactive"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="text-xs truncate max-w-[200px] text-muted-foreground">
+                        ID: {status.session.sessionID}
+                      </div>
+                    </TableCell>
                   </TableRow>
                   <TableRow>
                     <TableCell className="font-medium">Rate Limiter</TableCell>
-                    <TableCell className="flex items-center justify-between">
-                      <span>{status.rateLimiter?.enabled ? 'Enabled' : 'Disabled'}</span>
-                      <Button 
-                        size="sm" 
-                        variant="outline" 
-                        onClick={clearRateLimits}
-                        disabled={!status.rateLimiter?.enabled}
-                      >
-                        Clear Rate Limits
-                      </Button>
+                    <TableCell>
+                      <Badge variant={status.rateLimiter.enabled ? "outline" : "destructive"}>
+                        {status.rateLimiter.enabled ? "Enabled" : "Disabled"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {status.rateLimiter.enabled ? (
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="text-xs text-muted-foreground">
+                            {status.rateLimiter.max} requests per {status.rateLimiter.windowMs / 60000} minutes
+                          </div>
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            onClick={clearRateLimits}
+                          >
+                            Clear Limits
+                          </Button>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-amber-600">
+                          Security risk: No rate limiting
+                        </span>
+                      )}
                     </TableCell>
                   </TableRow>
                 </TableBody>
@@ -284,32 +373,34 @@ export default function ServerStatus({ isAdmin }: ServerStatusProps) {
                 User Statistics
               </h3>
               
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                <div className="bg-slate-50 p-3 rounded-md">
-                  <div className="text-xs text-slate-500">Total Users</div>
-                  <div className="font-medium">{status.users?.total || status.users?.totalUsers || 0}</div>
-                </div>
-                <div className="bg-slate-50 p-3 rounded-md">
-                  <div className="text-xs text-slate-500">Active Users</div>
-                  <div className="font-medium">{status.users?.active || status.users?.recentLogins || 0}</div>
-                </div>
-                <div className="bg-slate-50 p-3 rounded-md">
-                  <div className="text-xs text-slate-500">Admin Users</div>
-                  <div className="font-medium">{status.users?.admins || 0}</div>
-                </div>
-                <div className="bg-slate-50 p-3 rounded-md">
-                  <div className="text-xs text-slate-500">Total Resumes</div>
-                  <div className="font-medium">{status.users?.totalResumes || 0}</div>
-                </div>
-                <div className="bg-slate-50 p-3 rounded-md">
-                  <div className="text-xs text-slate-500">Cover Letters</div>
-                  <div className="font-medium">{status.users?.totalCoverLetters || 0}</div>
-                </div>
-                <div className="bg-slate-50 p-3 rounded-md">
-                  <div className="text-xs text-slate-500">Job Applications</div>
-                  <div className="font-medium">{status.users?.totalJobApplications || 0}</div>
-                </div>
-              </div>
+              <Table>
+                <TableBody>
+                  <TableRow>
+                    <TableCell className="font-medium">Total Users</TableCell>
+                    <TableCell>{status.users.total}</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell className="font-medium">Active Users</TableCell>
+                    <TableCell>{status.users.active}</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell className="font-medium">Admin Users</TableCell>
+                    <TableCell>{status.users.admins}</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell className="font-medium">Total Resumes</TableCell>
+                    <TableCell>{status.users.totalResumes}</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell className="font-medium">Cover Letters</TableCell>
+                    <TableCell>{status.users.totalCoverLetters}</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell className="font-medium">Job Applications</TableCell>
+                    <TableCell>{status.users.totalJobApplications}</TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
             </div>
             
             {/* Last Updated */}

@@ -20,7 +20,10 @@ import {
   ArrowDownRight,
   Calendar,
   Clock,
-  Loader2
+  Loader2,
+  Database,
+  Server,
+  Activity
 } from "lucide-react";
 
 // Define interface for stats data
@@ -29,6 +32,58 @@ interface DashboardStats {
   resumes: number;
   coverLetters: number;
   applications: number;
+}
+
+// Define interface for server status data
+interface ServerStatusData {
+  status: string;
+  timestamp: string;
+  system: {
+    platform: string;
+    architecture: string;
+    cpus: number;
+    totalMemory: number;
+    freeMemory: number;
+    uptime: number;
+    load: number[];
+    nodeVersion: string;
+    nodeEnv: string;
+  };
+  database: {
+    connected: boolean;
+    error: string | null;
+  };
+  users: {
+    total: number;
+    active: number;
+    admins: number;
+    totalResumes: number;
+    totalCoverLetters: number;
+    totalJobApplications: number;
+  };
+  session: {
+    isAuthenticated: boolean;
+    sessionID: string;
+    cookie: {
+      maxAge: number;
+      httpOnly: boolean;
+      secure: boolean;
+      sameSite: string;
+    };
+  };
+  rateLimiter: {
+    enabled: boolean;
+    windowMs: number;
+    max: number;
+  };
+  cookieManager: {
+    enabled: boolean;
+    settings: {
+      prefix: string;
+      secure: boolean;
+      sameSite: string;
+    };
+  };
 }
 
 export default function AdminDashboard() {
@@ -44,6 +99,11 @@ export default function AdminDashboard() {
     applications: 0
   });
   const [statsLoading, setStatsLoading] = useState(true);
+  
+  // Add state for server status data
+  const [serverStatus, setServerStatus] = useState<ServerStatusData | null>(null);
+  const [serverStatusLoading, setServerStatusLoading] = useState(true);
+  const [serverStatusError, setServerStatusError] = useState<string | null>(null);
   
   const fetchStats = useCallback(async () => {
     if (!user || !isAdmin) return;
@@ -83,15 +143,51 @@ export default function AdminDashboard() {
     }
   }, [user, isAdmin]);
   
+  // Add function to fetch server status
+  const fetchServerStatus = useCallback(async () => {
+    if (!user || !isAdmin) return;
+    
+    try {
+      setServerStatusLoading(true);
+      setServerStatusError(null);
+      
+      const response = await fetch('/api/admin/server-status', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      setServerStatus(data);
+    } catch (err: any) {
+      setServerStatusError(err.message || 'Failed to fetch server status');
+      console.error("Error fetching server status:", err);
+    } finally {
+      setServerStatusLoading(false);
+    }
+  }, [user, isAdmin]);
+  
   useEffect(() => {
     if (user && isAdmin) {
       fetchStats();
+      fetchServerStatus();
       
-      // Set up interval to refresh stats
-      const interval = setInterval(fetchStats, 60000);
-      return () => clearInterval(interval);
+      // Set up interval to refresh stats and server status
+      const statsInterval = setInterval(fetchStats, 60000);
+      const statusInterval = setInterval(fetchServerStatus, 30000);
+      
+      return () => {
+        clearInterval(statsInterval);
+        clearInterval(statusInterval);
+      };
     }
-  }, [fetchStats, user, isAdmin]);
+  }, [fetchStats, fetchServerStatus, user, isAdmin]);
   
   // If not authenticated, redirect to login
   if (!user) {
@@ -102,6 +198,35 @@ export default function AdminDashboard() {
   if (!adminCheckLoading && !isAdmin) {
     return <Redirect to="/" />;
   }
+  
+  // Format uptime to human-readable format
+  const formatUptime = (seconds: number) => {
+    const days = Math.floor(seconds / 86400);
+    const hours = Math.floor((seconds % 86400) / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    
+    return `${days}d ${hours}h ${minutes}m`;
+  };
+  
+  // Format bytes to human-readable format
+  const formatBytes = (bytes: number) => {
+    if (bytes === 0) return '0 Bytes';
+    
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+  
+  // Calculate memory usage percentage
+  const getMemoryUsagePercent = () => {
+    if (!serverStatus) return 0;
+    
+    const { totalMemory, freeMemory } = serverStatus.system;
+    const usedMemory = totalMemory - freeMemory;
+    return Math.round((usedMemory / totalMemory) * 100);
+  };
   
   // Mock data for charts
   const revenueData = [
@@ -423,64 +548,138 @@ export default function AdminDashboard() {
             </Card>
             
             <Card>
-              <CardHeader>
-                <CardTitle>System Status</CardTitle>
-                <CardDescription>Current system status and resources</CardDescription>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle>System Status</CardTitle>
+                  <CardDescription>Current system status and resources</CardDescription>
+                </div>
+                {serverStatusLoading && (
+                  <div className="animate-spin">
+                    <Loader2 className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                )}
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="h-2.5 w-2.5 rounded-full bg-green-500"></div>
-                      <span className="font-medium">Database</span>
-                    </div>
-                    <span className="text-sm text-green-500 font-medium">Operational</span>
+                {serverStatusError ? (
+                  <div className="p-4 border border-red-200 bg-red-50 text-red-700 rounded-md">
+                    Failed to load system status: {serverStatusError}
                   </div>
-                  
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="h-2.5 w-2.5 rounded-full bg-green-500"></div>
-                      <span className="font-medium">API Services</span>
-                    </div>
-                    <span className="text-sm text-green-500 font-medium">Operational</span>
-                  </div>
-                  
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="h-2.5 w-2.5 rounded-full bg-yellow-500"></div>
-                      <span className="font-medium">Template System</span>
-                    </div>
-                    <span className="text-sm text-yellow-500 font-medium">Partial Outage</span>
-                  </div>
-                  
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="h-2.5 w-2.5 rounded-full bg-green-500"></div>
-                      <span className="font-medium">Authentication</span>
-                    </div>
-                    <span className="text-sm text-green-500 font-medium">Operational</span>
-                  </div>
-                  
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="h-2.5 w-2.5 rounded-full bg-green-500"></div>
-                      <span className="font-medium">Storage Services</span>
-                    </div>
-                    <span className="text-sm text-green-500 font-medium">Operational</span>
-                  </div>
-                  
-                  <div className="pt-4">
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between text-sm">
-                        <span>Server Load</span>
-                        <span>42%</span>
+                ) : serverStatus ? (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className={`h-2.5 w-2.5 rounded-full ${serverStatus.database.connected ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                        <span className="font-medium">Database</span>
                       </div>
-                      <div className="h-2 w-full rounded-full bg-gray-200">
-                        <div className="h-2 rounded-full bg-green-500" style={{ width: "42%" }}></div>
+                      <span className={`text-sm font-medium ${serverStatus.database.connected ? 'text-green-500' : 'text-red-500'}`}>
+                        {serverStatus.database.connected ? 'Operational' : 'Disconnected'}
+                      </span>
+                    </div>
+                    
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="h-2.5 w-2.5 rounded-full bg-green-500"></div>
+                        <span className="font-medium">API Services</span>
+                      </div>
+                      <span className="text-sm text-green-500 font-medium">Operational</span>
+                    </div>
+                    
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="h-2.5 w-2.5 rounded-full bg-green-500"></div>
+                        <span className="font-medium">Authentication</span>
+                      </div>
+                      <span className="text-sm text-green-500 font-medium">
+                        {serverStatus.session.isAuthenticated ? 'Operational' : 'Issue Detected'}
+                      </span>
+                    </div>
+                    
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className={`h-2.5 w-2.5 rounded-full ${serverStatus.cookieManager.enabled ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
+                        <span className="font-medium">Cookie Manager</span>
+                      </div>
+                      <span className={`text-sm font-medium ${serverStatus.cookieManager.enabled ? 'text-green-500' : 'text-yellow-500'}`}>
+                        {serverStatus.cookieManager.enabled ? 'Operational' : 'Limited'}
+                      </span>
+                    </div>
+                    
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className={`h-2.5 w-2.5 rounded-full ${serverStatus.rateLimiter.enabled ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
+                        <span className="font-medium">Rate Limiter</span>
+                      </div>
+                      <span className={`text-sm font-medium ${serverStatus.rateLimiter.enabled ? 'text-green-500' : 'text-yellow-500'}`}>
+                        {serverStatus.rateLimiter.enabled ? 'Active' : 'Disabled'}
+                      </span>
+                    </div>
+                    
+                    <div className="pt-4">
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="flex items-center gap-1">
+                            <Server className="h-3 w-3" />
+                            <span>Server Load</span>
+                          </span>
+                          <span>
+                            {serverStatus.system.load[0].toFixed(2)} 
+                            <span className="text-xs text-muted-foreground ml-1">(1m avg)</span>
+                          </span>
+                        </div>
+                        <div className="h-2 w-full rounded-full bg-gray-200">
+                          <div 
+                            className={`h-2 rounded-full ${
+                              serverStatus.system.load[0] > 3 
+                                ? 'bg-red-500' 
+                                : serverStatus.system.load[0] > 1.5 
+                                  ? 'bg-yellow-500' 
+                                  : 'bg-green-500'
+                            }`} 
+                            style={{ width: `${Math.min(100, serverStatus.system.load[0] * 10)}%` }}
+                          ></div>
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-2 mt-4">
+                        <div className="flex items-center justify-between text-sm">
+                          <span>Memory Usage</span>
+                          <span>{getMemoryUsagePercent()}%</span>
+                        </div>
+                        <div className="h-2 w-full rounded-full bg-gray-200">
+                          <div 
+                            className={`h-2 rounded-full ${
+                              getMemoryUsagePercent() > 80 
+                                ? 'bg-red-500' 
+                                : getMemoryUsagePercent() > 60 
+                                  ? 'bg-yellow-500' 
+                                  : 'bg-green-500'
+                            }`}
+                            style={{ width: `${getMemoryUsagePercent()}%` }}
+                          ></div>
+                        </div>
+                      </div>
+                      
+                      <div className="mt-4 flex flex-col text-xs text-muted-foreground">
+                        <div className="flex justify-between">
+                          <span>Platform:</span>
+                          <span>{serverStatus.system.platform} ({serverStatus.system.architecture})</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Uptime:</span>
+                          <span>{formatUptime(serverStatus.system.uptime)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Node:</span>
+                          <span>{serverStatus.system.nodeVersion} ({serverStatus.system.nodeEnv})</span>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="flex items-center justify-center py-6">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>

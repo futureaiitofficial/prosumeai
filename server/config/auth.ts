@@ -38,7 +38,7 @@ export function getCookieConfig(env: string): session.CookieOptions {
     // Set max age to 7 days by default, can be overridden by environment variables
     maxAge: parseInt(process.env.SESSION_MAX_AGE || '604800000'), // 7 days in ms
     httpOnly: true, // Prevent client-side JS from reading the cookie
-    secure: env === "production", // Only use HTTPS in production
+    secure: env === "production", // Only use secure in production, not in dev
     sameSite: env === "production" ? 'strict' as const : 'lax' as const, // Protect against CSRF
     path: '/', // Cookie available across the entire site
     // Domain restriction for production environments
