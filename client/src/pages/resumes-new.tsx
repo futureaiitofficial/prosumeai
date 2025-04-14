@@ -82,7 +82,7 @@ export default function Resumes() {
 
   // Search and filter state
   const [searchTerm, setSearchTerm] = useState("");
-  const [dateRange, setDateRange] = useState<DateRange | undefined>({ 
+  const [dateRange, setDateRange] = useState<DateRange>({ 
     from: undefined, 
     to: undefined 
   });
@@ -118,20 +118,20 @@ export default function Resumes() {
     }
 
     // Apply date filter
-    if (dateRange.from || dateRange.to) {
+    if (dateRange?.from || dateRange?.to) {
       filtered = filtered.filter((resume) => {
         const createdDate = resume.createdAt ? new Date(resume.createdAt) : null;
 
         if (!createdDate) return false;
 
-        if (dateRange.from && dateRange.to) {
+        if (dateRange?.from && dateRange?.to) {
           return (
             isAfter(createdDate, startOfDay(dateRange.from)) &&
             isBefore(createdDate, endOfDay(dateRange.to))
           );
-        } else if (dateRange.from) {
+        } else if (dateRange?.from) {
           return isAfter(createdDate, startOfDay(dateRange.from));
-        } else if (dateRange.to) {
+        } else if (dateRange?.to) {
           return isBefore(createdDate, endOfDay(dateRange.to));
         }
 
@@ -148,7 +148,16 @@ export default function Resumes() {
       const res = await apiRequest("POST", "/api/resumes", {
         ...data,
         userId: user?.id,
-        template: "professional" // Default template, will be changed later in the process
+        template: "professional", // Default template, will be changed later in the process
+        // Initialize arrays to prevent null reference errors
+        workExperience: [],
+        education: [],
+        skills: [],
+        technicalSkills: [],
+        softSkills: [],
+        certifications: [],
+        projects: [],
+        useSkillCategories: false
       });
       return await res.json();
     },
@@ -224,14 +233,14 @@ export default function Resumes() {
 
   // Function to format date range for display
   const formatDateRange = () => {
-    if (dateRange.from && dateRange.to) {
+    if (dateRange?.from && dateRange?.to) {
       return `${format(dateRange.from, "MMM d, yyyy")} - ${format(
         dateRange.to,
         "MMM d, yyyy"
       )}`;
-    } else if (dateRange.from) {
+    } else if (dateRange?.from) {
       return `From ${format(dateRange.from, "MMM d, yyyy")}`;
-    } else if (dateRange.to) {
+    } else if (dateRange?.to) {
       return `Until ${format(dateRange.to, "MMM d, yyyy")}`;
     }
     return "All dates";
@@ -241,7 +250,7 @@ export default function Resumes() {
   const displayDate = (dateString?: string | null) => {
     if (!dateString) return "Unknown date";
     try {
-      return format(new Date(dateString), "MMM d, yyyy");
+      return format(parseISO(dateString), "MMM d, yyyy");
     } catch (e) {
       return "Invalid date";
     }

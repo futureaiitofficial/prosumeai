@@ -393,8 +393,6 @@ export default function AdminDashboard() {
                     labelSkipHeight={12}
                     labelTextColor={{ from: "color", modifiers: [["darker", 1.6]] }}
                     animate={true}
-                    motionStiffness={90}
-                    motionDamping={15}
                   />
                 </div>
               </CardContent>
@@ -407,73 +405,76 @@ export default function AdminDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="h-[300px]">
-                  <ResponsivePie
-                    data={documentDistributionData}
-                    margin={{ top: 20, right: 20, bottom: 20, left: 20 }}
-                    innerRadius={0.5}
-                    padAngle={0.7}
-                    cornerRadius={3}
-                    colors={{ scheme: "accent" }}
-                    borderWidth={1}
-                    borderColor={{ from: "color", modifiers: [["darker", 0.2]] }}
-                    radialLabelsSkipAngle={10}
-                    radialLabelsTextXOffset={6}
-                    radialLabelsTextColor="#333333"
-                    radialLabelsLinkOffset={0}
-                    radialLabelsLinkDiagonalLength={16}
-                    radialLabelsLinkHorizontalLength={24}
-                    radialLabelsLinkStrokeWidth={1}
-                    radialLabelsLinkColor={{ from: "color" }}
-                    slicesLabelsSkipAngle={10}
-                    slicesLabelsTextColor="#333333"
-                    animate={true}
-                    motionStiffness={90}
-                    motionDamping={15}
-                    defs={[
-                      {
-                        id: "dots",
-                        type: "patternDots",
-                        background: "inherit",
-                        color: "rgba(255, 255, 255, 0.3)",
-                        size: 4,
-                        padding: 1,
-                        stagger: true,
-                      },
-                      {
-                        id: "lines",
-                        type: "patternLines",
-                        background: "inherit",
-                        color: "rgba(255, 255, 255, 0.3)",
-                        rotation: -45,
-                        lineWidth: 6,
-                        spacing: 10,
-                      },
-                    ]}
-                    fill={[
-                      { match: { id: "resumes" }, id: "dots" },
-                      { match: { id: "coverLetters" }, id: "lines" },
-                    ]}
-                    legends={[
-                      {
-                        anchor: "bottom",
-                        direction: "row",
-                        translateY: 30,
-                        itemWidth: 100,
-                        itemHeight: 20,
-                        itemTextColor: "#999",
-                        symbolSize: 12,
-                        symbolShape: "circle",
-                        effects: [
-                          {
-                            on: "hover",
-                            style: {
-                              itemTextColor: "#000",
+                  {documentDistributionData.every(item => item.value === 0) ? (
+                    <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
+                      <FileText className="h-16 w-16 mb-4 opacity-20" />
+                      <p className="text-lg font-medium">No documents created yet</p>
+                      <p className="text-sm">Document statistics will appear here when users create resumes, cover letters, or applications</p>
+                    </div>
+                  ) : (
+                    <ResponsivePie
+                      data={documentDistributionData}
+                      margin={{ top: 20, right: 20, bottom: 20, left: 20 }}
+                      innerRadius={0.5}
+                      padAngle={0.7}
+                      cornerRadius={3}
+                      colors={{ scheme: "accent" }}
+                      borderWidth={1}
+                      borderColor={{ from: "color", modifiers: [["darker", 0.2]] }}
+                      arcLabelsSkipAngle={10}
+                      arcLabelsTextColor="#333333"
+                      arcLinkLabelsSkipAngle={10}
+                      arcLinkLabelsTextColor="#333333"
+                      arcLinkLabelsThickness={1}
+                      arcLinkLabelsColor={{ from: "color" }}
+                      animate={true}
+                      transitionMode="startAngle"
+                      defs={[
+                        {
+                          id: "dots",
+                          type: "patternDots",
+                          background: "inherit",
+                          color: "rgba(255, 255, 255, 0.3)",
+                          size: 4,
+                          padding: 1,
+                          stagger: true,
+                        },
+                        {
+                          id: "lines",
+                          type: "patternLines",
+                          background: "inherit",
+                          color: "rgba(255, 255, 255, 0.3)",
+                          rotation: -45,
+                          lineWidth: 6,
+                          spacing: 10,
+                        },
+                      ]}
+                      fill={[
+                        { match: { id: "resumes" }, id: "dots" },
+                        { match: { id: "coverLetters" }, id: "lines" },
+                      ]}
+                      legends={[
+                        {
+                          anchor: "bottom",
+                          direction: "row",
+                          translateY: 30,
+                          itemWidth: 100,
+                          itemHeight: 20,
+                          itemTextColor: "#999",
+                          symbolSize: 12,
+                          symbolShape: "circle",
+                          effects: [
+                            {
+                              on: "hover",
+                              style: {
+                                itemTextColor: "#000",
+                              },
                             },
-                          },
-                        ],
-                      },
-                    ]}
-                  />
+                          ],
+                        },
+                      ]}
+                    />
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -725,6 +726,7 @@ export default function AdminDashboard() {
                   pointLabel="y"
                   pointLabelYOffset={-12}
                   useMesh={true}
+                  animate={true}
                 />
               </div>
             </CardContent>
@@ -771,8 +773,6 @@ export default function AdminDashboard() {
                   labelSkipHeight={12}
                   labelTextColor={{ from: "color", modifiers: [["darker", 1.6]] }}
                   animate={true}
-                  motionStiffness={90}
-                  motionDamping={15}
                 />
               </div>
             </CardContent>

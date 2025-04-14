@@ -115,7 +115,16 @@ export default function Resumes() {
         { 
           ...data, 
           userId: user?.id,
-          template: 'professional' // Default template, will be changed later in the process
+          template: 'professional', // Default template, will be changed later in the process
+          // Initialize arrays to prevent null reference errors
+          workExperience: [],
+          education: [],
+          skills: [],
+          technicalSkills: [],
+          softSkills: [],
+          certifications: [],
+          projects: [],
+          useSkillCategories: false
         }
       );
       return await res.json();

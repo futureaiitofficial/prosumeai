@@ -26,6 +26,7 @@ import {
   Sparkles
 } from "lucide-react";
 import Header from "@/components/layouts/header";
+import { motion } from "framer-motion";
 
 // Import form components
 import PersonalInfoForm from "@/components/resume-builder/personal-info-form";
@@ -40,9 +41,191 @@ import JobDescriptionForm from "@/components/resume-builder/job-description-form
 import ResumePreview from "@/components/resume-builder/resume-preview";
 import ATSScore from "@/components/resume-builder/ats-score";
 import TemplateSelection from "@/components/resume-builder/template-selection";
+import SectionReorder from "@/components/resume-builder/section-reorder";
 
 // Import the new download button component
 import ResumeDownloadButton from "@/components/resume-download-button";
+
+// Add a wrapper for ResumeDownloadButton to ensure animation is shown
+interface AnimatedResumeDownloadButtonProps {
+  resumeData: ResumeData;
+  className?: string;
+}
+
+export const AnimatedResumeDownloadButton = ({ resumeData, className }: AnimatedResumeDownloadButtonProps) => {
+  // Track if animation is showing
+  const [showAnimation, setShowAnimation] = useState(false);
+  const { toast } = useToast();
+  
+  // Duplicated from ResumeDownloadButton to ensure functionality
+  const handleDownload = async () => {
+    if (!resumeData.template) {
+      console.error("No template selected");
+      toast({
+        title: "Template Required",
+        description: "Please select a resume template first",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      // Show animation
+      setShowAnimation(true);
+      
+      // Import the required modules dynamically to avoid the circle dependency
+      const { registerTemplates } = await import("@/templates/registerTemplates");
+      const { TemplateFactory } = await import("@/templates/core/TemplateFactory");
+      
+      // Re-register templates
+      registerTemplates();
+      
+      // Get the template instance
+      const templateFactory = TemplateFactory.getInstance();
+      const template = templateFactory.getTemplate(resumeData.template);
+      
+      if (!template) {
+        throw new Error(`Failed to instantiate template: ${resumeData.template}`);
+      }
+      
+      // Wait to ensure animation displays for minimum time
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      
+      // Generate PDF
+      const pdfBlob = await template.exportToPDF(resumeData);
+      
+      // Create a download link
+      const url = URL.createObjectURL(pdfBlob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${resumeData.fullName.replace(/\s+/g, '_')}_Resume.pdf`;
+      
+      // Trigger download
+      document.body.appendChild(link);
+      link.click();
+      
+      // Cleanup
+      if (document.body.contains(link)) {
+        document.body.removeChild(link);
+      }
+      URL.revokeObjectURL(url);
+      
+      // Show success notification
+      toast({
+        title: "Resume Downloaded!",
+        description: "Your resume has been downloaded successfully.",
+        duration: 5000,
+      });
+    } catch (error) {
+      console.error("Download error:", error);
+      toast({
+        title: "Download Failed",
+        description: error instanceof Error ? error.message : "Failed to generate PDF",
+        variant: "destructive",
+      });
+    } finally {
+      // Hide animation after a short delay
+      setTimeout(() => {
+        setShowAnimation(false);
+      }, 500);
+    }
+  };
+
+  return (
+    <>
+      {/* Animation modal */}
+      {showAnimation && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm z-50">
+          <motion.div 
+            initial={{ scale: 0.9, opacity: 0 }} 
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-96 sm:w-[480px] overflow-hidden"
+          >
+            <div className="flex flex-col items-center gap-6 py-10 px-6">
+              {/* Paper with shadow effect */}
+              <motion.div
+                initial={{ y: -5, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ duration: 0.5 }}
+                className="w-40 h-52 bg-white rounded-md shadow-lg relative flex items-center justify-center"
+                style={{
+                  boxShadow: "0 10px 25px rgba(0,0,0,0.15)"
+                }}
+              >
+                {/* Lines on paper */}
+                <div className="absolute top-0 left-0 right-0 bottom-0 p-6 flex flex-col gap-3 opacity-60">
+                  <div className="h-2.5 bg-gray-200 rounded-full w-full"></div>
+                  <div className="h-2.5 bg-gray-200 rounded-full w-3/4"></div>
+                  <div className="h-2.5 bg-gray-200 rounded-full w-full"></div>
+                  <div className="h-2.5 bg-gray-200 rounded-full w-5/6"></div>
+                  <div className="h-2.5 bg-gray-200 rounded-full w-full"></div>
+                  <div className="h-2.5 bg-gray-200 rounded-full w-4/5"></div>
+                </div>
+                
+                {/* PDF icon overlay */}
+                <div className="absolute bottom-6 right-6 text-red-500 opacity-40 font-bold text-lg">
+                  PDF
+                </div>
+              </motion.div>
+              
+              {/* Bar loader */}
+              <motion.div
+                initial="initial"
+                animate="animate"
+                transition={{
+                  staggerChildren: 0.15,
+                }}
+                className="flex gap-2 mt-2"
+              >
+                {[1, 2, 3, 4, 5].map(index => (
+                  <motion.div 
+                    key={index}
+                    variants={{
+                      initial: { scaleY: 0.5, opacity: 0 },
+                      animate: { 
+                        scaleY: 1, 
+                        opacity: 1,
+                        transition: {
+                          repeat: Infinity,
+                          repeatType: "mirror",
+                          duration: 1,
+                          ease: "circIn",
+                        }
+                      }
+                    }} 
+                    className="h-10 w-2.5 bg-blue-500 rounded-full" 
+                  />
+                ))}
+              </motion.div>
+              
+              <p className="text-base text-center text-gray-700 dark:text-gray-300 font-medium">
+                Preparing your document...
+              </p>
+            </div>
+            <div className="px-4 pb-6 flex justify-center">
+              <Button 
+                variant="outline" 
+                onClick={() => setShowAnimation(false)}
+                className="mt-2"
+              >
+                Cancel
+              </Button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+      
+      {/* Actual download button that triggers our custom handler */}
+      <Button
+        onClick={handleDownload}
+        className={className}
+        size="sm"
+      >
+        <Download className="mr-2 h-4 w-4" /> Download PDF
+      </Button>
+    </>
+  );
+};
 
 // Define types for work experience and education
 interface WorkExperience {
@@ -111,6 +294,7 @@ interface ResumeData {
   certifications: Certification[];
   projects: Project[];
   useSkillCategories: boolean;
+  sectionOrder: string[];
 }
 
 // Initial state for resume data
@@ -147,11 +331,14 @@ const initialResumeData: ResumeData = {
   // Additional sections
   certifications: [],
   projects: [],
-  useSkillCategories: false
+  useSkillCategories: false,
+  
+  // Default section order
+  sectionOrder: ["summary", "workExperience", "education", "skills", "projects", "certifications"]
 };
 
 // Resume builder steps
-type BuilderStep = "template" | "import-option" | "job-description" | "personal-info" | "employment-history" | "summary" | "education" | "skills" | "projects" | "certifications" | "download";
+type BuilderStep = "template" | "import-option" | "job-description" | "personal-info" | "employment-history" | "summary" | "education" | "skills" | "projects" | "certifications" | "section-order" | "download";
 
 // Create a new AI helpers file to contain the content generation functions
 export default function ResumeBuilder() {
@@ -163,7 +350,7 @@ export default function ResumeBuilder() {
   const [isLoading, setIsLoading] = useState(true);
   
   // Define steps array to ensure consistency
-  const BUILDER_STEPS: BuilderStep[] = ["template", "import-option", "job-description", "personal-info", "employment-history", "summary", "education", "skills", "projects", "certifications", "download"];
+  const BUILDER_STEPS: BuilderStep[] = ["template", "import-option", "job-description", "personal-info", "employment-history", "summary", "education", "skills", "projects", "certifications", "section-order", "download"];
   
   // Change from activeSection to currentStep for consistency with cover letter builder
   const [currentStep, setCurrentStep] = useState<BuilderStep>("template");
@@ -352,9 +539,16 @@ export default function ResumeBuilder() {
         return;
       }
       
+      // Prepare default section order if needed
+      const defaultSectionOrder = ["summary", "workExperience", "education", "skills", "projects", "certifications"];
+      const ensuredSectionOrder = Array.isArray(data.sectionOrder) && data.sectionOrder.length > 0 
+        ? data.sectionOrder 
+        : defaultSectionOrder;
+      
       setResumeData({
         ...data,
-        jobDescription: data.jobDescription || "" // Ensure jobDescription is always a string
+        jobDescription: data.jobDescription || "", // Ensure jobDescription is always a string
+        sectionOrder: ensuredSectionOrder
       });
     } catch (error) {
       console.error("Error fetching resume:", error);
@@ -461,6 +655,14 @@ export default function ResumeBuilder() {
       case "certifications":
         return <CertificationsForm data={resumeData} updateData={handleComponentUpdate} />;
         
+      case "section-order":
+        return (
+          <SectionReorder 
+            sectionOrder={resumeData.sectionOrder}
+            updateSectionOrder={(newOrder) => updateField("sectionOrder", newOrder)}
+          />
+        );
+        
       case "download":
         return (
           <div className="space-y-6">
@@ -498,7 +700,7 @@ export default function ResumeBuilder() {
                   </p>
                   
                   <div className="animate-bounce mt-4">
-                    <ResumeDownloadButton 
+                    <AnimatedResumeDownloadButton 
                       resumeData={resumeData}
                       className="py-3 px-8 text-base"
                     />
@@ -613,6 +815,7 @@ export default function ResumeBuilder() {
                 { id: "skills", label: "Skills", icon: <ListTodo className="h-4 w-4" /> },
                 { id: "projects", label: "Projects", icon: <Code className="h-4 w-4" /> },
                 { id: "certifications", label: "Certifications", icon: <Award className="h-4 w-4" /> },
+                { id: "section-order", label: "Section Order", icon: <Sparkles className="h-4 w-4" /> },
                 { id: "download", label: "Download", icon: <DownloadIcon className="h-4 w-4" /> },
               ].map((step) => (
                 <li key={step.id}>
@@ -654,29 +857,29 @@ export default function ResumeBuilder() {
               <div className="flex items-center">
                 <ATSScore resumeData={{
                   ...resumeData,
-                  workExperience: resumeData.workExperience.map(exp => ({
+                  workExperience: resumeData.workExperience?.map(exp => ({
                     ...exp,
                     startDate: exp.startDate || '', 
                     endDate: exp.endDate || undefined
-                  })),
-                  education: resumeData.education.map(edu => ({
+                  })) || [],
+                  education: resumeData.education?.map(edu => ({
                     ...edu,
                     startDate: edu.startDate || '', 
                     endDate: edu.endDate || undefined
-                  })),
-                  projects: resumeData.projects.map(proj => ({
+                  })) || [],
+                  projects: resumeData.projects?.map(proj => ({
                     ...proj,
                     name: proj.name || '',
                     url: proj.url || undefined,
                     startDate: proj.startDate || undefined,
                     endDate: proj.endDate || undefined
-                  })),
-                  certifications: resumeData.certifications.map(cert => ({
+                  })) || [],
+                  certifications: resumeData.certifications?.map(cert => ({
                     ...cert,
                     name: cert.name,
                     issuer: cert.issuer,
                     date: cert.date || ''
-                  }))
+                  })) || []
                 }} />
               </div>
               
@@ -712,6 +915,7 @@ export default function ResumeBuilder() {
                 { id: "skills", label: "Skills" },
                 { id: "projects", label: "Projects" },
                 { id: "certifications", label: "Certs" },
+                { id: "section-order", label: "Order" },
                 { id: "download", label: "Download" },
               ].map((step) => (
                 <button

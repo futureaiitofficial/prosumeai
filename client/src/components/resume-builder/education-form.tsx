@@ -99,21 +99,7 @@ export default function EducationForm({ data, updateData }: EducationFormProps) 
         Add your educational background, starting with the most recent. Include degrees, 
         certifications, and relevant coursework.
       </p>
-      
-      {/* Education parsing warning for imported resumes */}
-      {isLikelyImported && (
-        <div className="p-3 bg-amber-50 border border-amber-200 rounded-md text-amber-800 text-sm mb-4">
-          <p className="flex items-start">
-            <svg className="h-5 w-5 text-amber-600 mr-2 flex-shrink-0 mt-0.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v4.5a.75.75 0 01-1.5 0v-4.5A.75.75 0 0110 5zm0 10a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
-            </svg>
-            <span>
-              <strong>Education data often needs manual review:</strong> Our resume parser may have missed some of your education details. Please carefully review this section and add any missing institutions or degrees.
-            </span>
-          </p>
-        </div>
-      )}
-      
+            
       {/* Existing education */}
       {education.length > 0 ? (
         <div className="space-y-4">

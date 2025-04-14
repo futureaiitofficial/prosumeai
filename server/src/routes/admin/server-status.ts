@@ -57,6 +57,24 @@ router.get('/server-status', requireAdmin, async (req: Request, res: Response) =
       userStats.total = parseInt(stats.totalUsers || '0', 10);
       userStats.active = parseInt(stats.recentLogins || '0', 10);
       
+      // Get count of admin users
+      try {
+        // Query to count admin users directly as a prepared statement
+        const adminCount = await db.select({ count: sql`COUNT(*)` })
+          .from(sql`users`)
+          .where(sql`"is_admin" = true`);
+        
+        if (adminCount && adminCount.length > 0 && adminCount[0].count !== undefined) {
+          // Convert BigInt or string to number
+          const count = adminCount[0].count;
+          userStats.admins = typeof count === 'bigint' ? Number(count) : 
+                            typeof count === 'string' ? parseInt(count, 10) : 
+                            typeof count === 'number' ? count : 0;
+        }
+      } catch (adminCountError) {
+        console.error('Error counting admin users:', adminCountError);
+      }
+      
       // Try to get additional statistics using safer checks
       try {
         // Check if the storage object has extra statistics methods

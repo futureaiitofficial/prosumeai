@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Trash, Code } from "lucide-react";
+import { Plus, Trash, Code, X } from "lucide-react";
 
 interface Project {
   id: string;
@@ -16,6 +16,7 @@ interface Project {
   endDate: string | null;
   current: boolean;
   url: string | null;
+  currentTech?: string;
 }
 
 interface ProjectsFormProps {
@@ -24,6 +25,18 @@ interface ProjectsFormProps {
 }
 
 export default function ProjectsForm({ data, updateData }: ProjectsFormProps) {
+  // Convert technologies to array if it's a string or undefined
+  const ensureTechnologiesArray = (technologies: any): string[] => {
+    if (!technologies) return [];
+    if (Array.isArray(technologies)) return technologies;
+    if (typeof technologies === 'string') return [technologies];
+    return [];
+  };
+
+  // Initialize projects state locally to ensure proper structure
+  const [projectsState, setProjectsState] = useState<Project[]>([]);
+  
+  // Initialize new project form
   const [newProject, setNewProject] = useState<Project>({
     id: "",
     name: "",
@@ -34,19 +47,36 @@ export default function ProjectsForm({ data, updateData }: ProjectsFormProps) {
     current: false,
     url: null
   });
+  
+  // Sync with parent data when it changes
+  useEffect(() => {
+    if (data?.projects) {
+      const normalizedProjects = data.projects.map((project: any) => ({
+        ...project,
+        id: project.id || Date.now().toString(),
+        technologies: ensureTechnologiesArray(project.technologies)
+      }));
+      setProjectsState(normalizedProjects);
+    }
+  }, [data]);
 
-  // Ensure projects array exists
-  const projects = data?.projects || [];
+  // Update parent component with normalized projects
+  const updateParent = (updatedProjects: Project[]) => {
+    setProjectsState(updatedProjects);
+    // Log the data we're sending to the parent
+    console.log("Updating parent with projects:", JSON.stringify(updatedProjects));
+    updateData({ projects: updatedProjects });
+  };
 
   const addProject = () => {
     const project = {
       ...newProject,
-      id: Date.now().toString()
+      id: Date.now().toString(),
+      technologies: ensureTechnologiesArray(newProject.technologies)
     };
     
-    updateData({ 
-      projects: [...projects, project] 
-    });
+    const updatedProjects = [...projectsState, project];
+    updateParent(updatedProjects);
     
     // Reset form
     setNewProject({
@@ -62,19 +92,59 @@ export default function ProjectsForm({ data, updateData }: ProjectsFormProps) {
   };
 
   const removeProject = (id: string) => {
-    updateData({
-      projects: projects.filter((project: Project) => project.id !== id)
-    });
+    const updatedProjects = projectsState.filter(project => project.id !== id);
+    updateParent(updatedProjects);
   };
 
-  const editProject = (project: Project) => {
-    const updatedProjects = projects.map((p: Project) => 
-      p.id === project.id ? project : p
+  const editProject = (updatedProject: Project) => {
+    // Ensure technologies is always an array
+    const projectToUpdate = {
+      ...updatedProject,
+      technologies: ensureTechnologiesArray(updatedProject.technologies)
+    };
+    
+    // Log the update for debugging
+    console.log("Updating project technologies:", projectToUpdate.technologies);
+    
+    const updatedProjects = projectsState.map(project => 
+      project.id === projectToUpdate.id ? projectToUpdate : project
     );
     
-    updateData({ 
-      projects: updatedProjects 
-    });
+    updateParent(updatedProjects);
+  };
+
+  // Function to specifically handle technology changes
+  const handleTechnologiesChange = (project: Project, techString: string) => {
+    // This is the key fix - making sure we create and validate the array correctly
+    let techArray: string[] = [];
+    
+    if (techString.includes(',')) {
+      // Split by comma if commas exist
+      techArray = techString.split(',')
+        .map(tech => tech.trim())
+        .filter(Boolean);
+    } else {
+      // Otherwise treat as a single entry (no commas)
+      const trimmed = techString.trim();
+      if (trimmed) {
+        techArray = [trimmed];
+      }
+    }
+    
+    console.log("Original tech string:", techString);
+    console.log("Created tech array:", techArray);
+    
+    // Create a new project object with the updated technologies array
+    const updatedProject = {
+      ...project,
+      technologies: techArray
+    };
+    
+    // Log for debugging
+    console.log("Updated project technologies:", JSON.stringify(updatedProject.technologies));
+    
+    // Update the project data
+    editProject(updatedProject);
   };
 
   return (
@@ -88,9 +158,9 @@ export default function ProjectsForm({ data, updateData }: ProjectsFormProps) {
       </p>
       
       {/* Existing projects */}
-      {projects.length > 0 && (
+      {projectsState.length > 0 && (
         <div className="space-y-4 mb-6">
-          {projects.map((project: Project) => (
+          {projectsState.map((project: Project) => (
             <Card key={project.id} className="overflow-hidden">
               <CardContent className="p-4">
                 <div className="flex justify-between items-start mb-4">
@@ -137,17 +207,71 @@ export default function ProjectsForm({ data, updateData }: ProjectsFormProps) {
                   </div>
                   
                   <div className="grid gap-2">
-                    <Label>Technologies Used (comma separated)</Label>
-                    <Input
-                      value={project.technologies.join(", ")}
-                      onChange={(e) => {
-                        const techArray = e.target.value.split(",").map(tech => tech.trim()).filter(Boolean);
-                        editProject({
-                          ...project,
-                          technologies: techArray
-                        });
-                      }}
-                    />
+                    <Label>Technologies Used</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="Enter a technology (e.g., React)"
+                        value={project.currentTech || ""}
+                        onChange={(e) => {
+                          // Store the current tech input in a temporary property
+                          editProject({
+                            ...project,
+                            currentTech: e.target.value
+                          });
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && project.currentTech?.trim()) {
+                            e.preventDefault();
+                            const tech = project.currentTech.trim();
+                            const techArray = [...ensureTechnologiesArray(project.technologies), tech];
+                            editProject({
+                              ...project,
+                              technologies: techArray,
+                              currentTech: ""
+                            });
+                          }
+                        }}
+                      />
+                      <Button 
+                        type="button"
+                        onClick={() => {
+                          if (project.currentTech?.trim()) {
+                            const tech = project.currentTech.trim();
+                            const techArray = [...ensureTechnologiesArray(project.technologies), tech];
+                            editProject({
+                              ...project,
+                              technologies: techArray,
+                              currentTech: ""
+                            });
+                          }
+                        }}
+                        disabled={!project.currentTech?.trim()}
+                      >
+                        Add
+                      </Button>
+                    </div>
+                    
+                    {/* Display current technologies as tags */}
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {ensureTechnologiesArray(project.technologies).map((tech, idx) => (
+                        <div key={idx} className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 px-3 py-1 rounded-full flex items-center">
+                          <span>{tech}</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newTechArray = ensureTechnologiesArray(project.technologies).filter((_, i) => i !== idx);
+                              editProject({
+                                ...project,
+                                technologies: newTechArray
+                              });
+                            }}
+                            className="ml-2 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -241,15 +365,71 @@ export default function ProjectsForm({ data, updateData }: ProjectsFormProps) {
             </div>
             
             <div className="grid gap-2">
-              <Label>Technologies Used (comma separated)</Label>
-              <Input
-                placeholder="React, Node.js, Express, MongoDB"
-                value={newProject.technologies.join(", ")}
-                onChange={(e) => {
-                  const techArray = e.target.value.split(",").map(tech => tech.trim()).filter(Boolean);
-                  setNewProject({ ...newProject, technologies: techArray });
-                }}
-              />
+              <Label>Technologies Used</Label>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Enter a technology (e.g., React)"
+                  value={newProject.currentTech || ""}
+                  onChange={(e) => {
+                    // Store the current tech input in a temporary property
+                    setNewProject({
+                      ...newProject,
+                      currentTech: e.target.value
+                    });
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && newProject.currentTech?.trim()) {
+                      e.preventDefault();
+                      const tech = newProject.currentTech.trim();
+                      const techArray = [...ensureTechnologiesArray(newProject.technologies), tech];
+                      setNewProject({
+                        ...newProject,
+                        technologies: techArray,
+                        currentTech: ""
+                      });
+                    }
+                  }}
+                />
+                <Button 
+                  type="button"
+                  onClick={() => {
+                    if (newProject.currentTech?.trim()) {
+                      const tech = newProject.currentTech.trim();
+                      const techArray = [...ensureTechnologiesArray(newProject.technologies), tech];
+                      setNewProject({
+                        ...newProject,
+                        technologies: techArray,
+                        currentTech: ""
+                      });
+                    }
+                  }}
+                  disabled={!newProject.currentTech?.trim()}
+                >
+                  Add
+                </Button>
+              </div>
+              
+              {/* Display current technologies as tags */}
+              <div className="flex flex-wrap gap-2 mt-2">
+                {ensureTechnologiesArray(newProject.technologies).map((tech, idx) => (
+                  <div key={idx} className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 px-3 py-1 rounded-full flex items-center">
+                    <span>{tech}</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newTechArray = ensureTechnologiesArray(newProject.technologies).filter((_, i) => i !== idx);
+                        setNewProject({
+                          ...newProject,
+                          technologies: newTechArray
+                        });
+                      }}
+                      className="ml-2 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

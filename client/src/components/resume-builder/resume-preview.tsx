@@ -4,6 +4,7 @@ import { registerTemplates } from "@/templates/registerTemplates";
 import ResumeDownloadButton from "@/components/resume-download-button";
 import { ZoomIn, ZoomOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { AnimatedResumeDownloadButton } from "@/pages/resume-builder";
 
 // Define a more flexible resume data interface for the preview
 interface ResumePreviewProps {
@@ -122,7 +123,8 @@ export default function ResumePreview({ data, hideDownloadButton = false }: Resu
       summary: data.summary && data.summary.length > MAX_SUMMARY_CHARS 
         ? data.summary.substring(0, MAX_SUMMARY_CHARS - 3) + "..."
         : data.summary,
-      formatDate: formatDate // Add formatDate function to the data for templates that need it
+      formatDate: formatDate, // Add formatDate function to the data for templates that need it
+      sectionOrder: data.sectionOrder || ["summary", "workExperience", "education", "skills", "projects", "certifications"] // Ensure sectionOrder exists with default fallback
     };
   }, [data]);
 
@@ -188,7 +190,10 @@ export default function ResumePreview({ data, hideDownloadButton = false }: Resu
           </div>
           
           {hasResumeData && template && !hideDownloadButton && (
-            <ResumeDownloadButton resumeData={processedData} />
+            <AnimatedResumeDownloadButton 
+              resumeData={processedData}
+              className="h-8 text-xs" 
+            />
           )}
         </div>
       </div>

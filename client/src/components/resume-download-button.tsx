@@ -5,11 +5,91 @@ import { TemplateFactory } from "@/templates/core/TemplateFactory";
 import { useToast } from "@/hooks/use-toast";
 import { registerTemplates } from "@/templates/registerTemplates";
 import { apiRequest } from "@/lib/queryClient";
+import { motion } from "framer-motion";
 
 interface ResumeDownloadButtonProps {
   resumeData: any; // Use any to accept different resume data structures
   className?: string;
 }
+
+// 3D PDF Generation Animation Component
+const ResumeLoaderAnimation = () => {
+  const paperVariants = {
+    initial: { y: -5, opacity: 0 },
+    animate: { 
+      y: 0, 
+      opacity: 1,
+      transition: { duration: 0.5 }
+    }
+  };
+
+  const barVariants = {
+    initial: {
+      scaleY: 0.5,
+      opacity: 0,
+    },
+    animate: {
+      scaleY: 1,
+      opacity: 1,
+      transition: {
+        repeat: Infinity,
+        repeatType: "mirror" as const,
+        duration: 1,
+        ease: "circIn",
+      },
+    },
+  };
+
+  return (
+    <div className="flex flex-col items-center gap-4 py-8 px-4">
+      {/* Paper with shadow effect */}
+      <motion.div
+        initial="initial"
+        animate="animate"
+        variants={paperVariants}
+        className="w-28 h-36 bg-white rounded-md shadow-lg relative flex items-center justify-center"
+        style={{
+          boxShadow: "0 10px 25px rgba(0,0,0,0.15)"
+        }}
+      >
+        {/* Lines on paper */}
+        <div className="absolute top-0 left-0 right-0 bottom-0 p-4 flex flex-col gap-2 opacity-60">
+          <div className="h-2 bg-gray-200 rounded-full w-full"></div>
+          <div className="h-2 bg-gray-200 rounded-full w-3/4"></div>
+          <div className="h-2 bg-gray-200 rounded-full w-full"></div>
+          <div className="h-2 bg-gray-200 rounded-full w-5/6"></div>
+          <div className="h-2 bg-gray-200 rounded-full w-full"></div>
+          <div className="h-2 bg-gray-200 rounded-full w-4/5"></div>
+        </div>
+        
+        {/* PDF icon overlay */}
+        <div className="absolute bottom-4 right-4 text-red-500 opacity-40 font-bold text-xs">
+          PDF
+        </div>
+      </motion.div>
+      
+      {/* Bar loader */}
+      <motion.div
+        transition={{
+          staggerChildren: 0.15,
+        }}
+        initial="initial"
+        animate="animate"
+        className="flex gap-1 mt-2"
+      >
+        <motion.div variants={barVariants} className="h-8 w-1.5 bg-blue-500 rounded-full" />
+        <motion.div variants={barVariants} className="h-8 w-1.5 bg-blue-500 rounded-full" />
+        <motion.div variants={barVariants} className="h-8 w-1.5 bg-blue-500 rounded-full" />
+        <motion.div variants={barVariants} className="h-8 w-1.5 bg-blue-500 rounded-full" />
+        <motion.div variants={barVariants} className="h-8 w-1.5 bg-blue-500 rounded-full" />
+      </motion.div>
+      
+      <p className="text-sm text-center text-gray-700 dark:text-gray-300 font-medium">
+        Preparing your document...
+      </p>
+    </div>
+  );
+};
 
 // Helper type guard to check for our custom API error structure
 function isApiError(error: any): error is { statusCode: number; data?: { error?: string; message?: string; current?: number; limit?: number | null } } {
@@ -20,6 +100,7 @@ export default function ResumeDownloadButton({ resumeData, className }: ResumeDo
   const [isDownloading, setIsDownloading] = useState(false);
   const [hasError, setHasError] = useState(false);
   const [status, setStatus] = useState<'idle' | 'preparing' | 'generating' | 'downloading' | 'error'>('idle');
+  const [showAnimation, setShowAnimation] = useState(false);
   const { toast } = useToast();
   
   // Register templates on component mount with retry
@@ -100,6 +181,11 @@ export default function ResumeDownloadButton({ resumeData, className }: ResumeDo
       setIsDownloading(true);
       setHasError(false);
       setStatus('preparing');
+      setShowAnimation(true); // Show the animation
+      
+      // Set animation start time to enforce minimum display duration
+      const animationStartTime = Date.now();
+      const minimumAnimationDuration = 3000; // 3 seconds minimum display time
       
       // Check for large content and warn user if needed
       if (hasLargeContent()) {
@@ -107,11 +193,6 @@ export default function ResumeDownloadButton({ resumeData, className }: ResumeDo
           title: "Preparing Multi-Page Resume",
           description: "Your resume has substantial content and will likely generate multiple pages.",
           duration: 5000,
-        });
-      } else {
-        toast({
-          title: "Preparing your resume",
-          description: "This may take a few seconds...",
         });
       }
       
@@ -180,8 +261,12 @@ export default function ResumeDownloadButton({ resumeData, className }: ResumeDo
       link.href = url;
       link.download = getSafeFilename();
       
-      // Wait a moment before triggering download
-      await new Promise(resolve => setTimeout(resolve, 300));
+      // Ensure animation shows for minimum time before download
+      const elapsedTime = Date.now() - animationStartTime;
+      const remainingTime = Math.max(0, minimumAnimationDuration - elapsedTime);
+      
+      // Wait to ensure animation displays for minimum time
+      await new Promise(resolve => setTimeout(resolve, remainingTime));
       
       // Trigger download
       document.body.appendChild(link);
@@ -206,13 +291,20 @@ export default function ResumeDownloadButton({ resumeData, className }: ResumeDo
           duration: 5000,
         });
         
-        setStatus('idle');
+        // Keep animation visible for a bit after download starts
+        setTimeout(() => {
+          setStatus('idle');
+          setShowAnimation(false); // Hide the animation
+        }, 500);
       }, 500);
       
     } catch (error: any) {
       console.error("Error downloading resume:", error);
       console.log("Caught error structure:", error);
 
+      // Hide the animation
+      setShowAnimation(false);
+      
       // Handle other errors
       setHasError(true);
       setStatus('error');
@@ -245,6 +337,8 @@ export default function ResumeDownloadButton({ resumeData, className }: ResumeDo
         if (!hasError) {
           setStatus('idle');
         }
+        // We won't set showAnimation to false here anymore
+        // as we're controlling it more precisely above
       }, 1000);
     }
   };
@@ -254,85 +348,63 @@ export default function ResumeDownloadButton({ resumeData, className }: ResumeDo
     setStatus('idle');
     handleDownload();
   };
-  
-  if (hasError) {
+
+  // If already downloading, show loading state or animation dialog
+  if (showAnimation) {
     return (
-      <Button 
-        onClick={retryDownload} 
-        className={className}
+      <div className="fixed inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm z-50">
+        <motion.div 
+          initial={{ scale: 0.9, opacity: 0 }} 
+          animate={{ scale: 1, opacity: 1 }}
+          className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-80 overflow-hidden"
+        >
+          <ResumeLoaderAnimation />
+          <div className="px-4 pb-4 flex justify-center">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => setShowAnimation(false)}
+              className="mt-2"
+            >
+              Cancel
+            </Button>
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
+
+  // For error state
+  if (status === 'error') {
+    return (
+      <Button
+        onClick={retryDownload}
         variant="destructive"
         size="sm"
-      >
-        <AlertCircle className="mr-2 h-4 w-4" />
-        Retry Download
-      </Button>
-    );
-  }
-  
-  if (status === 'preparing') {
-    return (
-      <Button 
-        disabled
         className={className}
-        variant="outline"
-        size="sm"
       >
-        <Settings className="mr-2 h-4 w-4 animate-spin" />
-        Preparing...
-      </Button>
-    );
-  }
-  
-  if (status === 'generating') {
-    return (
-      <Button 
-        disabled
-        className={className}
-        variant="outline"
-        size="sm"
-      >
-        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-        {hasLargeContent() ? "Generating Multi-Page PDF..." : "Generating PDF..."}
-      </Button>
-    );
-  }
-  
-  if (status === 'downloading') {
-    return (
-      <Button 
-        disabled
-        className={className}
-        variant="outline"
-        size="sm"
-      >
-        <FileCheck className="mr-2 h-4 w-4 animate-pulse" />
-        Downloading...
+        <AlertCircle className="mr-2 h-4 w-4" /> Retry
       </Button>
     );
   }
 
+  // Default state
   return (
-    <div>
-        <Button 
-          onClick={handleDownload} 
-          disabled={isDownloading || !resumeData.template}
-          className={className}
-          variant="outline"
-          size="sm"
-          title="Download your resume as a PDF"
-        >
-          {hasLargeContent() ? (
-            <>
-              <FilePlus className="mr-2 h-4 w-4" />
-              Download Multi-Page PDF
-            </>
-          ) : (
-            <>
-              <Download className="mr-2 h-4 w-4" />
-              Download PDF
-            </>
-          )}
-        </Button>
-    </div>
+    <Button
+      onClick={handleDownload}
+      disabled={isDownloading}
+      size="sm"
+      className={className}
+    >
+      {isDownloading ? (
+        <>
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing...
+        </>
+      ) : (
+        <>
+          <Download className="mr-2 h-4 w-4" /> Download PDF
+        </>
+      )}
+    </Button>
   );
 } 
