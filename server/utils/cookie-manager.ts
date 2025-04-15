@@ -156,6 +156,13 @@ export class CookieManager {
       }
     });
   }
+
+  /**
+   * Get the cookie prefix
+   */
+  getPrefix(): string {
+    return this.cookiePrefix;
+  }
 }
 
 // Export a singleton instance

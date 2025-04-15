@@ -7,7 +7,7 @@ import {
   appSettings, type AppSetting,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, count } from "drizzle-orm";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
 import pg from "pg";
@@ -35,6 +35,7 @@ export interface IStorage {
   createResume(resumeData: InsertResume): Promise<Resume>;
   updateResume(id: number, resumeData: Partial<Resume>): Promise<Resume | null>;
   deleteResume(id: number): Promise<boolean>;
+  getResumeCount(userId: number): Promise<number>;
   
   // Cover letter methods
   getCoverLetter(id: number): Promise<CoverLetter | null>;
@@ -42,6 +43,7 @@ export interface IStorage {
   createCoverLetter(coverLetterData: InsertCoverLetter): Promise<CoverLetter>;
   updateCoverLetter(id: number, coverLetterData: Partial<CoverLetter>): Promise<CoverLetter | null>;
   deleteCoverLetter(id: number): Promise<boolean>;
+  getCoverLetterCount(userId: number): Promise<number>;
   
   // Job description methods
   getJobDescription(id: number): Promise<JobDescription | null>;
@@ -56,6 +58,7 @@ export interface IStorage {
   createJobApplication(jobApplicationData: InsertJobApplication): Promise<JobApplication>;
   updateJobApplication(id: number, jobApplicationData: Partial<JobApplication>): Promise<JobApplication | null>;
   deleteJobApplication(id: number): Promise<boolean>;
+  getJobApplicationCount(userId: number): Promise<number>;
   
   // App Settings methods
   getAppSettings(category?: string): Promise<AppSetting[]>;
@@ -314,6 +317,14 @@ export class DatabaseStorage implements IStorage {
     return !!deleted;
   }
   
+  async getResumeCount(userId: number): Promise<number> {
+    const [result] = await db
+      .select({ count: count() })
+      .from(resumes)
+      .where(eq(resumes.userId, userId));
+    return result?.count || 0;
+  }
+  
   // Cover Letter methods
   async getCoverLetter(id: number): Promise<CoverLetter | null> {
     const [coverLetter] = await db.select().from(coverLetters).where(eq(coverLetters.id, id));
@@ -354,6 +365,14 @@ export class DatabaseStorage implements IStorage {
       .where(eq(coverLetters.id, id))
       .returning({ id: coverLetters.id });
     return !!deleted;
+  }
+  
+  async getCoverLetterCount(userId: number): Promise<number> {
+    const [result] = await db
+      .select({ count: count() })
+      .from(coverLetters)
+      .where(eq(coverLetters.userId, userId));
+    return result?.count || 0;
   }
   
   // Job Application methods
@@ -599,6 +618,18 @@ export class DatabaseStorage implements IStorage {
     } catch (error) {
       console.error("Error deleting job application:", error);
       return false;
+    }
+  }
+  
+  async getJobApplicationCount(userId: number): Promise<number> {
+    try {
+      const result = await db.execute(sql`
+        SELECT COUNT(*) as count FROM job_applications WHERE user_id = ${userId}
+      `);
+      return result.length > 0 ? Number(result[0].count) : 0;
+    } catch (error) {
+      console.error("Error counting job applications:", error);
+      return 0;
     }
   }
   

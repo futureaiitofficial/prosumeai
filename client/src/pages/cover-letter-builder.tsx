@@ -288,17 +288,42 @@ export default function CoverLetterBuilder() {
       // Add resume information if available
       if (personalInfo.resumeId) {
         const selectedResume = findResume(personalInfo.resumeId);
+        console.log("Resume data for content generation:", selectedResume);
+        
         if (selectedResume) {
           prompt += `My Resume Information:\n`;
-          if (selectedResume.profile?.summary) {
-            prompt += `Summary: ${selectedResume.profile.summary}\n`;
+          
+          // Try to get summary from different possible locations
+          const summary = selectedResume.summary || 
+                        selectedResume.profile?.summary || 
+                        "";
+          if (summary) {
+            prompt += `Summary: ${summary}\n`;
           }
-          if (selectedResume.workExperience && selectedResume.workExperience.length > 0) {
-            prompt += `Work Experience: ${JSON.stringify(selectedResume.workExperience)}\n`;
+          
+          // Try to get work experience from different possible formats
+          const workExperience = selectedResume.workExperience || 
+                               selectedResume.experience || 
+                               selectedResume.work || 
+                               [];
+          if (workExperience && workExperience.length > 0) {
+            prompt += `Work Experience: ${JSON.stringify(workExperience)}\n`;
           }
-          if (selectedResume.skills && selectedResume.skills.length > 0) {
-            prompt += `Skills: ${selectedResume.skills.join(', ')}\n`;
+          
+          // Try to get skills from different possible formats
+          const skills = selectedResume.skills || 
+                       (selectedResume.technicalSkills && selectedResume.softSkills ? 
+                        [...selectedResume.technicalSkills, ...selectedResume.softSkills] : []);
+          if (skills && skills.length > 0) {
+            prompt += `Skills: ${Array.isArray(skills) ? skills.join(', ') : skills}\n`;
           }
+          
+          // Try to get education details if available
+          const education = selectedResume.education || [];
+          if (education && education.length > 0) {
+            prompt += `Education: ${JSON.stringify(education)}\n`;
+          }
+          
           prompt += `\n`;
         }
       }
@@ -329,7 +354,7 @@ export default function CoverLetterBuilder() {
       });
       
       // Update current step
-      setCurrentStep(3 as unknown as BuilderStep);
+      setCurrentStep("content");
     } catch (error) {
       console.error('Error generating content:', error);
       toast({
@@ -423,18 +448,69 @@ export default function CoverLetterBuilder() {
   // Handle resume selection
   const handleResumeSelect = (value: string) => {
     if (value && value !== "none" && resumes && Array.isArray(resumes)) {
-      const selectedResume = resumes.find((r: Resume) => r.id === parseInt(value));
-      if (selectedResume) {
-        setPersonalInfo(prev => ({
-          ...prev,
-          resumeId: selectedResume.id,
-          fullName: selectedResume.fullName || prev.fullName,
-          email: selectedResume.email || prev.email,
-          phone: selectedResume.phone || prev.phone,
-          address: selectedResume.location || selectedResume.city ? 
-            `${selectedResume.city || ""}, ${selectedResume.state || ""}, ${selectedResume.country || ""}`.replace(/^, |, $/g, '') :
-            prev.address
-        }));
+      try {
+        const selectedResume = resumes.find((r: Resume) => r.id === parseInt(value));
+        if (selectedResume) {
+          // Debug log to see the resume structure
+          console.log("Selected resume structure:", selectedResume);
+          
+          // Extract personal information with fallbacks
+          const fullName = selectedResume.fullName || 
+                           selectedResume.name || 
+                           selectedResume.profile?.fullName || 
+                           "";
+                           
+          const email = selectedResume.email || 
+                       selectedResume.profile?.email || 
+                       "";
+                       
+          const phone = selectedResume.phone || 
+                       selectedResume.profile?.phone || 
+                       "";
+          
+          // Handle various address formats
+          let address = "";
+          if (selectedResume.location) {
+            address = selectedResume.location;
+          } else if (selectedResume.address) {
+            address = selectedResume.address;
+          } else if (selectedResume.profile?.location) {
+            address = selectedResume.profile.location;
+          } else if (selectedResume.city || selectedResume.state || selectedResume.country) {
+            address = `${selectedResume.city || ""}, ${selectedResume.state || ""}, ${selectedResume.country || ""}`.replace(/^, |, $/g, '');
+          }
+          
+          // Set personal info with all the extracted data
+          setPersonalInfo(prev => ({
+            ...prev,
+            resumeId: selectedResume.id,
+            fullName: fullName || prev.fullName,
+            email: email || prev.email,
+            phone: phone || prev.phone,
+            address: address || prev.address
+          }));
+          
+          // Show success toast if data was loaded
+          if (fullName || email || phone || address) {
+            toast({
+              title: "Resume Selected",
+              description: "Personal information loaded from your resume."
+            });
+          } else {
+            toast({
+              title: "Resume Selected",
+              description: "Could not find personal information in this resume.",
+              variant: "destructive"
+            });
+          }
+        }
+      } catch (error) {
+        console.error("Error selecting resume:", error);
+        toast({
+          title: "Error",
+          description: "Failed to load resume data. Please enter information manually.",
+          variant: "destructive"
+        });
       }
     } else {
       setPersonalInfo(prev => ({

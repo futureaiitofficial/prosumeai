@@ -1,5 +1,5 @@
 import { Express, Request, Response } from "express";
-import { requireAdmin } from "../../middleware/admin";
+import { requireAdmin } from "server/middleware/admin";
 import { storage } from "server/config/storage";
 import { db } from "../../config/db";
 import { 
@@ -694,7 +694,7 @@ export function registerAdminRoutes(app: Express) {
       const activeSessions = await storage.getActiveSessions();
 
       // Get rate limiter status
-      let rateLimiterStatus = { enabled: false };
+      let rateLimiterStatus: { enabled: boolean; loginAttempts?: { maxAttempts: number; duration: number; blockDuration: number; } } = { enabled: false };
       if (process.env.NODE_ENV === 'production') {
         rateLimiterStatus = { 
           enabled: true,
