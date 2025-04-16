@@ -145,15 +145,18 @@ export default function TemplateSelection({ selectedTemplate, onChange }: Templa
   const getTemplatePreviewUrl = (templateId: string, dbTemplate?: ActiveTemplate) => {
     // If we have a database template with a thumbnail, use that
     if (dbTemplate?.thumbnail) {
+      console.log(`Using database thumbnail for ${templateId}: ${dbTemplate.thumbnail}`);
       return dbTemplate.thumbnail;
     }
     
     // Try to find a matching image by name pattern
     const matchingImage = templateImages.images.find((img: TemplateImage) => 
-      img.name.includes(templateId) || img.name.includes(`template-${templateId}`)
+      img.name.toLowerCase().includes(templateId.toLowerCase()) || 
+      img.name.toLowerCase().includes(`template-${templateId.toLowerCase()}`)
     );
     
     if (matchingImage) {
+      console.log(`Found matching image by name for ${templateId}: ${matchingImage.url}`);
       return matchingImage.url;
     }
     
@@ -164,8 +167,13 @@ export default function TemplateSelection({ selectedTemplate, onChange }: Templa
     );
     
     if (indexMatchingImage) {
+      console.log(`Found matching image by index for ${templateId}: ${indexMatchingImage.url}`);
       return indexMatchingImage.url;
     }
+    
+    // Log all available images when no match is found
+    console.log(`No matching image found for ${templateId}. Available images:`, 
+      templateImages.images.map((img: TemplateImage) => img.name));
     
     // Default fallback
     return '/placeholder-image.png';

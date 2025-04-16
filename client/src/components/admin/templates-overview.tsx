@@ -369,6 +369,16 @@ export function TemplatesOverview() {
       
       console.log("Image upload successful:", data);
       setIsUploading(false);
+      
+      // Refresh all template-related data after a short delay to ensure database updates have propagated
+      setTimeout(() => {
+        console.log("Refreshing all template data...");
+        queryClient.invalidateQueries({ queryKey: ["/api/admin/templates"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/templates/active"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/templates/images"] });
+        refetchTemplates();
+        refetchImages();
+      }, 1000);
     },
     onError: (error: Error) => {
       console.error("Image upload failed:", error);
@@ -384,13 +394,18 @@ export function TemplatesOverview() {
   // Helper function to update template thumbnail in database
   const updateTemplateThumbnail = async (templateId: number, thumbnailUrl: string, category: "resume" | "cover-letter") => {
     try {
+      console.log(`Updating template ID ${templateId} with thumbnail: ${thumbnailUrl}`);
+      
+      // Ensure the thumbnail URL is properly formatted
+      const formattedUrl = thumbnailUrl.startsWith('/') ? thumbnailUrl : `/images/templates/${thumbnailUrl}`;
+      
       const response = await fetch(`/api/admin/templates/${templateId}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ 
-          thumbnail: thumbnailUrl,
+          thumbnail: formattedUrl,
           type: category
         }),
       });
@@ -399,12 +414,23 @@ export function TemplatesOverview() {
         throw new Error('Failed to update template thumbnail');
       }
       
-      console.log("Template thumbnail updated in database:", thumbnailUrl);
+      const data = await response.json();
+      console.log("Template thumbnail updated in database:", data);
       
       // Invalidate queries to refresh data
       queryClient.invalidateQueries({ queryKey: ["/api/admin/templates"] });
       queryClient.invalidateQueries({ queryKey: ["/api/templates/active"] });
       queryClient.invalidateQueries({ queryKey: ["/api/templates/images"] });
+      
+      // Make sure the template is active
+      if (!data.isActive) {
+        console.log("Template is not active. Activating it now...");
+        await toggleActiveStatusMutation.mutate({
+          templateId: templateId,
+          isActive: true,
+          category: category
+        });
+      }
       
     } catch (error) {
       console.error("Error updating template thumbnail:", error);
@@ -863,6 +889,147 @@ export function TemplatesOverview() {
                   }}
                 >
                   Debug Info
+                </Button>
+                
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  onClick={() => {
+                    // Force refresh all template-related data
+                    toast({
+                      title: "Refreshing Data",
+                      description: "Refreshing all template images and templates"
+                    });
+                    
+                    // Force refetch with invalidation
+                    queryClient.invalidateQueries({ queryKey: ["/api/admin/templates"] });
+                    queryClient.invalidateQueries({ queryKey: ["/api/templates/active"] });
+                    queryClient.invalidateQueries({ queryKey: ["/api/templates/images"] });
+                    
+                    // Add a slight delay before refetching
+                    setTimeout(() => {
+                      refetchTemplates();
+                      refetchImages();
+                      
+                      toast({
+                        title: "Refresh Complete",
+                        description: "All template data has been refreshed"
+                      });
+                    }, 500);
+                  }}
+                >
+                  Refresh Images
+                </Button>
+                
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    // Attempt to fix template-image associations
+                    resumeTemplates.forEach(template => {
+                      if (template.id !== undefined) {
+                        // Make sure template is active
+                        if (!template.isActive) {
+                          toggleActiveStatusMutation.mutate({
+                            templateId: template.id,
+                            isActive: true,
+                            category: "resume"
+                          });
+                        }
+                        
+                        // Find matching image for this template
+                        const matchingImage = templateImages.images.find((img: TemplateImage) => 
+                          img.name.toLowerCase().includes(template.templateId.toLowerCase()) ||
+                          img.name.toLowerCase().includes(template.name.toLowerCase().replace(/\s+/g, '-'))
+                        );
+                        
+                        // If found, update thumbnail
+                        if (matchingImage && (!template.thumbnail || template.thumbnail !== matchingImage.url)) {
+                          updateTemplateThumbnail(template.id, matchingImage.url, "resume");
+                          console.log(`Associating template ${template.name} with image ${matchingImage.url}`);
+                        }
+                      }
+                    });
+                    
+                    // Same for cover letter templates
+                    coverLetterTemplates.forEach(template => {
+                      if (template.id !== undefined) {
+                        // Make sure template is active
+                        if (!template.isActive) {
+                          toggleActiveStatusMutation.mutate({
+                            templateId: template.id,
+                            isActive: true,
+                            category: "cover-letter"
+                          });
+                        }
+                        
+                        // Find matching image for this template
+                        const matchingImage = templateImages.images.find((img: TemplateImage) => 
+                          img.name.toLowerCase().includes(template.templateId.toLowerCase()) ||
+                          img.name.toLowerCase().includes(template.name.toLowerCase().replace(/\s+/g, '-'))
+                        );
+                        
+                        // If found, update thumbnail
+                        if (matchingImage && (!template.thumbnail || template.thumbnail !== matchingImage.url)) {
+                          updateTemplateThumbnail(template.id, matchingImage.url, "cover-letter");
+                          console.log(`Associating template ${template.name} with image ${matchingImage.url}`);
+                        }
+                      }
+                    });
+                    
+                    toast({
+                      title: "Template Repair",
+                      description: "Attempted to repair template-image associations"
+                    });
+                  }}
+                >
+                  Repair Associations
+                </Button>
+                
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="bg-blue-50 hover:bg-blue-100"
+                  onClick={async () => {
+                    try {
+                      toast({
+                        title: "Server Repair",
+                        description: "Requesting server-side template image repair..."
+                      });
+                      
+                      const response = await fetch('/api/debug/template-images');
+                      if (!response.ok) {
+                        throw new Error(`Server error: ${response.status}`);
+                      }
+                      
+                      const data = await response.json();
+                      console.log("Server repair response:", data);
+                      
+                      // Refresh data after repair
+                      queryClient.invalidateQueries({ queryKey: ["/api/admin/templates"] });
+                      queryClient.invalidateQueries({ queryKey: ["/api/templates/active"] });
+                      queryClient.invalidateQueries({ queryKey: ["/api/templates/images"] });
+                      
+                      setTimeout(() => {
+                        refetchTemplates();
+                        refetchImages();
+                      }, 500);
+                      
+                      toast({
+                        title: "Repair Complete", 
+                        description: `${data.updated?.length || 0} templates updated. Refresh the page to see changes.`
+                      });
+                    } catch (error) {
+                      console.error("Server repair failed:", error);
+                      toast({
+                        title: "Repair Failed",
+                        description: error instanceof Error ? error.message : "Unknown error",
+                        variant: "destructive"
+                      });
+                    }
+                  }}
+                >
+                  Server Repair
                 </Button>
               </div>
             </div>

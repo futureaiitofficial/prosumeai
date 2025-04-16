@@ -8,16 +8,21 @@ import {
   coverLetters, 
   jobApplications, 
   appSettings,
+  subscriptionPlans, 
+  userSubscriptions,
+  featureUsage,
+  tokenUsage,
+  auditLogs
 } from "@shared/schema";
-import { eq, count, and, or, desc, asc, gt, lt, gte, lte, like, ilike, inArray, isNull, notInArray, isNotNull, between } from "drizzle-orm";
+import { eq, count, and, or, desc, asc, gt, lt, gte, lte, like, ilike, inArray, isNull, notInArray, isNotNull, between, sql, sum } from "drizzle-orm";
 import { hashPassword } from "../../config/auth";
-import { sql } from "drizzle-orm";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { cookieManager } from "../../utils/cookie-manager";
 import os from "os";
 import adminRouter from "./admin/index";
+import { z } from "zod";
 
 // Configure multer for file uploads
 const templateStorage = multer.diskStorage({
@@ -60,6 +65,30 @@ const upload = multer({
     
     cb(new Error("Only image files are allowed!"));
   }
+});
+
+// Add validation schemas
+const currencyRegex = /^[A-Z]{3}$/;
+const intervalTypes = ['month', 'year'] as const;
+
+const SubscriptionPlanSchema = z.object({
+  name: z.string().min(3),
+  description: z.string().min(10),
+  price: z.number().positive().safe(),
+  currency: z.string().regex(currencyRegex),
+  interval: z.enum(intervalTypes),
+  features: z.object({
+    maxResumes: z.number().int().nonnegative(),
+    maxCoverLetters: z.number().int().nonnegative(),
+    maxJobApplications: z.number().int().nonnegative(),
+    aiTokensPerMonth: z.number().int().nonnegative(),
+    customTemplates: z.boolean(),
+    advancedAiFeatures: z.boolean(),
+    priority: z.boolean(),
+    exportFormats: z.array(z.enum(['pdf', 'doc']))
+  }),
+  isActive: z.boolean().optional(),
+  trialDays: z.number().int().min(0).max(365).optional()
 });
 
 /**
@@ -752,6 +781,550 @@ export function registerAdminRoutes(app: Express) {
     } catch (error) {
       console.error("Error clearing rate limiter data:", error);
       res.status(500).json({ error: "Failed to clear rate limiter data" });
+    }
+  });
+
+  // Get dashboard statistics
+  app.get('/dashboard', async (req: Request, res: Response) => {
+    try {
+      // Get total users count
+      const [userCount] = await db.select({ count: count() }).from(users);
+      
+      // Get count of active subscriptions
+      const [subscriptionCount] = await db.select({ count: count() })
+        .from(userSubscriptions)
+        .where(eq(userSubscriptions.status, 'active'));
+      
+      // Get recent registrations (last 7 days)
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      
+      const [recentUsers] = await db.select({ count: count() })
+        .from(users)
+        .where(gte(users.createdAt, sevenDaysAgo));
+      
+      // Get total revenue (placeholder - would need to add a payments table)
+      const totalRevenue = {
+        usd: 0,
+        inr: 0
+      };
+      
+      // Get top plans by subscriber count
+      const topPlans = await db.select({
+        planId: userSubscriptions.planId,
+        planName: subscriptionPlans.name,
+        count: count(userSubscriptions.id),
+      })
+      .from(userSubscriptions)
+      .innerJoin(subscriptionPlans, eq(userSubscriptions.planId, subscriptionPlans.id))
+      .where(eq(userSubscriptions.status, 'active'))
+      .groupBy(userSubscriptions.planId, subscriptionPlans.name)
+      .orderBy(desc(sql`count`))
+      .limit(5);
+      
+      // Token usage statistics
+      const [tokenStats] = await db.select({
+        totalTokens: sum(tokenUsage.tokensUsed),
+      })
+      .from(tokenUsage);
+      
+      // Get usage by feature
+      const featureStats = await db.select({
+        featureKey: featureUsage.featureKey,
+        totalUsage: sum(featureUsage.usageCount),
+      })
+      .from(featureUsage)
+      .groupBy(featureUsage.featureKey);
+      
+      res.json({
+        userStats: {
+          total: userCount?.count || 0,
+          activeSubscriptions: subscriptionCount?.count || 0,
+          recentRegistrations: recentUsers?.count || 0,
+        },
+        revenue: totalRevenue,
+        topPlans,
+        aiStats: {
+          totalTokens: tokenStats?.totalTokens || 0,
+        },
+        featureStats: featureStats.reduce((acc, stat) => {
+          acc[stat.featureKey] = stat.totalUsage;
+          return acc;
+        }, {} as Record<string, any>),
+      });
+    } catch (error) {
+      console.error('Error getting admin dashboard data:', error);
+      res.status(500).json({ message: 'Failed to fetch dashboard data' });
+    }
+  });
+  
+  // Get all users
+  app.get('/users', async (req: Request, res: Response) => {
+    try {
+      const allUsers = await db.select({
+        id: users.id,
+        username: users.username,
+        email: users.email,
+        fullName: users.fullName,
+        isAdmin: users.isAdmin,
+        lastLogin: users.lastLogin,
+        createdAt: users.createdAt,
+        // We'll derive status from subscription
+        status: sql<string>`CASE WHEN ${userSubscriptions.id} IS NOT NULL AND ${userSubscriptions.status} = 'active' THEN 'active' ELSE 'inactive' END`
+      })
+      .from(users)
+      .leftJoin(
+        userSubscriptions, 
+        and(
+          eq(users.id, userSubscriptions.userId),
+          eq(userSubscriptions.status, 'active')
+        )
+      );
+      
+      res.json(allUsers);
+    } catch (error) {
+      console.error('Error getting users:', error);
+      res.status(500).json({ message: 'Failed to fetch users' });
+    }
+  });
+  
+  // Get all subscription plans
+  app.get('/subscription-plans', async (req: Request, res: Response) => {
+    try {
+      const plans = await db.select().from(subscriptionPlans);
+      res.json(plans);
+    } catch (error) {
+      console.error('Error getting subscription plans:', error);
+      res.status(500).json({ message: 'Failed to fetch subscription plans' });
+    }
+  });
+  
+  // Create a new subscription plan
+  app.post('/subscription-plans', async (req: Request, res: Response) => {
+    try {
+      // Validate input
+      const validationResult = SubscriptionPlanSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json({ 
+          message: 'Validation error',
+          errors: validationResult.error.errors 
+        });
+      }
+
+      const { name, description, price, currency, interval, features, isActive, trialDays } = validationResult.data;
+      
+      // Check existing plan
+      const existingPlan = await db.query.subscriptionPlans.findFirst({
+        where: eq(subscriptionPlans.name, name)
+      });
+      
+      if (existingPlan) {
+        return res.status(400).json({ message: 'Plan name already exists' });
+      }
+
+      // Create plan
+      const [newPlan] = await db.insert(subscriptionPlans).values({
+        name,
+        description,
+        price: price.toString(),
+        currency,
+        interval,
+        features,
+        isActive: isActive ?? true,
+        trialDays: trialDays ?? 0
+      }).returning();
+
+      // Audit log
+      await db.insert(auditLogs).values({
+        action: 'CREATE',
+        entityType: 'SUBSCRIPTION_PLAN',
+        entityId: newPlan.id,
+        userId: req.user?.id,
+        details: JSON.stringify(newPlan)
+      });
+
+      res.status(201).json(newPlan);
+    } catch (error) {
+      console.error('Error creating subscription plan:', error);
+      res.status(500).json({ message: 'Failed to create plan' });
+    }
+  });
+  
+  // Update a subscription plan
+  app.put('/subscription-plans/:id', async (req: Request, res: Response) => {
+    try {
+      // Validate input
+      const validationResult = SubscriptionPlanSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        return res.status(400).json({ 
+          message: 'Validation error',
+          errors: validationResult.error.errors 
+        });
+      }
+
+      const { id } = req.params;
+      const updateData = validationResult.data;
+
+      // Audit previous state
+      const existingPlan = await db.query.subscriptionPlans.findFirst({
+        where: eq(subscriptionPlans.id, +id)
+      });
+
+      // Update plan
+      const [updatedPlan] = await db.update(subscriptionPlans)
+        .set({
+          ...updateData,
+          price: updateData.price.toString()
+        })
+        .where(eq(subscriptionPlans.id, +id))
+        .returning();
+
+      if (!updatedPlan) {
+        return res.status(404).json({ message: 'Plan not found' });
+      }
+
+      // Audit log
+      await db.insert(auditLogs).values({
+        action: 'UPDATE',
+        entityType: 'SUBSCRIPTION_PLAN',
+        entityId: updatedPlan.id,
+        userId: req.user?.id,
+        details: JSON.stringify({
+          previous: existingPlan,
+          current: updatedPlan
+        })
+      });
+
+      res.json(updatedPlan);
+    } catch (error) {
+      console.error('Error updating subscription plan:', error);
+      res.status(500).json({ message: 'Failed to update plan' });
+    }
+  });
+  
+  // Delete a subscription plan
+  app.delete('/subscription-plans/:id', async (req: Request, res: Response) => {
+    try {
+      const planId = parseInt(req.params.id);
+      
+      if (isNaN(planId)) {
+        return res.status(400).json({ message: 'Invalid plan ID' });
+      }
+      
+      // Check if plan is being used by any user
+      const [subscriptionCount] = await db.select({ count: count() })
+        .from(userSubscriptions)
+        .where(
+          and(
+            eq(userSubscriptions.planId, planId),
+            eq(userSubscriptions.status, 'active')
+          )
+        );
+      
+      if (subscriptionCount && subscriptionCount.count > 0) {
+        return res.status(400).json({ 
+          message: 'Cannot delete plan with active subscriptions',
+          activeSubscriptions: subscriptionCount.count
+        });
+      }
+      
+      // Delete the plan
+      await db.delete(subscriptionPlans)
+        .where(eq(subscriptionPlans.id, planId));
+      
+      res.status(204).end();
+    } catch (error) {
+      console.error('Error deleting subscription plan:', error);
+      res.status(500).json({ message: 'Failed to delete subscription plan' });
+    }
+  });
+  
+  // Get user subscriptions
+  app.get('/user-subscriptions', async (req: Request, res: Response) => {
+    try {
+      const subscriptions = await db.select({
+        id: userSubscriptions.id,
+        userId: userSubscriptions.userId,
+        username: users.username,
+        email: users.email,
+        planId: userSubscriptions.planId,
+        planName: subscriptionPlans.name,
+        status: userSubscriptions.status,
+        currentPeriodStart: userSubscriptions.currentPeriodStart,
+        currentPeriodEnd: userSubscriptions.currentPeriodEnd,
+        cancelAtPeriodEnd: userSubscriptions.cancelAtPeriodEnd,
+        createdAt: userSubscriptions.createdAt
+      })
+      .from(userSubscriptions)
+      .innerJoin(users, eq(userSubscriptions.userId, users.id))
+      .innerJoin(subscriptionPlans, eq(userSubscriptions.planId, subscriptionPlans.id));
+      
+      res.json(subscriptions);
+    } catch (error) {
+      console.error('Error getting user subscriptions:', error);
+      res.status(500).json({ message: 'Failed to fetch user subscriptions' });
+    }
+  });
+  
+  // Get a specific user's subscription
+  app.get('/users/:userId/subscription', async (req: Request, res: Response) => {
+    try {
+      const userId = parseInt(req.params.userId);
+      
+      if (isNaN(userId)) {
+        return res.status(400).json({ message: 'Invalid user ID' });
+      }
+      
+      const subscription = await db.select({
+        id: userSubscriptions.id,
+        userId: userSubscriptions.userId,
+        planId: userSubscriptions.planId,
+        planName: subscriptionPlans.name,
+        planFeatures: subscriptionPlans.features,
+        status: userSubscriptions.status,
+        currentPeriodStart: userSubscriptions.currentPeriodStart,
+        currentPeriodEnd: userSubscriptions.currentPeriodEnd,
+        cancelAtPeriodEnd: userSubscriptions.cancelAtPeriodEnd,
+        createdAt: userSubscriptions.createdAt
+      })
+      .from(userSubscriptions)
+      .innerJoin(subscriptionPlans, eq(userSubscriptions.planId, subscriptionPlans.id))
+      .where(
+        and(
+          eq(userSubscriptions.userId, userId),
+          eq(userSubscriptions.status, 'active')
+        )
+      );
+      
+      if (!subscription || subscription.length === 0) {
+        return res.status(404).json({ message: 'No active subscription found for this user' });
+      }
+      
+      res.json(subscription[0]);
+    } catch (error) {
+      console.error('Error getting user subscription:', error);
+      res.status(500).json({ message: 'Failed to fetch user subscription' });
+    }
+  });
+  
+  // Update a user's subscription (manually, for admin purposes)
+  app.put('/users/:userId/subscription', async (req: Request, res: Response) => {
+    try {
+      const userId = parseInt(req.params.userId);
+      
+      if (isNaN(userId)) {
+        return res.status(400).json({ message: 'Invalid user ID' });
+      }
+      
+      const { planId, status, currentPeriodEnd } = req.body;
+      
+      // Check if user exists
+      const user = await db.query.users.findFirst({
+        where: eq(users.id, userId)
+      });
+      
+      if (!user) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+      
+      // Check if plan exists
+      if (planId) {
+        const plan = await db.query.subscriptionPlans.findFirst({
+          where: eq(subscriptionPlans.id, planId)
+        });
+        
+        if (!plan) {
+          return res.status(404).json({ message: 'Subscription plan not found' });
+        }
+      }
+      
+      // Check if user has an active subscription
+      const existingSubscription = await db.query.userSubscriptions.findFirst({
+        where: and(
+          eq(userSubscriptions.userId, userId),
+          eq(userSubscriptions.status, 'active')
+        )
+      });
+      
+      if (existingSubscription) {
+        // Update existing subscription
+        const [updatedSubscription] = await db.update(userSubscriptions)
+          .set({
+            planId: planId ?? existingSubscription.planId,
+            status: status ?? existingSubscription.status,
+            currentPeriodEnd: currentPeriodEnd ? new Date(currentPeriodEnd) : existingSubscription.currentPeriodEnd,
+            updatedAt: new Date()
+          })
+          .where(eq(userSubscriptions.id, existingSubscription.id))
+          .returning();
+          
+        return res.json(updatedSubscription);
+      } else if (planId) {
+        // Create new subscription
+        const plan = await db.query.subscriptionPlans.findFirst({
+          where: eq(subscriptionPlans.id, planId)
+        });
+        
+        if (!plan) {
+          return res.status(404).json({ message: 'Subscription plan not found' });
+        }
+        
+        // Calculate period dates
+        const now = new Date();
+        let periodEnd = new Date();
+        
+        if (plan.interval === 'monthly') {
+          periodEnd.setMonth(periodEnd.getMonth() + 1);
+        } else if (plan.interval === 'yearly') {
+          periodEnd.setFullYear(periodEnd.getFullYear() + 1);
+        }
+        
+        // Override with provided end date if any
+        if (currentPeriodEnd) {
+          periodEnd = new Date(currentPeriodEnd);
+        }
+        
+        const [newSubscription] = await db.insert(userSubscriptions)
+          .values({
+            userId,
+            planId,
+            status: status || 'active',
+            currentPeriodStart: now,
+            currentPeriodEnd: periodEnd,
+            cancelAtPeriodEnd: false,
+            paymentProcessor: 'admin',
+            paymentProcessorId: 'manual',
+          })
+          .returning();
+          
+        return res.status(201).json(newSubscription);
+      } else {
+        return res.status(400).json({ message: 'Plan ID is required to create a new subscription' });
+      }
+    } catch (error) {
+      console.error('Error updating user subscription:', error);
+      res.status(500).json({ message: 'Failed to update user subscription' });
+    }
+  });
+  
+  // Cancel a user's subscription
+  app.post('/users/:userId/cancel-subscription', async (req: Request, res: Response) => {
+    try {
+      const userId = parseInt(req.params.userId);
+      
+      if (isNaN(userId)) {
+        return res.status(400).json({ message: 'Invalid user ID' });
+      }
+      
+      const { cancelAtPeriodEnd = true } = req.body;
+      
+      // Check if user has an active subscription
+      const existingSubscription = await db.query.userSubscriptions.findFirst({
+        where: and(
+          eq(userSubscriptions.userId, userId),
+          eq(userSubscriptions.status, 'active')
+        )
+      });
+      
+      if (!existingSubscription) {
+        return res.status(404).json({ message: 'No active subscription found for this user' });
+      }
+      
+      if (cancelAtPeriodEnd) {
+        // Mark subscription to cancel at period end
+        const [updatedSubscription] = await db.update(userSubscriptions)
+          .set({
+            cancelAtPeriodEnd: true,
+            updatedAt: new Date()
+          })
+          .where(eq(userSubscriptions.id, existingSubscription.id))
+          .returning();
+          
+        return res.json(updatedSubscription);
+      } else {
+        // Cancel subscription immediately
+        const [cancelledSubscription] = await db.update(userSubscriptions)
+          .set({
+            status: 'cancelled',
+            cancelAtPeriodEnd: false,
+            updatedAt: new Date()
+          })
+          .where(eq(userSubscriptions.id, existingSubscription.id))
+          .returning();
+          
+        return res.json(cancelledSubscription);
+      }
+    } catch (error) {
+      console.error('Error cancelling user subscription:', error);
+      res.status(500).json({ message: 'Failed to cancel user subscription' });
+    }
+  });
+  
+  // Promote user to admin
+  app.post('/promote', async (req: Request, res: Response) => {
+    try {
+      const { userId } = req.body;
+      
+      if (!userId) {
+        return res.status(400).json({ message: 'User ID is required' });
+      }
+      
+      // Check if user exists
+      const existingUser = await db.query.users.findFirst({
+        where: eq(users.id, userId)
+      });
+      
+      if (!existingUser) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+      
+      // Promote user to admin
+      const [updatedUser] = await db.update(users)
+        .set({ isAdmin: true })
+        .where(eq(users.id, userId))
+        .returning();
+      
+      res.json({ 
+        message: 'User promoted to admin successfully',
+        user: updatedUser
+      });
+    } catch (error) {
+      console.error('Error promoting user to admin:', error);
+      res.status(500).json({ message: 'Failed to promote user to admin' });
+    }
+  });
+  
+  // Demote admin to regular user
+  app.post('/demote', async (req: Request, res: Response) => {
+    try {
+      const { userId } = req.body;
+      
+      if (!userId) {
+        return res.status(400).json({ message: 'User ID is required' });
+      }
+      
+      // Check if user exists
+      const existingUser = await db.query.users.findFirst({
+        where: eq(users.id, userId)
+      });
+      
+      if (!existingUser) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+      
+      // Demote admin to regular user
+      const [updatedUser] = await db.update(users)
+        .set({ isAdmin: false })
+        .where(eq(users.id, userId))
+        .returning();
+      
+      res.json({ 
+        message: 'Admin demoted to regular user successfully',
+        user: updatedUser
+      });
+    } catch (error) {
+      console.error('Error demoting admin to regular user:', error);
+      res.status(500).json({ message: 'Failed to demote admin to regular user' });
     }
   });
 }

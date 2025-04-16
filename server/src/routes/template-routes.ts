@@ -525,25 +525,48 @@ export function registerTemplateRoutes(app: express.Express) {
         ...activeCoverLetterTemplates
       ];
       
+      console.log(`Found ${activeTemplates.length} active templates`);
+      
       // Extract thumbnail paths from active templates
       const activeThumbnails = activeTemplates
         .map(template => template.thumbnail)
         .filter(Boolean);
-        
+      
+      console.log(`Active templates have ${activeThumbnails.length} thumbnail paths`);
+      if (activeThumbnails.length > 0) {
+        console.log("Sample thumbnails:", activeThumbnails.slice(0, 3));
+      }
+      
       // Read all files in the directory
       const files = fs.readdirSync(imagesDir);
+      console.log(`Found ${files.length} image files in directory`);
       
       // Filter files to only include those used by active templates
-      // or include all if in admin mode
+      // or include all if in admin mode or if debug mode is enabled
       const isAdminRequest = req.query.admin === 'true';
-      const filteredFiles = isAdminRequest 
+      const isDebugMode = process.env.NODE_ENV !== 'production' || req.query.debug === 'true';
+      
+      // For development or when explicitly requested, show all images
+      const filteredFiles = isAdminRequest || isDebugMode
         ? files 
         : files.filter(file => {
             // Check if the file path is used in any active template
-            return activeThumbnails.some(thumbnail => 
+            const isUsed = activeThumbnails.some(thumbnail => 
               thumbnail.includes(file) || 
               thumbnail.endsWith(`/images/templates/${file}`)
             );
+            
+            if (!isUsed) {
+              // Also try matching by template name patterns as fallback
+              const isMatchByName = activeTemplates.some(template => {
+                const templateName = template.name.toLowerCase().replace(/\s+/g, '-');
+                return file.toLowerCase().includes(templateName);
+              });
+              
+              return isMatchByName;
+            }
+            
+            return isUsed;
           });
       
       // Map to relative URLs for consistency
@@ -554,6 +577,11 @@ export function registerTemplateRoutes(app: express.Express) {
       }));
       
       console.log(`Returning ${images.length} template images for public use`);
+      if (images.length > 0) {
+        console.log("Sample image names:", images.map(img => img.name).slice(0, 3));
+      } else {
+        console.log("No images found that match active templates");
+      }
       
       res.json({ images });
     } catch (error) {
@@ -696,6 +724,118 @@ export function registerTemplateRoutes(app: express.Express) {
     } catch (error) {
       console.error("Error ensuring templates:", error);
       res.status(500).json({ message: "Failed to process templates" });
+    }
+  });
+
+  // Debug helper endpoint to fix template thumbnails
+  app.get("/api/debug/template-images", async (req, res) => {
+    try {
+      // Only allow in development environment
+      if (process.env.NODE_ENV === 'production' && !req.query.force) {
+        return res.status(403).json({ message: "Endpoint only available in development mode" });
+      }
+      
+      console.log("Running template image repair utility");
+      
+      // Get the images directory
+      const imagesDir = path.join(process.cwd(), 'public', 'images', 'templates');
+      
+      // Create directory if it doesn't exist
+      if (!fs.existsSync(imagesDir)) {
+        fs.mkdirSync(imagesDir, { recursive: true });
+        return res.json({ message: "Images directory created, no images to process" });
+      }
+      
+      // Get all files in the directory
+      const files = fs.readdirSync(imagesDir);
+      console.log(`Found ${files.length} image files`);
+      
+      // Get all templates
+      const resumeTemplatesData = await db.select().from(resumeTemplates);
+      const coverLetterTemplatesData = await db.select().from(coverLetterTemplates);
+      
+      console.log(`Found ${resumeTemplatesData.length} resume templates and ${coverLetterTemplatesData.length} cover letter templates`);
+      
+      const results = [];
+      
+      // Try to match resume templates with images
+      for (const template of resumeTemplatesData) {
+        const templateName = template.name.toLowerCase().replace(/\s+/g, '-');
+        const templateId = template.id.toString();
+        
+        // Find matching image
+        const matchingFile = files.find(file => 
+          file.toLowerCase().includes(templateName) || 
+          file.toLowerCase().includes(`template-${templateId}`) ||
+          file.toLowerCase().includes(`resume-${templateId}`)
+        );
+        
+        if (matchingFile && (!template.thumbnail || template.thumbnail === '')) {
+          // Update template with thumbnail
+          const thumbnailUrl = `/images/templates/${matchingFile}`;
+          
+          await db.update(resumeTemplates)
+            .set({ 
+              thumbnail: thumbnailUrl,
+              isActive: true // Also make active
+            })
+            .where(eq(resumeTemplates.id, template.id));
+          
+          results.push({
+            id: template.id,
+            name: template.name,
+            type: "resume",
+            action: "updated",
+            thumbnail: thumbnailUrl
+          });
+          
+          console.log(`Updated resume template ${template.name} with thumbnail ${thumbnailUrl}`);
+        }
+      }
+      
+      // Try to match cover letter templates with images
+      for (const template of coverLetterTemplatesData) {
+        const templateName = template.name.toLowerCase().replace(/\s+/g, '-');
+        const templateId = template.id.toString();
+        
+        // Find matching image
+        const matchingFile = files.find(file => 
+          file.toLowerCase().includes(templateName) || 
+          file.toLowerCase().includes(`template-${templateId}`) ||
+          file.toLowerCase().includes(`cover-letter-${templateId}`) ||
+          file.toLowerCase().includes(`cl-${templateId}`)
+        );
+        
+        if (matchingFile && (!template.thumbnail || template.thumbnail === '')) {
+          // Update template with thumbnail
+          const thumbnailUrl = `/images/templates/${matchingFile}`;
+          
+          await db.update(coverLetterTemplates)
+            .set({ 
+              thumbnail: thumbnailUrl,
+              isActive: true // Also make active
+            })
+            .where(eq(coverLetterTemplates.id, template.id));
+          
+          results.push({
+            id: template.id,
+            name: template.name,
+            type: "cover-letter",
+            action: "updated",
+            thumbnail: thumbnailUrl
+          });
+          
+          console.log(`Updated cover letter template ${template.name} with thumbnail ${thumbnailUrl}`);
+        }
+      }
+      
+      return res.json({
+        message: `Template image repair completed. Updated ${results.length} templates.`,
+        updated: results
+      });
+    } catch (error) {
+      console.error("Error running template image repair:", error);
+      return res.status(500).json({ message: "Failed to repair template images" });
     }
   });
 }

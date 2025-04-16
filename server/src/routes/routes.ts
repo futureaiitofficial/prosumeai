@@ -12,6 +12,7 @@ import { registerTemplateRoutes } from "./template-routes";
 import { registerResumeRoutes } from "./resume-routes";
 import { registerCoverLetterRoutes } from "./cover-letter-routes";
 import { registerJobApplicationRoutes } from "./job-applications-routes";
+import { registerUserSubscriptionRoutes } from "./user-subscription-routes";
 
 /**
  * Register all application routes
@@ -45,6 +46,7 @@ export function registerRoutes(app: express.Express): Server {
   registerResumeRoutes(app);
   registerCoverLetterRoutes(app);
   registerJobApplicationRoutes(app);
+  registerUserSubscriptionRoutes(app);
 
   return server;
 }

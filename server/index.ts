@@ -9,6 +9,14 @@ import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import { db } from './config/db';
 import { cookieManager } from './utils/cookie-manager';
+import { registerAdminRoutes } from './src/routes/admin-routes';
+import { registerUserSubscriptionRoutes } from './src/routes/user-subscription-routes';
+import { registerResumeRoutes } from './src/routes/resume-routes';
+import { registerCoverLetterRoutes } from './src/routes/cover-letter-routes';
+import { registerJobApplicationRoutes } from './src/routes/job-applications-routes';
+import { registerAIResumeRoutes } from './src/routes/ai-resume-routes';
+import { registerAICoverLetterRoutes } from './src/routes/ai-cover-letter-routes';
+import router from './src/routes/ai';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -97,6 +105,9 @@ app.use((req, res, next) => {
   next();
 });
 
+// Register routes
+app.use('/api/ai', router);
+
 (async () => {
   const server = await registerRoutes(app);
 
@@ -177,3 +188,4 @@ app.use((req, res, next) => {
     });
   }
 })();
+

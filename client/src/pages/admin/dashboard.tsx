@@ -23,15 +23,36 @@ import {
   Loader2,
   Database,
   Server,
-  Activity
+  Activity,
+  AlertCircle
 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { getQueryFn } from "@/lib/queryClient";
+import { UsersManagement } from "@/components/admin/users-management";
+import { SubscriptionPlansManagement } from "@/components/admin/subscription-plans-management";
+import { UserSubscriptionsManagement } from "@/components/admin/user-subscriptions-management";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 // Define interface for stats data
 interface DashboardStats {
-  users: number;
-  resumes: number;
-  coverLetters: number;
-  applications: number;
+  userStats: {
+    total: number;
+    activeSubscriptions: number;
+    recentRegistrations: number;
+  };
+  revenue: {
+    usd: number;
+    inr: number;
+  };
+  topPlans: {
+    planId: number;
+    planName: string;
+    count: number;
+  }[];
+  aiStats: {
+    totalTokens: number;
+  };
+  featureStats: Record<string, number>;
 }
 
 // Define interface for server status data
@@ -92,18 +113,18 @@ export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState("overview");
   
   // Fetch admin dashboard stats
-  const [stats, setStats] = useState<DashboardStats>({
-    users: 0,
-    resumes: 0,
-    coverLetters: 0,
-    applications: 0
+  const { data: dashboardStats, isLoading: statsLoading, error: statsError } = useQuery<DashboardStats>({
+    queryKey: ["/api/admin/dashboard"],
+    queryFn: getQueryFn({ on401: "throw" }),
+    refetchInterval: 300000, // Refresh every 5 minutes
   });
-  const [statsLoading, setStatsLoading] = useState(true);
   
   // Add state for server status data
-  const [serverStatus, setServerStatus] = useState<ServerStatusData | null>(null);
-  const [serverStatusLoading, setServerStatusLoading] = useState(true);
-  const [serverStatusError, setServerStatusError] = useState<string | null>(null);
+  const { data: serverStatus, isLoading: serverStatusLoading, error: serverStatusError } = useQuery<ServerStatusData>({
+    queryKey: ["/api/admin/status"],
+    queryFn: getQueryFn({ on401: "throw" }),
+    refetchInterval: 60000, // Refresh every minute
+  });
   
   const fetchStats = useCallback(async () => {
     if (!user || !isAdmin) return;
@@ -210,13 +231,8 @@ export default function AdminDashboard() {
   
   // Format bytes to human-readable format
   const formatBytes = (bytes: number) => {
-    if (bytes === 0) return '0 Bytes';
-    
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    const gigabytes = bytes / (1024 * 1024 * 1024);
+    return `${gigabytes.toFixed(2)} GB`;
   };
   
   // Calculate memory usage percentage
@@ -224,8 +240,8 @@ export default function AdminDashboard() {
     if (!serverStatus) return 0;
     
     const { totalMemory, freeMemory } = serverStatus.system;
-    const usedMemory = totalMemory - freeMemory;
-    return Math.round((usedMemory / totalMemory) * 100);
+    const used = totalMemory - freeMemory;
+    return Math.round((used / totalMemory) * 100);
   };
   
   // Mock data for charts
@@ -255,10 +271,37 @@ export default function AdminDashboard() {
   ];
   
   const documentDistributionData = [
-    { id: "resumes", label: "Resumes", value: stats.resumes, color: "hsl(210, 70%, 50%)" },
-    { id: "coverLetters", label: "Cover Letters", value: stats.coverLetters, color: "hsl(40, 70%, 50%)" },
-    { id: "applications", label: "Applications", value: stats.applications, color: "hsl(120, 70%, 50%)" },
+    { id: "resumes", label: "Resumes", value: dashboardStats?.resumes || 0, color: "hsl(210, 70%, 50%)" },
+    { id: "coverLetters", label: "Cover Letters", value: dashboardStats?.coverLetters || 0, color: "hsl(40, 70%, 50%)" },
+    { id: "applications", label: "Applications", value: dashboardStats?.applications || 0, color: "hsl(120, 70%, 50%)" },
   ];
+  
+  const DashboardError = () => (
+    <Alert variant="destructive">
+      <AlertCircle className="h-4 w-4" />
+      <AlertTitle>Error</AlertTitle>
+      <AlertDescription>
+        {serverStatusError instanceof Error 
+          ? serverStatusError.message 
+          : "Failed to fetch server status"}
+      </AlertDescription>
+    </Alert>
+  );
+  
+  const StatsCard = ({ title, value, icon, description }: { title: string; value: string | number; icon: React.ReactNode; description?: string }) => (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-sm font-medium">
+          {title}
+        </CardTitle>
+        {icon}
+      </CardHeader>
+      <CardContent>
+        <div className="text-2xl font-bold">{value}</div>
+        {description && <p className="text-xs text-muted-foreground">{description}</p>}
+      </CardContent>
+    </Card>
+  );
   
   return (
     <AdminLayout>
@@ -278,82 +321,35 @@ export default function AdminDashboard() {
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="activity">User Activity</TabsTrigger>
           <TabsTrigger value="revenue">Revenue</TabsTrigger>
+          <TabsTrigger value="users">Users</TabsTrigger>
+          <TabsTrigger value="plans">Subscription Plans</TabsTrigger>
+          <TabsTrigger value="subscriptions">User Subscriptions</TabsTrigger>
         </TabsList>
         
         <TabsContent value="overview" className="space-y-6">
           {/* KPI Cards */}
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Users</CardTitle>
-                <Users className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                {statsLoading ? (
-                  <div className="flex items-center justify-center h-10">
-                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                  </div>
-                ) : (
-                  <>
-                    <div className="text-2xl font-bold">{stats.users}</div>
-                    <div className="flex items-center pt-1 text-xs text-green-500">
-                      <ArrowUpRight className="mr-1 h-3 w-3" />
-                      <span>12% from last month</span>
-                    </div>
-                  </>
-                )}
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Resumes</CardTitle>
-                <FileText className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                {statsLoading ? (
-                  <div className="flex items-center justify-center h-10">
-                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                  </div>
-                ) : (
-                  <>
-                    <div className="text-2xl font-bold">{stats.resumes}</div>
-                    <div className="flex items-center pt-1 text-xs text-green-500">
-                      <ArrowUpRight className="mr-1 h-3 w-3" />
-                      <span>18% from last month</span>
-                    </div>
-                  </>
-                )}
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Monthly Revenue</CardTitle>
-                <DollarSign className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">$2,350</div>
-                <div className="flex items-center pt-1 text-xs text-green-500">
-                  <ArrowUpRight className="mr-1 h-3 w-3" />
-                  <span>7% from last month</span>
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Active Subscriptions</CardTitle>
-                <CreditCard className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">105</div>
-                <div className="flex items-center pt-1 text-xs text-red-500">
-                  <ArrowDownRight className="mr-1 h-3 w-3" />
-                  <span>3% from last month</span>
-                </div>
-              </CardContent>
-            </Card>
+            <StatsCard 
+              title="Total Users" 
+              value={statsLoading ? "Loading..." : dashboardStats?.userStats.total || 0}
+              icon={<Users className="h-4 w-4 text-muted-foreground" />}
+            />
+            <StatsCard 
+              title="Active Subscriptions" 
+              value={statsLoading ? "Loading..." : dashboardStats?.userStats.activeSubscriptions || 0}
+              icon={<CreditCard className="h-4 w-4 text-muted-foreground" />}
+            />
+            <StatsCard 
+              title="Recent Signups" 
+              value={statsLoading ? "Loading..." : dashboardStats?.userStats.recentRegistrations || 0}
+              icon={<ArrowUpRight className="h-4 w-4 text-green-500" />}
+              description="Last 7 days"
+            />
+            <StatsCard 
+              title="AI Tokens Used" 
+              value={statsLoading ? "Loading..." : (dashboardStats?.aiStats.totalTokens || 0).toLocaleString()}
+              icon={<Activity className="h-4 w-4 text-muted-foreground" />}
+            />
           </div>
           
           {/* Charts and Tables */}
@@ -562,9 +558,7 @@ export default function AdminDashboard() {
               </CardHeader>
               <CardContent>
                 {serverStatusError ? (
-                  <div className="p-4 border border-red-200 bg-red-50 text-red-700 rounded-md">
-                    Failed to load system status: {serverStatusError}
-                  </div>
+                  <DashboardError />
                 ) : serverStatus ? (
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
@@ -777,6 +771,18 @@ export default function AdminDashboard() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+        
+        <TabsContent value="users">
+          <UsersManagement />
+        </TabsContent>
+        
+        <TabsContent value="plans">
+          <SubscriptionPlansManagement />
+        </TabsContent>
+        
+        <TabsContent value="subscriptions">
+          <UserSubscriptionsManagement />
         </TabsContent>
       </Tabs>
     </AdminLayout>
