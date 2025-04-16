@@ -8,6 +8,22 @@ import { sql } from 'drizzle-orm';
 
 const router = express.Router();
 
+// Helper function to ensure values are safe and valid
+const safeString = (value: any): string => {
+  if (value === null || value === undefined) return '';
+  return String(value);
+};
+
+const safeNumber = (value: any): number => {
+  if (value === null || value === undefined) return 0;
+  const num = Number(value);
+  return isNaN(num) ? 0 : num;
+};
+
+const safeBoolean = (value: any): boolean => {
+  return !!value;
+};
+
 /**
  * GET /api/admin/server-status
  * Returns server status information including system info,
@@ -17,15 +33,17 @@ router.get('/server-status', requireAdmin, async (req: Request, res: Response) =
   try {
     // System information
     const systemInfo = {
-      platform: os.platform(),
-      architecture: os.arch(),
-      cpus: os.cpus().length,
-      totalMemory: os.totalmem(),
-      freeMemory: os.freemem(),
-      uptime: os.uptime(),
-      load: os.loadavg(),
-      nodeVersion: process.version,
-      nodeEnv: process.env.NODE_ENV || 'development'
+      platform: safeString(os.platform()),
+      architecture: safeString(os.arch()),
+      cpus: safeNumber(os.cpus().length),
+      totalMemory: safeNumber(os.totalmem()),
+      freeMemory: safeNumber(os.freemem()),
+      uptime: safeNumber(os.uptime()),
+      load: Array.isArray(os.loadavg()) ? 
+        os.loadavg().map(v => safeNumber(v)) : 
+        [0, 0, 0],
+      nodeVersion: safeString(process.version),
+      nodeEnv: safeString(process.env.NODE_ENV || 'development')
     };
 
     // Check database connection
@@ -36,7 +54,7 @@ router.get('/server-status', requireAdmin, async (req: Request, res: Response) =
       await db.execute(sql`SELECT 1`);
     } catch (error) {
       dbConnected = false;
-      dbError = error instanceof Error ? error.message : String(error);
+      dbError = error instanceof Error ? safeString(error.message) : safeString(error);
     }
 
     // Get user statistics
@@ -53,9 +71,9 @@ router.get('/server-status', requireAdmin, async (req: Request, res: Response) =
       // Get basic user stats
       const stats = await storage.getUserStatistics();
       
-      // Basic user stats
-      userStats.total = parseInt(stats.totalUsers || '0', 10);
-      userStats.active = parseInt(stats.recentLogins || '0', 10);
+      // Basic user stats - ensure numeric values
+      userStats.total = safeNumber(stats.totalUsers || 0);
+      userStats.active = safeNumber(stats.recentLogins || 0);
       
       // Get count of admin users
       try {
@@ -67,9 +85,7 @@ router.get('/server-status', requireAdmin, async (req: Request, res: Response) =
         if (adminCount && adminCount.length > 0 && adminCount[0].count !== undefined) {
           // Convert BigInt or string to number
           const count = adminCount[0].count;
-          userStats.admins = typeof count === 'bigint' ? Number(count) : 
-                            typeof count === 'string' ? parseInt(count, 10) : 
-                            typeof count === 'number' ? count : 0;
+          userStats.admins = safeNumber(typeof count === 'bigint' ? Number(count) : count);
         }
       } catch (adminCountError) {
         console.error('Error counting admin users:', adminCountError);
@@ -78,20 +94,19 @@ router.get('/server-status', requireAdmin, async (req: Request, res: Response) =
       // Try to get additional statistics using safer checks
       try {
         // Check if the storage object has extra statistics methods
-        // without directly referencing method names that might not exist
         const storageAny = storage as any;
         
         // Only call these methods if they exist
         if (storageAny && typeof storageAny.getResumeCount === 'function') {
-          userStats.totalResumes = await storageAny.getResumeCount();
+          userStats.totalResumes = safeNumber(await storageAny.getResumeCount());
         }
         
         if (storageAny && typeof storageAny.getCoverLetterCount === 'function') {
-          userStats.totalCoverLetters = await storageAny.getCoverLetterCount();
+          userStats.totalCoverLetters = safeNumber(await storageAny.getCoverLetterCount());
         }
         
         if (storageAny && typeof storageAny.getJobApplicationCount === 'function') {
-          userStats.totalJobApplications = await storageAny.getJobApplicationCount();
+          userStats.totalJobApplications = safeNumber(await storageAny.getJobApplicationCount());
         }
       } catch (statsError) {
         console.error('Error fetching detailed stats:', statsError);
@@ -102,30 +117,35 @@ router.get('/server-status', requireAdmin, async (req: Request, res: Response) =
 
     // Session information
     const sessionInfo = {
-      isAuthenticated: req.isAuthenticated(),
-      sessionID: req.sessionID,
+      isAuthenticated: safeBoolean(req.isAuthenticated()),
+      sessionID: safeString(req.sessionID),
       cookie: req.session?.cookie ? {
-        maxAge: req.session.cookie.maxAge,
-        httpOnly: req.session.cookie.httpOnly,
-        secure: req.session.cookie.secure,
-        sameSite: req.session.cookie.sameSite
-      } : null
+        maxAge: safeNumber(req.session.cookie.maxAge),
+        httpOnly: safeBoolean(req.session.cookie.httpOnly),
+        secure: safeBoolean(req.session.cookie.secure),
+        sameSite: safeString(req.session.cookie.sameSite)
+      } : {
+        maxAge: 0,
+        httpOnly: false,
+        secure: false,
+        sameSite: 'lax'
+      }
     };
 
     // Rate limiter settings - simplified as we may not have direct access
     const rateLimiterInfo = {
-      enabled: process.env.RATE_LIMIT_ENABLED === 'true',
-      windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000'),
-      max: parseInt(process.env.RATE_LIMIT_MAX || '100')
+      enabled: safeBoolean(process.env.RATE_LIMIT_ENABLED === 'true'),
+      windowMs: safeNumber(parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000')),
+      max: safeNumber(parseInt(process.env.RATE_LIMIT_MAX || '100'))
     };
 
     // Cookie manager details
     const cookieManagerInfo = {
-      enabled: !!cookieManager,
+      enabled: safeBoolean(cookieManager),
       settings: {
-        prefix: cookieManager ? (cookieManager as any).prefix || 'prosume' : 'prosume',
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax'
+        prefix: safeString(cookieManager ? (cookieManager as any).prefix || 'prosume' : 'prosume'),
+        secure: safeBoolean(process.env.NODE_ENV === 'production'),
+        sameSite: safeString(process.env.NODE_ENV === 'production' ? 'strict' : 'lax')
       }
     };
 
@@ -187,9 +207,9 @@ router.get('/server-status-debug', requireAdmin, async (req: Request, res: Respo
   try {
     // Basic system info
     const systemInfo = {
-      platform: os.platform(),
-      uptime: os.uptime(),
-      nodeVersion: process.version
+      platform: safeString(os.platform()),
+      uptime: safeNumber(os.uptime()),
+      nodeVersion: safeString(process.version)
     };
 
     // Test database separately
@@ -198,7 +218,7 @@ router.get('/server-status-debug', requireAdmin, async (req: Request, res: Respo
       await db.execute(sql`SELECT 1`);
       dbTest.success = true;
     } catch (error) {
-      dbTest.error = error instanceof Error ? error.message : String(error);
+      dbTest.error = error instanceof Error ? safeString(error.message) : safeString(error);
       console.error('Database test failed:', error);
     }
 
@@ -208,7 +228,7 @@ router.get('/server-status-debug', requireAdmin, async (req: Request, res: Respo
       const stats = await storage.getUserStatistics();
       storageTest.success = true;
     } catch (error) {
-      storageTest.error = error instanceof Error ? error.message : String(error);
+      storageTest.error = error instanceof Error ? safeString(error.message) : safeString(error);
       console.error('Storage test failed:', error);
     }
 
@@ -217,7 +237,7 @@ router.get('/server-status-debug', requireAdmin, async (req: Request, res: Respo
       database: dbTest,
       storage: storageTest,
       env: {
-        NODE_ENV: process.env.NODE_ENV,
+        NODE_ENV: safeString(process.env.NODE_ENV),
         DATABASE_URL: process.env.DATABASE_URL ? '****' : 'not set'
       }
     });
@@ -226,7 +246,7 @@ router.get('/server-status-debug', requireAdmin, async (req: Request, res: Respo
     res.status(500).json({
       status: 'error',
       message: 'Debug test failed',
-      error: error instanceof Error ? error.message : String(error)
+      error: error instanceof Error ? safeString(error.message) : safeString(error)
     });
   }
 });

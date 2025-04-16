@@ -112,19 +112,51 @@ export default function AdminDashboard() {
   const { isAdmin, isLoading: adminCheckLoading } = useAdmin();
   const [activeTab, setActiveTab] = useState("overview");
   
+  // Add missing state declarations
+  const [stats, setStats] = useState<{
+    users: number;
+    resumes: number;
+    coverLetters: number;
+    applications: number;
+  }>({
+    users: 0,
+    resumes: 0,
+    coverLetters: 0,
+    applications: 0
+  });
+  const [statsLoading, setStatsLoading] = useState(false);
+  
+  // Simplified server status state
+  const [serverStatusError, setServerStatusError] = useState<string | null>(null);
+  
   // Fetch admin dashboard stats
-  const { data: dashboardStats, isLoading: statsLoading, error: statsError } = useQuery<DashboardStats>({
+  const { data: dashboardStats, isLoading: dashboardStatsLoading, error: statsError } = useQuery<DashboardStats>({
     queryKey: ["/api/admin/dashboard"],
     queryFn: getQueryFn({ on401: "throw" }),
     refetchInterval: 300000, // Refresh every 5 minutes
   });
   
-  // Add state for server status data
-  const { data: serverStatus, isLoading: serverStatusLoading, error: serverStatusError } = useQuery<ServerStatusData>({
-    queryKey: ["/api/admin/status"],
+  // Add state for server status data from API - fix endpoint to match what system-status.tsx uses
+  const { data: serverStatus, isLoading: serverStatusLoading, error: serverStatusQueryError } = useQuery<ServerStatusData>({
+    queryKey: ["/api/admin/server-status"], // Changed from /api/admin/status to /api/admin/server-status
     queryFn: getQueryFn({ on401: "throw" }),
-    refetchInterval: 60000, // Refresh every minute
+    refetchInterval: 60000 // Refresh every minute
   });
+  
+  // Update error state when query error changes
+  useEffect(() => {
+    if (serverStatusQueryError) {
+      // Just convert any error to a string to avoid type issues
+      setServerStatusError(
+        serverStatusQueryError instanceof Error 
+          ? serverStatusQueryError.message 
+          : "Failed to fetch server status"
+      );
+      console.error("Server status error:", serverStatusQueryError);
+    } else {
+      setServerStatusError(null);
+    }
+  }, [serverStatusQueryError]);
   
   const fetchStats = useCallback(async () => {
     if (!user || !isAdmin) return;
@@ -164,51 +196,19 @@ export default function AdminDashboard() {
     }
   }, [user, isAdmin]);
   
-  // Add function to fetch server status
-  const fetchServerStatus = useCallback(async () => {
-    if (!user || !isAdmin) return;
-    
-    try {
-      setServerStatusLoading(true);
-      setServerStatusError(null);
-      
-      const response = await fetch('/api/admin/server-status', {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Status: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      setServerStatus(data);
-    } catch (err: any) {
-      setServerStatusError(err.message || 'Failed to fetch server status');
-      console.error("Error fetching server status:", err);
-    } finally {
-      setServerStatusLoading(false);
-    }
-  }, [user, isAdmin]);
-  
+  // Effect to fetch stats on mount and periodically
   useEffect(() => {
     if (user && isAdmin) {
       fetchStats();
-      fetchServerStatus();
       
-      // Set up interval to refresh stats and server status
+      // Set up interval to refresh stats
       const statsInterval = setInterval(fetchStats, 60000);
-      const statusInterval = setInterval(fetchServerStatus, 30000);
       
       return () => {
         clearInterval(statsInterval);
-        clearInterval(statusInterval);
       };
     }
-  }, [fetchStats, fetchServerStatus, user, isAdmin]);
+  }, [fetchStats, user, isAdmin]);
   
   // If not authenticated, redirect to login
   if (!user) {
@@ -237,9 +237,13 @@ export default function AdminDashboard() {
   
   // Calculate memory usage percentage
   const getMemoryUsagePercent = () => {
-    if (!serverStatus) return 0;
+    if (!serverStatus?.system) return 0;
     
-    const { totalMemory, freeMemory } = serverStatus.system;
+    const totalMemory = serverStatus?.system?.totalMemory || 0;
+    const freeMemory = serverStatus?.system?.freeMemory || 0;
+    
+    if (totalMemory === 0) return 0;
+    
     const used = totalMemory - freeMemory;
     return Math.round((used / totalMemory) * 100);
   };
@@ -271,9 +275,9 @@ export default function AdminDashboard() {
   ];
   
   const documentDistributionData = [
-    { id: "resumes", label: "Resumes", value: dashboardStats?.resumes || 0, color: "hsl(210, 70%, 50%)" },
-    { id: "coverLetters", label: "Cover Letters", value: dashboardStats?.coverLetters || 0, color: "hsl(40, 70%, 50%)" },
-    { id: "applications", label: "Applications", value: dashboardStats?.applications || 0, color: "hsl(120, 70%, 50%)" },
+    { id: "resumes", label: "Resumes", value: stats.resumes || 0, color: "hsl(210, 70%, 50%)" },
+    { id: "coverLetters", label: "Cover Letters", value: stats.coverLetters || 0, color: "hsl(40, 70%, 50%)" },
+    { id: "applications", label: "Applications", value: stats.applications || 0, color: "hsl(120, 70%, 50%)" },
   ];
   
   const DashboardError = () => (
@@ -281,9 +285,7 @@ export default function AdminDashboard() {
       <AlertCircle className="h-4 w-4" />
       <AlertTitle>Error</AlertTitle>
       <AlertDescription>
-        {serverStatusError instanceof Error 
-          ? serverStatusError.message 
-          : "Failed to fetch server status"}
+        {serverStatusError || (statsError instanceof Error ? statsError.message : "Failed to load dashboard data")}
       </AlertDescription>
     </Alert>
   );
@@ -550,24 +552,28 @@ export default function AdminDashboard() {
                   <CardTitle>System Status</CardTitle>
                   <CardDescription>Current system status and resources</CardDescription>
                 </div>
-                {serverStatusLoading && (
+                {serverStatusLoading ? (
                   <div className="animate-spin">
                     <Loader2 className="h-4 w-4 text-muted-foreground" />
                   </div>
-                )}
+                ) : null}
               </CardHeader>
               <CardContent>
                 {serverStatusError ? (
-                  <DashboardError />
+                  <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
+                    <h3 className="font-medium text-sm mb-1">Error Loading System Status</h3>
+                    <p className="text-xs">{serverStatusError}</p>
+                    <p className="text-xs mt-2">Try refreshing the page or check server logs for more details.</p>
+                  </div>
                 ) : serverStatus ? (
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <div className={`h-2.5 w-2.5 rounded-full ${serverStatus.database.connected ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                        <div className={`h-2.5 w-2.5 rounded-full ${serverStatus?.database?.connected ? 'bg-green-500' : 'bg-red-500'}`}></div>
                         <span className="font-medium">Database</span>
                       </div>
-                      <span className={`text-sm font-medium ${serverStatus.database.connected ? 'text-green-500' : 'text-red-500'}`}>
-                        {serverStatus.database.connected ? 'Operational' : 'Disconnected'}
+                      <span className={`text-sm font-medium ${serverStatus?.database?.connected ? 'text-green-500' : 'text-red-500'}`}>
+                        {serverStatus?.database?.connected ? 'Operational' : 'Disconnected'}
                       </span>
                     </div>
                     
@@ -585,27 +591,27 @@ export default function AdminDashboard() {
                         <span className="font-medium">Authentication</span>
                       </div>
                       <span className="text-sm text-green-500 font-medium">
-                        {serverStatus.session.isAuthenticated ? 'Operational' : 'Issue Detected'}
+                        {serverStatus?.session?.isAuthenticated ? 'Operational' : 'Issue Detected'}
                       </span>
                     </div>
                     
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <div className={`h-2.5 w-2.5 rounded-full ${serverStatus.cookieManager.enabled ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
+                        <div className={`h-2.5 w-2.5 rounded-full ${serverStatus?.cookieManager?.enabled ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
                         <span className="font-medium">Cookie Manager</span>
                       </div>
-                      <span className={`text-sm font-medium ${serverStatus.cookieManager.enabled ? 'text-green-500' : 'text-yellow-500'}`}>
-                        {serverStatus.cookieManager.enabled ? 'Operational' : 'Limited'}
+                      <span className={`text-sm font-medium ${serverStatus?.cookieManager?.enabled ? 'text-green-500' : 'text-yellow-500'}`}>
+                        {serverStatus?.cookieManager?.enabled ? 'Operational' : 'Limited'}
                       </span>
                     </div>
                     
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <div className={`h-2.5 w-2.5 rounded-full ${serverStatus.rateLimiter.enabled ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
+                        <div className={`h-2.5 w-2.5 rounded-full ${serverStatus?.rateLimiter?.enabled ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
                         <span className="font-medium">Rate Limiter</span>
                       </div>
-                      <span className={`text-sm font-medium ${serverStatus.rateLimiter.enabled ? 'text-green-500' : 'text-yellow-500'}`}>
-                        {serverStatus.rateLimiter.enabled ? 'Active' : 'Disabled'}
+                      <span className={`text-sm font-medium ${serverStatus?.rateLimiter?.enabled ? 'text-green-500' : 'text-yellow-500'}`}>
+                        {serverStatus?.rateLimiter?.enabled ? 'Active' : 'Disabled'}
                       </span>
                     </div>
                     
@@ -617,20 +623,20 @@ export default function AdminDashboard() {
                             <span>Server Load</span>
                           </span>
                           <span>
-                            {serverStatus.system.load[0].toFixed(2)} 
+                            {serverStatus?.system?.load?.[0]?.toFixed(2) || '0.00'} 
                             <span className="text-xs text-muted-foreground ml-1">(1m avg)</span>
                           </span>
                         </div>
                         <div className="h-2 w-full rounded-full bg-gray-200">
                           <div 
                             className={`h-2 rounded-full ${
-                              serverStatus.system.load[0] > 3 
+                              (serverStatus?.system?.load?.[0] || 0) > 3 
                                 ? 'bg-red-500' 
-                                : serverStatus.system.load[0] > 1.5 
+                                : (serverStatus?.system?.load?.[0] || 0) > 1.5 
                                   ? 'bg-yellow-500' 
                                   : 'bg-green-500'
                             }`} 
-                            style={{ width: `${Math.min(100, serverStatus.system.load[0] * 10)}%` }}
+                            style={{ width: `${Math.min(100, (serverStatus?.system?.load?.[0] || 0) * 10)}%` }}
                           ></div>
                         </div>
                       </div>
@@ -657,15 +663,15 @@ export default function AdminDashboard() {
                       <div className="mt-4 flex flex-col text-xs text-muted-foreground">
                         <div className="flex justify-between">
                           <span>Platform:</span>
-                          <span>{serverStatus.system.platform} ({serverStatus.system.architecture})</span>
+                          <span>{serverStatus?.system?.platform || 'Unknown'} ({serverStatus?.system?.architecture || 'Unknown'})</span>
                         </div>
                         <div className="flex justify-between">
                           <span>Uptime:</span>
-                          <span>{formatUptime(serverStatus.system.uptime)}</span>
+                          <span>{formatUptime(serverStatus?.system?.uptime || 0)}</span>
                         </div>
                         <div className="flex justify-between">
                           <span>Node:</span>
-                          <span>{serverStatus.system.nodeVersion} ({serverStatus.system.nodeEnv})</span>
+                          <span>{serverStatus?.system?.nodeVersion || 'Unknown'} ({serverStatus?.system?.nodeEnv || 'Unknown'})</span>
                         </div>
                       </div>
                     </div>
