@@ -100,17 +100,41 @@ export async function analyzeJobDescription(
 
     const prompt = `
 Analyze this job description and extract keywords into the following categories:
-1. technicalSkills: Technical abilities and hard skills relevant to the job
-2. softSkills: Interpersonal, communication, and character traits
-3. education: Required degrees, educational qualifications, or academic background
-4. responsibilities: Key duties and tasks for the role
-5. industryTerms: Industry-specific jargon and terminology
-6. tools: Software, technologies, platforms, or tools mentioned
-7. certifications: Professional certifications, licenses, or qualifications
 
-For each category, extract 3-10 relevant keywords or phrases.
+1. technicalSkills: Technical abilities, programming languages, hard skills relevant to the job
+   Examples: JavaScript, Python, DevOps, API development, software architecture, data analysis
+
+2. softSkills: Interpersonal abilities, character traits, and professional attributes
+   Examples: communication, leadership, teamwork, problem-solving, critical thinking, attention to detail
+
+3. education: Required degrees, educational qualifications, or academic background
+   Examples: Bachelor's degree, MBA, Computer Science, Engineering, certifications
+
+4. responsibilities: Key duties, tasks, and job functions for the role
+   Examples: develop software, manage projects, create reports, conduct research, lead teams
+
+5. industryTerms: Industry-specific jargon, terminology, and domain knowledge
+   Examples: agile methodology, software development lifecycle, financial regulations, healthcare compliance
+
+6. tools: Software, technologies, platforms, frameworks, or specific tools mentioned
+   Examples: React, AWS, Docker, Kubernetes, Tableau, SAP, Office 365, Jira, Git
+
+7. certifications: Professional certifications, licenses, or qualifications
+   Examples: AWS Certified, PMP, CISSP, CPA, Scrum Master, Google Cloud Professional
+
+For each category, extract 5-15 relevant keywords or phrases that appear DIRECTLY in the job description.
 Format your response as a valid JSON object with array properties for each category.
 If a category has no relevant terms, return an empty array.
+
+IMPORTANT:
+- Keep keywords and phrases CONCISE (1-4 words each is ideal for ATS systems)
+- Break down longer sentences into shorter, more focused keywords
+- Ensure accurate categorization - do not put technical skills in soft skills category and vice versa
+- Focus on extracting the EXACT wording used in the job description
+- Avoid long phrases or complete sentences - ATS systems work better with concise keywords
+- For responsibilities, prefer action verb + object format (e.g., "develop applications" rather than "responsible for developing applications")
+- Prioritize specific, technical, and industry-specific terms over generic ones
+- Make sure industry terms are truly industry-specific, not general business terms
 
 Job Description:
 ${truncateText(jobDescription, 2000)}
