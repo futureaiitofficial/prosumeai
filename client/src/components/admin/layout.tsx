@@ -18,7 +18,15 @@ import {
   Search,
   HelpCircle,
   ChevronRight,
-  Server
+  Server,
+  LayoutDashboard,
+  ScrollText,
+  Database,
+  Key,
+  Mail,
+  Plug2,
+  Shield,
+  LucideIcon
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
@@ -32,12 +40,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 
-type NavItem = {
-  title: string;
+interface NavigationItem {
+  name: string;
   href: string;
-  icon: React.ReactNode;
-  badge?: string;
-};
+  icon: LucideIcon;
+}
 
 export function AdminLayout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
@@ -67,48 +74,18 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
   }
 
   // Navigation items
-  const navItems: NavItem[] = [
-    {
-      title: "Dashboard",
-      href: "/admin",
-      icon: <BarChart3 className="h-5 w-5" />,
-    },
-    {
-      title: "Users",
-      href: "/admin/users",
-      icon: <Users className="h-5 w-5" />,
-      badge: "New"
-    },
-    {
-      title: "Templates",
-      href: "/admin/templates",
-      icon: <FileText className="h-5 w-5" />,
-    },
-    {
-      title: "Billing",
-      href: "/admin/billing",
-      icon: <CreditCard className="h-5 w-5" />,
-    },
-    {
-      title: "Pricing",
-      href: "/admin/pricing",
-      icon: <DollarSign className="h-5 w-5" />,
-    },
-    {
-      title: "Analytics",
-      href: "/admin/analytics",
-      icon: <TrendingUp className="h-5 w-5" />,
-    },
-    {
-      title: "System Status",
-      href: "/admin/system-status",
-      icon: <Server className="h-5 w-5" />,
-    },
-    {
-      title: "Settings",
-      href: "/admin/settings",
-      icon: <Settings className="h-5 w-5" />,
-    },
+  const navigationItems: NavigationItem[] = [
+    { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
+    { name: "Templates", href: "/admin/templates", icon: FileText },
+    { name: "Users", href: "/admin/users", icon: Users },
+    { name: "Settings", href: "/admin/settings", icon: Settings },
+    { name: "Logs", href: "/admin/logs", icon: ScrollText },
+    { name: "Backups", href: "/admin/backups", icon: Database },
+    { name: "API Keys", href: "/admin/api-keys", icon: Key },
+    { name: "Email Templates", href: "/admin/email-templates", icon: Mail },
+    { name: "Integrations", href: "/admin/integrations", icon: Plug2 },
+    { name: "Security", href: "/admin/security", icon: Shield },
+    { name: "System Status", href: "/admin/system-status", icon: Server },
   ];
 
   return (
@@ -147,33 +124,24 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
 
         {/* Navigation links */}
         <nav className="flex-1 overflow-y-auto py-4">
-          <ul className="space-y-1 px-2">
-            {navItems.map((item) => (
-              <li key={item.href}>
-                <Link 
-                  href={item.href}
+          <div className="flex flex-col gap-2">
+            {navigationItems.map((item) => {
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.href}
+                  to={item.href}
                   className={cn(
-                    "flex items-center rounded-lg px-4 py-2.5 text-sm font-medium transition-colors",
-                    (location === item.href || 
-                     (item.href !== "/admin" && location.startsWith(item.href)))
-                      ? "bg-gray-100 dark:bg-gray-800 text-primary" 
-                      : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800",
-                    !isSidebarOpen && "justify-center px-2"
+                    "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all hover:bg-accent",
+                    location === item.href ? "bg-accent" : "transparent"
                   )}
                 >
-                  {item.icon}
-                  {isSidebarOpen && (
-                    <span className="ml-3 flex-1">{item.title}</span>
-                  )}
-                  {isSidebarOpen && item.badge && (
-                    <Badge variant="default" className="ml-auto text-xs">
-                      {item.badge}
-                    </Badge>
-                  )}
+                  <Icon className="h-4 w-4" />
+                  {item.name}
                 </Link>
-              </li>
-            ))}
-          </ul>
+              );
+            })}
+          </div>
         </nav>
 
         {/* User section */}
@@ -267,30 +235,24 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
 
         {/* Mobile navigation links */}
         <nav className="flex-1 overflow-y-auto py-4">
-          <ul className="space-y-1 px-2">
-            {navItems.map((item) => (
-              <li key={item.href}>
-                <Link 
-                  href={item.href}
+          <div className="flex flex-col gap-2">
+            {navigationItems.map((item) => {
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.href}
+                  to={item.href}
                   className={cn(
-                    "flex items-center rounded-lg px-4 py-2.5 text-sm font-medium transition-colors",
-                    (location === item.href || 
-                     (item.href !== "/admin" && location.startsWith(item.href)))
-                      ? "bg-gray-100 dark:bg-gray-800 text-primary" 
-                      : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
+                    "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all hover:bg-accent",
+                    location === item.href ? "bg-accent" : "transparent"
                   )}
                 >
-                  {item.icon}
-                  <span className="ml-3 flex-1">{item.title}</span>
-                  {item.badge && (
-                    <Badge variant="default" className="ml-auto text-xs">
-                      {item.badge}
-                    </Badge>
-                  )}
+                  <Icon className="h-4 w-4" />
+                  {item.name}
                 </Link>
-              </li>
-            ))}
-          </ul>
+              );
+            })}
+          </div>
         </nav>
 
         {/* Mobile user section */}

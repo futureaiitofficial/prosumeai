@@ -563,13 +563,12 @@ export function SettingsOverview() {
                           defaultUserRole: value
                         })}
                       >
-                        <SelectTrigger id="defaultUserRole">
-                          <SelectValue placeholder="Select role" />
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select default role" />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="user">User</SelectItem>
-                          <SelectItem value="premium">Premium</SelectItem>
-                          <SelectItem value="support">Support</SelectItem>
+                          <SelectItem value="admin">Admin</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>

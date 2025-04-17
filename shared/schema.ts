@@ -15,55 +15,6 @@ export const users = pgTable("users", {
   updatedAt: timestamp("updated_at").defaultNow()
 });
 
-// Subscription Plans Schema
-export const subscriptionPlans = pgTable("subscription_plans", {
-  id: serial("id").primaryKey(),
-  name: text("name").notNull(),
-  description: text("description").notNull(),
-  currency: text("currency").notNull(), // "USD", "INR"
-  price: numeric('price', { precision: 10, scale: 2 }).notNull(),
-  interval: text("interval").notNull(), // "monthly", "yearly"
-  features: jsonb("features").notNull(), // JSON object with feature limits
-  isActive: boolean("is_active").default(true).notNull(),
-  trialDays: integer("trial_days").default(0).notNull(),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow()
-});
-
-// User Subscriptions Schema 
-export const userSubscriptions = pgTable("user_subscriptions", {
-  id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull().references(() => users.id),
-  planId: integer("plan_id").notNull().references(() => subscriptionPlans.id),
-  status: text("status").notNull(), // "active", "cancelled", "expired", "trialing"
-  currentPeriodStart: timestamp("current_period_start").notNull(),
-  currentPeriodEnd: timestamp("current_period_end").notNull(),
-  cancelAtPeriodEnd: boolean("cancel_at_period_end").default(false).notNull(),
-  paymentProcessor: text("payment_processor").notNull(), // "stripe", "razorpay", etc.
-  paymentProcessorId: text("payment_processor_id").notNull(), // ID from payment processor
-  metadata: jsonb("metadata"), // Additional payment-related data
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow()
-});
-
-// Feature Usage Tracking Schema
-export const featureUsage = pgTable("feature_usage", {
-  id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull().references(() => users.id),
-  featureKey: text("feature_key").notNull(), // e.g., "resumes", "cover_letters", "ai_tokens"
-  usageCount: integer("usage_count").default(0).notNull(),
-  lastUsedAt: timestamp("last_used_at").defaultNow(),
-  resetAt: timestamp("reset_at"), // When usage counter will reset
-  billingCycleStart: timestamp("billing_cycle_start").notNull(),
-  billingCycleEnd: timestamp("billing_cycle_end").notNull(),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow()
-}, (table) => {
-  return {
-    userFeatureIdx: index("IDX_user_feature").on(table.userId, table.featureKey),
-  };
-});
-
 // App Settings Schema
 export const appSettings = pgTable("app_settings", {
   id: serial("id").primaryKey(),
@@ -200,24 +151,6 @@ export const jobApplications = pgTable("job_applications", {
   updatedAt: timestamp("updated_at").defaultNow()
 });
 
-// Token Usage Schema
-export const tokenUsage = pgTable("token_usage", {
-  id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull().references(() => users.id),
-  featureKey: text("feature_key").notNull(), // e.g., "resume_ai", "cover_letter_ai", etc.
-  tokensUsed: integer("tokens_used").notNull(),
-  model: text("model").notNull(), // The AI model used
-  timestamp: timestamp("timestamp").defaultNow().notNull(),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow()
-}, (table) => {
-  return {
-    userTokenUsageIdx: index("IDX_user_token_usage").on(table.userId, table.featureKey),
-  };
-});
-
-// Interview Schema removed as per user request
-
 // Resume Templates Schema
 export const resumeTemplates = pgTable("resume_templates", {
   id: serial("id").primaryKey(),
@@ -227,7 +160,6 @@ export const resumeTemplates = pgTable("resume_templates", {
   thumbnail: text("thumbnail").default("").notNull(),
   isDefault: boolean("is_default").default(false).notNull(),
   isActive: boolean("is_active").default(true).notNull(),
-  planRequired: text("plan_required"), // Minimum plan required to use this template
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow()
 });
@@ -241,7 +173,6 @@ export const coverLetterTemplates = pgTable("cover_letter_templates", {
   thumbnail: text("thumbnail").default("").notNull(),
   isDefault: boolean("is_default").default(false).notNull(),
   isActive: boolean("is_active").default(true).notNull(),
-  planRequired: text("plan_required"), // Minimum plan required to use this template
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow()
 });
@@ -264,25 +195,7 @@ export const insertUserSchema = createInsertSchema(users).omit({
   updatedAt: true
 });
 
-export const insertSubscriptionPlanSchema = createInsertSchema(subscriptionPlans).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true
-});
-
-export const insertUserSubscriptionSchema = createInsertSchema(userSubscriptions).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true
-});
-
-export const insertFeatureUsageSchema = createInsertSchema(featureUsage).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true
-});
-
-export const insertTokenUsageSchema = createInsertSchema(tokenUsage).omit({
+export const insertAppSettingsSchema = createInsertSchema(appSettings).omit({
   id: true,
   createdAt: true,
   updatedAt: true
@@ -326,7 +239,6 @@ export const insertJobApplicationSchema = createInsertSchema(jobApplications)
     interviewNotes: z.string().nullable().optional()
   });
 
-// Insert schema for templates
 export const insertResumeTemplateSchema = createInsertSchema(resumeTemplates).omit({
   id: true,
   createdAt: true,
@@ -339,50 +251,24 @@ export const insertCoverLetterTemplateSchema = createInsertSchema(coverLetterTem
   updatedAt: true
 });
 
-// New insert schemas for settings and payment gateways
-export const insertAppSettingsSchema = createInsertSchema(appSettings).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true
-});
-
 // Types
 export type User = typeof users.$inferSelect;
-export type SubscriptionPlan = typeof subscriptionPlans.$inferSelect;
-export type UserSubscription = typeof userSubscriptions.$inferSelect;
-export type FeatureUsage = typeof featureUsage.$inferSelect;
-export type TokenUsageRecord = typeof tokenUsage.$inferSelect;
+export type AppSetting = typeof appSettings.$inferSelect;
 export type JobDescription = typeof jobDescriptions.$inferSelect;
 export type Resume = typeof resumes.$inferSelect;
 export type CoverLetter = typeof coverLetters.$inferSelect;
 export type JobApplication = typeof jobApplications.$inferSelect;
 export type ResumeTemplate = typeof resumeTemplates.$inferSelect;
 export type CoverLetterTemplate = typeof coverLetterTemplates.$inferSelect;
-export type AppSetting = typeof appSettings.$inferSelect;
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
-export type InsertSubscriptionPlan = z.infer<typeof insertSubscriptionPlanSchema>;
-export type InsertUserSubscription = z.infer<typeof insertUserSubscriptionSchema>;
-export type InsertFeatureUsage = z.infer<typeof insertFeatureUsageSchema>;
-export type InsertTokenUsage = z.infer<typeof insertTokenUsageSchema>;
+export type InsertAppSetting = z.infer<typeof insertAppSettingsSchema>;
 export type InsertJobDescription = z.infer<typeof insertJobDescriptionSchema>;
 export type InsertResume = z.infer<typeof insertResumeSchema>;
 export type InsertCoverLetter = z.infer<typeof insertCoverLetterSchema>;
 export type InsertJobApplication = z.infer<typeof insertJobApplicationSchema>;
 export type InsertResumeTemplate = z.infer<typeof insertResumeTemplateSchema>;
 export type InsertCoverLetterTemplate = z.infer<typeof insertCoverLetterTemplateSchema>;
-
-// Feature limits type definition
-export type FeatureLimits = {
-  maxResumes: number;
-  maxCoverLetters: number;
-  maxJobApplications: number;
-  aiTokensPerMonth: number;
-  customTemplates: boolean;
-  advancedAiFeatures: boolean;
-  priority: boolean;
-  exportFormats: string[]; // pdf, doc, etc.
-};
 
 // Resume-related type definitions for frontend
 export type WorkExperience = {
@@ -435,17 +321,3 @@ export type StatusHistoryEntry = {
   date: string;
   notes: string | null;
 };
-
-export const auditLogs = pgTable('audit_logs', {
-  id: serial('id').primaryKey(),
-  action: varchar('action', { length: 10 }).notNull(),
-  entityType: varchar('entity_type', { length: 50 }).notNull(),
-  entityId: integer('entity_id').notNull(),
-  userId: integer('user_id').references(() => users.id),
-  details: jsonb('details'),
-  createdAt: timestamp('created_at').defaultNow(),
-});
-
-// Add to existing type exports
-export type AuditLog = typeof auditLogs.$inferSelect;
-export type InsertAuditLog = typeof auditLogs.$inferInsert;

@@ -10,7 +10,6 @@ import { dirname } from 'path';
 import { db } from './config/db';
 import { cookieManager } from './utils/cookie-manager';
 import { registerAdminRoutes } from './src/routes/admin-routes';
-import { registerUserSubscriptionRoutes } from './src/routes/user-subscription-routes';
 import { registerResumeRoutes } from './src/routes/resume-routes';
 import { registerCoverLetterRoutes } from './src/routes/cover-letter-routes';
 import { registerJobApplicationRoutes } from './src/routes/job-applications-routes';

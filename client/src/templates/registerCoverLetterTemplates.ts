@@ -7,7 +7,6 @@ export const coverLetterTemplateMetadata = {
     id: 'standard',
     name: 'Standard',
     description: 'Traditional cover letter format suitable for formal applications',
-    premium: false,
     version: '1.0.0',
     thumbnail: '/templates/cl-standard.png',
     component: StandardCoverLetter
@@ -16,7 +15,6 @@ export const coverLetterTemplateMetadata = {
     id: 'modern',
     name: 'Modern',
     description: 'Modern design with contemporary styling for creative roles',
-    premium: false,
     version: '1.0.0',
     thumbnail: '/templates/cl-modern.png',
     component: ModernCoverLetter

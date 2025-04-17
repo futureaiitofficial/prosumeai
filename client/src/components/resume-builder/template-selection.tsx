@@ -1,14 +1,12 @@
 import React, { useEffect, useState, Component, type ErrorInfo, useRef } from 'react';
 import { Button } from '@/components/ui/button';
-import { Info, Lock } from 'lucide-react';
+import { Info } from 'lucide-react';
 import { TemplateFactory } from '@/templates/core/TemplateFactory';
 import { type TemplateType } from '@/templates/core/types';
 import { registerTemplates } from '@/templates/registerTemplates';
 import { type ResumeData } from '@/types/resume';
 import { Badge } from '@/components/ui/badge';
-import { useFeatureGuard } from '@/hooks/use-feature-access';
 import { useAuth } from '@/hooks/use-auth';
-import { isResumeTemplatePremium, handleTemplateSelection } from '@/lib/template-utils';
 import { useQuery } from '@tanstack/react-query';
 
 // Register templates immediately
@@ -87,9 +85,6 @@ export default function TemplateSelection({ selectedTemplate, onChange }: Templa
   const [factoryLoaded, setFactoryLoaded] = useState(false);
   const { user } = useAuth();
   
-  // Check if user has access to premium templates - always true now
-  const { hasAccess: hasPremiumAccess } = useFeatureGuard("resume_templates_premium", { showToast: false });
-
   // Fetch all template images from the server
   const { data: templateImages = { images: [] as TemplateImage[] }, isLoading: isLoadingImages } = useQuery({
     queryKey: ["/api/templates/images"],
@@ -192,10 +187,9 @@ export default function TemplateSelection({ selectedTemplate, onChange }: Templa
         
         return {
           id: type,
-          name: template?.metadata?.name || type,
+          name: template?.metadata?.name || type.charAt(0).toUpperCase() + type.slice(1).replace(/-/g, ' '),
           description: template?.metadata?.description || '',
           isAtsOptimized: template?.metadata?.isAtsOptimized || false,
-          isPremium: false, // All templates are free now
           previewImage: getTemplatePreviewUrl(type, matchingDBTemplate)
         };
       })
@@ -205,7 +199,6 @@ export default function TemplateSelection({ selectedTemplate, onChange }: Templa
           name: 'Modern',
           description: 'A clean and modern template with a sidebar layout.',
           isAtsOptimized: true,
-          isPremium: false,
           previewImage: '/placeholder-image.png'
         }
       ];
@@ -265,8 +258,6 @@ export default function TemplateSelection({ selectedTemplate, onChange }: Templa
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {filteredTemplates.map((template) => {
           // All templates are free now
-          const isPremium = false;
-          const isLocked = false;
 
           return (
             <div

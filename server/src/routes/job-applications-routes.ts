@@ -1,7 +1,6 @@
 import express from 'express';
 import { storage } from "../../config/storage";
 import { requireUser } from "../../middleware/auth";
-import { requireFeature, FeatureKey } from "../../middleware/subscription";
 import { type InsertJobApplication } from "@shared/schema";
 import { z } from 'zod';
 
@@ -62,7 +61,7 @@ export function registerJobApplicationRoutes(app: express.Express) {
   });
   
   // Create a new job application
-  app.post('/api/job-applications', requireUser, requireFeature(FeatureKey.JOB_APPLICATIONS), async (req, res) => {
+  app.post('/api/job-applications', requireUser, async (req, res) => {
     try {
       if (!req.user) {
         return res.status(401).json({ message: "Unauthorized" });

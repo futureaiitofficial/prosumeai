@@ -15,8 +15,6 @@ import {
 import {
   Switch
 } from "@/components/ui/switch";
-import { useFeatureGuard } from "@/hooks/use-feature-access";
-import { featureAccessModal } from "@/lib/queryClient";
 
 interface SkillsFormProps {
   data: {
@@ -39,8 +37,7 @@ export default function SkillsForm({ data, updateData }: SkillsFormProps) {
   const [isExtracting, setIsExtracting] = useState(false);
   const [activeTab, setActiveTab] = useState("all");
   const [useCategories, setUseCategories] = useState(data.useSkillCategories ?? false);
-  const { hasAccess } = useFeatureGuard("ai_resume_generation", { showToast: false });
-  
+
   // Initialize skills from props
   useEffect(() => {
     // Set the categories toggle based on the saved preference
@@ -165,12 +162,6 @@ export default function SkillsForm({ data, updateData }: SkillsFormProps) {
   };
   
   const handleExtractSkills = async () => {
-    // First check if user has access to this feature
-    if (!hasAccess) {
-      featureAccessModal.showModal("ai_resume_generation");
-      return;
-    }
-    
     try {
       // Check if we have the required data
       if (!data.targetJobTitle) {

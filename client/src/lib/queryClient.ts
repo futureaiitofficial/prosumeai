@@ -3,85 +3,22 @@ import { QueryClient, QueryFunction } from "@tanstack/react-query";
 // Define API base URL - usually empty for same-domain APIs
 const API_BASE_URL = '';
 
-// Global state to manage feature access modal
-// This avoids circular dependencies with importing React components directly
-export const featureAccessModal = {
-  isOpen: false,
-  feature: "",
-  showModal: (feature: string) => {
-    featureAccessModal.isOpen = true;
-    featureAccessModal.feature = feature;
-    // Trigger custom event that components can listen for
-    window.dispatchEvent(new CustomEvent('featureAccessDenied', { 
-      detail: { feature } 
-    }));
-  },
-  closeModal: () => {
-    featureAccessModal.isOpen = false;
-    featureAccessModal.feature = "";
-  }
-};
+// Global feature access modal has been removed
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
     const text = await res.text();
-
-    // Check if this is a feature access error (usually 403 with specific message)
-    if (res.status === 403 && 
-        (text.includes("Access denied") || 
-         text.includes("feature") || 
-         text.includes("upgrade") || 
-         text.includes("subscription"))) {
-      try {
-        // Try to parse the error as JSON
-        const errorData = JSON.parse(text);
-        
-        // Extract feature name from the error message
-        let feature = "this_feature";
-        
-        // Try multiple patterns to extract the feature key
-        const patterns = [
-          /feature ['"]([^'"]+)['"]/i,          // feature 'name' or feature "name"
-          /access to ['"]([^'"]+)['"]/i,        // access to 'name' or access to "name"
-          /feature ([a-z_]+) requires/i,        // feature name_with_underscores requires
-          /feature: ['"]?([a-z_]+)['"]?/i       // feature: 'name' or feature: "name" or feature: name
-        ];
-        
-        for (const pattern of patterns) {
-          const match = errorData.message.match(pattern);
-          if (match && match[1]) {
-            feature = match[1];
-            break;
-          }
-        }
-        
-        // Show the feature access modal
-        featureAccessModal.showModal(feature);
-      } catch (e) {
-        // If JSON parsing fails, still try to handle the error
-        let feature = "this_feature";
-        
-        // Try to find a feature key in the plain text
-        const patterns = [
-          /feature ['"]([^'"]+)['"]/i,
-          /access to ['"]([^'"]+)['"]/i,
-          /feature ([a-z_]+) requires/i,
-          /feature: ['"]?([a-z_]+)['"]?/i
-        ];
-        
-        for (const pattern of patterns) {
-          const match = text.match(pattern);
-          if (match && match[1]) {
-            feature = match[1];
-            break;
-          }
-        }
-        
-        featureAccessModal.showModal(feature);
-      }
+    
+    try {
+      // Try to parse as JSON
+      const data = JSON.parse(text);
       
-      // Throw a more user-friendly error
-      throw new Error("This feature requires a subscription upgrade");
+      // Handle general errors
+      if (data.message) {
+        throw new Error(data.message);
+      }
+    } catch (e) {
+      // If JSON parsing fails, just throw a general error
     }
     
     throw new Error(`${res.status}: ${text || res.statusText}`);

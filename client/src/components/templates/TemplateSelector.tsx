@@ -3,7 +3,6 @@ import {
   Card, 
   CardContent, 
   CardDescription, 
-  CardFooter, 
   CardHeader, 
   CardTitle 
 } from "@/components/ui/card";
@@ -15,8 +14,7 @@ import {
 } from "@/components/ui/tabs";
 import { Button } from '@/components/ui/button';
 import { useTemplates } from '@/hooks/use-templates';
-import { Badge } from '@/components/ui/badge';
-import { Loader2, Lock, CheckCircle } from 'lucide-react';
+import { Loader2, CheckCircle } from 'lucide-react';
 
 type TemplateCategory = {
   id: string;
@@ -29,7 +27,6 @@ type TemplateInfo = {
   name: string;
   description: string;
   preview: string;
-  premium: boolean;
 };
 
 interface TemplateSelectorProps {
@@ -41,35 +38,26 @@ interface TemplateSelectorProps {
 // Resume template categories and templates
 const resumeCategories: TemplateCategory[] = [
   {
-    id: 'basic',
-    name: 'Basic Templates',
+    id: 'templates',
+    name: 'Templates',
     templates: [
       {
         id: 'professional',
         name: 'Professional',
         description: 'A clean, traditional resume template suitable for most industries',
-        preview: '/images/templates/preview-professional.png',
-        premium: false
-      }
-    ]
-  },
-  {
-    id: 'premium',
-    name: 'Premium Templates',
-    templates: [
+        preview: '/images/templates/preview-professional.png'
+      },
       {
         id: 'elegant-divider',
         name: 'Elegant Divider',
-        description: 'Premium template with elegant dividers and modern layout',
-        preview: '/images/templates/preview-elegant-divider.png',
-        premium: true
+        description: 'Template with elegant dividers and modern layout',
+        preview: '/images/templates/preview-elegant-divider.png'
       },
       {
         id: 'minimalist-ats',
         name: 'Minimalist ATS',
         description: 'ATS-friendly minimalist design with clean sections',
-        preview: '/images/templates/preview-minimalist-ats.png',
-        premium: true
+        preview: '/images/templates/preview-minimalist-ats.png'
       }
     ]
   }
@@ -78,35 +66,27 @@ const resumeCategories: TemplateCategory[] = [
 // Cover letter template categories and templates
 const coverLetterCategories: TemplateCategory[] = [
   {
-    id: 'basic',
-    name: 'Basic Templates',
+    id: 'templates',
+    name: 'Templates',
     templates: [
       {
         id: 'standard',
         name: 'Standard',
         description: 'Traditional cover letter format suitable for formal applications',
-        preview: '/images/templates/preview-standard-cover.png',
-        premium: false
-      }
-    ]
-  },
-  {
-    id: 'premium',
-    name: 'Premium Templates',
-    templates: [
+        preview: '/images/templates/preview-standard-cover.png'
+      },
       {
         id: 'modern',
         name: 'Modern',
         description: 'Modern design with contemporary styling for creative roles',
-        preview: '/images/templates/preview-modern-cover.png',
-        premium: true
+        preview: '/images/templates/preview-modern-cover.png'
       }
     ]
   }
 ];
 
 export function TemplateSelector({ type, onSelect, selectedTemplate }: TemplateSelectorProps) {
-  const [activeCategory, setActiveCategory] = useState('basic');
+  const [activeCategory, setActiveCategory] = useState('templates');
   const { canUseTemplate, isLoading, error, availableTemplates } = useTemplates(type);
   
   // Get the right categories based on type
@@ -184,15 +164,6 @@ export function TemplateSelector({ type, onSelect, selectedTemplate }: TemplateS
                         ${!isAvailable ? 'opacity-70' : ''}
                       `}
                     >
-                      {template.premium && (
-                        <Badge 
-                          variant="default" 
-                          className="absolute top-2 right-2 bg-amber-500 hover:bg-amber-500"
-                        >
-                          Premium
-                        </Badge>
-                      )}
-                      
                       {isSelected && (
                         <div className="absolute top-2 left-2 bg-primary rounded-full p-1">
                           <CheckCircle className="h-4 w-4 text-white" />
@@ -235,7 +206,7 @@ export function TemplateSelector({ type, onSelect, selectedTemplate }: TemplateS
                           disabled={!isAvailable}
                           onClick={() => isAvailable && onSelect(template.id)}
                         >
-                          {isSelected ? 'Selected' : isAvailable ? 'Select' : 'Upgrade to Access'}
+                          {isSelected ? 'Selected' : isAvailable ? 'Select' : 'Not Available'}
                         </Button>
                       </div>
                     </div>
@@ -246,13 +217,6 @@ export function TemplateSelector({ type, onSelect, selectedTemplate }: TemplateS
           ))}
         </Tabs>
       </CardContent>
-      {!availableTemplates.some(t => t.includes('premium')) && (
-        <CardFooter className="bg-amber-50 border-t border-amber-100">
-          <div className="text-sm text-amber-800">
-            <strong>Need more options?</strong> Upgrade your plan to access premium templates.
-          </div>
-        </CardFooter>
-      )}
     </Card>
   );
 } 

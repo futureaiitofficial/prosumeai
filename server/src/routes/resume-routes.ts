@@ -1,7 +1,6 @@
 import express from 'express';
 import { storage } from "../../config/storage";
 import { requireUser } from "../../middleware/auth";
-import { requireFeature, FeatureKey } from "../../middleware/subscription";
 import { type InsertResume } from "@shared/schema";
 
 /**
@@ -61,7 +60,7 @@ export function registerResumeRoutes(app: express.Express) {
   });
   
   // Create a new resume
-  app.post('/api/resumes', requireUser, requireFeature(FeatureKey.RESUMES), async (req, res) => {
+  app.post('/api/resumes', requireUser, async (req, res) => {
     try {
       if (!req.isAuthenticated() || !req.user) {
         return res.status(401).json({ message: "Unauthorized" });

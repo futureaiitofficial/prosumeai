@@ -24,23 +24,17 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { coverLetterTemplates as importedTemplates } from "@/templates/registerCoverLetterTemplates";
-import { useFeatureGuard } from "@/hooks/use-feature-access";
-import { FeatureAccessModal } from "@/components/shared/feature-access-modal";
 
 // Cover letter creation steps
 type BuilderStep = "template" | "job-details" | "personal-info" | "company-info" | "content" | "export";
 
-// Cover letter template previews (Removed premium information)
+// Cover letter template previews
 const templatePreviews = {
   standard: {
-    description: "Standard template with a clean, professional layout that works for most industries",
-    isPremium: false,
-    isLocked: false
+    description: "Standard template with a clean, professional layout that works for most industries"
   },
   modern: {
-    description: "Modern template with a contemporary design and styling for forward-thinking companies",
-    isPremium: false,
-    isLocked: false
+    description: "Modern template with a contemporary design and styling for forward-thinking companies"
   }
 };
 

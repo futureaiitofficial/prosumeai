@@ -28,16 +28,12 @@ import {
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { getQueryFn } from "@/lib/queryClient";
-import { UsersManagement } from "@/components/admin/users-management";
-import { SubscriptionPlansManagement } from "@/components/admin/subscription-plans-management";
-import { UserSubscriptionsManagement } from "@/components/admin/user-subscriptions-management";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 // Define interface for stats data
 interface DashboardStats {
   userStats: {
     total: number;
-    activeSubscriptions: number;
     recentRegistrations: number;
   };
   revenue: {
@@ -323,23 +319,15 @@ export default function AdminDashboard() {
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="activity">User Activity</TabsTrigger>
           <TabsTrigger value="revenue">Revenue</TabsTrigger>
-          <TabsTrigger value="users">Users</TabsTrigger>
-          <TabsTrigger value="plans">Subscription Plans</TabsTrigger>
-          <TabsTrigger value="subscriptions">User Subscriptions</TabsTrigger>
         </TabsList>
         
         <TabsContent value="overview" className="space-y-6">
           {/* KPI Cards */}
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             <StatsCard 
               title="Total Users" 
               value={statsLoading ? "Loading..." : dashboardStats?.userStats.total || 0}
               icon={<Users className="h-4 w-4 text-muted-foreground" />}
-            />
-            <StatsCard 
-              title="Active Subscriptions" 
-              value={statsLoading ? "Loading..." : dashboardStats?.userStats.activeSubscriptions || 0}
-              icon={<CreditCard className="h-4 w-4 text-muted-foreground" />}
             />
             <StatsCard 
               title="Recent Signups" 
@@ -502,20 +490,6 @@ export default function AdminDashboard() {
                   </div>
                   
                   <div className="flex items-start gap-4">
-                    <div className="bg-green-100 p-2 rounded-full">
-                      <CreditCard className="h-4 w-4 text-green-600" />
-                    </div>
-                    <div className="flex-1 space-y-1">
-                      <p className="text-sm font-medium">New subscription</p>
-                      <p className="text-xs text-muted-foreground">User upgraded to Pro plan</p>
-                      <div className="flex items-center text-xs text-muted-foreground">
-                        <Clock className="mr-1 h-3 w-3" />
-                        <span>25 minutes ago</span>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-start gap-4">
                     <div className="bg-blue-100 p-2 rounded-full">
                       <FileText className="h-4 w-4 text-blue-600" />
                     </div>
@@ -535,7 +509,7 @@ export default function AdminDashboard() {
                     </div>
                     <div className="flex-1 space-y-1">
                       <p className="text-sm font-medium">Template downloaded</p>
-                      <p className="text-xs text-muted-foreground">User downloaded a premium template</p>
+                      <p className="text-xs text-muted-foreground">User downloaded a template</p>
                       <div className="flex items-center text-xs text-muted-foreground">
                         <Clock className="mr-1 h-3 w-3" />
                         <span>3 hours ago</span>
@@ -777,18 +751,6 @@ export default function AdminDashboard() {
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
-        
-        <TabsContent value="users">
-          <UsersManagement />
-        </TabsContent>
-        
-        <TabsContent value="plans">
-          <SubscriptionPlansManagement />
-        </TabsContent>
-        
-        <TabsContent value="subscriptions">
-          <UserSubscriptionsManagement />
         </TabsContent>
       </Tabs>
     </AdminLayout>

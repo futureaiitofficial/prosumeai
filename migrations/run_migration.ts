@@ -1,4 +1,5 @@
-import { runMigration as addLastLoginMigration } from './add_last_login';
+import { db } from "../server/config/db";
+import { sql } from "drizzle-orm";
 import dotenv from 'dotenv';
 
 // Load environment variables
@@ -8,8 +9,12 @@ async function main() {
   console.log('Starting migrations...');
   
   try {
-    // Run migrations in sequence
-    await addLastLoginMigration();
+    // Run the SQL migration directly
+    await db.execute(sql`
+      DROP TABLE IF EXISTS subscription_plans;
+      ALTER TABLE cover_letter_templates DROP COLUMN IF EXISTS plan_required;
+      ALTER TABLE resume_templates DROP COLUMN IF EXISTS plan_required;
+    `);
     
     console.log('All migrations completed successfully!');
     process.exit(0);
@@ -20,9 +25,7 @@ async function main() {
 }
 
 // Run migrations if this is the main module
-// Use import.meta.url check instead of require.main for ES modules
-const isMainModule = import.meta.url.endsWith(process.argv[1]);
-if (isMainModule) {
+if (import.meta.url.endsWith(process.argv[1])) {
   main();
 }
 

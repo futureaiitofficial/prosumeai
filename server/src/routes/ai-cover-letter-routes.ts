@@ -3,7 +3,6 @@ import { z } from "zod";
 import { storage } from "server/config/storage";
 import { generateCoverLetter, enhanceCoverLetter, analyzeCoverLetter } from "../utils/ai-cover-letter-utils";
 import { requireUser } from "../../middleware/auth";
-import { requireFeature, FeatureKey, trackTokenUsage } from "../../middleware/subscription";
 
 // Approximate token count for tracking purposes
 const TOKENS_PER_REQUEST = {
@@ -41,7 +40,7 @@ const analyzeCoverLetterSchema = z.object({
 
 export function registerAICoverLetterRoutes(app: express.Express) {
   // Generate a cover letter
-  app.post("/api/cover-letter-ai/generate", requireUser, requireFeature(FeatureKey.COVER_LETTER_AI), async (req, res) => {
+  app.post("/api/cover-letter-ai/generate", requireUser, async (req, res) => {
     if (!req.isAuthenticated() || !req.user) {
       return res.status(401).json({ message: "Unauthorized" });
     }
@@ -83,14 +82,6 @@ export function registerAICoverLetterRoutes(app: express.Express) {
         letterStyle
       );
       
-      // Track token usage
-      await trackTokenUsage(
-        req.user.id,
-        FeatureKey.COVER_LETTER_AI,
-        TOKENS_PER_REQUEST.GENERATE,
-        "gpt-4o"
-      );
-      
       res.json({ content });
     } catch (error) {
       console.error("Error generating cover letter:", error);
@@ -105,7 +96,7 @@ export function registerAICoverLetterRoutes(app: express.Express) {
   });
   
   // Enhance an existing cover letter
-  app.post("/api/cover-letter-ai/enhance", requireUser, requireFeature(FeatureKey.COVER_LETTER_AI), async (req, res) => {
+  app.post("/api/cover-letter-ai/enhance", requireUser, async (req, res) => {
     if (!req.isAuthenticated() || !req.user) {
       return res.status(401).json({ message: "Unauthorized" });
     }
@@ -123,14 +114,6 @@ export function registerAICoverLetterRoutes(app: express.Express) {
         feedback
       );
       
-      // Track token usage
-      await trackTokenUsage(
-        req.user.id,
-        FeatureKey.COVER_LETTER_AI,
-        TOKENS_PER_REQUEST.ENHANCE,
-        "gpt-4o"
-      );
-      
       res.json({ content: enhancedContent });
     } catch (error) {
       console.error("Error enhancing cover letter:", error);
@@ -145,7 +128,7 @@ export function registerAICoverLetterRoutes(app: express.Express) {
   });
   
   // Analyze a cover letter
-  app.post("/api/cover-letter-ai/analyze", requireUser, requireFeature(FeatureKey.COVER_LETTER_AI), async (req, res) => {
+  app.post("/api/cover-letter-ai/analyze", requireUser, async (req, res) => {
     if (!req.isAuthenticated() || !req.user) {
       return res.status(401).json({ message: "Unauthorized" });
     }
@@ -159,14 +142,6 @@ export function registerAICoverLetterRoutes(app: express.Express) {
         content, 
         jobTitle, 
         jobDescription
-      );
-      
-      // Track token usage
-      await trackTokenUsage(
-        req.user.id,
-        FeatureKey.COVER_LETTER_AI,
-        TOKENS_PER_REQUEST.ANALYZE,
-        "gpt-4o"
       );
       
       res.json(analysis);

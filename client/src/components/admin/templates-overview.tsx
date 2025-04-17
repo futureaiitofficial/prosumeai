@@ -81,7 +81,6 @@ interface Template {
   category: "resume" | "cover-letter";
   type: string;
   thumbnail?: string;
-  isPremium: boolean;
   isActive?: boolean;
   createdAt?: string;
   updatedAt?: string;
@@ -105,7 +104,6 @@ export function TemplatesOverview() {
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
   const [templateName, setTemplateName] = useState("");
   const [templateType, setTemplateType] = useState("latex");
-  const [isPremium, setIsPremium] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
@@ -160,7 +158,7 @@ export function TemplatesOverview() {
           ...template,
           category: "resume" as const,
           type: template.type || "react",
-          templateId: template.name.toLowerCase().replace(/\s+/g, '-'),
+          templateId: template.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''),
         }));
       
       // Filter cover letter templates
@@ -170,7 +168,7 @@ export function TemplatesOverview() {
           ...template,
           category: "cover-letter" as const,
           type: template.type || "react",
-          templateId: template.name.toLowerCase().replace(/\s+/g, '-'),
+          templateId: template.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''),
         }));
       
       // Update local state
@@ -510,7 +508,6 @@ export function TemplatesOverview() {
     setSelectedTemplate(template);
     setTemplateName(template.name);
     setTemplateType(template.type);
-    setIsPremium(template.isPremium);
     setIsAddTemplateOpen(true);
   };
   
@@ -529,7 +526,6 @@ export function TemplatesOverview() {
     setSelectedTemplate(null);
     setTemplateName("");
     setTemplateType("latex");
-    setIsPremium(false);
   };
   
   // Check if the form is valid
@@ -713,14 +709,6 @@ export function TemplatesOverview() {
                             </SelectGroup>
                           </SelectContent>
                         </Select>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Checkbox
-                          id="premium"
-                          checked={isPremium}
-                          onCheckedChange={(checked) => setIsPremium(checked as boolean)}
-                        />
-                        <Label htmlFor="premium">Premium Template</Label>
                       </div>
                       
                       {/* Add image upload section */}
@@ -1048,7 +1036,6 @@ export function TemplatesOverview() {
                     <TableRow>
                       <TableHead>Template</TableHead>
                       <TableHead>Type</TableHead>
-                      <TableHead>Premium</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Downloads</TableHead>
                       <TableHead>Last Updated</TableHead>
@@ -1091,13 +1078,6 @@ export function TemplatesOverview() {
                             <div className="uppercase text-xs font-medium">
                               {template.type}
                             </div>
-                          </TableCell>
-                          <TableCell>
-                            {template.isPremium ? (
-                              <span className="text-amber-500 font-medium">Premium</span>
-                            ) : (
-                              <span className="text-green-600">Free</span>
-                            )}
                           </TableCell>
                           <TableCell>
                             <div className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
@@ -1172,7 +1152,6 @@ export function TemplatesOverview() {
                     <TableRow>
                       <TableHead>Template</TableHead>
                       <TableHead>Type</TableHead>
-                      <TableHead>Premium</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Downloads</TableHead>
                       <TableHead>Last Updated</TableHead>
@@ -1215,13 +1194,6 @@ export function TemplatesOverview() {
                             <div className="uppercase text-xs font-medium">
                               {template.type}
                             </div>
-                          </TableCell>
-                          <TableCell>
-                            {template.isPremium ? (
-                              <span className="text-amber-500 font-medium">Premium</span>
-                            ) : (
-                              <span className="text-green-600">Free</span>
-                            )}
                           </TableCell>
                           <TableCell>
                             <div className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${

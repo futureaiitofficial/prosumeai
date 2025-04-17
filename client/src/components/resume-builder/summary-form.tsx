@@ -1,48 +1,47 @@
 import { useState } from "react";
-import { Textarea } from "@/components/ui/textarea";
+import { z } from "zod";
+import { 
+  Card, 
+  CardContent, 
+  CardHeader, 
+  CardTitle, 
+  CardDescription 
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Sparkles, RefreshCw } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
+import { Hourglass, Sparkles, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { calculateExperienceRelevance } from "../../utils/similarity";
 import { generateProfessionalSummary } from "@/utils/ai-resume-helpers";
-import { useFeatureGuard } from "@/hooks/use-feature-access";
-import { featureAccessModal } from "@/lib/queryClient";
 
 interface WorkExperience {
   id: string;
   company: string;
   position: string;
   description: string;
-  achievements: string[];
+  startDate: string;
+  endDate: string;
+  achievements?: string[];
   relevanceScore?: number;
 }
 
 interface SummaryFormProps {
-  data: {
-    targetJobTitle?: string;
-    jobDescription?: string;
-    workExperience: WorkExperience[];
-    skills?: string[];
-    technicalSkills?: string[];
-    softSkills?: string[];
-    summary?: string;
-  };
+  data: any;
   updateData: (data: any) => void;
 }
 
-export default function SummaryForm({ data, updateData }: SummaryFormProps) {
+export default function SummaryForm({ 
+  data,
+  updateData
+}: SummaryFormProps) {
   const { toast } = useToast();
   const [isGenerating, setIsGenerating] = useState(false);
-  const { hasAccess } = useFeatureGuard("ai_resume_generation", { showToast: false });
+  const [error, setError] = useState<string | null>(null);
   
   const handleGenerateSummary = async () => {
-    // First check if user has access to this feature
-    if (!hasAccess) {
-      featureAccessModal.showModal("ai_resume_generation");
-      return;
-    }
-    
     try {
-      // Check if we have the required data
       if (!data.targetJobTitle) {
         toast({
           title: "Missing Information",
@@ -69,13 +68,12 @@ export default function SummaryForm({ data, updateData }: SummaryFormProps) {
         });
         return;
       }
-
-      // Get skills (either from the combined skills field or from separate technical/soft skills)
-      const skills = data.skills || [...(data.technicalSkills || []), ...(data.softSkills || [])];
       
       setIsGenerating(true);
+      setError(null);
       
-      // Extract most relevant experience based on job description similarity
+      const skills = data.skills || [...(data.technicalSkills || []), ...(data.softSkills || [])];
+      
       const relevantExperience = data.workExperience
         .map((exp: WorkExperience) => ({
           ...exp,
@@ -84,8 +82,8 @@ export default function SummaryForm({ data, updateData }: SummaryFormProps) {
         .sort((a: WorkExperience, b: WorkExperience) => 
           (b.relevanceScore || 0) - (a.relevanceScore || 0)
         )
-        .slice(0, 2); // Get top 2 most relevant experiences
-
+        .slice(0, 2);
+       
       const generatedSummary = await generateProfessionalSummary(
         data.targetJobTitle || '',
         data.jobDescription || '',
@@ -93,19 +91,21 @@ export default function SummaryForm({ data, updateData }: SummaryFormProps) {
         skills
       );
       
-      updateData({ summary: generatedSummary });
-      
-      toast({
-        title: "Summary Generated",
-        description: "Professional summary has been generated and optimized for ATS keyword matching.",
-      });
+      if (generatedSummary) {
+        updateData({ summary: generatedSummary });
+        toast({
+          title: "Summary Generated",
+          description: "Professional summary has been generated and optimized for ATS keyword matching.",
+        });
+      }
     } catch (error) {
+      console.error("Error generating summary:", error);
+      setError("Failed to generate summary. Please try again.");
       toast({
         title: "Generation Failed",
         description: "There was an error generating your summary. Please try again.",
         variant: "destructive",
       });
-      console.error("Summary generation error:", error);
     } finally {
       setIsGenerating(false);
     }

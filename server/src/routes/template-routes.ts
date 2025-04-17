@@ -395,30 +395,24 @@ export function registerTemplateRoutes(app: express.Express) {
       
       let templates;
       if (type === "resume") {
-        // Get all resume templates (removed the isActive filter to show all templates)
+        // Get all resume templates
         templates = await db
           .select()
           .from(resumeTemplates);
           
         templates = templates.map(template => ({
           ...template,
-          type: "resume" as const,
-          // Make sure all templates are marked as free and unlocked
-          isPremium: false,
-          isLocked: false
+          type: "resume" as const
         }));
       } else {
-        // Get all cover letter templates (removed the isActive filter to show all templates)
+        // Get all cover letter templates
         templates = await db
           .select()
           .from(coverLetterTemplates);
           
         templates = templates.map(template => ({
           ...template,
-          type: "cover-letter" as const,
-          // Make sure all templates are marked as free and unlocked
-          isPremium: false,
-          isLocked: false
+          type: "cover-letter" as const
         }));
       }
       
@@ -456,9 +450,7 @@ export function registerTemplateRoutes(app: express.Express) {
         if (template) {
           template = {
             ...template,
-            type: "resume" as const,
-            isPremium: false,
-            isLocked: false
+            type: "resume" as const
           };
         }
       } else {
@@ -478,9 +470,7 @@ export function registerTemplateRoutes(app: express.Express) {
         if (template) {
           template = {
             ...template,
-            type: "cover-letter" as const,
-            isPremium: false,
-            isLocked: false
+            type: "cover-letter" as const
           };
         }
       }

@@ -18,8 +18,6 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { enhanceExperienceBullets } from "@/utils/ai-resume-helpers";
-import { useFeatureGuard } from "@/hooks/use-feature-access";
-import { featureAccessModal } from "@/lib/queryClient";
 
 interface WorkExperience {
   id: string;
@@ -42,7 +40,6 @@ export default function WorkExperienceForm({ data, updateData }: WorkExperienceF
   const { toast } = useToast();
   const [newAchievement, setNewAchievement] = useState<{ [key: string]: string }>({});
   const [enhancements, setEnhancements] = useState<{ [key: string]: boolean }>({});
-  const { hasAccess } = useFeatureGuard("ai_resume_generation", { showToast: false });
 
   // Ensure workExperience array exists
   const workExperience = data?.workExperience || [];
@@ -136,12 +133,6 @@ export default function WorkExperienceForm({ data, updateData }: WorkExperienceF
   };
   
   const enhanceAchievements = async (experienceId: string) => {
-    // First check if user has access to this feature
-    if (!hasAccess) {
-      featureAccessModal.showModal("ai_resume_generation");
-      return;
-    }
-    
     try {
       // Find the experience to enhance
       const experience = workExperience.find((exp: WorkExperience) => exp.id === experienceId);

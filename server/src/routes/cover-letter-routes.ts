@@ -1,7 +1,6 @@
 import express from 'express';
 import { storage } from "../../config/storage";
 import { requireUser } from "../../middleware/auth";
-import { requireFeature, FeatureKey } from "../../middleware/subscription";
 import { type InsertCoverLetter } from "@shared/schema";
 
 /**
@@ -61,7 +60,7 @@ export function registerCoverLetterRoutes(app: express.Express) {
   });
   
   // Create a new cover letter
-  app.post('/api/cover-letters', requireUser, requireFeature(FeatureKey.COVER_LETTERS), async (req, res) => {
+  app.post('/api/cover-letters', requireUser, async (req, res) => {
     try {
       if (!req.isAuthenticated() || !req.user) {
         return res.status(401).json({ message: "Unauthorized" });

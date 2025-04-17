@@ -34,6 +34,17 @@ export function registerTemplates(): TemplateFactory {
     const elegantDividerTemplate = factory.createTemplate('elegant-divider');
     const minimalistAtsTemplate = factory.createTemplate('minimalist-ats');
     
+    // Ensure template names are consistent
+    if (professionalTemplate) {
+      professionalTemplate.metadata.name = 'Professional';
+    }
+    if (elegantDividerTemplate) {
+      elegantDividerTemplate.metadata.name = 'Elegant Divider';
+    }
+    if (minimalistAtsTemplate) {
+      minimalistAtsTemplate.metadata.name = 'Minimalist ATS';
+    }
+    
     console.log("Templates registered:", factory.getRegisteredTypes());
     console.log("Professional template created:", !!professionalTemplate);
     console.log("Elegant Divider template created:", !!elegantDividerTemplate);

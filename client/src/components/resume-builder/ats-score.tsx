@@ -12,8 +12,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ResumeData } from "@/types/resume";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { useFeatureGuard } from "@/hooks/use-feature-access";
-import { featureAccessModal } from "@/lib/queryClient";
 
 interface ATSScoreProps {
   resumeData: ResumeData;
@@ -71,18 +69,8 @@ export default function ATSScore({ resumeData }: ATSScoreProps) {
   // Debounce timer reference
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Check if user has access to the feature
-  const { hasAccess } = useFeatureGuard("ats_score", { showToast: false });
-
   const handleCalculateScore = async () => {
-    try {
-      // Check if the user has access to this feature first
-      if (!hasAccess) {
-        // Show the feature access modal instead of calculating
-        featureAccessModal.showModal("ats_score");
-        return;
-      }
-      
+    try {      
       // Check if we have the required data
       if (!resumeData?.targetJobTitle) {
         toast({
@@ -177,8 +165,6 @@ export default function ATSScore({ resumeData }: ATSScoreProps) {
   // Silent calculation that doesn't show toasts or open the sheet
   const calculateScoreQuietly = async () => {
     try {
-      // Skip if user doesn't have access to this feature
-      if (!hasAccess) return;
       
       // Skip validation - this is only called when we know we have the required data
       setIsCalculating(true);

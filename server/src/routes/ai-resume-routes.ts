@@ -1,4 +1,5 @@
 import express from 'express';
+import { requireUser } from '../../middleware/auth';
 import { 
   generateSummary,
   enhanceExperiencePoints,
@@ -6,21 +7,22 @@ import {
   enhanceProject,
   calculateATSScore
 } from '../utils/ai-resume-utils-new';
-import { requireUser } from "../../middleware/auth";
-import { requireFeature, FeatureKey, trackTokenUsage } from "../../middleware/subscription";
 
-// Approximate token count for tracking purposes
+// Constants for tokens per request (just for reference, not used anymore)
 const TOKENS_PER_REQUEST = {
   SUMMARY: 1000,
-  ENHANCE_EXPERIENCE: 800,
-  EXTRACT_SKILLS: 500,
-  ENHANCE_PROJECT: 700,
-  ATS_SCORE: 1200
+  ENHANCE_EXPERIENCE: 1500,
+  EXTRACT_SKILLS: 800,
+  ENHANCE_PROJECT: 1000,
+  ATS_SCORE: 2000
 };
 
+/**
+ * Register AI resume routes
+ */
 export function registerAIResumeRoutes(app: express.Express) {
   // Generate professional summary
-  app.post('/api/resume-ai/summary', requireUser, requireFeature(FeatureKey.RESUME_AI), async (req, res) => {
+  app.post('/api/resume-ai/summary', requireUser, async (req, res) => {
     if (!req.isAuthenticated() || !req.user) {
       return res.status(401).json({ message: "Unauthorized" });
     }
@@ -41,13 +43,7 @@ export function registerAIResumeRoutes(app: express.Express) {
         skills || []
       );
       
-      // Track token usage
-      await trackTokenUsage(
-        req.user.id,
-        FeatureKey.RESUME_AI,
-        TOKENS_PER_REQUEST.SUMMARY,
-        "gpt-4o"
-      );
+      // Token usage tracking removed
       
       res.json({ summary });
     } catch (error: any) {
@@ -60,7 +56,7 @@ export function registerAIResumeRoutes(app: express.Express) {
   });
   
   // Enhance experience bullet points
-  app.post('/api/resume-ai/enhance-experience', requireUser, requireFeature(FeatureKey.RESUME_AI), async (req, res) => {
+  app.post('/api/resume-ai/enhance-experience', requireUser, async (req, res) => {
     if (!req.isAuthenticated() || !req.user) {
       return res.status(401).json({ message: "Unauthorized" });
     }
@@ -88,13 +84,7 @@ export function registerAIResumeRoutes(app: express.Express) {
         context
       );
       
-      // Track token usage
-      await trackTokenUsage(
-        req.user.id,
-        FeatureKey.RESUME_AI,
-        TOKENS_PER_REQUEST.ENHANCE_EXPERIENCE,
-        "gpt-4o"
-      );
+      // Token usage tracking removed
       
       res.json({ enhancedBullets });
     } catch (error: any) {
@@ -107,7 +97,7 @@ export function registerAIResumeRoutes(app: express.Express) {
   });
   
   // Extract relevant skills from job description
-  app.post('/api/resume-ai/extract-skills', requireUser, requireFeature(FeatureKey.RESUME_AI), async (req, res) => {
+  app.post('/api/resume-ai/extract-skills', requireUser, async (req, res) => {
     if (!req.isAuthenticated() || !req.user) {
       return res.status(401).json({ message: "Unauthorized" });
     }
@@ -126,13 +116,7 @@ export function registerAIResumeRoutes(app: express.Express) {
         jobDescription
       );
       
-      // Track token usage
-      await trackTokenUsage(
-        req.user.id,
-        FeatureKey.RESUME_AI,
-        TOKENS_PER_REQUEST.EXTRACT_SKILLS,
-        "gpt-4o"
-      );
+      // Token usage tracking removed
       
       res.json(skills);
     } catch (error: any) {
@@ -145,7 +129,7 @@ export function registerAIResumeRoutes(app: express.Express) {
   });
   
   // Enhance project description
-  app.post('/api/resume-ai/enhance-project', requireUser, requireFeature(FeatureKey.RESUME_AI), async (req, res) => {
+  app.post('/api/resume-ai/enhance-project', requireUser, async (req, res) => {
     if (!req.isAuthenticated() || !req.user) {
       return res.status(401).json({ message: "Unauthorized" });
     }
@@ -165,13 +149,7 @@ export function registerAIResumeRoutes(app: express.Express) {
         project
       );
       
-      // Track token usage
-      await trackTokenUsage(
-        req.user.id,
-        FeatureKey.RESUME_AI,
-        TOKENS_PER_REQUEST.ENHANCE_PROJECT,
-        "gpt-4o"
-      );
+      // Token usage tracking removed
       
       res.json({ enhancedDescription });
     } catch (error: any) {
@@ -184,7 +162,7 @@ export function registerAIResumeRoutes(app: express.Express) {
   });
   
   // Calculate ATS score
-  app.post('/api/resume-ai/ats-score', requireUser, requireFeature(FeatureKey.RESUME_AI), async (req, res) => {
+  app.post('/api/resume-ai/ats-score', requireUser, async (req, res) => {
     if (!req.isAuthenticated() || !req.user) {
       return res.status(401).json({ message: "Unauthorized" });
     }
@@ -204,13 +182,7 @@ export function registerAIResumeRoutes(app: express.Express) {
         jobDescription
       );
       
-      // Track token usage
-      await trackTokenUsage(
-        req.user.id,
-        FeatureKey.RESUME_AI,
-        TOKENS_PER_REQUEST.ATS_SCORE,
-        "gpt-4o"
-      );
+      // Token usage tracking removed
       
       res.json(score);
     } catch (error: any) {
