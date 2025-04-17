@@ -32,6 +32,7 @@ import AdminUsersPage from "@/pages/admin/users";
 import AdminTemplatesPage from "@/pages/admin/templates";
 import SystemStatusPage from "@/pages/admin/system-status";
 import BackupsPage from "@/pages/admin/backups";
+import ApiKeysPage from "@/pages/admin/api-keys";
 import { LocationProvider } from "./hooks/use-location";
 
 function Router() {
@@ -59,6 +60,7 @@ function Router() {
       <AdminRoute path="/admin/settings" component={AdminDashboard} />
       <AdminRoute path="/admin/system-status" component={SystemStatusPage} />
       <AdminRoute path="/admin/backups" component={BackupsPage} />
+      <AdminRoute path="/admin/api-keys" component={ApiKeysPage} />
       
       <Route component={NotFound} />
     </Switch>

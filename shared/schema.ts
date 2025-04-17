@@ -199,6 +199,18 @@ export const session = pgTable("session", {
   };
 });
 
+// API Keys Schema
+export const apiKeys = pgTable("api_keys", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  service: text("service").notNull().default("openai"), // The service this key is for (e.g., 'openai', 'anthropic', etc.)
+  key: text("key").notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+  lastUsed: timestamp("last_used"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow()
+});
+
 // Insert Schemas
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -264,6 +276,8 @@ export const insertCoverLetterTemplateSchema = createInsertSchema(coverLetterTem
   updatedAt: true
 });
 
+export const insertApiKeySchema = createInsertSchema(apiKeys);
+
 // Types
 export type User = typeof users.$inferSelect;
 export type AppSetting = typeof appSettings.$inferSelect;
@@ -273,6 +287,7 @@ export type CoverLetter = typeof coverLetters.$inferSelect;
 export type JobApplication = typeof jobApplications.$inferSelect;
 export type ResumeTemplate = typeof resumeTemplates.$inferSelect;
 export type CoverLetterTemplate = typeof coverLetterTemplates.$inferSelect;
+export type ApiKey = typeof apiKeys.$inferSelect;
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type InsertAppSetting = z.infer<typeof insertAppSettingsSchema>;
@@ -282,6 +297,7 @@ export type InsertCoverLetter = z.infer<typeof insertCoverLetterSchema>;
 export type InsertJobApplication = z.infer<typeof insertJobApplicationSchema>;
 export type InsertResumeTemplate = z.infer<typeof insertResumeTemplateSchema>;
 export type InsertCoverLetterTemplate = z.infer<typeof insertCoverLetterTemplateSchema>;
+export type InsertApiKey = z.infer<typeof insertApiKeySchema>;
 
 // Resume-related type definitions for frontend
 export type WorkExperience = {

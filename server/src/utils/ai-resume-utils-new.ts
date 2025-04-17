@@ -1,8 +1,7 @@
-import { truncateText } from '../../openai';
-import OpenAI from 'openai';
+import { truncateText } from "../../openai";
+import { ApiKeyService } from "./ai-key-service";
+import { OpenAIApi } from "../../openai";
 
-// Initialize OpenAI client
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 // The newest OpenAI model is "gpt-4o" which was released May 13, 2024
 const MODEL = "gpt-4o";
 
@@ -50,7 +49,7 @@ Do not use first person pronouns (I, me, my). Use third person or implied first 
 THE RETURNED TEXT MUST BE 300 CHARACTERS OR LESS (INCLUDING SPACES). This is critically important.
 `;
 
-    const response = await openai.chat.completions.create({
+    const response = await OpenAIApi.chat({
       model: MODEL,
       messages: [{ role: 'user', content: prompt }],
       max_tokens: 300,
@@ -134,7 +133,7 @@ export async function enhanceExperiencePoints(
       ? generateCareerChangePrompt(position, jobTitle, company, existingContent, priorityKeywords, context) 
       : generateMatchingRolePrompt(position, jobTitle, jobDescription, company, existingContent, overlapPercentage, priorityKeywords, context);
     
-    const response = await openai.chat.completions.create({
+    const response = await OpenAIApi.chat({
       model: MODEL,
       messages: [{ role: 'user', content: prompt }],
       max_tokens: 500,
@@ -280,25 +279,53 @@ export async function extractSkills(
   jobDescription: string
 ): Promise<{ technicalSkills: string[], softSkills: string[] }> {
   try {
-    // Use the more comprehensive categorization function
-    const categorizedKeywords = await extractKeywordsWithCategories(jobTitle, jobDescription);
-    
-    // For backward compatibility, map the categorized keywords to the expected format
-    return {
-      technicalSkills: [
-        ...categorizedKeywords.technicalSkills,
-        ...categorizedKeywords.tools,
-        ...categorizedKeywords.methodologies
-      ],
-      softSkills: [
-        ...categorizedKeywords.softSkills,
-        ...categorizedKeywords.jobFunctions.slice(0, 3) // Include a few job functions as skills
-      ]
-    };
+    // First try with the comprehensive categorization function
+    try {
+      const categorizedKeywords = await extractKeywordsWithCategories(jobTitle, jobDescription);
+      
+      // For backward compatibility, map the categorized keywords to the expected format
+      return {
+        technicalSkills: [
+          ...categorizedKeywords.technicalSkills,
+          ...categorizedKeywords.tools,
+          ...categorizedKeywords.methodologies
+        ],
+        softSkills: [
+          ...categorizedKeywords.softSkills,
+          ...categorizedKeywords.jobFunctions.slice(0, 3) // Include a few job functions as skills
+        ]
+      };
+    } catch (categorizedError) {
+      // If comprehensive method fails, try the legacy method
+      console.error('Error using enhanced skill extraction, falling back to basic extraction:', categorizedError);
+      
+      try {
+        return await extractSkillsLegacy(jobTitle, jobDescription);
+      } catch (legacyError) {
+        // If both methods fail, use a simple extraction from the text to avoid errors
+        console.error('Error using legacy skill extraction, using default fallback:', legacyError);
+        
+        // Return default fallback skills extracted from the job description text
+        const words = jobDescription.toLowerCase().split(/\W+/);
+        const commonTechnicalSkills = ['javascript', 'python', 'java', 'typescript', 'react', 'angular', 'vue', 'node', 'sql', 'nosql', 'aws', 'azure', 'git', 'ci/cd', 'api', 'rest'];
+        const commonSoftSkills = ['communication', 'teamwork', 'leadership', 'problem-solving', 'analytical', 'organization', 'time-management', 'collaboration', 'adaptability', 'creativity'];
+        
+        const technicalSkills = commonTechnicalSkills.filter(skill => words.includes(skill));
+        const softSkills = commonSoftSkills.filter(skill => words.includes(skill));
+        
+        return {
+          technicalSkills: technicalSkills.length > 0 ? technicalSkills : ['No technical skills could be extracted automatically'],
+          softSkills: softSkills.length > 0 ? softSkills : ['No soft skills could be extracted automatically']
+        };
+      }
+    }
   } catch (error) {
-    // Fall back to the original implementation if the new one fails
-    console.error('Error using enhanced skill extraction, falling back to basic extraction:', error);
-    return extractSkillsLegacy(jobTitle, jobDescription);
+    console.error('Error extracting skills (critical failure):', error);
+    // Return empty arrays if all else fails
+    return {
+      technicalSkills: ['Skills extraction failed - please try again'],
+      softSkills: ['Skills extraction failed - please try again']
+    };
   }
 }
 
@@ -333,7 +360,7 @@ IMPORTANT:
 Do not include explanations, just the JSON object.
 `;
 
-    const response = await openai.chat.completions.create({
+    const response = await OpenAIApi.chat({
       model: MODEL,
       messages: [{ role: 'user', content: prompt }],
       max_tokens: 700,
@@ -387,7 +414,7 @@ Please create an enhanced project description that:
 Format your response as a paragraph with no additional text or explanation.
 `;
 
-    const response = await openai.chat.completions.create({
+    const response = await OpenAIApi.chat({
       model: MODEL,
       messages: [{ role: 'user', content: prompt }],
       max_tokens: 350,
@@ -1038,7 +1065,7 @@ Focus on extracting the SPECIFIC keywords an ATS system would be looking for.
 Do not include explanations, just the JSON object.
 `;
 
-    const response = await openai.chat.completions.create({
+    const response = await OpenAIApi.chat({
       model: MODEL,
       messages: [{ role: 'user', content: prompt }],
       max_tokens: 800,
@@ -1065,11 +1092,12 @@ Do not include explanations, just the JSON object.
     return categoryKeywords;
   } catch (error) {
     console.error('Error extracting categorized keywords:', error);
-    // Fallback to simpler extraction if categorized extraction fails
-    const skills = await extractSkills(jobTitle, jobDescription);
+    
+    // Return a default structure with empty arrays instead of calling extractSkills
+    // This prevents potential infinite recursion
     return {
-      technicalSkills: skills.technicalSkills || [],
-      softSkills: skills.softSkills || [],
+      technicalSkills: [],
+      softSkills: [],
       tools: [],
       methodologies: [],
       requirements: [],

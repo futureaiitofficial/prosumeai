@@ -1,17 +1,9 @@
 import express from 'express';
-import OpenAI from 'openai';
 import { truncateText } from '../../openai';
+import { ApiKeyService } from '../utils/ai-key-service';
+import { OpenAIApi } from '../../openai';  // Import the named export
 
-// Initialize OpenAI client with better error handling
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || '',
-});
-
-// Check for API key
-if (!process.env.OPENAI_API_KEY) {
-  console.error('WARNING: OPENAI_API_KEY is not set in environment variables');
-}
-
+// Use latest model for AI calls
 const MODEL = "gpt-4o"; // Using same model as in ai-resume-utils.ts
 
 /**
@@ -26,11 +18,6 @@ export async function extractKeywordsFromJobDescription(
       return [];
     }
 
-    // Check for API key before making request
-    if (!process.env.OPENAI_API_KEY) {
-      throw new Error('OpenAI API key is not configured. Please check your environment variables.');
-    }
-
     const prompt = `
 Extract the most important keywords and skills from this job description. 
 Focus on hard skills, technical requirements, and industry-specific terminology.
@@ -42,7 +29,7 @@ ${truncateText(jobDescription, 2000)}
 `;
 
     try {
-      const response = await openai.chat.completions.create({
+      const response = await OpenAIApi.chat({
         model: MODEL,
         messages: [{ role: 'user', content: prompt }],
         max_tokens: 350,
@@ -59,8 +46,8 @@ ${truncateText(jobDescription, 2000)}
       // Split by newlines and clean up each keyword
       const keywords = content
         .split('\n')
-        .map(line => line.trim())
-        .filter(line => line.length > 0);
+        .map((line: string) => line.trim())
+        .filter((line: string) => line.length > 0);
 
       return keywords;
     } catch (apiError: any) {
@@ -111,11 +98,6 @@ export async function analyzeJobDescription(
       };
     }
 
-    // Check for API key before making request
-    if (!process.env.OPENAI_API_KEY) {
-      throw new Error('OpenAI API key is not configured. Please check your environment variables.');
-    }
-
     const prompt = `
 Analyze this job description and extract keywords into the following categories:
 1. technicalSkills: Technical abilities and hard skills relevant to the job
@@ -135,7 +117,7 @@ ${truncateText(jobDescription, 2000)}
 `;
 
     try {
-      const response = await openai.chat.completions.create({
+      const response = await OpenAIApi.chat({
         model: MODEL,
         messages: [{ role: 'user', content: prompt }],
         max_tokens: 1000,
@@ -328,11 +310,6 @@ router.post('/generate', async (req, res) => {
     }
     
     try {
-      // Check for API key before making request
-      if (!process.env.OPENAI_API_KEY) {
-        throw new Error('OpenAI API key is not configured. Please check your environment variables.');
-      }
-
       // Determine if this is a cover letter request
       const isCoverLetterRequest = prompt.toLowerCase().includes('cover letter') || 
                                  prompt.toLowerCase().includes('position at');
@@ -356,7 +333,7 @@ Your response should ONLY contain the body paragraphs that would go between the 
         systemMessage = "You are a helpful assistant that provides high-quality, accurate content based on user requests.";
       }
 
-      const response = await openai.chat.completions.create({
+      const response = await OpenAIApi.chat({
         model: MODEL,
         messages: [
           { role: 'system', content: systemMessage },

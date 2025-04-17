@@ -7,7 +7,8 @@ import {
   resumes, 
   coverLetters, 
   jobApplications, 
-  appSettings
+  appSettings,
+  apiKeys
 } from "@shared/schema";
 import { eq, count, and, or, desc, asc, gt, lt, gte, lte, like, ilike, inArray, isNull, notInArray, isNotNull, between, sql, sum } from "drizzle-orm";
 import { hashPassword } from "../../config/auth";
@@ -772,4 +773,140 @@ export function registerAdminRoutes(app: Express) {
       res.status(500).json({ error: "Failed to clear rate limiter data" });
     }
   });
+
+  // API Keys Management
+  
+  // Get all API keys
+  app.get("/api/admin/api-keys", requireAdmin, async (req, res) => {
+    try {
+      const allApiKeys = await db.select().from(apiKeys);
+      
+      // For security, let's not expose full keys in the list view
+      const safeApiKeys = allApiKeys.map(key => {
+        return {
+          ...key,
+          key: maskApiKey(key.key)
+        };
+      });
+      
+      res.json(safeApiKeys);
+    } catch (error) {
+      console.error("Error fetching API keys:", error);
+      res.status(500).json({ message: "Failed to fetch API keys" });
+    }
+  });
+  
+  // Get a specific API key
+  app.get("/api/admin/api-keys/:id", requireAdmin, async (req, res) => {
+    try {
+      const keyId = parseInt(req.params.id);
+      
+      if (isNaN(keyId)) {
+        return res.status(400).json({ message: "Invalid API key ID" });
+      }
+      
+      const apiKey = await db.select().from(apiKeys).where(eq(apiKeys.id, keyId)).limit(1);
+      
+      if (!apiKey || apiKey.length === 0) {
+        return res.status(404).json({ message: "API key not found" });
+      }
+      
+      res.json(apiKey[0]);
+    } catch (error) {
+      console.error("Error fetching API key:", error);
+      res.status(500).json({ message: "Failed to fetch API key" });
+    }
+  });
+  
+  // Create a new API key
+  app.post("/api/admin/api-keys", requireAdmin, async (req, res) => {
+    try {
+      const { name, service, key } = req.body;
+      
+      if (!name || !key) {
+        return res.status(400).json({ message: "Name and API key are required" });
+      }
+      
+      // Create the new API key
+      const newApiKey = await db.insert(apiKeys).values({
+        name,
+        service: service || "openai",
+        key,
+        isActive: true,
+        createdAt: new Date(),
+        lastUsed: null
+      }).returning();
+      
+      if (!newApiKey || newApiKey.length === 0) {
+        return res.status(500).json({ message: "Failed to create API key" });
+      }
+      
+      res.status(201).json(newApiKey[0]);
+    } catch (error) {
+      console.error("Error creating API key:", error);
+      res.status(500).json({ message: "Failed to create API key" });
+    }
+  });
+  
+  // Toggle API key status (active/inactive)
+  app.patch("/api/admin/api-keys/:id/toggle", requireAdmin, async (req, res) => {
+    try {
+      const keyId = parseInt(req.params.id);
+      
+      if (isNaN(keyId)) {
+        return res.status(400).json({ message: "Invalid API key ID" });
+      }
+      
+      const { isActive } = req.body;
+      
+      if (isActive === undefined) {
+        return res.status(400).json({ message: "isActive status is required" });
+      }
+      
+      const updatedKey = await db.update(apiKeys)
+        .set({ isActive })
+        .where(eq(apiKeys.id, keyId))
+        .returning();
+      
+      if (!updatedKey || updatedKey.length === 0) {
+        return res.status(404).json({ message: "API key not found" });
+      }
+      
+      res.json(updatedKey[0]);
+    } catch (error) {
+      console.error("Error updating API key status:", error);
+      res.status(500).json({ message: "Failed to update API key status" });
+    }
+  });
+  
+  // Delete an API key
+  app.delete("/api/admin/api-keys/:id", requireAdmin, async (req, res) => {
+    try {
+      const keyId = parseInt(req.params.id);
+      
+      if (isNaN(keyId)) {
+        return res.status(400).json({ message: "Invalid API key ID" });
+      }
+      
+      const deletedKey = await db.delete(apiKeys)
+        .where(eq(apiKeys.id, keyId))
+        .returning();
+      
+      if (!deletedKey || deletedKey.length === 0) {
+        return res.status(404).json({ message: "API key not found" });
+      }
+      
+      res.json({ message: "API key deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting API key:", error);
+      res.status(500).json({ message: "Failed to delete API key" });
+    }
+  });
+}
+
+// Helper function to mask API keys for display
+function maskApiKey(key: string): string {
+  if (!key) return "";
+  // Show only first 4 and last 4 characters
+  return key.substring(0, 4) + "..." + key.substring(key.length - 4);
 }

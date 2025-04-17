@@ -1,25 +1,75 @@
-import OpenAI from "openai";
+// Import OpenAI
+import OpenAILib from 'openai';
+import { ApiKeyManager } from './src/utils/api-key-manager';
 
-// the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+// Use a different variable name to avoid collision
+const OpenAI = OpenAILib;
+
+// Initialize with a placeholder, will be updated with actual key when needed
+const openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || 'placeholder' });
+
+// Function to update the API key
+export async function updateApiKey(): Promise<boolean> {
+  try {
+    const apiKey = await ApiKeyManager.getKeyWithFallback('openai', 'OPENAI_API_KEY');
+    
+    if (!apiKey) {
+      console.error('No valid OpenAI API key found, using placeholder for development');
+      // Don't throw an error, just return false
+      return false;
+    }
+    
+    // Update the API key
+    openaiClient.apiKey = apiKey;
+    return true;
+  } catch (error) {
+    console.error('Error updating API key:', error);
+    // Don't throw an error, just return false
+    return false;
+  }
+}
+
+// Wrapper for chat completions
+export async function createChatCompletion(params: any) {
+  const keyUpdated = await updateApiKey();
+  if (!keyUpdated) {
+    throw new Error('OpenAI API key is not configured. Please check your environment variables or database settings.');
+  }
+  return openaiClient.chat.completions.create(params);
+}
+
+// Wrapper for completions
+export async function createCompletion(params: any) {
+  const keyUpdated = await updateApiKey();
+  if (!keyUpdated) {
+    throw new Error('OpenAI API key is not configured. Please check your environment variables or database settings.');
+  }
+  return openaiClient.completions.create(params);
+}
+
+// Wrapper for embeddings
+export async function createEmbedding(params: any) {
+  const keyUpdated = await updateApiKey();
+  if (!keyUpdated) {
+    throw new Error('OpenAI API key is not configured. Please check your environment variables or database settings.');
+  }
+  return openaiClient.embeddings.create(params);
+}
+
+// Export a named export for better TypeScript imports
+export const OpenAIApi = {
+  chat: createChatCompletion,
+  completions: createCompletion,
+  embeddings: createEmbedding
+};
+
+// Also export as default for backward compatibility
+export default OpenAIApi;
 
 // Function to truncate text to a reasonable token limit
-export function truncateText(text: string, maxLength: number = 15000): string {
-  if (text.length <= maxLength) return text;
-  
-  // Try to cut at a logical point like a newline or period
-  const cutPoint = text.lastIndexOf('\n', maxLength);
-  if (cutPoint !== -1) {
-    return text.substring(0, cutPoint) + "\n...\n[Content truncated due to length]";
-  }
-  
-  const periodCutPoint = text.lastIndexOf('.', maxLength);
-  if (periodCutPoint !== -1 && periodCutPoint > maxLength * 0.8) {
-    return text.substring(0, periodCutPoint + 1) + "\n...\n[Content truncated due to length]";
-  }
-  
-  // If no good breaking point, just truncate
-  return text.substring(0, maxLength) + "\n...\n[Content truncated due to length]";
+export function truncateText(text: string, maxChars: number = 4000): string {
+  if (!text) return '';
+  return text.length > maxChars ? text.substring(0, maxChars) + '...' : text;
 }
 
 /**
@@ -195,7 +245,7 @@ export async function parseResume(text: string): Promise<{
         ${truncatedText}
       `;
 
-      const firstPassResponse = await openai.chat.completions.create({
+      const firstPassResponse = await openaiClient.chat.completions.create({
         model: "gpt-4o",
         messages: [
           {
@@ -306,7 +356,7 @@ export async function parseResume(text: string): Promise<{
         6. Only include array items (work experience, education, etc.) that were actually found in the document
       `;
 
-      const secondPassResponse = await openai.chat.completions.create({
+      const secondPassResponse = await openaiClient.chat.completions.create({
         model: "gpt-4o",
         messages: [
           {
@@ -433,7 +483,7 @@ export async function parseResume(text: string): Promise<{
         }
       `;
       
-      const fallbackResponse = await openai.chat.completions.create({
+      const fallbackResponse = await openaiClient.chat.completions.create({
         model: "gpt-4o",
         messages: [
           {

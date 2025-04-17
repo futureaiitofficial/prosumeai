@@ -1,8 +1,6 @@
-import OpenAI from "openai";
 import { truncateText } from "../../openai";
-
-// Initialize OpenAI client
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+import { ApiKeyService } from "./ai-key-service";
+import { OpenAIApi } from "../../openai";
 
 /**
  * Generates a cover letter based on job description, resume data, and company information
@@ -99,8 +97,8 @@ export async function generateCoverLetter(
       ONLY generate the body paragraphs of the letter. The formatting and layout will be handled separately.
     `;
     
-    // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
-    const response = await openai.chat.completions.create({
+    // Use the imported OpenAIApi
+    const response = await OpenAIApi.chat({
       model: "gpt-4o",
       messages: [
         {
@@ -174,8 +172,8 @@ export async function enhanceCoverLetter(
       ONLY return the body paragraphs of the letter. The formatting and layout will be handled separately.
     `;
     
-    // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
-    const response = await openai.chat.completions.create({
+    // Use the imported OpenAIApi
+    const response = await OpenAIApi.chat({
       model: "gpt-4o",
       messages: [
         {
@@ -240,8 +238,8 @@ export async function analyzeCoverLetter(
       }
     `;
     
-    // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
-    const response = await openai.chat.completions.create({
+    // Use the imported OpenAIApi
+    const response = await OpenAIApi.chat({
       model: "gpt-4o",
       messages: [
         {
