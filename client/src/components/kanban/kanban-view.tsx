@@ -20,72 +20,50 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-type JobApplication = {
-  id: number;
-  userId: number;
-  company: string;
-  jobTitle: string;
-  jobDescription?: string;
-  location?: string;
-  workType?: string;
-  salary?: string;
-  jobUrl?: string;
-  status: string;
-  statusHistory?: StatusHistoryEntry[];
-  appliedAt: string;
-  resumeId?: number;
-  coverLetterId?: number;
-  contactName?: string;
-  contactEmail?: string;
-  contactPhone?: string;
-  notes?: string;
-  priority?: string;
-  deadlineDate?: string;
-  updatedAt: string;
-};
+// Import from shared types file instead of job-applications-enhanced.tsx
+import { 
+  JobApplicationStatus, 
+  JobApplication,
+  StatusHistoryEntry 
+} from "@/types/job-application";
 
-type StatusHistoryEntry = {
-  id: string;
-  status: string;
-  date: string;
-  notes: string | null;
-};
+// No need for these definitions anymore as they're imported from the shared file
 
 interface KanbanViewProps {
   applications: JobApplication[];
-  onStatusUpdate: (applicationId: number, newStatus: string) => void;
+  onStatusUpdate: (applicationId: number, newStatus: JobApplicationStatus) => void;
   onViewDetails: (application: JobApplication) => void;
   onEditApplication: (application: JobApplication) => void;
 }
 
 // Defines the status columns used in the Kanban board
 // IMPORTANT: The 'id' field here must match the status values in the database
-
 const statusColumns = [
-  { id: "applied", title: "Applied" },
-  { id: "screening", title: "Screening" },
-  { id: "interview", title: "Interview" },
-  { id: "assessment", title: "Assessment" },
-  { id: "offer", title: "Offer" },
-  { id: "rejected", title: "Rejected" },
-  { id: "accepted", title: "Accepted" },
+  { id: JobApplicationStatus.Applied, title: "Applied" },
+  { id: JobApplicationStatus.Screening, title: "Screening" },
+  { id: JobApplicationStatus.Interview, title: "Interview" },
+  { id: JobApplicationStatus.Assessment, title: "Assessment" },
+  { id: JobApplicationStatus.Offer, title: "Offer" },
+  { id: JobApplicationStatus.Rejected, title: "Rejected" },
+  { id: JobApplicationStatus.Accepted, title: "Accepted" },
 ];
 
 function getStatusBadgeColor(status: string) {
-  switch (status.toLowerCase()) {
-    case "applied":
+  const normalizedStatus = status.toLowerCase() as JobApplicationStatus;
+  switch (normalizedStatus) {
+    case JobApplicationStatus.Applied:
       return "blue";
-    case "screening":
-      return "indigo";
-    case "interview":
-      return "yellow";
-    case "assessment":
-      return "violet";
-    case "offer":
+    case JobApplicationStatus.Screening:
+      return "purple";
+    case JobApplicationStatus.Interview:
+      return "cyan";
+    case JobApplicationStatus.Assessment:
       return "green";
-    case "rejected":
+    case JobApplicationStatus.Offer:
+      return "orange";
+    case JobApplicationStatus.Rejected:
       return "red";
-    case "accepted":
+    case JobApplicationStatus.Accepted:
       return "emerald";
     default:
       return "gray";
@@ -122,7 +100,7 @@ export function KanbanView({
 
     const { draggableId, destination } = result;
     const applicationId = parseInt(draggableId);
-    const newStatus = destination.droppableId;
+    const newStatus = destination.droppableId as JobApplicationStatus;
 
     onStatusUpdate(applicationId, newStatus);
   };

@@ -3,6 +3,20 @@ import { storage } from "../../config/storage";
 import { requireUser } from "../../middleware/auth";
 import { type InsertJobApplication } from "@shared/schema";
 import { z } from 'zod';
+import { Router } from 'express';
+
+const router = Router();
+
+// Job application status enum values - matches PostgreSQL enum
+export enum JobApplicationStatus {
+  Applied = 'applied',
+  Screening = 'screening',
+  Interview = 'interview',
+  Assessment = 'assessment',
+  Offer = 'offer',
+  Rejected = 'rejected',
+  Accepted = 'accepted'
+}
 
 /**
  * Register job application routes
@@ -83,7 +97,7 @@ export function registerJobApplicationRoutes(app: express.Express) {
       }
       
       if (!applicationData.status) {
-        applicationData.status = "applied";
+        applicationData.status = JobApplicationStatus.Applied;
       }
       
       // Validate email format if provided
@@ -267,7 +281,9 @@ export function registerJobApplicationRoutes(app: express.Express) {
       };
       
       // Add to existing status history or create new array
-      const statusHistory = existingApplication.statusHistory || [];
+      const statusHistory = Array.isArray(existingApplication.statusHistory) 
+        ? existingApplication.statusHistory 
+        : [];
       statusHistory.push(newEntry);
       
       // Update the job application with new status and history
@@ -289,4 +305,22 @@ export function registerJobApplicationRoutes(app: express.Express) {
       });
     }
   });
-} 
+}
+
+// Status color mapping for consistency with client-side
+export const statusColors: Record<string, string> = {
+  [JobApplicationStatus.Applied]: "blue",
+  [JobApplicationStatus.Screening]: "purple",
+  [JobApplicationStatus.Interview]: "cyan",
+  [JobApplicationStatus.Assessment]: "green",
+  [JobApplicationStatus.Offer]: "orange",
+  [JobApplicationStatus.Rejected]: "red",
+  [JobApplicationStatus.Accepted]: "emerald",
+  'default': "gray"
+};
+
+// Helper function to get status color
+export const getStatusColor = (status: string): string => {
+  const normalizedStatus = status.toLowerCase().replace(/\s+/g, '_');
+  return statusColors[normalizedStatus] || statusColors.default;
+}; 

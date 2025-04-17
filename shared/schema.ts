@@ -1,6 +1,17 @@
-import { pgTable, text, serial, integer, boolean, timestamp, jsonb, decimal, unique, primaryKey, varchar, index, numeric } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, jsonb, decimal, unique, primaryKey, varchar, index, numeric, pgEnum } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+
+// Define job application status enum
+export const jobApplicationStatus = pgEnum('job_application_status', [
+  'applied',
+  'screening',
+  'interview',
+  'assessment',
+  'offer',
+  'rejected',
+  'accepted'
+]);
 
 // User Schema
 export const users = pgTable("users", {
@@ -134,7 +145,7 @@ export const jobApplications = pgTable("job_applications", {
   workType: text("work_type"), // "onsite", "hybrid", "remote"
   salary: text("salary"),
   jobUrl: text("job_url"),
-  status: text("status").notNull(),
+  status: jobApplicationStatus("status").notNull().default('applied'),
   statusHistory: jsonb("status_history"), // Array of status changes with dates
   appliedAt: timestamp("applied_at").defaultNow(),
   resumeId: integer("resume_id").references(() => resumes.id),
@@ -229,6 +240,8 @@ export const insertJobApplicationSchema = createInsertSchema(jobApplications)
     // Add stricter validation for required fields
     company: z.string().min(1, "Company name is required"),
     jobTitle: z.string().min(1, "Job title is required"),
+    // Validate status using enum values
+    status: z.enum(['applied', 'screening', 'interview', 'assessment', 'offer', 'rejected', 'accepted']).default('applied'),
     // Allow deadline date to be a string (ISO date) or a Date object
     deadlineDate: z.string().nullable().optional(),
     // Allow interview date to be a string (ISO date) or a Date object
@@ -317,7 +330,7 @@ export type Project = {
 // Job application status history entry
 export type StatusHistoryEntry = {
   id: string;
-  status: string;
+  status: string; // We keep this as string since it's stored in the database as text within a JSONB field
   date: string;
   notes: string | null;
 };

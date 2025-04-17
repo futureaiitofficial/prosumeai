@@ -10,6 +10,8 @@
     "check": "tsc",
     "db:push": "drizzle-kit push",
     "db:migrate": "tsx migrations/run_migration.ts",
+    "db:push:enum": "tsx server/drizzle/push.ts",
+    "db:fix:enum": "node --loader ts-node/esm server/drizzle/fix-enum.js",
     "test": "jest",
     "test:coverage": "jest --coverage",
     "test:cookies": "jest cookie-manager",

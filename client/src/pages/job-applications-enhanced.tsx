@@ -64,14 +64,36 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-const statusColors = {
-  applied: "blue",
-  screening: "purple",
-  assessment: "green",
-  offer: "orange",
-  rejected: "red",
-  accepted: "emerald",
-};
+// Import shared types from the types file
+import { 
+  JobApplicationStatus, 
+  JobApplication, 
+  JobApplicationFormData,
+  statusColors
+} from "@/types/job-application";
+
+// The enum is now imported from the types file
+// export enum JobApplicationStatus {
+//   Applied = 'applied',
+//   Screening = 'screening',
+//   Interview = 'interview',
+//   Assessment = 'assessment',
+//   Offer = 'offer',
+//   Rejected = 'rejected',
+//   Accepted = 'accepted'
+// }
+
+// The statusColors are now imported from the types file
+// const statusColors = {
+//   [JobApplicationStatus.Applied]: "blue",
+//   [JobApplicationStatus.Screening]: "purple",
+//   [JobApplicationStatus.Interview]: "cyan",
+//   [JobApplicationStatus.Assessment]: "green",
+//   [JobApplicationStatus.Offer]: "orange",
+//   [JobApplicationStatus.Rejected]: "red",
+//   [JobApplicationStatus.Accepted]: "emerald",
+//   default: "gray"
+// };
 
 const priorityColors = {
   high: "red",
@@ -83,56 +105,6 @@ const workTypeIcons = {
   onsite: <Briefcase className="h-4 w-4 mr-1" />,
   hybrid: <Briefcase className="h-4 w-4 mr-1" />,
   remote: <Briefcase className="h-4 w-4 mr-1" />,
-};
-
-interface JobApplicationFormData {
-  company: string;
-  jobTitle: string;
-  jobDescription?: string;
-  location?: string;
-  workType?: string;
-  salary?: string;
-  jobUrl?: string;
-  status: string;
-  statusNotes?: string;
-  resumeId?: string;
-  coverLetterId?: string;
-  contactName?: string;
-  contactEmail?: string;
-  contactPhone?: string;
-  notes?: string;
-  priority?: string;
-  deadlineDate?: Date | string | null;
-  interviewDate?: Date | string | null;
-  interviewType?: string;
-  interviewNotes?: string;
-}
-
-type JobApplication = {
-  id: number;
-  userId: number;
-  company: string;
-  jobTitle: string;
-  jobDescription?: string;
-  location?: string;
-  workType?: string;
-  salary?: string;
-  jobUrl?: string;
-  status: string;
-  statusHistory?: StatusHistoryEntry[];
-  appliedAt: string;
-  resumeId?: number;
-  coverLetterId?: number;
-  contactName?: string;
-  contactEmail?: string;
-  contactPhone?: string;
-  notes?: string;
-  priority?: string;
-  deadlineDate?: string;
-  updatedAt: string;
-  interviewDate?: string;
-  interviewType?: string;
-  interviewNotes?: string;
 };
 
 // Add a helper function near the top of the file before the component definition
@@ -147,6 +119,30 @@ function formatDateForInput(date: Date): string {
   return `${year}-${month}-${day}T${hours}:${minutes}`;
 }
 
+// Update the getStatusBadgeColor function to return proper Tailwind classes
+function getStatusBadgeColor(status: string | JobApplicationStatus) {
+  // Convert status to lowercase for consistency if it's a string
+  const normalizedStatus = typeof status === 'string' ? status.toLowerCase() : status;
+  switch (normalizedStatus) {
+    case JobApplicationStatus.Applied:
+      return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300";
+    case JobApplicationStatus.Screening:
+      return "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300";
+    case JobApplicationStatus.Interview:
+      return "bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-300";
+    case JobApplicationStatus.Assessment:
+      return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300";
+    case JobApplicationStatus.Offer:
+      return "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300";
+    case JobApplicationStatus.Rejected:
+      return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300";
+    case JobApplicationStatus.Accepted:
+      return "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-300";
+    default:
+      return "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300";
+  }
+}
+
 export default function JobApplicationsEnhanced() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -154,7 +150,7 @@ export default function JobApplicationsEnhanced() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [selectedApplication, setSelectedApplication] = useState<JobApplication | null>(null);
   const [statusUpdateOpen, setStatusUpdateOpen] = useState(false);
-  const [newStatus, setNewStatus] = useState("");
+  const [newStatus, setNewStatus] = useState<JobApplicationStatus>(JobApplicationStatus.Applied);
   const [statusNotes, setStatusNotes] = useState("");
   const [editMode, setEditMode] = useState(false);
   const [viewMode, setViewMode] = useState<'table' | 'cards' | 'kanban'>('table');
@@ -173,7 +169,7 @@ export default function JobApplicationsEnhanced() {
     workType: "onsite",
     salary: "",
     jobUrl: "",
-    status: "applied",
+    status: JobApplicationStatus.Applied,
     statusNotes: "",
     resumeId: "",
     coverLetterId: "",
@@ -193,6 +189,13 @@ export default function JobApplicationsEnhanced() {
   const { data: jobApplications = [], isLoading } = useQuery<JobApplication[]>({
     queryKey: ["/api/job-applications"],
     enabled: !!user,
+    select: (data: any[]) => {
+      // Convert string status to enum status for type safety
+      return data.map(app => ({
+        ...app,
+        status: app.status as JobApplicationStatus
+      }));
+    }
   });
 
   const { data: resumes = [] } = useQuery<any[]>({
@@ -254,7 +257,7 @@ export default function JobApplicationsEnhanced() {
   });
 
   const updateStatusMutation = useMutation({
-    mutationFn: async ({ id, status, notes }: { id: number; status: string; notes: string }) => {
+    mutationFn: async ({ id, status, notes }: { id: number; status: JobApplicationStatus; notes: string }) => {
       // Sanitize the data to prevent SQL injection and other attacks
       const payload = sanitizeObject({ 
         status, 
@@ -270,7 +273,7 @@ export default function JobApplicationsEnhanced() {
         description: "The job application status has been updated successfully.",
       });
       setStatusUpdateOpen(false);
-      setNewStatus("");
+      setNewStatus(JobApplicationStatus.Applied);
       setStatusNotes("");
       
       // Directly use the returned updated application data
@@ -452,10 +455,6 @@ export default function JobApplicationsEnhanced() {
       status: newStatus,
       notes: statusNotes
     });
-  };
-
-  const getStatusBadgeColor = (status: string) => {
-    return statusColors[status as keyof typeof statusColors] || "gray";
   };
 
   const getPriorityBadgeColor = (priority: string) => {
@@ -1352,7 +1351,7 @@ export default function JobApplicationsEnhanced() {
                     </div>
                   </TableCell>
                   <TableCell className="hidden md:table-cell">
-                    <Badge className={`bg-${getStatusBadgeColor(application.status)}-100 text-${getStatusBadgeColor(application.status)}-800 dark:bg-${getStatusBadgeColor(application.status)}-900 dark:text-${getStatusBadgeColor(application.status)}-300`}>
+                    <Badge className={getStatusBadgeColor(application.status)}>
                       {application.status.charAt(0).toUpperCase() + application.status.slice(1)}
                     </Badge>
                   </TableCell>
@@ -1420,7 +1419,7 @@ export default function JobApplicationsEnhanced() {
                       <span className="font-medium">{application.company}</span>
                     </CardDescription>
                   </div>
-                  <Badge className={`bg-${getStatusBadgeColor(application.status)}-100 text-${getStatusBadgeColor(application.status)}-800 dark:bg-${getStatusBadgeColor(application.status)}-900 dark:text-${getStatusBadgeColor(application.status)}-300`}>
+                  <Badge className={getStatusBadgeColor(application.status)}>
                     {application.status.charAt(0).toUpperCase() + application.status.slice(1)}
                   </Badge>
                 </div>
@@ -1474,7 +1473,7 @@ export default function JobApplicationsEnhanced() {
               <DialogHeader>
                 <div className="flex justify-between items-center">
                   <DialogTitle className="text-xl">{selectedApplication.jobTitle}</DialogTitle>
-                  <Badge className={`bg-${getStatusBadgeColor(selectedApplication.status)}-100 text-${getStatusBadgeColor(selectedApplication.status)}-800 dark:bg-${getStatusBadgeColor(selectedApplication.status)}-900 dark:text-${getStatusBadgeColor(selectedApplication.status)}-300`}>
+                  <Badge className={getStatusBadgeColor(selectedApplication.status)}>
                     {selectedApplication.status.charAt(0).toUpperCase() + selectedApplication.status.slice(1)}
                   </Badge>
                 </div>
@@ -1644,7 +1643,7 @@ export default function JobApplicationsEnhanced() {
                           )}
                           <div className="absolute left-0 top-2 h-4 w-4 rounded-full bg-primary" />
                           <div className="mb-1 flex items-center">
-                            <Badge className={`bg-${getStatusBadgeColor(entry.status)}-100 text-${getStatusBadgeColor(entry.status)}-800 dark:bg-${getStatusBadgeColor(entry.status)}-900 dark:text-${getStatusBadgeColor(entry.status)}-300 mr-2`}>
+                            <Badge className={getStatusBadgeColor(entry.status)}>
                               {entry.status.charAt(0).toUpperCase() + entry.status.slice(1)}
                             </Badge>
                             <span className="text-xs text-muted-foreground">
@@ -2173,19 +2172,19 @@ export default function JobApplicationsEnhanced() {
                 <Label htmlFor="newStatus">Status</Label>
                 <Select
                   value={newStatus}
-                  onValueChange={setNewStatus}
+                  onValueChange={(value) => setNewStatus(value as JobApplicationStatus)}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select status" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="applied">Applied</SelectItem>
-                    <SelectItem value="screening">Screening</SelectItem>
-                    <SelectItem value="interview">Interview</SelectItem>
-                    <SelectItem value="assessment">Assessment</SelectItem>
-                    <SelectItem value="offer">Offer</SelectItem>
-                    <SelectItem value="rejected">Rejected</SelectItem>
-                    <SelectItem value="accepted">Accepted</SelectItem>
+                    <SelectItem value={JobApplicationStatus.Applied}>Applied</SelectItem>
+                    <SelectItem value={JobApplicationStatus.Screening}>Screening</SelectItem>
+                    <SelectItem value={JobApplicationStatus.Interview}>Interview</SelectItem>
+                    <SelectItem value={JobApplicationStatus.Assessment}>Assessment</SelectItem>
+                    <SelectItem value={JobApplicationStatus.Offer}>Offer</SelectItem>
+                    <SelectItem value={JobApplicationStatus.Rejected}>Rejected</SelectItem>
+                    <SelectItem value={JobApplicationStatus.Accepted}>Accepted</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
