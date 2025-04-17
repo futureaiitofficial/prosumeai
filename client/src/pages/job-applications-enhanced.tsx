@@ -641,1134 +641,23 @@ export default function JobApplicationsEnhanced() {
 
   return (
     <DefaultLayout pageTitle="Job Applications" pageDescription="Track and manage your job applications and interviews">
-      <div className="flex mb-6 items-center justify-between">
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Add Job Application
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Add New Job Application</DialogTitle>
-              <DialogDescription>
-                Track a new job application. Add all the relevant details to help you monitor your progress.
-              </DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleSubmit}>
-              <Tabs defaultValue="basic" className="w-full">
-                <TabsList className="mb-4">
-                  <TabsTrigger value="basic">Basic Info</TabsTrigger>
-                  <TabsTrigger value="description">Job Details</TabsTrigger>
-                  <TabsTrigger value="documents">Documents</TabsTrigger>
-                  <TabsTrigger value="contact">Contact Details</TabsTrigger>
-                </TabsList>
-                
-                <TabsContent value="basic">
-                  <div className="grid gap-4 py-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="grid gap-2">
-                        <Label htmlFor="company">Company</Label>
-                        <Input
-                          id="company"
-                          name="company"
-                          placeholder="e.g. TechCorp"
-                          value={formData.company}
-                          onChange={handleChange}
-                          required
-                        />
-                      </div>
-                      <div className="grid gap-2">
-                        <Label htmlFor="jobTitle">Job Title</Label>
-                        <Input
-                          id="jobTitle"
-                          name="jobTitle"
-                          placeholder="e.g. Frontend Developer"
-                          value={formData.jobTitle}
-                          onChange={handleChange}
-                          required
-                        />
-                      </div>
-                    </div>
-                    
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="grid gap-2">
-                        <Label htmlFor="location">Location</Label>
-                        <Input
-                          id="location"
-                          name="location"
-                          placeholder="e.g. New York, NY"
-                          value={formData.location}
-                          onChange={handleChange}
-                        />
-                      </div>
-                      <div className="grid gap-2">
-                        <Label htmlFor="workType">Work Type</Label>
-                        <Select
-                          value={formData.workType}
-                          onValueChange={(value) => handleSelectChange("workType", value)}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select work type" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="onsite">On-site</SelectItem>
-                            <SelectItem value="hybrid">Hybrid</SelectItem>
-                            <SelectItem value="remote">Remote</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                    
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="grid gap-2">
-                        <Label htmlFor="jobUrl">Job Posting URL</Label>
-                        <Input
-                          id="jobUrl"
-                          name="jobUrl"
-                          placeholder="e.g. https://example.com/jobs/123"
-                          value={formData.jobUrl}
-                          onChange={handleChange}
-                        />
-                      </div>
-                      <div className="grid gap-2">
-                        <Label htmlFor="salary">Salary Range</Label>
-                        <Input
-                          id="salary"
-                          name="salary"
-                          placeholder="e.g. $80,000 - $100,000"
-                          value={formData.salary}
-                          onChange={(e) => {
-                            // Allow empty input, numbers, commas, dollar signs, and dashes
-                            const value = e.target.value;
-                            if (value === '' || /^[\d,.$\s\-]+$/.test(value)) {
-                              handleChange(e);
-                            }
-                          }}
-                        />
-                        <p className="text-xs text-muted-foreground">Format: $min - $max (e.g. $80,000 - $100,000)</p>
-                      </div>
-                    </div>
-                  </div>
-                </TabsContent>
-                
-                <TabsContent value="description">
-                  <div className="grid gap-4 py-4">
-                    <div className="grid gap-2">
-                      <Label htmlFor="jobDescription">Job Description</Label>
-                      <Textarea
-                        id="jobDescription"
-                        name="jobDescription"
-                        placeholder="Copy and paste the job description here"
-                        value={formData.jobDescription}
-                        onChange={handleChange}
-                        rows={10}
-                      />
-                    </div>
-                    
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="grid gap-2">
-                        <Label htmlFor="priority">Priority</Label>
-                        <Select
-                          value={formData.priority}
-                          onValueChange={(value) => handleSelectChange("priority", value)}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select priority" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="high">High</SelectItem>
-                            <SelectItem value="medium">Medium</SelectItem>
-                            <SelectItem value="low">Low</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="grid gap-2">
-                        <Label htmlFor="deadlineDate">Application Deadline</Label>
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <Button
-                              variant="outline"
-                              className="w-full justify-start text-left font-normal"
-                            >
-                              <Calendar className="mr-2 h-4 w-4" />
-                              {formData.deadlineDate ? (
-                                format(formData.deadlineDate, "PPP")
-                              ) : (
-                                <span>Pick a date</span>
-                              )}
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0">
-                            <CalendarComponent
-                              mode="single"
-                              selected={formData.deadlineDate instanceof Date ? formData.deadlineDate : formData.deadlineDate ? new Date(formData.deadlineDate) : undefined}
-                              onSelect={(date) => setFormData({
-                                ...formData,
-                                deadlineDate: date
-                              })}
-                              initialFocus
-                            />
-                          </PopoverContent>
-                        </Popover>
-                      </div>
-                    </div>
-                  </div>
-                </TabsContent>
-                
-                <TabsContent value="documents">
-                  <div className="grid gap-4 py-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="grid gap-2">
-                        <Label htmlFor="status">Application Status</Label>
-                        <Select
-                          value={formData.status}
-                          onValueChange={(value) => handleSelectChange("status", value)}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select status" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="applied">Applied</SelectItem>
-                            <SelectItem value="screening">Screening</SelectItem>
-                            <SelectItem value="interview">Interview</SelectItem>
-                            <SelectItem value="assessment">Assessment</SelectItem>
-                            <SelectItem value="offer">Offer</SelectItem>
-                            <SelectItem value="rejected">Rejected</SelectItem>
-                            <SelectItem value="accepted">Accepted</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      {formData.status === "interview" && (
-                        <div className="grid gap-4">
-                          <div className="grid grid-cols-2 gap-4">
-                            <div className="grid gap-2">
-                              <Label htmlFor="interviewDate">Interview Date</Label>
-                              <Input
-                                id="interviewDate"
-                                name="interviewDate"
-                                type="datetime-local"
-                                value={typeof formData.interviewDate === 'string' ? formData.interviewDate : formData.interviewDate instanceof Date ? formatDateForInput(formData.interviewDate) : ""}
-                                onChange={(e) => {
-                                  const value = e.target.value ? e.target.value : null;
-                                  setFormData({ ...formData, interviewDate: value });
-                                }}
-                              />
-                            </div>
-                            <div className="grid gap-2">
-                              <Label htmlFor="interviewType">Interview Type</Label>
-                              <Select
-                                value={formData.interviewType}
-                                onValueChange={(value) => handleSelectChange("interviewType", value)}
-                              >
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select interview type" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="phone">Phone</SelectItem>
-                                  <SelectItem value="video">Video</SelectItem>
-                                  <SelectItem value="onsite">On-site</SelectItem>
-                                  <SelectItem value="technical">Technical</SelectItem>
-                                  <SelectItem value="behavioral">Behavioral</SelectItem>
-                                  <SelectItem value="final">Final</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-                          </div>
-                          <div className="grid gap-2">
-                            <Label htmlFor="interviewNotes">Interview Notes</Label>
-                            <Textarea
-                              id="interviewNotes"
-                              name="interviewNotes"
-                              placeholder="Add any notes about the interview"
-                              value={formData.interviewNotes}
-                              onChange={handleChange}
-                              rows={3}
-                            />
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                    
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="grid gap-2">
-                        <Label htmlFor="statusNotes">Status Notes</Label>
-                        <Input
-                          id="statusNotes"
-                          name="statusNotes"
-                          placeholder="e.g. Applied via company website"
-                          value={formData.statusNotes}
-                          onChange={handleChange}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="border-t pt-4 mt-2">
-                      <h3 className="font-medium mb-3">Linked Documents</h3>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="grid gap-2">
-                          <Label htmlFor="resumeId">Resume</Label>
-                          <Select
-                            value={formData.resumeId || "none"}
-                            onValueChange={(value) => handleSelectChange("resumeId", value)}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select a resume" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="none">None</SelectItem>
-                              {resumes.map((resume: any) => (
-                                <SelectItem key={resume.id} value={resume.id.toString()}>
-                                  {resume.title}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <div className="grid gap-2">
-                          <Label htmlFor="coverLetterId">Cover Letter</Label>
-                          <Select
-                            value={formData.coverLetterId || "none"}
-                            onValueChange={(value) => handleSelectChange("coverLetterId", value)}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select a cover letter" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="none">None</SelectItem>
-                              {coverLetters.map((letter: any) => (
-                                <SelectItem key={letter.id} value={letter.id.toString()}>
-                                  {letter.title}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </TabsContent>
-                
-                <TabsContent value="contact">
-                  <div className="grid gap-4 py-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="grid gap-2">
-                        <Label htmlFor="contactName">Contact Person</Label>
-                        <Input
-                          id="contactName"
-                          name="contactName"
-                          placeholder="e.g. Jane Smith"
-                          value={formData.contactName}
-                          onChange={handleChange}
-                        />
-                      </div>
-                      <div className="grid gap-2">
-                        <Label htmlFor="contactEmail">Contact Email</Label>
-                        <Input
-                          id="contactEmail"
-                          name="contactEmail"
-                          type="email"
-                          placeholder="e.g. jane.smith@example.com"
-                          value={formData.contactEmail}
-                          onChange={(e) => {
-                            // Email validation - allow empty or valid email
-                            const value = e.target.value;
-                            if (value === '' || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
-                              handleChange(e);
-                            }
-                          }}
-                        />
-                        <p className="text-xs text-muted-foreground">Format: name@domain.com</p>
-                      </div>
-                    </div>
-                    
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="grid gap-2">
-                        <Label htmlFor="contactPhone">Contact Phone</Label>
-                        <Input
-                          id="contactPhone"
-                          name="contactPhone"
-                          placeholder="e.g. (555) 123-4567"
-                          value={formData.contactPhone}
-                          onChange={(e) => {
-                            // Allow empty input, numbers, parentheses, dashes, and spaces
-                            const value = e.target.value;
-                            // Only allow proper phone format characters
-                            if (value === '' || /^[\d\s\-\(\)]+$/.test(value)) {
-                              // Update the form data
-                              handleChange(e);
-                            }
-                          }}
-                        />
-                        <p className="text-xs text-muted-foreground">Format: (XXX) XXX-XXXX</p>
-                      </div>
-                      <div className="grid gap-2">
-                        <Label htmlFor="notes">Additional Notes</Label>
-                        <Textarea
-                          id="notes"
-                          name="notes"
-                          placeholder="Any other notes about this application"
-                          value={formData.notes}
-                          onChange={handleChange}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </TabsContent>
-              </Tabs>
-              
-              <DialogFooter className="mt-6">
-                <Button
-                  type="submit"
-                  disabled={createJobApplicationMutation.isPending}
-                >
-                  {createJobApplicationMutation.isPending ? "Adding..." : "Add Application"}
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
-      </div>
-
-      <div className="mb-6 space-y-4">
-        {/* Search and filter controls */}
-        <div className="flex flex-col space-y-2 md:flex-row md:items-center md:justify-between md:space-y-0">
-          <div className="flex items-center space-x-2">
-            <div className="relative flex-1 md:w-64">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                type="search" 
-                placeholder="Search applications..."
-                className="pl-8"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
-            <Button variant="outline" size="sm" onClick={toggleViewMode}>
-              {viewMode === 'table' && (
-                <>
-                  <LayoutGrid className="h-4 w-4 mr-2" />
-                  Card View
-                </>
-              )}
-              {viewMode === 'cards' && (
-                <>
-                  <KanbanSquare className="h-4 w-4 mr-2" />
-                  Kanban View
-                </>
-              )}
-              {viewMode === 'kanban' && (
-                <>
-                  <TableProperties className="h-4 w-4 mr-2" />
-                  Table View
-                </>
-              )}
-            </Button>
-          </div>
-          
-          <div className="flex flex-wrap gap-2">
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" size="sm">
-                  <Filter className="mr-2 h-4 w-4" />
-                  Filter
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-80">
-                <div className="grid gap-4">
-                  <div className="space-y-2">
-                    <h4 className="font-medium">Filter by Status</h4>
-                    <Select 
-                      value={filterStatus || 'all'} 
-                      onValueChange={(val) => setFilterStatus(val === 'all' ? null : val)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="All Statuses" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Statuses</SelectItem>
-                        <SelectItem value="applied">Applied</SelectItem>
-                        <SelectItem value="screening">Screening</SelectItem>
-                        <SelectItem value="interview">Interview</SelectItem>
-                        <SelectItem value="assessment">Assessment</SelectItem>
-                        <SelectItem value="offer">Offer</SelectItem>
-                        <SelectItem value="rejected">Rejected</SelectItem>
-                        <SelectItem value="accepted">Accepted</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <h4 className="font-medium">Filter by Priority</h4>
-                    <Select 
-                      value={filterPriority || 'all'} 
-                      onValueChange={(val) => setFilterPriority(val === 'all' ? null : val)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="All Priorities" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Priorities</SelectItem>
-                        <SelectItem value="high">High</SelectItem>
-                        <SelectItem value="medium">Medium</SelectItem>
-                        <SelectItem value="low">Low</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <h4 className="font-medium">Filter by Work Type</h4>
-                    <Select 
-                      value={filterWorkType || 'all'} 
-                      onValueChange={(val) => setFilterWorkType(val === 'all' ? null : val)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="All Work Types" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Work Types</SelectItem>
-                        <SelectItem value="onsite">On-site</SelectItem>
-                        <SelectItem value="hybrid">Hybrid</SelectItem>
-                        <SelectItem value="remote">Remote</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <h4 className="font-medium">Filter by Deadline</h4>
-                    <Select 
-                      value={filterDeadline || 'all'} 
-                      onValueChange={(val) => setFilterDeadline(val === 'all' ? null : val)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="All Deadlines" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Deadlines</SelectItem>
-                        <SelectItem value="upcoming">Next 7 Days</SelectItem>
-                        <SelectItem value="past">Past Deadlines</SelectItem>
-                        <SelectItem value="none">No Deadline</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </PopoverContent>
-            </Popover>
-          </div>
-        </div>
-        
-        {/* Applied filters display */}
-        {(filterStatus || filterPriority || filterWorkType || filterDeadline) && (
-          <div className="flex flex-wrap gap-2">
-            {filterStatus && (
-              <Badge variant="outline" className="flex items-center gap-1">
-                Status: {filterStatus.charAt(0).toUpperCase() + filterStatus.slice(1)}
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-4 w-4 p-0"
-                  onClick={() => setFilterStatus(null)}
-                >
-                  <Cross2 className="h-3 w-3" />
-                </Button>
-              </Badge>
-            )}
-            
-            {filterPriority && (
-              <Badge variant="outline" className="flex items-center gap-1">
-                Priority: {filterPriority.charAt(0).toUpperCase() + filterPriority.slice(1)}
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-4 w-4 p-0"
-                  onClick={() => setFilterPriority(null)}
-                >
-                  <Cross2 className="h-3 w-3" />
-                </Button>
-              </Badge>
-            )}
-            
-            {filterWorkType && (
-              <Badge variant="outline" className="flex items-center gap-1">
-                Work Type: {filterWorkType.charAt(0).toUpperCase() + filterWorkType.slice(1)}
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-4 w-4 p-0"
-                  onClick={() => setFilterWorkType(null)}
-                >
-                  <Cross2 className="h-3 w-3" />
-                </Button>
-              </Badge>
-            )}
-            
-            {filterDeadline && (
-              <Badge variant="outline" className="flex items-center gap-1">
-                Deadline: {filterDeadline === 'upcoming' ? 'Next 7 Days' : filterDeadline === 'past' ? 'Past Deadlines' : 'No Deadline'}
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-4 w-4 p-0"
-                  onClick={() => setFilterDeadline(null)}
-                >
-                  <Cross2 className="h-3 w-3" />
-                </Button>
-              </Badge>
-            )}
-            
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 px-2 text-xs"
-              onClick={() => {
-                setFilterStatus(null);
-                setFilterPriority(null);
-                setFilterWorkType(null);
-                setFilterDeadline(null);
-              }}
-            >
-              Clear All
-            </Button>
-          </div>
-        )}
-      </div>
-
-      {isLoading ? (
-        <Card className="animate-pulse">
-          <CardContent className="p-6">
-            <div className="h-10 bg-gray-200 dark:bg-gray-800 rounded mb-4" />
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="mb-4">
-                <div className="h-4 bg-gray-200 dark:bg-gray-800 rounded-full w-full mb-2" />
-                <div className="h-4 bg-gray-200 dark:bg-gray-800 rounded-full w-3/4" />
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      ) : sortedApplications.length === 0 ? (
-        <Card className="w-full h-60 flex flex-col items-center justify-center text-center p-6">
-          <CardContent>
-            <div className="flex flex-col items-center space-y-4">
-              <div className="rounded-full bg-primary-50 p-4 dark:bg-primary-900">
-                <Plus className="h-6 w-6 text-primary-600 dark:text-primary-300" />
-              </div>
-              <h3 className="text-lg font-medium">No Job Applications Found</h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                {searchQuery || filterStatus || filterPriority || filterWorkType || filterDeadline 
-                  ? "Try adjusting your filters to see more results." 
-                  : "Start tracking your job applications to monitor your progress."}
-              </p>
-              <Button onClick={() => setOpen(true)}>Add Job Application</Button>
-            </div>
-          </CardContent>
-        </Card>
-      ) : viewMode === 'kanban' ? (
-        <KanbanView 
-          applications={sortedApplications} 
-          onStatusUpdate={async (applicationId, newStatus) => {
-            // First update the status
-            await updateStatusMutation.mutateAsync({
-              id: applicationId,
-              status: newStatus,
-              notes: `Moved to ${newStatus} status`
-            });
-            
-            // Interview functionality has been removed
-            // Simply update the status without additional prompts
-          }}
-          onViewDetails={viewApplicationDetails}
-          onEditApplication={startEditingApplication}
-        />
-      ) : viewMode === 'table' ? (
-        <div className="rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-[180px] cursor-pointer" onClick={() => handleSort('company')}>
-                  <div className="flex items-center space-x-1">
-                    <span>Company</span>
-                    {sortField === 'company' && (
-                      <ArrowUpDown className={`h-4 w-4 ${sortDirection === 'desc' ? 'rotate-180 transform' : ''}`} />
-                    )}
-                  </div>
-                </TableHead>
-                <TableHead className="cursor-pointer" onClick={() => handleSort('jobTitle')}>
-                  <div className="flex items-center space-x-1">
-                    <span>Job Title</span>
-                    {sortField === 'jobTitle' && (
-                      <ArrowUpDown className={`h-4 w-4 ${sortDirection === 'desc' ? 'rotate-180 transform' : ''}`} />
-                    )}
-                  </div>
-                </TableHead>
-                <TableHead className="cursor-pointer hidden md:table-cell" onClick={() => handleSort('status')}>
-                  <div className="flex items-center space-x-1">
-                    <span>Status</span>
-                    {sortField === 'status' && (
-                      <ArrowUpDown className={`h-4 w-4 ${sortDirection === 'desc' ? 'rotate-180 transform' : ''}`} />
-                    )}
-                  </div>
-                </TableHead>
-                <TableHead className="cursor-pointer hidden lg:table-cell" onClick={() => handleSort('appliedAt')}>
-                  <div className="flex items-center space-x-1">
-                    <span>Applied On</span>
-                    {sortField === 'appliedAt' && (
-                      <ArrowUpDown className={`h-4 w-4 ${sortDirection === 'desc' ? 'rotate-180 transform' : ''}`} />
-                    )}
-                  </div>
-                </TableHead>
-                <TableHead className="cursor-pointer hidden xl:table-cell" onClick={() => handleSort('deadlineDate')}>
-                  <div className="flex items-center space-x-1">
-                    <span>Deadline</span>
-                    {sortField === 'deadlineDate' && (
-                      <ArrowUpDown className={`h-4 w-4 ${sortDirection === 'desc' ? 'rotate-180 transform' : ''}`} />
-                    )}
-                  </div>
-                </TableHead>
-                <TableHead className="cursor-pointer hidden lg:table-cell" onClick={() => handleSort('priority')}>
-                  <div className="flex items-center space-x-1">
-                    <span>Priority</span>
-                    {sortField === 'priority' && (
-                      <ArrowUpDown className={`h-4 w-4 ${sortDirection === 'desc' ? 'rotate-180 transform' : ''}`} />
-                    )}
-                  </div>
-                </TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {sortedApplications.map((application) => (
-                <TableRow key={application.id} className="cursor-pointer hover:bg-muted/30" onClick={() => viewApplicationDetails(application)}>
-                  <TableCell className="font-medium">{application.company}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center space-x-2">
-                      <span>{application.jobTitle}</span>
-                      {application.location && (
-                        <span className="text-xs text-muted-foreground hidden md:inline-block">• {application.location}</span>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell className="hidden md:table-cell">
-                    <Badge className={getStatusBadgeColor(application.status)}>
-                      {application.status.charAt(0).toUpperCase() + application.status.slice(1)}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="hidden lg:table-cell">
-                    {format(new Date(application.appliedAt), "MMM d, yyyy")}
-                  </TableCell>
-                  <TableCell className="hidden xl:table-cell">
-                    {application.deadlineDate 
-                      ? format(new Date(application.deadlineDate), "MMM d, yyyy") 
-                      : "No deadline"}
-                  </TableCell>
-                  <TableCell className="hidden lg:table-cell">
-                    {application.priority && (
-                      <Badge variant="outline" className={`bg-${getPriorityBadgeColor(application.priority)}-50 text-${getPriorityBadgeColor(application.priority)}-700 dark:bg-${getPriorityBadgeColor(application.priority)}-900 dark:text-${getPriorityBadgeColor(application.priority)}-300 w-fit`}>
-                        {application.priority.charAt(0).toUpperCase() + application.priority.slice(1)}
-                      </Badge>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                        <Button variant="ghost" className="h-8 w-8 p-0">
-                          <span className="sr-only">Open menu</span>
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuItem onClick={(e) => {
-                          e.stopPropagation();
-                          viewApplicationDetails(application);
-                        }}>
-                          View details
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={(e) => {
-                          e.stopPropagation();
-                          startEditingApplication(application);
-                        }}>
-                          Edit application
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={(e) => {
-                          e.stopPropagation();
-                          openStatusUpdate(application);
-                        }}>
-                          Update status
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      ) : (
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {sortedApplications.map((application: JobApplication) => (
-            <Card key={application.id} className="overflow-hidden">
-              <CardHeader className="pb-2">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <CardTitle className="text-lg">{application.jobTitle}</CardTitle>
-                    <CardDescription className="flex items-center">
-                      <span className="font-medium">{application.company}</span>
-                    </CardDescription>
-                  </div>
-                  <Badge className={getStatusBadgeColor(application.status)}>
-                    {application.status.charAt(0).toUpperCase() + application.status.slice(1)}
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent className="pb-2">
-                <div className="flex flex-col space-y-2 text-sm">
-                  {application.location && (
-                    <div className="flex items-center text-muted-foreground">
-                      <MapPin className="h-4 w-4 mr-1" />
-                      <span>{application.location}</span>
-                    </div>
-                  )}
-                  {application.workType && (
-                    <div className="flex items-center text-muted-foreground">
-                      {workTypeIcons[application.workType as keyof typeof workTypeIcons]}
-                      <span>{application.workType.charAt(0).toUpperCase() + application.workType.slice(1)}</span>
-                    </div>
-                  )}
-                  <div className="flex items-center text-muted-foreground">
-                    <Calendar className="h-4 w-4 mr-1" />
-                    <span>Applied on {format(new Date(application.appliedAt), "MMM d, yyyy")}</span>
-                  </div>
-                  {application.priority && (
-                    <div className="flex items-center">
-                      <Badge variant="outline" className={`border-${getPriorityBadgeColor(application.priority)}-500 text-${getPriorityBadgeColor(application.priority)}-700`}>
-                        {application.priority === 'high' ? <Star className="h-3 w-3 mr-1" /> : <StarOff className="h-3 w-3 mr-1" />}
-                        {application.priority.charAt(0).toUpperCase() + application.priority.slice(1)} Priority
-                      </Badge>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-              <CardFooter className="flex justify-between pt-4">
-                <Button size="sm" variant="outline" onClick={() => viewApplicationDetails(application)}>
-                  View Details
-                </Button>
-                <Button size="sm" variant="secondary" onClick={() => openStatusUpdate(application)}>
-                  Update Status
-                </Button>
-              </CardFooter>
-            </Card>
-          ))}
-        </div>
-      )}
-
-      {/* Application Details Dialog */}
-      <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          {selectedApplication && !editMode && (
-            <>
+      <div className="w-full max-w-[100%] px-2">
+        <div className="flex mb-6 items-center justify-between">
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="mr-2 h-4 w-4" />
+                Add Job Application
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
-                <div className="flex justify-between items-center">
-                  <DialogTitle className="text-xl">{selectedApplication.jobTitle}</DialogTitle>
-                  <Badge className={getStatusBadgeColor(selectedApplication.status)}>
-                    {selectedApplication.status.charAt(0).toUpperCase() + selectedApplication.status.slice(1)}
-                  </Badge>
-                </div>
+                <DialogTitle>Add New Job Application</DialogTitle>
                 <DialogDescription>
-                  <span className="font-medium">{selectedApplication.company}</span>
-                  {selectedApplication.location && (
-                    <span className="ml-2">• {selectedApplication.location}</span>
-                  )}
-                  {selectedApplication.workType && (
-                    <span className="ml-2">• {selectedApplication.workType.charAt(0).toUpperCase() + selectedApplication.workType.slice(1)}</span>
-                  )}
+                  Track a new job application. Add all the relevant details to help you monitor your progress.
                 </DialogDescription>
               </DialogHeader>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <h3 className="text-lg font-medium mb-3">Application Details</h3>
-                  <div className="space-y-3">
-                    <div className="flex items-center">
-                      <Calendar className="h-4 w-4 mr-2 text-muted-foreground" />
-                      <span>Applied on {format(new Date(selectedApplication.appliedAt), "MMMM d, yyyy")}</span>
-                    </div>
-                    
-                    {selectedApplication.priority && (
-                      <div className="flex items-center">
-                        {selectedApplication.priority === 'high' ? 
-                          <Star className="h-4 w-4 mr-2 text-muted-foreground" /> : 
-                          <StarOff className="h-4 w-4 mr-2 text-muted-foreground" />}
-                        <span>{selectedApplication.priority.charAt(0).toUpperCase() + selectedApplication.priority.slice(1)} Priority</span>
-                      </div>
-                    )}
-                    
-                    {selectedApplication.deadlineDate && (
-                      <div className="flex items-center">
-                        <Clock className="h-4 w-4 mr-2 text-muted-foreground" />
-                        <span>Deadline: {format(new Date(selectedApplication.deadlineDate), "MMM d, yyyy")}</span>
-                      </div>
-                    )}
-                    
-                    {selectedApplication.jobUrl && (
-                      <div className="flex items-center">
-                        <ExternalLink className="h-4 w-4 mr-2 text-muted-foreground" />
-                        <a 
-                          href={selectedApplication.jobUrl} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="text-primary hover:underline"
-                        >
-                          View Job Posting
-                        </a>
-                      </div>
-                    )}
-                    
-                    {selectedApplication.salary && (
-                      <div className="flex items-center">
-                        <span className="font-medium mr-2">Salary:</span>
-                        <span>{selectedApplication.salary}</span>
-                      </div>
-                    )}
-                  </div>
-
-                  {(selectedApplication.contactName || selectedApplication.contactEmail || selectedApplication.contactPhone) && (
-                    <div className="mt-6">
-                      <h3 className="text-lg font-medium mb-3">Contact Information</h3>
-                      <div className="space-y-3">
-                        {selectedApplication.contactName && (
-                          <div className="flex items-center">
-                            <User className="h-4 w-4 mr-2 text-muted-foreground" />
-                            <span>{selectedApplication.contactName}</span>
-                          </div>
-                        )}
-                        
-                        {selectedApplication.contactEmail && (
-                          <div className="flex items-center">
-                            <Mail className="h-4 w-4 mr-2 text-muted-foreground" />
-                            <a 
-                              href={`mailto:${selectedApplication.contactEmail}`}
-                              className="text-primary hover:underline"
-                            >
-                              {selectedApplication.contactEmail}
-                            </a>
-                          </div>
-                        )}
-                        
-                        {selectedApplication.contactPhone && (
-                          <div className="flex items-center">
-                            <Phone className="h-4 w-4 mr-2 text-muted-foreground" />
-                            <a 
-                              href={`tel:${selectedApplication.contactPhone}`}
-                              className="text-primary hover:underline"
-                            >
-                              {selectedApplication.contactPhone}
-                            </a>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {(selectedApplication.resumeId || selectedApplication.coverLetterId) && (
-                    <div className="mt-6">
-                      <h3 className="text-lg font-medium mb-3">Documents</h3>
-                      <div className="space-y-3">
-                        {selectedApplication.resumeId && (
-                          <div className="flex items-center">
-                            <File className="h-4 w-4 mr-2 text-muted-foreground" />
-                            <span>Resume: </span>
-                            <Button 
-                              variant="link" 
-                              className="p-0 h-auto text-primary hover:underline"
-                              onClick={() => {
-                                // Close the details dialog and navigate to the resume builder page with ID
-                                setDetailOpen(false);
-                                window.location.href = `/resume-builder?id=${selectedApplication.resumeId}`;
-                              }}
-                            >
-                              {resumes.find((r: any) => r.id === selectedApplication.resumeId)?.title || "Unknown"}
-                            </Button>
-                          </div>
-                        )}
-                        
-                        {selectedApplication.coverLetterId && (
-                          <div className="flex items-center">
-                            <FileText className="h-4 w-4 mr-2 text-muted-foreground" />
-                            <span>Cover Letter: </span>
-                            <Button 
-                              variant="link" 
-                              className="p-0 h-auto text-primary hover:underline"
-                              onClick={() => {
-                                // Close the details dialog and navigate to the cover letter builder page with ID
-                                setDetailOpen(false);
-                                window.location.href = `/cover-letter-builder?id=${selectedApplication.coverLetterId}`;
-                              }}
-                            >
-                              {coverLetters.find((c: any) => c.id === selectedApplication.coverLetterId)?.title || "Unknown"}
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {selectedApplication.notes && (
-                    <div className="mt-6">
-                      <h3 className="text-lg font-medium mb-3">Notes</h3>
-                      <p className="text-sm text-muted-foreground whitespace-pre-line">{selectedApplication.notes}</p>
-                    </div>
-                  )}
-                </div>
-                
-                <div>
-                  <div className="flex justify-between items-center mb-3">
-                    <h3 className="text-lg font-medium">Status History</h3>
-                    <Button size="sm" variant="outline" onClick={() => openStatusUpdate(selectedApplication)}>
-                      Update Status
-                    </Button>
-                  </div>
-                  
-                  {selectedApplication.statusHistory && selectedApplication.statusHistory.length > 0 ? (
-                    <div className="space-y-3 border rounded-md p-4">
-                      {[...selectedApplication.statusHistory]
-                        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-                        .map((entry, index, sortedEntries) => (
-                        <div key={entry.id} className="relative pl-6 pb-3">
-                          {index < sortedEntries.length - 1 && (
-                            <div className="absolute left-2 top-2 bottom-0 w-0.5 bg-gray-200 dark:bg-gray-700" />
-                          )}
-                          <div className="absolute left-0 top-2 h-4 w-4 rounded-full bg-primary" />
-                          <div className="mb-1 flex items-center">
-                            <Badge className={getStatusBadgeColor(entry.status)}>
-                              {entry.status.charAt(0).toUpperCase() + entry.status.slice(1)}
-                            </Badge>
-                            <span className="text-xs text-muted-foreground">
-                              {format(parseISO(entry.date), "MMM d, yyyy")}
-                            </span>
-                          </div>
-                          {entry.notes && (
-                            <p className="text-sm text-muted-foreground">{entry.notes}</p>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center p-6 border rounded-md">
-                      <p className="text-muted-foreground">No status history available</p>
-                    </div>
-                  )}
-                  
-                  {/* Interviews Section */}
-                  {selectedApplication.status === 'interview' && (
-                    <div className="mt-6">
-                      <h3 className="text-lg font-semibold mb-4">Interview Details</h3>
-                      <div className="grid gap-4">
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="grid gap-2">
-                            <Label>Interview Date</Label>
-                            <Input
-                              type="datetime-local"
-                              value={selectedApplication.interviewDate || ''}
-                              disabled
-                            />
-                          </div>
-                          <div className="grid gap-2">
-                            <Label>Interview Type</Label>
-                            <Input
-                              value={selectedApplication.interviewType || ''}
-                              disabled
-                            />
-                          </div>
-                        </div>
-                        <div className="grid gap-2">
-                          <Label>Interview Notes</Label>
-                          <Textarea
-                            value={selectedApplication.interviewNotes || ''}
-                            disabled
-                            rows={3}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {selectedApplication.jobDescription && (
-                    <div className="mt-6">
-                      <Accordion type="single" collapsible>
-                        <AccordionItem value="description">
-                          <AccordionTrigger>Job Description</AccordionTrigger>
-                          <AccordionContent>
-                            <div className="max-h-80 overflow-y-auto p-2">
-                              <p className="text-sm text-muted-foreground whitespace-pre-line">
-                                {selectedApplication.jobDescription}
-                              </p>
-                            </div>
-                          </AccordionContent>
-                        </AccordionItem>
-                      </Accordion>
-                    </div>
-                  )}
-                </div>
-              </div>
-              
-              <DialogFooter className="mt-6 flex justify-between">
-                <div>
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button variant="destructive">
-                        <Cross2 className="mr-2 h-4 w-4" />
-                        Delete
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          This will permanently delete this job application. This action cannot be undone.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction 
-                          onClick={() => {
-                            if (selectedApplication) {
-                              deleteJobApplicationMutation.mutate(selectedApplication.id);
-                            }
-                          }}
-                        >
-                          Delete
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                </div>
-                <div className="flex gap-2">
-                  <Button variant="outline" onClick={() => startEditingApplication(selectedApplication)}>
-                    <Edit className="mr-2 h-4 w-4" />
-                    Edit
-                  </Button>
-                  <Button variant="outline" onClick={() => setDetailOpen(false)}>
-                    Close
-                  </Button>
-                </div>
-              </DialogFooter>
-            </>
-          )}
-
-          {selectedApplication && editMode && (
-            <>
-              <DialogHeader>
-                <DialogTitle>Edit Job Application</DialogTitle>
-                <DialogDescription>
-                  Update the details of your job application
-                </DialogDescription>
-              </DialogHeader>
-              
-              <form onSubmit={handleEditSubmit}>
+              <form onSubmit={handleSubmit}>
                 <Tabs defaultValue="basic" className="w-full">
                   <TabsList className="mb-4">
                     <TabsTrigger value="basic">Basic Info</TabsTrigger>
@@ -2085,13 +974,7 @@ export default function JobApplicationsEnhanced() {
                             type="email"
                             placeholder="e.g. jane.smith@example.com"
                             value={formData.contactEmail}
-                            onChange={(e) => {
-                              // Email validation - allow empty or valid email
-                              const value = e.target.value;
-                              if (value === '' || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
-                                handleChange(e);
-                              }
-                            }}
+                            onChange={handleChange}
                           />
                           <p className="text-xs text-muted-foreground">Format: name@domain.com</p>
                         </div>
@@ -2105,15 +988,7 @@ export default function JobApplicationsEnhanced() {
                             name="contactPhone"
                             placeholder="e.g. (555) 123-4567"
                             value={formData.contactPhone}
-                            onChange={(e) => {
-                              // Allow empty input, numbers, parentheses, dashes, and spaces
-                              const value = e.target.value;
-                              // Only allow proper phone format characters
-                              if (value === '' || /^[\d\s\-\(\)]+$/.test(value)) {
-                                // Update the form data
-                                handleChange(e);
-                              }
-                            }}
+                            onChange={handleChange}
                           />
                           <p className="text-xs text-muted-foreground">Format: (XXX) XXX-XXXX</p>
                         </div>
@@ -2133,86 +1008,1181 @@ export default function JobApplicationsEnhanced() {
                 </Tabs>
                 
                 <DialogFooter className="mt-6">
-                  <Button 
-                    variant="outline" 
-                    type="button" 
-                    onClick={() => {
-                      setEditMode(false);
-                      setFormData(initialFormData);
-                    }}
-                  >
-                    Cancel
-                  </Button>
                   <Button
                     type="submit"
-                    disabled={updateJobApplicationMutation.isPending}
+                    disabled={createJobApplicationMutation.isPending}
                   >
-                    {updateJobApplicationMutation.isPending ? "Saving..." : "Save Changes"}
+                    {createJobApplicationMutation.isPending ? "Adding..." : "Add Application"}
                   </Button>
                 </DialogFooter>
               </form>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
+            </DialogContent>
+          </Dialog>
+        </div>
 
-      {/* Status Update Dialog */}
-      <Dialog open={statusUpdateOpen} onOpenChange={setStatusUpdateOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Update Application Status</DialogTitle>
-            <DialogDescription>
-              Update the status of your application to track your progress.
-            </DialogDescription>
-          </DialogHeader>
-          
-          <form onSubmit={handleStatusUpdateSubmit}>
-            <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <Label htmlFor="newStatus">Status</Label>
-                <Select
-                  value={newStatus}
-                  onValueChange={(value) => setNewStatus(value as JobApplicationStatus)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={JobApplicationStatus.Applied}>Applied</SelectItem>
-                    <SelectItem value={JobApplicationStatus.Screening}>Screening</SelectItem>
-                    <SelectItem value={JobApplicationStatus.Interview}>Interview</SelectItem>
-                    <SelectItem value={JobApplicationStatus.Assessment}>Assessment</SelectItem>
-                    <SelectItem value={JobApplicationStatus.Offer}>Offer</SelectItem>
-                    <SelectItem value={JobApplicationStatus.Rejected}>Rejected</SelectItem>
-                    <SelectItem value={JobApplicationStatus.Accepted}>Accepted</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div className="grid gap-2">
-                <Label htmlFor="statusNotes">Notes (optional)</Label>
-                <Textarea
-                  id="statusNotes"
-                  placeholder="Any details about this status change"
-                  value={statusNotes}
-                  onChange={(e) => setStatusNotes(e.target.value)}
-                  rows={3}
+        <div className="mb-6 space-y-4">
+          {/* Search and filter controls */}
+          <div className="flex flex-col space-y-2 md:flex-row md:items-center md:justify-between md:space-y-0">
+            <div className="flex items-center space-x-2">
+              <div className="relative flex-1 md:w-64">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="search" 
+                  placeholder="Search applications..."
+                  className="pl-8"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
                 />
               </div>
+              <Button variant="outline" size="sm" onClick={toggleViewMode}>
+                {viewMode === 'table' && (
+                  <>
+                    <LayoutGrid className="h-4 w-4 mr-2" />
+                    Card View
+                  </>
+                )}
+                {viewMode === 'cards' && (
+                  <>
+                    <KanbanSquare className="h-4 w-4 mr-2" />
+                    Kanban View
+                  </>
+                )}
+                {viewMode === 'kanban' && (
+                  <>
+                    <TableProperties className="h-4 w-4 mr-2" />
+                    Table View
+                  </>
+                )}
+              </Button>
             </div>
             
-            <DialogFooter>
+            <div className="flex flex-wrap gap-2">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    <Filter className="mr-2 h-4 w-4" />
+                    Filter
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-80">
+                  <div className="grid gap-4">
+                    <div className="space-y-2">
+                      <h4 className="font-medium">Filter by Status</h4>
+                      <Select 
+                        value={filterStatus || 'all'} 
+                        onValueChange={(val) => setFilterStatus(val === 'all' ? null : val)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="All Statuses" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Statuses</SelectItem>
+                          <SelectItem value="applied">Applied</SelectItem>
+                          <SelectItem value="screening">Screening</SelectItem>
+                          <SelectItem value="interview">Interview</SelectItem>
+                          <SelectItem value="assessment">Assessment</SelectItem>
+                          <SelectItem value="offer">Offer</SelectItem>
+                          <SelectItem value="rejected">Rejected</SelectItem>
+                          <SelectItem value="accepted">Accepted</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <h4 className="font-medium">Filter by Priority</h4>
+                      <Select 
+                        value={filterPriority || 'all'} 
+                        onValueChange={(val) => setFilterPriority(val === 'all' ? null : val)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="All Priorities" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Priorities</SelectItem>
+                          <SelectItem value="high">High</SelectItem>
+                          <SelectItem value="medium">Medium</SelectItem>
+                          <SelectItem value="low">Low</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <h4 className="font-medium">Filter by Work Type</h4>
+                      <Select 
+                        value={filterWorkType || 'all'} 
+                        onValueChange={(val) => setFilterWorkType(val === 'all' ? null : val)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="All Work Types" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Work Types</SelectItem>
+                          <SelectItem value="onsite">On-site</SelectItem>
+                          <SelectItem value="hybrid">Hybrid</SelectItem>
+                          <SelectItem value="remote">Remote</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <h4 className="font-medium">Filter by Deadline</h4>
+                      <Select 
+                        value={filterDeadline || 'all'} 
+                        onValueChange={(val) => setFilterDeadline(val === 'all' ? null : val)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="All Deadlines" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Deadlines</SelectItem>
+                          <SelectItem value="upcoming">Next 7 Days</SelectItem>
+                          <SelectItem value="past">Past Deadlines</SelectItem>
+                          <SelectItem value="none">No Deadline</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
+            </div>
+          </div>
+          
+          {/* Applied filters display */}
+          {(filterStatus || filterPriority || filterWorkType || filterDeadline) && (
+            <div className="flex flex-wrap gap-2">
+              {filterStatus && (
+                <Badge variant="outline" className="flex items-center gap-1">
+                  Status: {filterStatus.charAt(0).toUpperCase() + filterStatus.slice(1)}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-4 w-4 p-0"
+                    onClick={() => setFilterStatus(null)}
+                  >
+                    <Cross2 className="h-3 w-3" />
+                  </Button>
+                </Badge>
+              )}
+              
+              {filterPriority && (
+                <Badge variant="outline" className="flex items-center gap-1">
+                  Priority: {filterPriority.charAt(0).toUpperCase() + filterPriority.slice(1)}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-4 w-4 p-0"
+                    onClick={() => setFilterPriority(null)}
+                  >
+                    <Cross2 className="h-3 w-3" />
+                  </Button>
+                </Badge>
+              )}
+              
+              {filterWorkType && (
+                <Badge variant="outline" className="flex items-center gap-1">
+                  Work Type: {filterWorkType.charAt(0).toUpperCase() + filterWorkType.slice(1)}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-4 w-4 p-0"
+                    onClick={() => setFilterWorkType(null)}
+                  >
+                    <Cross2 className="h-3 w-3" />
+                  </Button>
+                </Badge>
+              )}
+              
+              {filterDeadline && (
+                <Badge variant="outline" className="flex items-center gap-1">
+                  Deadline: {filterDeadline === 'upcoming' ? 'Next 7 Days' : filterDeadline === 'past' ? 'Past Deadlines' : 'No Deadline'}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-4 w-4 p-0"
+                    onClick={() => setFilterDeadline(null)}
+                  >
+                    <Cross2 className="h-3 w-3" />
+                  </Button>
+                </Badge>
+              )}
+              
               <Button
-                type="submit"
-                disabled={updateStatusMutation.isPending}
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2 text-xs"
+                onClick={() => {
+                  setFilterStatus(null);
+                  setFilterPriority(null);
+                  setFilterWorkType(null);
+                  setFilterDeadline(null);
+                }}
               >
-                {updateStatusMutation.isPending ? "Updating..." : "Update Status"}
+                Clear All
               </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-      
+            </div>
+          )}
+        </div>
+
+        {isLoading ? (
+          <Card className="animate-pulse">
+            <CardContent className="p-6">
+              <div className="h-10 bg-gray-200 dark:bg-gray-800 rounded mb-4" />
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="mb-4">
+                  <div className="h-4 bg-gray-200 dark:bg-gray-800 rounded-full w-full mb-2" />
+                  <div className="h-4 bg-gray-200 dark:bg-gray-800 rounded-full w-3/4" />
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        ) : sortedApplications.length === 0 ? (
+          <Card className="w-full h-60 flex flex-col items-center justify-center text-center p-6">
+            <CardContent>
+              <div className="flex flex-col items-center space-y-4">
+                <div className="rounded-full bg-primary-50 p-4 dark:bg-primary-900">
+                  <Plus className="h-6 w-6 text-primary-600 dark:text-primary-300" />
+                </div>
+                <h3 className="text-lg font-medium">No Job Applications Found</h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  {searchQuery || filterStatus || filterPriority || filterWorkType || filterDeadline 
+                    ? "Try adjusting your filters to see more results." 
+                    : "Start tracking your job applications to monitor your progress."}
+                </p>
+                <Button onClick={() => setOpen(true)}>Add Job Application</Button>
+              </div>
+            </CardContent>
+          </Card>
+        ) : viewMode === 'kanban' ? (
+          <KanbanView 
+            applications={sortedApplications} 
+            onStatusUpdate={async (applicationId, newStatus) => {
+              // First update the status
+              await updateStatusMutation.mutateAsync({
+                id: applicationId,
+                status: newStatus,
+                notes: `Moved to ${newStatus} status`
+              });
+            }}
+            onViewDetails={viewApplicationDetails}
+            onEditApplication={startEditingApplication}
+          />
+        ) : viewMode === 'table' ? (
+          <div className="rounded-md border w-full overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[180px] cursor-pointer" onClick={() => handleSort('company')}>
+                    <div className="flex items-center space-x-1">
+                      <span>Company</span>
+                      {sortField === 'company' && (
+                        <ArrowUpDown className={`h-4 w-4 ${sortDirection === 'desc' ? 'rotate-180 transform' : ''}`} />
+                      )}
+                    </div>
+                  </TableHead>
+                  <TableHead className="cursor-pointer" onClick={() => handleSort('jobTitle')}>
+                    <div className="flex items-center space-x-1">
+                      <span>Job Title</span>
+                      {sortField === 'jobTitle' && (
+                        <ArrowUpDown className={`h-4 w-4 ${sortDirection === 'desc' ? 'rotate-180 transform' : ''}`} />
+                      )}
+                    </div>
+                  </TableHead>
+                  <TableHead className="cursor-pointer hidden md:table-cell" onClick={() => handleSort('status')}>
+                    <div className="flex items-center space-x-1">
+                      <span>Status</span>
+                      {sortField === 'status' && (
+                        <ArrowUpDown className={`h-4 w-4 ${sortDirection === 'desc' ? 'rotate-180 transform' : ''}`} />
+                      )}
+                    </div>
+                  </TableHead>
+                  <TableHead className="cursor-pointer hidden lg:table-cell" onClick={() => handleSort('appliedAt')}>
+                    <div className="flex items-center space-x-1">
+                      <span>Applied On</span>
+                      {sortField === 'appliedAt' && (
+                        <ArrowUpDown className={`h-4 w-4 ${sortDirection === 'desc' ? 'rotate-180 transform' : ''}`} />
+                      )}
+                    </div>
+                  </TableHead>
+                  <TableHead className="cursor-pointer hidden xl:table-cell" onClick={() => handleSort('deadlineDate')}>
+                    <div className="flex items-center space-x-1">
+                      <span>Deadline</span>
+                      {sortField === 'deadlineDate' && (
+                        <ArrowUpDown className={`h-4 w-4 ${sortDirection === 'desc' ? 'rotate-180 transform' : ''}`} />
+                      )}
+                    </div>
+                  </TableHead>
+                  <TableHead className="cursor-pointer hidden lg:table-cell" onClick={() => handleSort('priority')}>
+                    <div className="flex items-center space-x-1">
+                      <span>Priority</span>
+                      {sortField === 'priority' && (
+                        <ArrowUpDown className={`h-4 w-4 ${sortDirection === 'desc' ? 'rotate-180 transform' : ''}`} />
+                      )}
+                    </div>
+                  </TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {sortedApplications.map((application) => (
+                  <TableRow key={application.id} className="cursor-pointer hover:bg-muted/30" onClick={() => viewApplicationDetails(application)}>
+                    <TableCell className="font-medium">{application.company}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center space-x-2">
+                        <span>{application.jobTitle}</span>
+                        {application.location && (
+                          <span className="text-xs text-muted-foreground hidden md:inline-block">• {application.location}</span>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell">
+                      <Badge className={getStatusBadgeColor(application.status)}>
+                        {application.status.charAt(0).toUpperCase() + application.status.slice(1)}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="hidden lg:table-cell">
+                      {format(new Date(application.appliedAt), "MMM d, yyyy")}
+                    </TableCell>
+                    <TableCell className="hidden xl:table-cell">
+                      {application.deadlineDate 
+                        ? format(new Date(application.deadlineDate), "MMM d, yyyy") 
+                        : "No deadline"}
+                    </TableCell>
+                    <TableCell className="hidden lg:table-cell">
+                      {application.priority && (
+                        <Badge variant="outline" className={`bg-${getPriorityBadgeColor(application.priority)}-50 text-${getPriorityBadgeColor(application.priority)}-700 dark:bg-${getPriorityBadgeColor(application.priority)}-900 dark:text-${getPriorityBadgeColor(application.priority)}-300 w-fit`}>
+                          {application.priority.charAt(0).toUpperCase() + application.priority.slice(1)}
+                        </Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                          <Button variant="ghost" className="h-8 w-8 p-0">
+                            <span className="sr-only">Open menu</span>
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                          <DropdownMenuItem onClick={(e) => {
+                            e.stopPropagation();
+                            viewApplicationDetails(application);
+                          }}>
+                            View details
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={(e) => {
+                            e.stopPropagation();
+                            startEditingApplication(application);
+                          }}>
+                            Edit application
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem onClick={(e) => {
+                            e.stopPropagation();
+                            openStatusUpdate(application);
+                          }}>
+                            Update status
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {sortedApplications.map((application: JobApplication) => (
+              <Card key={application.id} className="overflow-hidden">
+                <CardHeader className="pb-2">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <CardTitle className="text-lg">{application.jobTitle}</CardTitle>
+                      <CardDescription className="flex items-center">
+                        <span className="font-medium">{application.company}</span>
+                      </CardDescription>
+                    </div>
+                    <Badge className={getStatusBadgeColor(application.status)}>
+                      {application.status.charAt(0).toUpperCase() + application.status.slice(1)}
+                    </Badge>
+                  </div>
+                </CardHeader>
+                <CardContent className="pb-2">
+                  <div className="flex flex-col space-y-2 text-sm">
+                    {application.location && (
+                      <div className="flex items-center text-muted-foreground">
+                        <MapPin className="h-4 w-4 mr-1" />
+                        <span>{application.location}</span>
+                      </div>
+                    )}
+                    {application.workType && (
+                      <div className="flex items-center text-muted-foreground">
+                        {workTypeIcons[application.workType as keyof typeof workTypeIcons]}
+                        <span>{application.workType.charAt(0).toUpperCase() + application.workType.slice(1)}</span>
+                      </div>
+                    )}
+                    <div className="flex items-center text-muted-foreground">
+                      <Calendar className="h-4 w-4 mr-1" />
+                      <span>Applied on {format(new Date(application.appliedAt), "MMM d, yyyy")}</span>
+                    </div>
+                    {application.priority && (
+                      <div className="flex items-center">
+                        <Badge variant="outline" className={`border-${getPriorityBadgeColor(application.priority)}-500 text-${getPriorityBadgeColor(application.priority)}-700`}>
+                          {application.priority === 'high' ? <Star className="h-3 w-3 mr-1" /> : <StarOff className="h-3 w-3 mr-1" />}
+                          {application.priority.charAt(0).toUpperCase() + application.priority.slice(1)} Priority
+                        </Badge>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+                <CardFooter className="flex justify-between pt-4">
+                  <Button size="sm" variant="outline" onClick={() => viewApplicationDetails(application)}>
+                    View Details
+                  </Button>
+                  <Button size="sm" variant="secondary" onClick={() => openStatusUpdate(application)}>
+                    Update Status
+                  </Button>
+                </CardFooter>
+              </Card>
+            ))}
+          </div>
+        )}
+
+        {/* Application Details Dialog */}
+        <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            {selectedApplication && !editMode && (
+              <>
+                <DialogHeader>
+                  <div className="flex justify-between items-center">
+                    <DialogTitle className="text-xl">{selectedApplication.jobTitle}</DialogTitle>
+                    <Badge className={getStatusBadgeColor(selectedApplication.status)}>
+                      {selectedApplication.status.charAt(0).toUpperCase() + selectedApplication.status.slice(1)}
+                    </Badge>
+                  </div>
+                  <DialogDescription>
+                    <span className="font-medium">{selectedApplication.company}</span>
+                    {selectedApplication.location && (
+                      <span className="ml-2">• {selectedApplication.location}</span>
+                    )}
+                    {selectedApplication.workType && (
+                      <span className="ml-2">• {selectedApplication.workType.charAt(0).toUpperCase() + selectedApplication.workType.slice(1)}</span>
+                    )}
+                  </DialogDescription>
+                </DialogHeader>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <h3 className="text-lg font-medium mb-3">Application Details</h3>
+                    <div className="space-y-3">
+                      <div className="flex items-center">
+                        <Calendar className="h-4 w-4 mr-2 text-muted-foreground" />
+                        <span>Applied on {format(new Date(selectedApplication.appliedAt), "MMMM d, yyyy")}</span>
+                      </div>
+                      
+                      {selectedApplication.priority && (
+                        <div className="flex items-center">
+                          {selectedApplication.priority === 'high' ? 
+                            <Star className="h-4 w-4 mr-2 text-muted-foreground" /> : 
+                            <StarOff className="h-4 w-4 mr-2 text-muted-foreground" />}
+                          <span>{selectedApplication.priority.charAt(0).toUpperCase() + selectedApplication.priority.slice(1)} Priority</span>
+                        </div>
+                      )}
+                      
+                      {selectedApplication.deadlineDate && (
+                        <div className="flex items-center">
+                          <Clock className="h-4 w-4 mr-2 text-muted-foreground" />
+                          <span>Deadline: {format(new Date(selectedApplication.deadlineDate), "MMM d, yyyy")}</span>
+                        </div>
+                      )}
+                      
+                      {selectedApplication.jobUrl && (
+                        <div className="flex items-center">
+                          <ExternalLink className="h-4 w-4 mr-2 text-muted-foreground" />
+                          <a 
+                            href={selectedApplication.jobUrl} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-primary hover:underline"
+                          >
+                            View Job Posting
+                          </a>
+                        </div>
+                      )}
+                      
+                      {selectedApplication.salary && (
+                        <div className="flex items-center">
+                          <span className="font-medium mr-2">Salary:</span>
+                          <span>{selectedApplication.salary}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {(selectedApplication.contactName || selectedApplication.contactEmail || selectedApplication.contactPhone) && (
+                      <div className="mt-6">
+                        <h3 className="text-lg font-medium mb-3">Contact Information</h3>
+                        <div className="space-y-3">
+                          {selectedApplication.contactName && (
+                            <div className="flex items-center">
+                              <User className="h-4 w-4 mr-2 text-muted-foreground" />
+                              <span>{selectedApplication.contactName}</span>
+                            </div>
+                          )}
+                          
+                          {selectedApplication.contactEmail && (
+                            <div className="flex items-center">
+                              <Mail className="h-4 w-4 mr-2 text-muted-foreground" />
+                              <a 
+                                href={`mailto:${selectedApplication.contactEmail}`}
+                                className="text-primary hover:underline"
+                              >
+                                {selectedApplication.contactEmail}
+                              </a>
+                            </div>
+                          )}
+                          
+                          {selectedApplication.contactPhone && (
+                            <div className="flex items-center">
+                              <Phone className="h-4 w-4 mr-2 text-muted-foreground" />
+                              <a 
+                                href={`tel:${selectedApplication.contactPhone}`}
+                                className="text-primary hover:underline"
+                              >
+                                {selectedApplication.contactPhone}
+                              </a>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {(selectedApplication.resumeId || selectedApplication.coverLetterId) && (
+                      <div className="mt-6">
+                        <h3 className="text-lg font-medium mb-3">Documents</h3>
+                        <div className="space-y-3">
+                          {selectedApplication.resumeId && (
+                            <div className="flex items-center">
+                              <File className="h-4 w-4 mr-2 text-muted-foreground" />
+                              <span>Resume: </span>
+                              <Button 
+                                variant="link" 
+                                className="p-0 h-auto text-primary hover:underline"
+                                onClick={() => {
+                                  // Close the details dialog and navigate to the resume builder page with ID
+                                  setDetailOpen(false);
+                                  window.location.href = `/resume-builder?id=${selectedApplication.resumeId}`;
+                                }}
+                              >
+                                {resumes.find((r: any) => r.id === selectedApplication.resumeId)?.title || "Unknown"}
+                              </Button>
+                            </div>
+                          )}
+                          
+                          {selectedApplication.coverLetterId && (
+                            <div className="flex items-center">
+                              <FileText className="h-4 w-4 mr-2 text-muted-foreground" />
+                              <span>Cover Letter: </span>
+                              <Button 
+                                variant="link" 
+                                className="p-0 h-auto text-primary hover:underline"
+                                onClick={() => {
+                                  // Close the details dialog and navigate to the cover letter builder page with ID
+                                  setDetailOpen(false);
+                                  window.location.href = `/cover-letter-builder?id=${selectedApplication.coverLetterId}`;
+                                }}
+                              >
+                                {coverLetters.find((c: any) => c.id === selectedApplication.coverLetterId)?.title || "Unknown"}
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {selectedApplication.notes && (
+                      <div className="mt-6">
+                        <h3 className="text-lg font-medium mb-3">Notes</h3>
+                        <p className="text-sm text-muted-foreground whitespace-pre-line">{selectedApplication.notes}</p>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div>
+                    <div className="flex justify-between items-center mb-3">
+                      <h3 className="text-lg font-medium">Status History</h3>
+                      <Button size="sm" variant="outline" onClick={() => openStatusUpdate(selectedApplication)}>
+                        Update Status
+                      </Button>
+                    </div>
+                    
+                    {selectedApplication.statusHistory && selectedApplication.statusHistory.length > 0 ? (
+                      <div className="space-y-3 border rounded-md p-4">
+                        {[...selectedApplication.statusHistory]
+                          .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                          .map((entry, index, sortedEntries) => (
+                          <div key={entry.id} className="relative pl-6 pb-3">
+                            {index < sortedEntries.length - 1 && (
+                              <div className="absolute left-2 top-2 bottom-0 w-0.5 bg-gray-200 dark:bg-gray-700" />
+                            )}
+                            <div className="absolute left-0 top-2 h-4 w-4 rounded-full bg-primary" />
+                            <div className="mb-1 flex items-center">
+                              <Badge className={getStatusBadgeColor(entry.status)}>
+                                {entry.status.charAt(0).toUpperCase() + entry.status.slice(1)}
+                              </Badge>
+                              <span className="text-xs text-muted-foreground">
+                                {format(parseISO(entry.date), "MMM d, yyyy")}
+                              </span>
+                            </div>
+                            {entry.notes && (
+                              <p className="text-sm text-muted-foreground">{entry.notes}</p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center p-6 border rounded-md">
+                        <p className="text-muted-foreground">No status history available</p>
+                      </div>
+                    )}
+                    
+                    {/* Interviews Section */}
+                    {selectedApplication.status === 'interview' && (
+                      <div className="mt-6">
+                        <h3 className="text-lg font-semibold mb-4">Interview Details</h3>
+                        <div className="grid gap-4">
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="grid gap-2">
+                              <Label>Interview Date</Label>
+                              <Input
+                                type="datetime-local"
+                                value={selectedApplication.interviewDate || ''}
+                                disabled
+                              />
+                            </div>
+                            <div className="grid gap-2">
+                              <Label>Interview Type</Label>
+                              <Input
+                                value={selectedApplication.interviewType || ''}
+                                disabled
+                              />
+                            </div>
+                          </div>
+                          <div className="grid gap-2">
+                            <Label>Interview Notes</Label>
+                            <Textarea
+                              value={selectedApplication.interviewNotes || ''}
+                              disabled
+                              rows={3}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {selectedApplication.jobDescription && (
+                      <div className="mt-6">
+                        <Accordion type="single" collapsible>
+                          <AccordionItem value="description">
+                            <AccordionTrigger>Job Description</AccordionTrigger>
+                            <AccordionContent>
+                              <div className="max-h-80 overflow-y-auto p-2">
+                                <p className="text-sm text-muted-foreground whitespace-pre-line">
+                                  {selectedApplication.jobDescription}
+                                </p>
+                              </div>
+                            </AccordionContent>
+                          </AccordionItem>
+                        </Accordion>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                
+                <DialogFooter className="mt-6 flex justify-between">
+                  <div>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="destructive">
+                          <Cross2 className="mr-2 h-4 w-4" />
+                          Delete
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This will permanently delete this job application. This action cannot be undone.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction 
+                            onClick={() => {
+                              if (selectedApplication) {
+                                deleteJobApplicationMutation.mutate(selectedApplication.id);
+                              }
+                            }}
+                          >
+                            Delete
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button variant="outline" onClick={() => startEditingApplication(selectedApplication)}>
+                      <Edit className="mr-2 h-4 w-4" />
+                      Edit
+                    </Button>
+                    <Button variant="outline" onClick={() => setDetailOpen(false)}>
+                      Close
+                    </Button>
+                  </div>
+                </DialogFooter>
+              </>
+            )}
+
+            {selectedApplication && editMode && (
+              <>
+                <DialogHeader>
+                  <DialogTitle>Edit Job Application</DialogTitle>
+                  <DialogDescription>
+                    Update the details of your job application
+                  </DialogDescription>
+                </DialogHeader>
+                
+                <form onSubmit={handleEditSubmit}>
+                  <Tabs defaultValue="basic" className="w-full">
+                    <TabsList className="mb-4">
+                      <TabsTrigger value="basic">Basic Info</TabsTrigger>
+                      <TabsTrigger value="description">Job Details</TabsTrigger>
+                      <TabsTrigger value="documents">Documents</TabsTrigger>
+                      <TabsTrigger value="contact">Contact Details</TabsTrigger>
+                    </TabsList>
+                    
+                    <TabsContent value="basic">
+                      <div className="grid gap-4 py-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="grid gap-2">
+                            <Label htmlFor="company">Company</Label>
+                            <Input
+                              id="company"
+                              name="company"
+                              placeholder="e.g. TechCorp"
+                              value={formData.company}
+                              onChange={handleChange}
+                              required
+                            />
+                          </div>
+                          <div className="grid gap-2">
+                            <Label htmlFor="jobTitle">Job Title</Label>
+                            <Input
+                              id="jobTitle"
+                              name="jobTitle"
+                              placeholder="e.g. Frontend Developer"
+                              value={formData.jobTitle}
+                              onChange={handleChange}
+                              required
+                            />
+                          </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="grid gap-2">
+                            <Label htmlFor="location">Location</Label>
+                            <Input
+                              id="location"
+                              name="location"
+                              placeholder="e.g. New York, NY"
+                              value={formData.location}
+                              onChange={handleChange}
+                            />
+                          </div>
+                          <div className="grid gap-2">
+                            <Label htmlFor="workType">Work Type</Label>
+                            <Select
+                              value={formData.workType}
+                              onValueChange={(value) => handleSelectChange("workType", value)}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select work type" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="onsite">On-site</SelectItem>
+                                <SelectItem value="hybrid">Hybrid</SelectItem>
+                                <SelectItem value="remote">Remote</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="grid gap-2">
+                            <Label htmlFor="jobUrl">Job Posting URL</Label>
+                            <Input
+                              id="jobUrl"
+                              name="jobUrl"
+                              placeholder="e.g. https://example.com/jobs/123"
+                              value={formData.jobUrl}
+                              onChange={handleChange}
+                            />
+                          </div>
+                          <div className="grid gap-2">
+                            <Label htmlFor="salary">Salary Range</Label>
+                            <Input
+                              id="salary"
+                              name="salary"
+                              placeholder="e.g. $80,000 - $100,000"
+                              value={formData.salary}
+                              onChange={(e) => {
+                                // Allow empty input, numbers, commas, dollar signs, and dashes
+                                const value = e.target.value;
+                                if (value === '' || /^[\d,.$\s\-]+$/.test(value)) {
+                                  handleChange(e);
+                                }
+                              }}
+                            />
+                            <p className="text-xs text-muted-foreground">Format: $min - $max (e.g. $80,000 - $100,000)</p>
+                          </div>
+                        </div>
+                      </div>
+                    </TabsContent>
+                    
+                    <TabsContent value="description">
+                      <div className="grid gap-4 py-4">
+                        <div className="grid gap-2">
+                          <Label htmlFor="jobDescription">Job Description</Label>
+                          <Textarea
+                            id="jobDescription"
+                            name="jobDescription"
+                            placeholder="Copy and paste the job description here"
+                            value={formData.jobDescription}
+                            onChange={handleChange}
+                            rows={10}
+                          />
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="grid gap-2">
+                            <Label htmlFor="priority">Priority</Label>
+                            <Select
+                              value={formData.priority}
+                              onValueChange={(value) => handleSelectChange("priority", value)}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select priority" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="high">High</SelectItem>
+                                <SelectItem value="medium">Medium</SelectItem>
+                                <SelectItem value="low">Low</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="grid gap-2">
+                            <Label htmlFor="deadlineDate">Application Deadline</Label>
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  className="w-full justify-start text-left font-normal"
+                                >
+                                  <Calendar className="mr-2 h-4 w-4" />
+                                  {formData.deadlineDate ? (
+                                    format(formData.deadlineDate, "PPP")
+                                  ) : (
+                                    <span>Pick a date</span>
+                                  )}
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-auto p-0">
+                                <CalendarComponent
+                                  mode="single"
+                                  selected={formData.deadlineDate instanceof Date ? formData.deadlineDate : formData.deadlineDate ? new Date(formData.deadlineDate) : undefined}
+                                  onSelect={(date) => setFormData({
+                                    ...formData,
+                                    deadlineDate: date
+                                  })}
+                                  initialFocus
+                                />
+                              </PopoverContent>
+                            </Popover>
+                          </div>
+                        </div>
+                      </div>
+                    </TabsContent>
+                    
+                    <TabsContent value="documents">
+                      <div className="grid gap-4 py-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="grid gap-2">
+                            <Label htmlFor="status">Application Status</Label>
+                            <Select
+                              value={formData.status}
+                              onValueChange={(value) => handleSelectChange("status", value)}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select status" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="applied">Applied</SelectItem>
+                                <SelectItem value="screening">Screening</SelectItem>
+                                <SelectItem value="interview">Interview</SelectItem>
+                                <SelectItem value="assessment">Assessment</SelectItem>
+                                <SelectItem value="offer">Offer</SelectItem>
+                                <SelectItem value="rejected">Rejected</SelectItem>
+                                <SelectItem value="accepted">Accepted</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          {formData.status === "interview" && (
+                            <div className="grid gap-4">
+                              <div className="grid grid-cols-2 gap-4">
+                                <div className="grid gap-2">
+                                  <Label htmlFor="interviewDate">Interview Date</Label>
+                                  <Input
+                                    id="interviewDate"
+                                    name="interviewDate"
+                                    type="datetime-local"
+                                    value={typeof formData.interviewDate === 'string' ? formData.interviewDate : formData.interviewDate instanceof Date ? formatDateForInput(formData.interviewDate) : ""}
+                                    onChange={(e) => {
+                                      const value = e.target.value ? e.target.value : null;
+                                      setFormData({ ...formData, interviewDate: value });
+                                    }}
+                                  />
+                                </div>
+                                <div className="grid gap-2">
+                                  <Label htmlFor="interviewType">Interview Type</Label>
+                                  <Select
+                                    value={formData.interviewType}
+                                    onValueChange={(value) => handleSelectChange("interviewType", value)}
+                                  >
+                                    <SelectTrigger>
+                                      <SelectValue placeholder="Select interview type" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="phone">Phone</SelectItem>
+                                      <SelectItem value="video">Video</SelectItem>
+                                      <SelectItem value="onsite">On-site</SelectItem>
+                                      <SelectItem value="technical">Technical</SelectItem>
+                                      <SelectItem value="behavioral">Behavioral</SelectItem>
+                                      <SelectItem value="final">Final</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              </div>
+                              <div className="grid gap-2">
+                                <Label htmlFor="interviewNotes">Interview Notes</Label>
+                                <Textarea
+                                  id="interviewNotes"
+                                  name="interviewNotes"
+                                  placeholder="Add any notes about the interview"
+                                  value={formData.interviewNotes}
+                                  onChange={handleChange}
+                                  rows={3}
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="grid gap-2">
+                            <Label htmlFor="statusNotes">Status Notes</Label>
+                            <Input
+                              id="statusNotes"
+                              name="statusNotes"
+                              placeholder="e.g. Applied via company website"
+                              value={formData.statusNotes}
+                              onChange={handleChange}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="border-t pt-4 mt-2">
+                          <h3 className="font-medium mb-3">Linked Documents</h3>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="grid gap-2">
+                              <Label htmlFor="resumeId">Resume</Label>
+                              <Select
+                                value={formData.resumeId || "none"}
+                                onValueChange={(value) => handleSelectChange("resumeId", value)}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select a resume" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="none">None</SelectItem>
+                                  {resumes.map((resume: any) => (
+                                    <SelectItem key={resume.id} value={resume.id.toString()}>
+                                      {resume.title}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            <div className="grid gap-2">
+                              <Label htmlFor="coverLetterId">Cover Letter</Label>
+                              <Select
+                                value={formData.coverLetterId || "none"}
+                                onValueChange={(value) => handleSelectChange("coverLetterId", value)}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select a cover letter" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="none">None</SelectItem>
+                                  {coverLetters.map((letter: any) => (
+                                    <SelectItem key={letter.id} value={letter.id.toString()}>
+                                      {letter.title}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </TabsContent>
+                    
+                    <TabsContent value="contact">
+                      <div className="grid gap-4 py-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="grid gap-2">
+                            <Label htmlFor="contactName">Contact Person</Label>
+                            <Input
+                              id="contactName"
+                              name="contactName"
+                              placeholder="e.g. Jane Smith"
+                              value={formData.contactName}
+                              onChange={handleChange}
+                            />
+                          </div>
+                          <div className="grid gap-2">
+                            <Label htmlFor="contactEmail">Contact Email</Label>
+                            <Input
+                              id="contactEmail"
+                              name="contactEmail"
+                              type="email"
+                              placeholder="e.g. jane.smith@example.com"
+                              value={formData.contactEmail}
+                              onChange={handleChange}
+                            />
+                            <p className="text-xs text-muted-foreground">Format: name@domain.com</p>
+                          </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="grid gap-2">
+                            <Label htmlFor="contactPhone">Contact Phone</Label>
+                            <Input
+                              id="contactPhone"
+                              name="contactPhone"
+                              placeholder="e.g. (555) 123-4567"
+                              value={formData.contactPhone}
+                              onChange={handleChange}
+                            />
+                            <p className="text-xs text-muted-foreground">Format: (XXX) XXX-XXXX</p>
+                          </div>
+                          <div className="grid gap-2">
+                            <Label htmlFor="notes">Additional Notes</Label>
+                            <Textarea
+                              id="notes"
+                              name="notes"
+                              placeholder="Any other notes about this application"
+                              value={formData.notes}
+                              onChange={handleChange}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </TabsContent>
+                  </Tabs>
+                  
+                  <DialogFooter className="mt-6">
+                    <Button 
+                      variant="outline" 
+                      type="button" 
+                      onClick={() => {
+                        setEditMode(false);
+                        setFormData(initialFormData);
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="submit"
+                      disabled={updateJobApplicationMutation.isPending}
+                    >
+                      {updateJobApplicationMutation.isPending ? "Saving..." : "Save Changes"}
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Status Update Dialog */}
+        <Dialog open={statusUpdateOpen} onOpenChange={setStatusUpdateOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Update Application Status</DialogTitle>
+              <DialogDescription>
+                Update the status of your application to track your progress.
+              </DialogDescription>
+            </DialogHeader>
+            
+            <form onSubmit={handleStatusUpdateSubmit}>
+              <div className="grid gap-4 py-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="newStatus">Status</Label>
+                  <Select
+                    value={newStatus}
+                    onValueChange={(value) => setNewStatus(value as JobApplicationStatus)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={JobApplicationStatus.Applied}>Applied</SelectItem>
+                      <SelectItem value={JobApplicationStatus.Screening}>Screening</SelectItem>
+                      <SelectItem value={JobApplicationStatus.Interview}>Interview</SelectItem>
+                      <SelectItem value={JobApplicationStatus.Assessment}>Assessment</SelectItem>
+                      <SelectItem value={JobApplicationStatus.Offer}>Offer</SelectItem>
+                      <SelectItem value={JobApplicationStatus.Rejected}>Rejected</SelectItem>
+                      <SelectItem value={JobApplicationStatus.Accepted}>Accepted</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="grid gap-2">
+                  <Label htmlFor="statusNotes">Notes (optional)</Label>
+                  <Textarea
+                    id="statusNotes"
+                    placeholder="Any details about this status change"
+                    value={statusNotes}
+                    onChange={(e) => setStatusNotes(e.target.value)}
+                    rows={3}
+                  />
+                </div>
+              </div>
+              
+              <DialogFooter>
+                <Button
+                  type="submit"
+                  disabled={updateStatusMutation.isPending}
+                >
+                  {updateStatusMutation.isPending ? "Updating..." : "Update Status"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      </div>
     </DefaultLayout>
   );
 }
