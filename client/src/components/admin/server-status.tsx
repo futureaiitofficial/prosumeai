@@ -5,6 +5,7 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  CardFooter,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,7 +19,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { RefreshCw, Database, Server, User, Shield, Clock } from "lucide-react";
+import { RefreshCw, Database, Server, User, Shield, Clock, Download } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface ServerStatusProps {
@@ -81,6 +82,7 @@ export default function ServerStatus({ isAdmin }: ServerStatusProps) {
   const [status, setStatus] = useState<ServerStatusData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [backupLoading, setBackupLoading] = useState<boolean>(false);
   const { toast } = useToast();
 
   const fetchServerStatus = async () => {
@@ -143,6 +145,38 @@ export default function ServerStatus({ isAdmin }: ServerStatusProps) {
         description: `Failed to clear rate limits: ${err.message}`,
         variant: "destructive",
       });
+    }
+  };
+
+  const handleDatabaseBackup = async () => {
+    try {
+      setBackupLoading(true);
+      toast({
+        title: "Creating Backup",
+        description: "Database backup is being generated...",
+      });
+      
+      // Create a link element to trigger download
+      const link = document.createElement('a');
+      link.href = '/api/admin/backup/database';
+      // Set download attribute to force browser to download instead of navigate
+      link.setAttribute('download', '');
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      toast({
+        title: "Backup Complete",
+        description: "Database backup has been downloaded.",
+      });
+    } catch (err: any) {
+      toast({
+        title: "Error",
+        description: `Failed to download database backup: ${err.message}`,
+        variant: "destructive",
+      });
+    } finally {
+      setBackupLoading(false);
     }
   };
 
@@ -276,19 +310,44 @@ export default function ServerStatus({ isAdmin }: ServerStatusProps) {
             <div>
               <h3 className="text-sm font-medium flex items-center mb-2">
                 <Database className="h-4 w-4 mr-2" />
-                Database Connection
+                Database Information
               </h3>
-              
-              <div className="flex items-center">
-                <Badge 
-                  variant={status.database.connected ? "default" : "destructive"}
-                  className={`mr-2 ${status.database.connected ? "bg-green-500" : ""}`}
-                >
-                  {status.database.connected ? "Connected" : "Disconnected"}
-                </Badge>
-                {status.database.error && (
-                  <span className="text-sm text-red-500">{status.database.error}</span>
-                )}
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <div className="bg-slate-50 p-3 rounded-md">
+                  <div className="text-xs text-slate-500">Connection Status</div>
+                  <div className="font-medium flex items-center">
+                    {status.database.connected ? (
+                      <Badge variant="default" className="mr-2 bg-green-500">Connected</Badge>
+                    ) : (
+                      <Badge variant="destructive" className="mr-2">Disconnected</Badge>
+                    )}
+                  </div>
+                  {status.database.error && (
+                    <div className="text-xs text-red-600 mt-1">{status.database.error}</div>
+                  )}
+                </div>
+                <div className="bg-slate-50 p-3 rounded-md flex flex-col justify-between">
+                  <div className="text-xs text-slate-500">Database Backup</div>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={handleDatabaseBackup}
+                    disabled={backupLoading || !status || !status.database.connected}
+                    className="mt-2"
+                  >
+                    {backupLoading ? (
+                      <>
+                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                        Backing up...
+                      </>
+                    ) : (
+                      <>
+                        <Download className="h-4 w-4 mr-2" />
+                        Download Backup
+                      </>
+                    )}
+                  </Button>
+                </div>
               </div>
             </div>
             
@@ -411,6 +470,31 @@ export default function ServerStatus({ isAdmin }: ServerStatusProps) {
           </div>
         ) : null}
       </CardContent>
+      <CardFooter className="bg-slate-50">
+        <div className="text-xs text-slate-500 w-full flex justify-between items-center">
+          <span>Last updated: {status ? new Date(status.timestamp).toLocaleString() : 'Never'}</span>
+          <div className="flex gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={clearRateLimits}
+              disabled={loading}
+            >
+              <Shield className="h-4 w-4 mr-2" />
+              Clear Rate Limits
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDatabaseBackup}
+              disabled={backupLoading || !status || !status.database.connected}
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Database Backup
+            </Button>
+          </div>
+        </div>
+      </CardFooter>
     </Card>
   );
 } 

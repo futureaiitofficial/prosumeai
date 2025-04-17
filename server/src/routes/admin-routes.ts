@@ -18,6 +18,8 @@ import { cookieManager } from "../../utils/cookie-manager";
 import os from "os";
 import adminRouter from "./admin/index";
 import { z } from "zod";
+import { exec } from "child_process";
+import { promisify } from "util";
 
 // Configure multer for file uploads
 const templateStorage = multer.diskStorage({
@@ -642,6 +644,111 @@ export function registerAdminRoutes(app: Express) {
       console.error("Error fetching server status:", error);
       res.status(500).json({ 
         error: "Failed to fetch server status",
+        message: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
+  // Database backup functionality
+  app.get("/api/admin/backup/database", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const execPromise = promisify(exec);
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const backupFileName = `prosumeai-backup-${timestamp}.sql`;
+      const backupDir = path.join(process.cwd(), 'backups');
+      const backupPath = path.join(backupDir, backupFileName);
+
+      // Ensure the backup directory exists
+      if (!fs.existsSync(backupDir)) {
+        fs.mkdirSync(backupDir, { recursive: true });
+      }
+
+      // Get database connection info directly from the pool
+      const dbUrl = process.env.DATABASE_URL;
+      console.log(`Using DATABASE_URL: ${dbUrl?.replace(/:[^:@]+@/, ':****@')}`); // Log redacted URL for debugging
+      
+      if (!dbUrl) {
+        console.error("DATABASE_URL environment variable is not set");
+        return res.status(500).json({ error: "Database connection string is not configured" });
+      }
+
+      const dbUrlRegex = /postgres:\/\/([^:]+):([^@]+)@([^:]+):(\d+)\/(.+)/;
+      const match = dbUrl.match(dbUrlRegex);
+
+      if (!match) {
+        console.error("Invalid DATABASE_URL format");
+        return res.status(500).json({ error: "Invalid database connection string format" });
+      }
+
+      const [, user, password, host, port, database] = match;
+      
+      console.log(`Executing pg_dump for database ${database} on ${host}:${port} as user ${user}`);
+      
+      // Set environment variables for pg_dump
+      const env = {
+        ...process.env,
+        PGPASSWORD: password
+      };
+
+      // Use absolute path to pg_dump to ensure we're using the correct binary
+      const pgDumpPath = 'pg_dump'; // Use 'which pg_dump' output if needed
+      const pgDumpCommand = `${pgDumpPath} -h ${host} -p ${port} -U ${user} -d ${database} -f ${backupPath}`;
+      
+      console.log(`Executing command: ${pgDumpCommand.replace('-U ' + user, '-U [REDACTED]')}`);
+      
+      try {
+        const { stdout, stderr } = await execPromise(pgDumpCommand, { env });
+        
+        if (stderr) {
+          console.warn("pg_dump warning/info:", stderr);
+        }
+        
+        if (!fs.existsSync(backupPath)) {
+          throw new Error("Backup file was not created");
+        }
+        
+        // Get file size for logging
+        const stats = fs.statSync(backupPath);
+        console.log(`Backup created successfully at ${backupPath} (${stats.size} bytes)`);
+        
+        // Stream the file to the client
+        res.setHeader('Content-Type', 'application/octet-stream');
+        res.setHeader('Content-Disposition', `attachment; filename=${backupFileName}`);
+        
+        const fileStream = fs.createReadStream(backupPath);
+        
+        // Handle stream errors
+        fileStream.on('error', (err) => {
+          console.error("Error streaming backup file:", err);
+          if (!res.headersSent) {
+            res.status(500).json({ error: "Failed to read backup file" });
+          } else {
+            res.end();
+          }
+        });
+        
+        // Pipe the file to the response
+        fileStream.pipe(res);
+        
+        // Delete the file after sending
+        fileStream.on('end', () => {
+          fs.unlink(backupPath, (err) => {
+            if (err) console.error("Error deleting backup file:", err);
+            else console.log(`Temporary backup file deleted: ${backupPath}`);
+          });
+        });
+      } catch (execError) {
+        console.error("Error executing pg_dump:", execError);
+        return res.status(500).json({ 
+          error: "Failed to create database backup",
+          details: execError instanceof Error ? execError.message : "Unknown execution error",
+          command: pgDumpCommand.replace(user, '[REDACTED]').replace(password, '[REDACTED]')
+        });
+      }
+    } catch (error) {
+      console.error("Error in backup process:", error);
+      res.status(500).json({ 
+        error: "Failed to create database backup",
         message: error instanceof Error ? error.message : "Unknown error"
       });
     }

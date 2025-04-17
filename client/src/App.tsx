@@ -31,6 +31,7 @@ import AdminDashboard from "./pages/admin/dashboard";
 import AdminUsersPage from "@/pages/admin/users";
 import AdminTemplatesPage from "@/pages/admin/templates";
 import SystemStatusPage from "@/pages/admin/system-status";
+import BackupsPage from "@/pages/admin/backups";
 import { LocationProvider } from "./hooks/use-location";
 
 function Router() {
@@ -57,6 +58,7 @@ function Router() {
       <AdminRoute path="/admin/analytics" component={AdminDashboard} />
       <AdminRoute path="/admin/settings" component={AdminDashboard} />
       <AdminRoute path="/admin/system-status" component={SystemStatusPage} />
+      <AdminRoute path="/admin/backups" component={BackupsPage} />
       
       <Route component={NotFound} />
     </Switch>
