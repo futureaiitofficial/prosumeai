@@ -27,7 +27,7 @@ async function syncUser() {
       username: user.username
     });
     
-    // Update user record with basic fields only (subscriptions removed)
+    // Update user record with timestamp only
     await db
       .update(users)
       .set({

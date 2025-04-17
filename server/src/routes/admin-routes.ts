@@ -236,7 +236,7 @@ export function registerAdminRoutes(app: Express) {
   // Create a new user (admin only)
   app.post("/api/admin/users", requireAdmin, async (req, res) => {
     try {
-      const { username, email, password, fullName, planId, isAdmin = false } = req.body;
+      const { username, email, password, fullName, isAdmin = false } = req.body;
       
       // Validate required fields
       if (!username || !email || !password) {
@@ -264,15 +264,13 @@ export function registerAdminRoutes(app: Express) {
       // Hash the password before storing it
       const hashedPassword = await hashPassword(password);
       
-      // Create new user with plan if provided
+      // Create new user
       const userData: any = {
         username,
         email,
         password: hashedPassword,
         fullName: fullName || username,
-        isAdmin: isAdmin === true,
-        subscriptionStatus: planId ? "active" : "none",
-        subscriptionPlanId: planId || null
+        isAdmin: isAdmin === true
       };
       
       const newUser = await storage.createUser(userData);

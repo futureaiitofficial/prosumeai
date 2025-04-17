@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
+import { useSidebar } from "@/hooks/use-sidebar";
 import { Button } from "@/components/ui/button";
 import { 
   BarChart3, 
@@ -49,25 +50,26 @@ interface NavigationItem {
 export function AdminLayout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const { user, logoutMutation } = useAuth();
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const { isCollapsed, toggleCollapsed, isMobileOpen, toggleMobileOpen } = useSidebar();
 
   // Close mobile menu on location change
   useEffect(() => {
-    setIsMobileMenuOpen(false);
-  }, [location]);
+    if (isMobileOpen) {
+      toggleMobileOpen();
+    }
+  }, [location, isMobileOpen, toggleMobileOpen]);
 
   // Close mobile menu on large screens
   useEffect(() => {
     const handleResize = () => {
-      if (window.innerWidth > 1024) {
-        setIsMobileMenuOpen(false);
+      if (window.innerWidth > 1024 && isMobileOpen) {
+        toggleMobileOpen();
       }
     };
 
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
-  }, []);
+  }, [isMobileOpen, toggleMobileOpen]);
 
   if (!user) {
     return null;
@@ -94,15 +96,15 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
       <aside 
         className={cn(
           "fixed inset-y-0 left-0 z-50 flex h-full flex-col border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 transition-all duration-300 ease-in-out",
-          isSidebarOpen ? "w-64" : "w-20"
+          isCollapsed ? "w-20" : "w-64"
         )}
       >
         {/* Sidebar header */}
         <div className={cn(
           "flex h-16 items-center border-b border-gray-200 dark:border-gray-800 px-4",
-          isSidebarOpen ? "justify-between" : "justify-center"
+          isCollapsed ? "justify-center" : "justify-between"
         )}>
-          {isSidebarOpen ? (
+          {!isCollapsed ? (
             <Link href="/" className="font-bold text-lg flex items-center">
               ProsumeAI
               <Badge variant="outline" className="ml-2 text-xs">Admin</Badge>
@@ -115,8 +117,8 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
           <Button 
             variant="ghost" 
             size="icon"
-            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            className={cn(!isSidebarOpen && "rotate-180")}
+            onClick={toggleCollapsed}
+            className={cn(isCollapsed && "rotate-180")}
           >
             <ChevronRight className="h-5 w-5" />
           </Button>
@@ -133,11 +135,12 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
                   to={item.href}
                   className={cn(
                     "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all hover:bg-accent",
-                    location === item.href ? "bg-accent" : "transparent"
+                    location === item.href ? "bg-accent" : "transparent",
+                    isCollapsed && "justify-center"
                   )}
                 >
                   <Icon className="h-4 w-4" />
-                  {item.name}
+                  {!isCollapsed && item.name}
                 </Link>
               );
             })}
@@ -147,7 +150,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
         {/* User section */}
         <div className={cn(
           "flex items-center border-t border-gray-200 dark:border-gray-800 p-4",
-          !isSidebarOpen && "flex-col"
+          isCollapsed && "flex-col"
         )}>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -161,7 +164,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
                     {user.username?.charAt(0) || user.email?.charAt(0) || "U"}
                   </AvatarFallback>
                 </Avatar>
-                {isSidebarOpen && (
+                {!isCollapsed && (
                   <div className="flex flex-col text-left">
                     <span className="text-sm font-medium">{user.username || user.email}</span>
                     <span className="text-xs text-gray-500 dark:text-gray-400">Admin</span>
@@ -204,10 +207,10 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* Mobile sidebar backdrop */}
-      {isMobileMenuOpen && (
+      {isMobileOpen && (
         <div 
           className="fixed inset-0 z-40 bg-gray-900/50 lg:hidden"
-          onClick={() => setIsMobileMenuOpen(false)}
+          onClick={toggleMobileOpen}
         />
       )}
 
@@ -215,7 +218,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
       <aside 
         className={cn(
           "fixed inset-y-0 left-0 z-50 flex h-full w-64 flex-col border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 transition-all duration-300 ease-in-out lg:hidden",
-          isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"
+          isMobileOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
         {/* Mobile sidebar header */}
@@ -227,7 +230,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
           <Button 
             variant="ghost" 
             size="icon"
-            onClick={() => setIsMobileMenuOpen(false)}
+            onClick={toggleMobileOpen}
           >
             <X className="h-5 w-5" />
           </Button>
@@ -284,7 +287,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
       {/* Main content */}
       <main className={cn(
         "flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-900 transition-all duration-300 ease-in-out",
-        isSidebarOpen ? "lg:pl-64" : "lg:pl-20"
+        isCollapsed ? "lg:pl-20" : "lg:pl-64"
       )}>
         {/* Header */}
         <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 px-6">
@@ -292,7 +295,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
             variant="ghost" 
             size="icon" 
             className="lg:hidden"
-            onClick={() => setIsMobileMenuOpen(true)}
+            onClick={toggleMobileOpen}
           >
             <Menu className="h-6 w-6" />
           </Button>

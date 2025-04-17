@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useSearchParams, useNavigate } from "react-router-dom";
+import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { Plus, Wand2, FileText, Briefcase, ChevronRight, ArrowLeft, FileEdit, FileDown, Building, Lock, AlertTriangle, Loader2, Sparkles } from "lucide-react";
