@@ -229,11 +229,24 @@ export function setupAuth(app: Express) {
           
           console.log(`User logged out: ${username} (ID: ${userId})`);
           
-          // Clear the cookie on the client side
-          res.clearCookie('prosumeai.sid', { 
+          // Clear the cookie on the client side - use the original clearCookie method
+          // since the session cookie isn't managed by our cookieManager
+          const originalClearCookie = (res as any)._clearCookie || res.clearCookie.bind(res);
+          const clearCookieOptions: {
+            path?: string;
+            domain?: string;
+            secure?: boolean;
+            httpOnly?: boolean;
+            sameSite?: 'strict' | 'lax' | false;
+          } = {
             path: '/',
+            httpOnly: true,
+            secure: env === 'production',
+            sameSite: env === 'production' ? 'strict' : 'lax',
             domain: env === 'production' ? process.env.COOKIE_DOMAIN : undefined
-          });
+          };
+          
+          originalClearCookie.call(res, 'prosumeai.sid', clearCookieOptions);
           
           res.sendStatus(200);
         });

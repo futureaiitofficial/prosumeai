@@ -794,11 +794,69 @@ export function registerSubscriptionRoutes(app: express.Express) {
       if (!planId || isNaN(planId)) {
         return res.status(400).json({ message: 'Invalid plan ID' });
       }
+      
       // Check if plan exists and is active
       const plan = await db.select().from(subscriptionPlans).where(and(eq(subscriptionPlans.id, planId), eq(subscriptionPlans.active, true))).limit(1);
       if (!plan.length) {
         return res.status(404).json({ message: 'Plan not found or not active' });
       }
+
+      // FRAUD PREVENTION: Get user's region based on IP
+      const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
+      const clientIp = Array.isArray(ip) ? ip[0] : ip.split(',')[0].trim();
+      
+      console.log(`Verifying region for subscription upgrade - IP: ${clientIp}, User ID: ${userId}, Plan ID: ${planId}`);
+      
+      let userRegion = 'GLOBAL';
+      
+      // Skip geolocation for localhost/development
+      if (!(clientIp === '127.0.0.1' || clientIp === '::1' || clientIp.includes('192.168.') || clientIp.includes('10.0.'))) {
+        try {
+          // Call IP geolocation API
+          const response = await fetch(`https://ipapi.co/${clientIp}/json/`);
+          const data = await response.json();
+          
+          console.log('IP Geolocation for payment validation:', data);
+          
+          if (!data.error) {
+            // Set region based on country code
+            userRegion = data.country_code === 'IN' ? 'INDIA' : 'GLOBAL';
+          }
+        } catch (geoError) {
+          console.error('Error verifying user region during payment:', geoError);
+          // Continue with default GLOBAL region but log the error
+        }
+      }
+      
+      // Get the pricing applicable for this user's region
+      const pricing = await db.select()
+        .from(planPricing)
+        .where(and(
+          eq(planPricing.planId, planId),
+          eq(planPricing.targetRegion, userRegion as any)
+        ))
+        .limit(1);
+      
+      // If there's no specific pricing for this region, get the GLOBAL pricing
+      if (!pricing.length) {
+        console.log(`No specific pricing found for region ${userRegion}, falling back to GLOBAL`);
+        const globalPricing = await db.select()
+          .from(planPricing)
+          .where(and(
+            eq(planPricing.planId, planId),
+            eq(planPricing.targetRegion, 'GLOBAL')
+          ))
+          .limit(1);
+          
+        if (globalPricing.length) {
+          console.log(`Using GLOBAL pricing: ${globalPricing[0].price} ${globalPricing[0].currency}`);
+        } else {
+          console.log('No pricing information found for this plan');
+        }
+      } else {
+        console.log(`Using ${userRegion} pricing: ${pricing[0].price} ${pricing[0].currency}`);
+      }
+      
       // Check current subscription
       const currentSubscription = await db.select().from(userSubscriptions).where(eq(userSubscriptions.userId, userId)).limit(1);
       let newSubscription;
@@ -1174,6 +1232,53 @@ export function registerSubscriptionRoutes(app: express.Express) {
         message: 'Failed to fix subscription dates', 
         error: error.message 
       });
+    }
+  });
+
+  // Get user's region based on IP for pricing
+  app.get('/api/user/region', async (req, res) => {
+    try {
+      // Get client IP address
+      const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
+      const clientIp = Array.isArray(ip) ? ip[0] : ip.split(',')[0].trim();
+      
+      console.log(`Detecting region for IP: ${clientIp}`);
+      
+      // Skip geolocation for localhost/development
+      if (clientIp === '127.0.0.1' || clientIp === '::1' || clientIp.includes('192.168.') || clientIp.includes('10.0.')) {
+        console.log('Development environment detected, returning GLOBAL as default');
+        return res.json({ region: 'GLOBAL', currency: 'USD' });
+      }
+      
+      try {
+        // Call IP geolocation API
+        const response = await fetch(`https://ipapi.co/${clientIp}/json/`);
+        const data = await response.json();
+        
+        console.log('IP Geolocation response:', data);
+        
+        if (data.error) {
+          throw new Error(`Geolocation API error: ${data.reason}`);
+        }
+        
+        // Determine region based on country code
+        const country = data.country_code;
+        
+        // Check if user is in India
+        if (country === 'IN') {
+          return res.json({ region: 'INDIA', currency: 'INR', country });
+        } else {
+          return res.json({ region: 'GLOBAL', currency: 'USD', country });
+        }
+      } catch (geoError) {
+        console.error('Error with geolocation service:', geoError);
+        // Default to GLOBAL if geolocation fails
+        return res.json({ region: 'GLOBAL', currency: 'USD', error: 'Geolocation failed' });
+      }
+    } catch (error: any) {
+      console.error('Error in GET /api/user/region:', error);
+      // Default to GLOBAL in case of any error
+      res.json({ region: 'GLOBAL', currency: 'USD', error: error.message });
     }
   });
 } 

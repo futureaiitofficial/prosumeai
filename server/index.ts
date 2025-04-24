@@ -57,6 +57,9 @@ app.use((req: Request, res: Response, next: NextFunction) => {
     cookieManager.setCookie(res, name, value, options);
   };
   
+  // Save the original clearCookie method before overriding it
+  (res as any)._clearCookie = res.clearCookie;
+  
   (res as any).clearCookie = (name: string, options = {}) => {
     cookieManager.clearCookie(res, name, options);
   };

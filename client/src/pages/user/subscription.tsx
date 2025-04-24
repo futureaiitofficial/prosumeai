@@ -38,7 +38,20 @@ interface SubscriptionPlan {
   isFeatured: boolean;
   isFreemium: boolean;
   active: boolean;
-  pricing?: { price: string; currency: string }[];
+  pricing?: { 
+    id: number;
+    planId: number;
+    targetRegion: 'GLOBAL' | 'INDIA';
+    currency: 'USD' | 'INR';
+    price: string;
+  }[];
+}
+
+interface UserRegion {
+  region: 'GLOBAL' | 'INDIA';
+  currency: 'USD' | 'INR';
+  country?: string;
+  error?: string;
 }
 
 interface PlanFeature {
@@ -60,6 +73,25 @@ interface PlanFeature {
 const UserSubscriptionPage: React.FC = () => {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<'current' | 'features' | 'plans'>('current');
+  const [userRegion, setUserRegion] = useState<UserRegion>({ region: 'GLOBAL', currency: 'USD' });
+
+  // Fetch user's region based on IP
+  const { data: regionData, isLoading: isRegionLoading } = useQuery({
+    queryKey: ['userRegion'],
+    queryFn: async () => {
+      try {
+        const response = await apiRequest('GET', '/api/user/region');
+        const data = await response.json();
+        console.log("Detected user region:", data);
+        setUserRegion(data);
+        return data;
+      } catch (error) {
+        console.error("Error fetching user region:", error);
+        return { region: 'GLOBAL', currency: 'USD', error: 'Failed to detect region' };
+      }
+    },
+    staleTime: 24 * 60 * 60 * 1000 // Cache for 24 hours
+  });
 
   // Fetch current subscription
   const { data: subscriptionData, isLoading: isSubscriptionLoading, refetch: refetchSubscription } = useQuery({
@@ -312,7 +344,7 @@ const UserSubscriptionPage: React.FC = () => {
     }
   ) : null;
 
-  const isLoading = isSubscriptionLoading || isPlansLoading || isFeaturesLoading || isAllFeaturesLoading || isFeatureUsageLoading;
+  const isLoading = isSubscriptionLoading || isPlansLoading || isFeaturesLoading || isAllFeaturesLoading || isFeatureUsageLoading || isRegionLoading;
 
   // Format date for display
   const formatDate = (dateString: string) => {
@@ -414,6 +446,31 @@ const UserSubscriptionPage: React.FC = () => {
     
     return false;
   }, [subscription, userPlan]);
+
+  // Get price display based on user region
+  const getPriceDisplay = (plan: SubscriptionPlan) => {
+    // For freemium plans
+    if (plan.isFreemium || !plan.pricing || plan.pricing.length === 0) {
+      return 'Free';
+    }
+    
+    // Find pricing for the user's region
+    const userRegionPricing = plan.pricing.find(p => p.targetRegion === userRegion.region);
+    
+    // If found, use it
+    if (userRegionPricing) {
+      return `${userRegionPricing.price} ${userRegionPricing.currency}`;
+    }
+    
+    // Fallback to global pricing
+    const globalPricing = plan.pricing.find(p => p.targetRegion === 'GLOBAL');
+    if (globalPricing) {
+      return `${globalPricing.price} ${globalPricing.currency}`;
+    }
+    
+    // Last resort fallback
+    return plan.price && plan.price !== '0.00' ? `${plan.price} USD` : 'Free';
+  };
 
   if (isLoading) {
     return (
@@ -651,6 +708,11 @@ const UserSubscriptionPage: React.FC = () => {
         {/* Available Plans Tab */}
         <TabsContent value="plans">
           <div className="space-y-6">
+            {userRegion.country && (
+              <div className="text-sm text-muted-foreground mb-4">
+                Showing prices for {userRegion.region === 'INDIA' ? 'India' : 'your region'} ({userRegion.country})
+              </div>
+            )}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {plans
                 .filter((plan: SubscriptionPlan) => plan.active)
@@ -668,11 +730,7 @@ const UserSubscriptionPage: React.FC = () => {
                       <CardContent className="pt-6">
                         <div className="mb-6">
                           <p className="text-3xl font-bold">
-                            {plan.pricing && plan.pricing.length > 0 
-                              ? `${plan.pricing[0].price} ${plan.pricing[0].currency}` 
-                              : plan.price && plan.price !== '0.00' 
-                                ? `${plan.price} ${plan.currency}` 
-                                : 'Free'}
+                            {getPriceDisplay(plan)}
                           </p>
                           <p className="text-sm text-muted-foreground">per {plan.billingCycle.toLowerCase()}</p>
                         </div>

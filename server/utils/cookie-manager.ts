@@ -70,7 +70,11 @@ export class CookieManager {
       expires: new Date(0)
     };
     
-    res.clearCookie(cookieName, cookieOptions as any);
+    // Use res.cookie with empty value and expired date instead of res.clearCookie
+    // This avoids the circular reference when res.clearCookie is overridden
+    (res as any)._clearCookie 
+      ? (res as any)._clearCookie(cookieName, cookieOptions) 
+      : res.cookie(cookieName, '', { ...cookieOptions, expires: new Date(0) });
   }
 
   /**
@@ -146,13 +150,18 @@ export class CookieManager {
     // Clear each cookie that belongs to our application
     Object.keys(cookies).forEach(name => {
       if (name.startsWith(this.cookiePrefix)) {
-        // Pass the full cookie name to clearCookie
-        res.clearCookie(name, { 
+        // Use the _clearCookie or cookie method instead of clearCookie
+        const cookieOptions = { 
           ...this.defaultOptions,
           maxAge: 0,
           expires: new Date(0),
           path: '/' 
-        } as any);
+        };
+        
+        // Use the original method or cookie with expired date
+        (res as any)._clearCookie 
+          ? (res as any)._clearCookie(name, cookieOptions) 
+          : res.cookie(name, '', { ...cookieOptions, expires: new Date(0) });
       }
     });
   }

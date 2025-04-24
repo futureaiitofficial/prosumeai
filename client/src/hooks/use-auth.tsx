@@ -81,10 +81,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logoutMutation = useMutation({
     mutationFn: async () => {
-      await apiRequest("POST", "/api/logout");
+      try {
+        await apiRequest("POST", "/api/logout");
+      } catch (error) {
+        console.error("Logout error:", error);
+        // Even if server-side logout fails, clear client-side state
+      }
+      // Clear user data regardless of server response to ensure client-side logout
+      return;
     },
     onSuccess: () => {
+      // Clear user data from query client cache
       queryClient.setQueryData(["/api/user"], null);
+      // Invalidate all queries to force refresh on next data fetch
+      queryClient.invalidateQueries();
+      
       toast({
         title: "Logged out",
         description: "You have been successfully logged out.",
@@ -92,11 +103,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLocation("/auth");
     },
     onError: (error: Error) => {
+      console.error("Logout client error:", error);
+      // Even on error, we should clear user data and redirect
+      queryClient.setQueryData(["/api/user"], null);
+      queryClient.invalidateQueries();
+      
       toast({
-        title: "Logout failed",
-        description: error.message,
-        variant: "destructive",
+        title: "Logout status",
+        description: "You have been logged out, but there may have been an issue with the server.",
       });
+      setLocation("/auth");
     },
   });
 
