@@ -1,6 +1,7 @@
 import express from 'express';
 import { storage } from "../../config/storage";
 import { requireUser } from "../../middleware/auth";
+import { requireFeatureAccess, trackFeatureUsage } from "../../middleware/feature-access";
 import { type InsertResume } from "@shared/schema";
 
 /**
@@ -60,47 +61,54 @@ export function registerResumeRoutes(app: express.Express) {
   });
   
   // Create a new resume
-  app.post('/api/resumes', requireUser, async (req, res) => {
-    try {
-      if (!req.isAuthenticated() || !req.user) {
-        return res.status(401).json({ message: "Unauthorized" });
-      }
-      
-      // Set current user ID if not provided
-      const resumeData: InsertResume = {
-        ...req.body,
-        userId: req.user.id
-      };
-      
-      // Ensure required fields are provided
-      if (!resumeData.title) {
-        return res.status(400).json({ message: "Resume title is required" });
-      }
+  app.post('/api/resumes', 
+    requireUser, 
+    requireFeatureAccess('resume'), 
+    trackFeatureUsage('resume'),
+    async (req, res) => {
+      try {
+        if (!req.isAuthenticated() || !req.user) {
+          return res.status(401).json({ message: "Unauthorized" });
+        }
+        
+        // Set current user ID if not provided
+        const resumeData: InsertResume = {
+          ...req.body,
+          userId: req.user.id
+        };
+        
+        // Ensure required fields are provided
+        if (!resumeData.title) {
+          return res.status(400).json({ message: "Resume title is required" });
+        }
 
-      if (!resumeData.targetJobTitle) {
-        return res.status(400).json({ message: "Target job title is required" });
+        if (!resumeData.targetJobTitle) {
+          return res.status(400).json({ message: "Target job title is required" });
+        }
+        
+        // Set default template if not provided
+        if (!resumeData.template) {
+          resumeData.template = 'professional';
+        }
+        
+        // Create resume
+        const newResume = await storage.createResume(resumeData);
+        
+        res.status(201).json(newResume);
+      } catch (error: any) {
+        console.error('Error in POST /api/resumes:', error);
+        res.status(500).json({ 
+          message: "Failed to create resume", 
+          error: error.message 
+        });
       }
-      
-      // Set default template if not provided
-      if (!resumeData.template) {
-        resumeData.template = 'professional';
-      }
-      
-      // Create resume
-      const newResume = await storage.createResume(resumeData);
-      
-      res.status(201).json(newResume);
-    } catch (error: any) {
-      console.error('Error in POST /api/resumes:', error);
-      res.status(500).json({ 
-        message: "Failed to create resume", 
-        error: error.message 
-      });
-    }
   });
   
   // Update a resume
-  app.patch('/api/resumes/:id', requireUser, async (req, res) => {
+  app.patch('/api/resumes/:id', 
+    requireUser, 
+    trackFeatureUsage('resume_update'),
+    async (req, res) => {
     try {
       if (!req.isAuthenticated() || !req.user) {
         return res.status(401).json({ message: "Unauthorized" });
@@ -144,7 +152,10 @@ export function registerResumeRoutes(app: express.Express) {
   });
   
   // Delete a resume
-  app.delete('/api/resumes/:id', requireUser, async (req, res) => {
+  app.delete('/api/resumes/:id', 
+    requireUser, 
+    trackFeatureUsage('resume_delete'),
+    async (req, res) => {
     try {
       if (!req.isAuthenticated() || !req.user) {
         return res.status(401).json({ message: "Unauthorized" });

@@ -37,6 +37,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Pagination,
   PaginationContent,
@@ -48,8 +49,15 @@ import {
 } from "@/components/ui/pagination";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { AlertCircle, CheckCircle, MoreHorizontal, Search, Loader2, ShieldAlert, ShieldCheck, UserX, Crown } from "lucide-react";
+import { AlertCircle, CheckCircle, MoreHorizontal, Search, Loader2, ShieldAlert, ShieldCheck, UserX, Crown, CreditCard } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 // Type for user data
 type User = {
@@ -62,6 +70,15 @@ type User = {
   status: string;
 };
 
+interface SubscriptionPlan {
+  id: number;
+  name: string;
+  description: string;
+  isFeatured: boolean;
+  isFreemium: boolean;
+  active: boolean;
+}
+
 export function UsersManagement() {
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
@@ -70,6 +87,8 @@ export function UsersManagement() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showPromoteDialog, setShowPromoteDialog] = useState(false);
   const [showDemoteDialog, setShowDemoteDialog] = useState(false);
+  const [showAssignPlanDialog, setShowAssignPlanDialog] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<number | null>(null);
   
   // Number of users per page
   const PAGE_SIZE = 10;
@@ -78,7 +97,40 @@ export function UsersManagement() {
   const { data: users = [], isLoading, error, refetch } = useQuery({
     queryKey: ["/api/admin/users"],
     queryFn: getQueryFn({ on401: "throw" }),
+  }) as { data: User[], isLoading: boolean, error: unknown, refetch: () => void };
+  
+  // Fetch subscription plans
+  const { data: plans = [] } = useQuery({
+    queryKey: ["/api/admin/subscription-plans"],
+    queryFn: getQueryFn({ on401: "throw" }),
+  }) as { data: SubscriptionPlan[] };
+  
+  // Get user's active subscription
+  const { data: userSubscriptions = [] } = useQuery({
+    queryKey: ["/api/admin/user-subscriptions"],
+    queryFn: getQueryFn({ on401: "throw" }),
   });
+  
+  // Log the plans and subscriptions for debugging
+  useEffect(() => {
+    console.log("Admin view - Fetched subscription plans:", plans);
+    console.log("Admin view - Fetched user subscriptions:", userSubscriptions);
+  }, [plans, userSubscriptions]);
+  
+  // Find user's active subscription
+  const getUserSubscription = (userId: number) => {
+    const subscription = (userSubscriptions as any[]).find(
+      sub => sub.userId === userId && sub.status === "ACTIVE"
+    );
+    
+    if (subscription) {
+      console.log(`Found active subscription for user ${userId}:`, subscription);
+    } else {
+      console.log(`No active subscription found for user ${userId}`);
+    }
+    
+    return subscription;
+  };
   
   // Mutation for promoting a user to admin
   const promoteMutation = useMutation({
@@ -126,6 +178,29 @@ export function UsersManagement() {
     },
   });
   
+  // Mutation for assigning a subscription plan to a user
+  const assignPlanMutation = useMutation({
+    mutationFn: async ({ userId, planId }: { userId: number; planId: number }) => {
+      return await apiRequest("POST", "/api/admin/user/assign-plan", { userId, planId });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/user-subscriptions"] });
+      toast({
+        title: "Success",
+        description: "Subscription plan assigned successfully",
+        variant: "default",
+      });
+      setShowAssignPlanDialog(false);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to assign subscription plan",
+        variant: "destructive",
+      });
+    },
+  });
+  
   // Filter users based on search query
   const filteredUsers = useMemo(() => {
     return (users as User[]).filter((user: User) => {
@@ -156,6 +231,37 @@ export function UsersManagement() {
     setSelectedUser(user);
     setShowDemoteDialog(true);
   };
+
+  // Handle assigning a plan
+  const handleAssignPlan = (user: User) => {
+    console.log("Assigning plan to user:", user.username);
+    setSelectedUser(user);
+    // Check if user already has an active subscription and pre-select that plan
+    const subscription = getUserSubscription(user.id);
+    if (subscription) {
+      console.log(`Pre-selecting current plan: ${subscription.planId} for user ${user.id}`);
+    }
+    setSelectedPlan(subscription?.planId || null);
+    setShowAssignPlanDialog(true);
+  };
+  
+  const handleConfirmAssignPlan = () => {
+    if (!selectedUser || !selectedPlan) {
+      console.error("Cannot assign plan: Missing user or plan", { user: selectedUser?.username, planId: selectedPlan });
+      return;
+    }
+    
+    console.log("Confirming plan assignment:", { 
+      user: selectedUser.username, 
+      userId: selectedUser.id, 
+      planId: selectedPlan 
+    });
+    
+    assignPlanMutation.mutate({
+      userId: selectedUser.id,
+      planId: selectedPlan
+    });
+  };
   
   // Format date for display
   const formatDate = (dateString: string) => {
@@ -169,6 +275,36 @@ export function UsersManagement() {
       minute: "2-digit",
     }).format(date);
   };
+  
+  // Get subscription plan name
+  const getPlanName = (userId: number) => {
+    const subscription = getUserSubscription(userId);
+    if (!subscription) return null;
+    
+    // Check if the subscription already has planName (from join query)
+    if (subscription.planName) {
+      return subscription.planName;
+    }
+    
+    // Otherwise find the plan from the plans array
+    const plan = (plans as SubscriptionPlan[]).find(p => p.id === subscription.planId);
+    if (!plan) {
+      console.log(`Plan not found for user ${userId} with planId ${subscription.planId}`);
+      return `Unknown (ID: ${subscription.planId})`;
+    }
+    
+    return plan!.name;
+  };
+  
+  useEffect(() => {
+    if (users.length > 0) {
+      console.log('Users loaded, dropdowns should be rendered for:', users.map(u => u.username));
+    }
+  }, [users]);
+  
+  useEffect(() => {
+    console.log('Subscription plans loaded:', plans);
+  }, [plans]);
   
   // Show error state
   if (error) {
@@ -232,7 +368,7 @@ export function UsersManagement() {
                   <TableHead>Email</TableHead>
                   <TableHead>Role</TableHead>
                   <TableHead>Registered Date</TableHead>
-                  <TableHead>Last Login</TableHead>
+                  <TableHead>Subscription Plan</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -253,7 +389,18 @@ export function UsersManagement() {
                       )}
                     </TableCell>
                     <TableCell>{formatDate(user.createdAt)}</TableCell>
-                    <TableCell>{user.lastLogin ? formatDate(user.lastLogin) : "Never"}</TableCell>
+                    <TableCell>
+                      {getPlanName(user.id) ? (
+                        <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 flex w-fit items-center gap-1">
+                          <CreditCard className="h-3 w-3" />
+                          {getPlanName(user.id)}
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="bg-gray-50 text-gray-700 border-gray-200 w-fit">
+                          No plan
+                        </Badge>
+                      )}
+                    </TableCell>
                     <TableCell>
                       {user.status === "active" ? (
                         <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 flex w-fit items-center gap-1">
@@ -268,29 +415,44 @@ export function UsersManagement() {
                       )}
                     </TableCell>
                     <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" className="h-8 w-8 p-0">
-                            <span className="sr-only">Open menu</span>
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                          <DropdownMenuSeparator />
-                          {!user.isAdmin ? (
-                            <DropdownMenuItem onClick={() => handlePromote(user)}>
-                              <ShieldCheck className="h-4 w-4 mr-2" />
-                              Promote to Admin
+                      <div className="flex justify-end items-center gap-2">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => handleAssignPlan(user)}
+                          className="h-8 flex items-center gap-1"
+                        >
+                          <CreditCard className="h-3 w-3" />
+                          Assign Plan
+                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" className="h-8 w-8 p-0">
+                              <span className="sr-only">Open menu</span>
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                            <DropdownMenuSeparator />
+                            {!user.isAdmin ? (
+                              <DropdownMenuItem onClick={() => handlePromote(user)}>
+                                <ShieldCheck className="h-4 w-4 mr-2" />
+                                Promote to Admin
+                              </DropdownMenuItem>
+                            ) : (
+                              <DropdownMenuItem onClick={() => handleDemote(user)}>
+                                <ShieldAlert className="h-4 w-4 mr-2" />
+                                Remove Admin
+                              </DropdownMenuItem>
+                            )}
+                            <DropdownMenuItem onClick={() => handleAssignPlan(user)}>
+                              <CreditCard className="h-4 w-4 mr-2" />
+                              Assign Plan
                             </DropdownMenuItem>
-                          ) : (
-                            <DropdownMenuItem onClick={() => handleDemote(user)}>
-                              <ShieldAlert className="h-4 w-4 mr-2" />
-                              Remove Admin
-                            </DropdownMenuItem>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -434,6 +596,69 @@ export function UsersManagement() {
             >
               {demoteMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
               Confirm Removal
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Assign Plan Dialog */}
+      <Dialog open={showAssignPlanDialog} onOpenChange={setShowAssignPlanDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Assign Subscription Plan</DialogTitle>
+            <DialogDescription>
+              Assign a subscription plan to this user. This will override any existing subscription.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            {selectedUser && (
+              <>
+                <div className="flex flex-col space-y-2 mb-4">
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium">Username:</span>
+                    <span>{selectedUser.username}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium">Email:</span>
+                    <span>{selectedUser.email}</span>
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="plan-select">Select Subscription Plan</Label>
+                  <Select
+                    value={selectedPlan?.toString() || ""}
+                    onValueChange={(value) => setSelectedPlan(parseInt(value))}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select a plan" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(plans as SubscriptionPlan[])
+                        .filter(plan => plan.active)
+                        .map((plan) => (
+                          <SelectItem key={plan.id} value={plan.id.toString()}>
+                            {plan.name}
+                            {plan.isFreemium && " (Freemium)"}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAssignPlanDialog(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleConfirmAssignPlan}
+              className="gap-2"
+              disabled={!selectedPlan || assignPlanMutation.isPending}
+            >
+              {assignPlanMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+              Assign Plan
             </Button>
           </DialogFooter>
         </DialogContent>

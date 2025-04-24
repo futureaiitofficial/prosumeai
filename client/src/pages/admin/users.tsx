@@ -37,7 +37,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   User, 
   Users, 
   Search, 
@@ -50,7 +57,8 @@ import {
   RefreshCw, 
   Loader2,
   FileText,
-  UserPlus
+  UserPlus,
+  CreditCard
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
@@ -89,6 +97,10 @@ export default function AdminUsersPage() {
   const [isPromoteDialogOpen, setIsPromoteDialogOpen] = useState(false);
   const [isDemoteDialogOpen, setIsDemoteDialogOpen] = useState(false);
   const [isCreateUserDialogOpen, setIsCreateUserDialogOpen] = useState(false);
+  const [isAssignPlanDialogOpen, setIsAssignPlanDialogOpen] = useState(false);
+  const [subscriptionPlans, setSubscriptionPlans] = useState<any[]>([]);
+  const [selectedPlan, setSelectedPlan] = useState<number | null>(null);
+  const [isLoadingPlans, setIsLoadingPlans] = useState(false);
   
   const { toast } = useToast();
   
@@ -330,6 +342,75 @@ export default function AdminUsersPage() {
     }
   };
   
+  // Fetch subscription plans
+  const fetchSubscriptionPlans = async () => {
+    setIsLoadingPlans(true);
+    try {
+      const response = await fetch('/api/admin/subscription-plans', {
+        credentials: 'include'
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch subscription plans');
+      }
+      
+      const data = await response.json();
+      console.log("Fetched subscription plans:", data);
+      setSubscriptionPlans(data);
+    } catch (error) {
+      console.error('Error fetching subscription plans:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch subscription plans",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoadingPlans(false);
+    }
+  };
+
+  // Handle assigning subscription plan to user
+  const handleAssignPlan = async () => {
+    if (!selectedUser || !selectedPlan) {
+      toast({
+        title: "Error",
+        description: "Please select a subscription plan",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    try {
+      const response = await apiRequest('POST', '/api/admin/user/assign-plan', { 
+        userId: selectedUser.id, 
+        planId: selectedPlan 
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to assign subscription plan');
+      }
+      
+      toast({
+        title: "Success",
+        description: `Subscription plan assigned to ${selectedUser.username}`,
+      });
+      
+      // Refresh user list
+      fetchUsers();
+    } catch (error) {
+      console.error('Error assigning plan:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to assign subscription plan",
+        variant: "destructive",
+      });
+    } finally {
+      setIsAssignPlanDialogOpen(false);
+      setSelectedPlan(null);
+    }
+  };
+  
   // Effects
   useEffect(() => {
     if (user && isAdmin) {
@@ -353,6 +434,13 @@ export default function AdminUsersPage() {
       fetchUserStats(selectedUser.id);
     }
   }, [isDialogOpen, selectedUser]);
+  
+  // Effect to fetch subscription plans when the assignment dialog opens
+  useEffect(() => {
+    if (isAssignPlanDialogOpen) {
+      fetchSubscriptionPlans();
+    }
+  }, [isAssignPlanDialogOpen]);
   
   return (
     <AdminLayout>
@@ -497,6 +585,17 @@ export default function AdminUsersPage() {
                                   Make Admin
                                 </DropdownMenuItem>
                               )}
+                              
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  setSelectedUser(user);
+                                  fetchSubscriptionPlans();
+                                  setIsAssignPlanDialogOpen(true);
+                                }}
+                              >
+                                <CreditCard className="h-4 w-4 mr-2" />
+                                Assign Subscription Plan
+                              </DropdownMenuItem>
                               
                               <DropdownMenuSeparator />
                               
@@ -784,6 +883,87 @@ export default function AdminUsersPage() {
               <Button type="submit">Create User</Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Assign Subscription Plan Dialog */}
+      <Dialog open={isAssignPlanDialogOpen} onOpenChange={setIsAssignPlanDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Assign Subscription Plan</DialogTitle>
+            <DialogDescription>
+              Assign a subscription plan to this user. This will override any existing subscription.
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedUser && (
+            <div className="py-4">
+              <div className="flex flex-col space-y-2 mb-4">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium">Username:</span>
+                  <span>@{selectedUser.username}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="font-medium">Full Name:</span>
+                  <span>{selectedUser.fullName}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="font-medium">Email:</span>
+                  <span>{selectedUser.email}</span>
+                </div>
+              </div>
+              
+              <div className="space-y-2 mb-6">
+                <Label htmlFor="plan-select">Select Subscription Plan</Label>
+                {isLoadingPlans ? (
+                  <div className="flex items-center space-x-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>Loading subscription plans...</span>
+                  </div>
+                ) : subscriptionPlans.length === 0 ? (
+                  <div className="text-center p-4 border rounded-md">
+                    No subscription plans available
+                  </div>
+                ) : (
+                  <Select 
+                    value={selectedPlan?.toString() || ""}
+                    onValueChange={(value) => setSelectedPlan(parseInt(value))}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select a plan" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {subscriptionPlans
+                        .filter(plan => plan.active)
+                        .map((plan) => (
+                          <SelectItem key={plan.id} value={plan.id.toString()}>
+                            {plan.name}
+                            {plan.isFreemium && " (Freemium)"}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+              
+              <DialogFooter>
+                <Button 
+                  variant="outline" 
+                  onClick={() => setIsAssignPlanDialogOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={handleAssignPlan}
+                  disabled={!selectedPlan || isLoadingPlans}
+                  className="gap-2"
+                >
+                  {isLoadingPlans && <Loader2 className="h-4 w-4 animate-spin" />}
+                  Assign Plan
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </AdminLayout>

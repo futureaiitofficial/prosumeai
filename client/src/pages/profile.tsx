@@ -12,6 +12,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
+import { TokenUsage } from "@/components/ui/token-usage";
 
 export default function Profile() {
   const { user } = useAuth();
@@ -76,9 +77,10 @@ export default function Profile() {
         </Card>
 
         <Tabs defaultValue="personal" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 mb-4">
+          <TabsList className="grid w-full grid-cols-3 mb-4">
             <TabsTrigger value="personal">Personal Information</TabsTrigger>
             <TabsTrigger value="security">Security</TabsTrigger>
+            <TabsTrigger value="usage">Usage & Limits</TabsTrigger>
           </TabsList>
           
           <TabsContent value="personal">
@@ -179,6 +181,62 @@ export default function Profile() {
               <CardFooter>
                 <Button type="button">Change Password</Button>
               </CardFooter>
+            </Card>
+          </TabsContent>
+          
+          <TabsContent value="usage">
+            <Card>
+              <CardHeader>
+                <CardTitle>Usage & Limits</CardTitle>
+                <CardDescription>
+                  Monitor your AI token usage and subscription limits
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div>
+                  <h3 className="text-lg font-medium mb-2">AI Token Usage</h3>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Your current AI token usage across different features. These limits reset according to your subscription plan.
+                  </p>
+                  <TokenUsage className="mt-4" />
+                  <div className="flex justify-end mt-4">
+                    <Button variant="outline" onClick={() => navigate("/user/subscription")}>
+                      View Subscription Details
+                    </Button>
+                  </div>
+                </div>
+                
+                <Separator />
+                
+                <div>
+                  <h3 className="text-lg font-medium mb-2">Feature Usage</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Feature-specific AI token usage for key functionality
+                  </p>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                    <div className="p-4 border rounded-lg">
+                      <h4 className="font-medium mb-2">Resume Builder</h4>
+                      <TokenUsage featureCode="resume" />
+                    </div>
+                    
+                    <div className="p-4 border rounded-lg">
+                      <h4 className="font-medium mb-2">Cover Letter Generation</h4>
+                      <TokenUsage featureCode="GENERATE_COVER_LETTER" />
+                    </div>
+                    
+                    <div className="p-4 border rounded-lg">
+                      <h4 className="font-medium mb-2">Job Application Analysis</h4>
+                      <TokenUsage featureCode="job_analysis" />
+                    </div>
+                    
+                    <div className="p-4 border rounded-lg">
+                      <h4 className="font-medium mb-2">Keyword Extraction</h4>
+                      <TokenUsage featureCode="keyword_extraction" />
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
             </Card>
           </TabsContent>
         </Tabs>

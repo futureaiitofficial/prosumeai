@@ -8,7 +8,9 @@ import {
   coverLetters, 
   jobApplications, 
   appSettings,
-  apiKeys
+  apiKeys,
+  subscriptionPlans,
+  userSubscriptions
 } from "@shared/schema";
 import { eq, count, and, or, desc, asc, gt, lt, gte, lte, like, ilike, inArray, isNull, notInArray, isNotNull, between, sql, sum } from "drizzle-orm";
 import { hashPassword } from "../../config/auth";
@@ -900,6 +902,128 @@ export function registerAdminRoutes(app: Express) {
     } catch (error) {
       console.error("Error deleting API key:", error);
       res.status(500).json({ message: "Failed to delete API key" });
+    }
+  });
+
+  // Route to assign a subscription plan to a user (for testing without payment)
+  app.post("/api/admin/user/assign-plan", requireAdmin, async (req, res) => {
+    const { userId, planId } = req.body;
+    
+    if (!userId || !planId) {
+      return res.status(400).json({ message: "User ID and Plan ID are required" });
+    }
+    
+    try {
+      console.log(`Assigning plan ${planId} to user ${userId}`);
+      
+      // Find the user
+      const user = await db.query.users.findFirst({
+        where: eq(users.id, userId)
+      });
+      
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      // Find the plan
+      const plan = await db.query.subscriptionPlans.findFirst({
+        where: eq(subscriptionPlans.id, planId)
+      });
+      
+      if (!plan) {
+        return res.status(404).json({ message: "Subscription plan not found" });
+      }
+      
+      // Begin a transaction to ensure atomicity
+      await db.transaction(async (tx) => {
+        console.log(`Started transaction for assigning plan ${planId} to user ${userId}`);
+        
+        // Find all user's subscriptions to clean up properly
+        const allUserSubscriptions = await tx.select().from(userSubscriptions)
+          .where(eq(userSubscriptions.userId, userId));
+        
+        console.log(`Found ${allUserSubscriptions.length} existing subscriptions for user ${userId}`);
+        
+        // First, cancel any existing subscriptions
+        for (const sub of allUserSubscriptions) {
+          if (sub.status === 'ACTIVE') {
+            console.log(`Cancelling active subscription ID ${sub.id} for user ${userId}`);
+            await tx.update(userSubscriptions)
+              .set({
+                status: "CANCELLED",
+                endDate: new Date(),
+                updatedAt: new Date()
+              })
+              .where(eq(userSubscriptions.id, sub.id));
+          }
+        }
+        
+        // Create a new subscription
+        const startDate = new Date();
+        // Set end date to 1 year from now for testing purposes
+        const endDate = new Date();
+        endDate.setFullYear(endDate.getFullYear() + 1);
+        
+        console.log(`Creating new active subscription for user ${userId} with plan ${planId}`);
+        
+        // Insert new active subscription
+        const newSubscription = await tx.insert(userSubscriptions).values({
+          userId,
+          planId,
+          startDate,
+          endDate,
+          status: "ACTIVE",
+          paymentGateway: "MANUAL",
+          paymentReference: "ADMIN_ASSIGNED",
+          autoRenew: false,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }).returning();
+        
+        console.log(`Created new subscription with ID ${newSubscription[0]?.id}`);
+      });
+      
+      // Verify successful subscription assignment
+      const activeSubscription = await db.query.userSubscriptions.findFirst({
+        where: and(
+          eq(userSubscriptions.userId, userId),
+          eq(userSubscriptions.planId, planId),
+          eq(userSubscriptions.status, "ACTIVE")
+        )
+      });
+      
+      if (!activeSubscription) {
+        console.error(`Failed to verify active subscription for user ${userId} with plan ${planId}`);
+        return res.status(500).json({ message: "Failed to assign subscription plan" });
+      }
+      
+      console.log(`Successfully assigned plan ${plan.name} (ID: ${planId}) to user ${userId}`);
+      
+      return res.json({ 
+        message: "Subscription plan assigned successfully",
+        planName: plan.name,
+        subscriptionId: activeSubscription.id
+      });
+    } catch (error) {
+      console.error("Error assigning subscription plan:", error);
+      return res.status(500).json({ message: "Failed to assign subscription plan" });
+    }
+  });
+
+  // Route to get all user subscriptions with user and plan details
+  app.get("/user-subscriptions", requireAdmin, async (req, res) => {
+    try {
+      const subscriptions = await db.query.userSubscriptions.findMany({
+        with: {
+          user: true,
+          plan: true
+        }
+      });
+      
+      return res.json(subscriptions);
+    } catch (error) {
+      console.error("Error fetching user subscriptions:", error);
+      return res.status(500).json({ message: "Failed to fetch user subscriptions" });
     }
   });
 }

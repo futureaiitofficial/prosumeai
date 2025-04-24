@@ -1,6 +1,7 @@
 import express from 'express';
 import { storage } from "../../config/storage";
 import { requireUser } from "../../middleware/auth";
+import { requireFeatureAccess, trackFeatureUsage } from "../../middleware/feature-access";
 import { type InsertCoverLetter } from "@shared/schema";
 
 /**
@@ -60,58 +61,72 @@ export function registerCoverLetterRoutes(app: express.Express) {
   });
   
   // Create a new cover letter
-  app.post('/api/cover-letters', requireUser, async (req, res) => {
-    try {
-      if (!req.isAuthenticated() || !req.user) {
-        return res.status(401).json({ message: "Unauthorized" });
-      }
+  app.post('/api/cover-letters', 
+    requireUser,
+    requireFeatureAccess('cover_letter'),
+    trackFeatureUsage('cover_letter'),
+    async (req, res) => {
+      console.log('Creating new cover letter, received data:', JSON.stringify(req.body, null, 2));
       
-      // Set current user ID if not provided
-      const coverLetterData: InsertCoverLetter = {
-        ...req.body,
-        userId: req.user.id
-      };
-      
-      // Ensure required fields are provided
-      if (!coverLetterData.title) {
-        return res.status(400).json({ message: "Cover letter title is required" });
-      }
+      try {
+        if (!req.isAuthenticated() || !req.user) {
+          return res.status(401).json({ message: "Unauthorized" });
+        }
+        
+        // Extract only the fields we want to specifically use
+        const {
+          title = '',
+          company = '',
+          jobTitle = '',
+          template = 'standard',
+          recipientName = '',
+          resumeId = null
+        } = req.body;
 
-      if (!coverLetterData.content) {
-        coverLetterData.content = " "; // Provide minimum content to pass validation
+        // Validate required fields
+        if (!title) {
+          return res.status(400).json({ message: 'Title is required' });
+        }
+
+        // Create clean cover letter data with explicit initialization for all fields to prevent data leakage
+        const coverLetterData: InsertCoverLetter = {
+          userId: req.user!.id,
+          title,
+          company,
+          jobTitle,
+          template,
+          recipientName,
+          resumeId: resumeId || null,
+          // Explicitly initialize personal fields to empty to prevent data leakage
+          fullName: '',
+          email: '',
+          phone: '',
+          address: '',
+          // Initialize content fields with empty strings to completely prevent data leakage
+          content: '',
+          jobDescription: ''
+        };
+
+        console.log('Sanitized cover letter data for creation:', JSON.stringify(coverLetterData, null, 2));
+
+        const newCoverLetter = await storage.createCoverLetter(coverLetterData);
+        console.log('Successfully created new cover letter with ID:', newCoverLetter.id);
+        
+        res.status(201).json(newCoverLetter);
+      } catch (error: any) {
+        console.error('Error in POST /api/cover-letters:', error);
+        res.status(500).json({ 
+          message: "Failed to create cover letter", 
+          error: error.message 
+        });
       }
-      
-      if (!coverLetterData.company) {
-        return res.status(400).json({ message: "Company name is required" });
-      }
-      
-      if (!coverLetterData.jobTitle) {
-        return res.status(400).json({ message: "Job title is required" });
-      }
-      
-      // Set default template if not provided
-      if (!coverLetterData.template) {
-        coverLetterData.template = 'standard';
-      }
-      
-      // All input fields are already included from the spread operation above
-      // The rest of the validation is handled by the schema
-      
-      // Create cover letter
-      const newCoverLetter = await storage.createCoverLetter(coverLetterData);
-      
-      res.status(201).json(newCoverLetter);
-    } catch (error: any) {
-      console.error('Error in POST /api/cover-letters:', error);
-      res.status(500).json({ 
-        message: "Failed to create cover letter", 
-        error: error.message 
-      });
-    }
   });
   
   // Update a cover letter
-  app.put('/api/cover-letters/:id', requireUser, async (req, res) => {
+  app.put('/api/cover-letters/:id', 
+    requireUser, 
+    trackFeatureUsage('cover_letter_update'),
+    async (req, res) => {
     try {
       if (!req.isAuthenticated() || !req.user) {
         return res.status(401).json({ message: "Unauthorized" });
@@ -155,7 +170,10 @@ export function registerCoverLetterRoutes(app: express.Express) {
   });
   
   // Delete a cover letter
-  app.delete('/api/cover-letters/:id', requireUser, async (req, res) => {
+  app.delete('/api/cover-letters/:id', 
+    requireUser, 
+    trackFeatureUsage('cover_letter_delete'),
+    async (req, res) => {
     try {
       if (!req.isAuthenticated() || !req.user) {
         return res.status(401).json({ message: "Unauthorized" });
@@ -178,17 +196,32 @@ export function registerCoverLetterRoutes(app: express.Express) {
         return res.status(403).json({ message: "You don't have permission to delete this cover letter" });
       }
       
-      // Delete the cover letter
-      const success = await storage.deleteCoverLetter(coverLetterId);
-      
-      if (!success) {
-        return res.status(500).json({ message: "Failed to delete cover letter" });
+      // Try to delete the cover letter
+      try {
+        const success = await storage.deleteCoverLetter(coverLetterId);
+        
+        if (!success) {
+          return res.status(500).json({ message: "Failed to delete cover letter" });
+        }
+        
+        res.json({ 
+          message: "Cover letter deleted successfully",
+          id: coverLetterId
+        });
+      } catch (deleteError: any) {
+        // Check for foreign key constraint violation
+        if (deleteError.code === '23503' && 
+            deleteError.constraint_name === 'job_applications_cover_letter_id_cover_letters_id_fk') {
+          return res.status(409).json({ 
+            message: "Cannot delete cover letter that is linked to job applications",
+            error: "This cover letter is referenced by one or more job applications. Please remove these references first.",
+            detail: "foreign key constraint violation"
+          });
+        }
+        
+        // Re-throw other errors
+        throw deleteError;
       }
-      
-      res.json({ 
-        message: "Cover letter deleted successfully",
-        id: coverLetterId
-      });
     } catch (error: any) {
       console.error(`Error in DELETE /api/cover-letters/${req.params.id}:`, error);
       res.status(500).json({ 

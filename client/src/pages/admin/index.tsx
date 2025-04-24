@@ -106,6 +106,13 @@ export function AdminDashboardPage() {
       href: "/admin/settings",
       color: "bg-indigo-500"
     },
+    {
+      title: "Subscriptions",
+      description: "Manage subscription plans and features",
+      icon: <ListIcon className="h-5 w-5" />,
+      href: "/admin/subscriptions",
+      color: "bg-cyan-500"
+    },
   ];
   
   return (

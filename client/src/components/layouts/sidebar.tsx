@@ -12,7 +12,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Settings,
-  Sparkles
+  Sparkles,
+  CreditCard
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useSidebar } from "@/hooks/use-sidebar";
@@ -52,6 +53,7 @@ export default function Sidebar() {
     { href: "/job-applications", label: "Job Applications", icon: Clipboard },
     { href: "/keyword-generator", label: "Keyword Generator", icon: Sparkles },
     { href: "/profile", label: "Profile", icon: User },
+    { href: "/user/subscription", label: "Subscription", icon: CreditCard },
   ];
   
   // Admin links that will be displayed only if the user is an admin

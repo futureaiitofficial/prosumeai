@@ -2,6 +2,11 @@ import express from 'express';
 import { truncateText } from '../../openai';
 import { ApiKeyService } from '../utils/ai-key-service';
 import { OpenAIApi } from '../../openai';  // Import the named export
+import { db } from '../../config/db';
+import { eq, sql, and } from 'drizzle-orm';
+import { featureUsage, features } from '@shared/schema';
+import { requireUser } from '../../middleware/auth';
+import { requireFeatureAccess, trackFeatureUsage } from '../../middleware/feature-access';
 
 // Use latest model for AI calls
 const MODEL = "gpt-4o"; // Using same model as in ai-resume-utils.ts
@@ -227,121 +232,235 @@ ${truncateText(jobDescription, 2000)}
   }
 }
 
+/**
+ * Tracks token usage for AI operations by a specific user
+ * @param userId The user ID to track usage for
+ * @param featureCode The feature code (must match a code in the features table)
+ * @param tokensUsed The number of tokens used in this operation
+ * @returns The updated or created feature usage record, or null if an error occurred
+ */
+async function trackTokenUsage(
+  userId: number, 
+  featureCode: string, 
+  tokensUsed: number
+): Promise<typeof featureUsage.$inferSelect | null> {
+  try {
+    // First, fetch the feature ID for the given feature code
+    const featureResult = await db.select({ id: features.id })
+      .from(features)
+      .where(eq(features.code, featureCode))
+      .limit(1);
+
+    // If feature doesn't exist, log an error and return
+    if (!featureResult.length) {
+      console.error(`Feature with code '${featureCode}' not found for token usage tracking`);
+      return null;
+    }
+
+    const featureId = featureResult[0].id;
+    
+    // Check if featureId is valid (not 0, undefined, or null)
+    if (!featureId) {
+      console.error(`Invalid feature ID for feature code '${featureCode}'`);
+      return null;
+    }
+
+    // Now insert/update with the correct feature ID
+    const existingUsage = await db.select({
+      id: featureUsage.id,
+      userId: featureUsage.userId,
+      featureId: featureUsage.featureId,
+      aiTokenCount: featureUsage.aiTokenCount
+    })
+      .from(featureUsage)
+      .where(and(
+        eq(featureUsage.userId, userId),
+        eq(featureUsage.featureId, featureId)
+      ))
+      .limit(1);
+
+    if (existingUsage.length) {
+      // Update existing usage record
+      const updated = await db.update(featureUsage)
+        .set({
+          aiTokenCount: sql`${featureUsage.aiTokenCount} + ${tokensUsed}`,
+          lastUsed: new Date()
+        })
+        .where(eq(featureUsage.id, existingUsage[0].id))
+        .returning();
+      
+      return updated[0] || null;
+    } else {
+      // Create new usage record with correct feature ID
+      const inserted = await db.insert(featureUsage)
+        .values({
+          userId: userId,
+          featureId: featureId,
+          aiTokenCount: tokensUsed,
+          usageCount: 0,
+          lastUsed: new Date(),
+          resetDate: new Date()
+        })
+        .returning();
+      
+      return inserted[0] || null;
+    }
+  } catch (error) {
+    console.error('Error tracking token usage:', error);
+    return null;
+  }
+}
+
 // Create router
 const router = express.Router();
 
 // Add any AI-related routes here
-router.post('/extract-keywords', async (req, res) => {
-  try {
-    const { jobDescription } = req.body;
-    
-    if (!jobDescription) {
-      return res.status(400).json({ 
-        message: 'Job description is required',
-        error: 'MISSING_JOB_DESCRIPTION'
-      });
-    }
-    
+router.post('/extract-keywords', 
+  requireUser,
+  requireFeatureAccess('ai_generation'),
+  trackFeatureUsage('ai_generation'),
+  async (req, res) => {
     try {
-      const keywords = await extractKeywordsFromJobDescription(jobDescription);
+      const { jobDescription } = req.body;
       
-      return res.json({ keywords });
-    } catch (error: any) {
-      console.error('Error extracting keywords:', error);
-      
-      // Provide more specific error response based on error type
-      if (error.message.includes('API key')) {
-        return res.status(500).json({ 
-          message: 'OpenAI API key configuration error. Please contact support.',
-          error: 'API_KEY_ERROR'
-        });
-      } else if (error.message.includes('Rate limit')) {
-        return res.status(429).json({ 
-          message: 'OpenAI API rate limit exceeded. Please try again later.',
-          error: 'RATE_LIMIT'
+      if (!jobDescription) {
+        return res.status(400).json({ 
+          message: 'Job description is required',
+          error: 'MISSING_JOB_DESCRIPTION'
         });
       }
       
+      try {
+        const keywords = await extractKeywordsFromJobDescription(jobDescription);
+        
+        // Track token usage for AI-specific metrics
+        if ((req.isAuthenticated && req.isAuthenticated()) && req.user) {
+          const tokensUsed = 350; // Estimate tokens used
+          try {
+            await trackTokenUsage(req.user.id, 'ai_generation', tokensUsed);
+          } catch (tokenError) {
+            console.error('Error tracking token usage:', tokenError);
+            // Continue with the response even if token tracking fails
+          }
+        }
+        
+        return res.json({ keywords });
+      } catch (error: any) {
+        console.error('Error extracting keywords:', error);
+        
+        // Provide more specific error response based on error type
+        if (error.message.includes('API key')) {
+          return res.status(500).json({ 
+            message: 'OpenAI API key configuration error. Please contact support.',
+            error: 'API_KEY_ERROR'
+          });
+        } else if (error.message.includes('Rate limit')) {
+          return res.status(429).json({ 
+            message: 'OpenAI API rate limit exceeded. Please try again later.',
+            error: 'RATE_LIMIT'
+          });
+        }
+        
+        return res.status(500).json({ 
+          message: 'Failed to extract keywords. Please try again.',
+          error: 'EXTRACTION_ERROR'
+        });
+      }
+    } catch (error: any) {
+      console.error('Error in extract-keywords route:', error);
       return res.status(500).json({ 
-        message: 'Failed to extract keywords. Please try again.',
-        error: 'EXTRACTION_ERROR'
+        message: 'Internal server error processing your request',
+        error: 'SERVER_ERROR'
       });
     }
-  } catch (error: any) {
-    console.error('Error in extract-keywords route:', error);
-    return res.status(500).json({ 
-      message: 'Internal server error processing your request',
-      error: 'SERVER_ERROR'
-    });
-  }
 });
 
 // Add analyze-job-description route
-router.post('/analyze-job-description', async (req, res) => {
-  try {
-    const { jobDescription } = req.body;
-    
-    if (!jobDescription) {
-      return res.status(400).json({ 
-        message: 'Job description is required',
-        error: 'MISSING_JOB_DESCRIPTION'
-      });
-    }
-    
+router.post('/analyze-job-description', 
+  requireUser,
+  requireFeatureAccess('ai_generation'),
+  trackFeatureUsage('ai_generation'),
+  async (req, res) => {
     try {
-      const result = await analyzeJobDescription(jobDescription);
-      return res.json(result);
-    } catch (error: any) {
-      console.error('Error analyzing job description:', error);
+      const { jobDescription } = req.body;
       
-      // Provide more specific error response based on error type
-      if (error.message.includes('API key')) {
-        return res.status(500).json({ 
-          message: 'OpenAI API key configuration error. Please contact support.',
-          error: 'API_KEY_ERROR'
-        });
-      } else if (error.message.includes('Rate limit')) {
-        return res.status(429).json({ 
-          message: 'OpenAI API rate limit exceeded. Please try again later.',
-          error: 'RATE_LIMIT'
+      if (!jobDescription) {
+        return res.status(400).json({ 
+          message: 'Job description is required',
+          error: 'MISSING_JOB_DESCRIPTION'
         });
       }
       
+      try {
+        const result = await analyzeJobDescription(jobDescription);
+        
+        // Track token usage for AI-specific metrics
+        if ((req.isAuthenticated && req.isAuthenticated()) && req.user) {
+          const tokensUsed = 1000; // Estimate tokens used
+          try {
+            await trackTokenUsage(req.user.id, 'ai_generation', tokensUsed);
+          } catch (tokenError) {
+            console.error('Error tracking token usage:', tokenError);
+            // Continue with the response even if token tracking fails
+          }
+        }
+        
+        return res.json(result);
+      } catch (error: any) {
+        console.error('Error analyzing job description:', error);
+        
+        // Provide more specific error response based on error type
+        if (error.message.includes('API key')) {
+          return res.status(500).json({ 
+            message: 'OpenAI API key configuration error. Please contact support.',
+            error: 'API_KEY_ERROR'
+          });
+        } else if (error.message.includes('Rate limit')) {
+          return res.status(429).json({ 
+            message: 'OpenAI API rate limit exceeded. Please try again later.',
+            error: 'RATE_LIMIT'
+          });
+        }
+        
+        return res.status(500).json({ 
+          message: 'Failed to analyze job description. Please try again.',
+          error: 'ANALYSIS_ERROR'
+        });
+      }
+    } catch (error: any) {
+      console.error('Error in analyze-job-description route:', error);
       return res.status(500).json({ 
-        message: 'Failed to analyze job description. Please try again.',
-        error: 'ANALYSIS_ERROR'
+        message: 'Internal server error processing your request',
+        error: 'SERVER_ERROR'
       });
     }
-  } catch (error: any) {
-    console.error('Error in analyze-job-description route:', error);
-    return res.status(500).json({ 
-      message: 'Internal server error processing your request',
-      error: 'SERVER_ERROR'
-    });
-  }
 });
 
 // General content generation route
-router.post('/generate', async (req, res) => {
-  try {
-    const { prompt } = req.body;
-    
-    if (!prompt) {
-      return res.status(400).json({ 
-        message: 'Prompt is required',
-        error: 'MISSING_PROMPT'
-      });
-    }
-    
+router.post('/generate', 
+  requireUser,
+  requireFeatureAccess('ai_generation'),
+  trackFeatureUsage('ai_generation'),
+  async (req, res) => {
     try {
-      // Determine if this is a cover letter request
-      const isCoverLetterRequest = prompt.toLowerCase().includes('cover letter') || 
-                                 prompt.toLowerCase().includes('position at');
+      const { prompt } = req.body;
       
-      // Configure system message based on request type
-      let systemMessage;
-      if (isCoverLetterRequest) {
-        systemMessage = `You are an expert career coach who specializes in writing personalized, persuasive cover letters. 
+      if (!prompt) {
+        return res.status(400).json({ 
+          message: 'Prompt is required',
+          error: 'MISSING_PROMPT'
+        });
+      }
+      
+      try {
+        // Determine if this is a cover letter request
+        const isCoverLetterRequest = prompt.toLowerCase().includes('cover letter') || 
+                                   prompt.toLowerCase().includes('position at');
+        
+        // Configure system message based on request type
+        let systemMessage;
+        if (isCoverLetterRequest) {
+          systemMessage = `You are an expert career coach who specializes in writing personalized, persuasive cover letters. 
 Follow these critical guidelines when generating cover letter content:
 1. NEVER include a header with contact information
 2. NEVER include a greeting/salutation line (like "Dear Hiring Manager")
@@ -353,55 +472,67 @@ Follow these critical guidelines when generating cover letter content:
 8. End with the last paragraph of the body content without signature
 
 Your response should ONLY contain the body paragraphs that would go between the greeting and signature in a traditional cover letter.`;
-      } else {
-        systemMessage = "You are a helpful assistant that provides high-quality, accurate content based on user requests.";
-      }
+        } else {
+          systemMessage = "You are a helpful assistant that provides high-quality, accurate content based on user requests.";
+        }
 
-      const response = await OpenAIApi.chat({
-        model: MODEL,
-        messages: [
-          { role: 'system', content: systemMessage },
-          { role: 'user', content: prompt }
-        ],
-        max_tokens: 1000,
-        temperature: 0.7,
-      });
+        const response = await OpenAIApi.chat({
+          model: MODEL,
+          messages: [
+            { role: 'system', content: systemMessage },
+            { role: 'user', content: prompt }
+          ],
+          max_tokens: 1000,
+          temperature: 0.7,
+        });
 
-      if (!response.choices || response.choices.length === 0) {
-        throw new Error('API Error: No response choices returned');
-      }
+        if (!response.choices || response.choices.length === 0) {
+          throw new Error('API Error: No response choices returned');
+        }
 
-      const content = response.choices[0]?.message?.content?.trim() || "";
-      
-      return res.json({ content });
-    } catch (error: any) {
-      console.error('Error generating content:', error);
-      
-      // Provide more specific error response based on error type
-      if (error.message.includes('API key')) {
+        const content = response.choices[0]?.message?.content?.trim() || "";
+        
+        // Track token usage for AI-specific metrics
+        if ((req.isAuthenticated && req.isAuthenticated()) && req.user) {
+          const tokensUsed = response.usage?.total_tokens || 0;
+          // Always use ai_generation feature code for all AI operations
+          try {
+            await trackTokenUsage(req.user.id, 'ai_generation', tokensUsed);
+          } catch (tokenError) {
+            console.error('Error tracking token usage:', tokenError);
+            // Continue with the response even if token tracking fails
+          }
+        }
+        
+        return res.json({ content });
+      } catch (error: any) {
+        console.error('Error generating content:', error);
+        
+        // Provide more specific error response based on error type
+        if (error.message.includes('API key')) {
+          return res.status(500).json({ 
+            message: 'OpenAI API key configuration error. Please contact support.',
+            error: 'API_KEY_ERROR'
+          });
+        } else if (error.message.includes('Rate limit')) {
+          return res.status(429).json({ 
+            message: 'OpenAI API rate limit exceeded. Please try again later.',
+            error: 'RATE_LIMIT'
+          });
+        }
+        
         return res.status(500).json({ 
-          message: 'OpenAI API key configuration error. Please contact support.',
-          error: 'API_KEY_ERROR'
-        });
-      } else if (error.message.includes('Rate limit')) {
-        return res.status(429).json({ 
-          message: 'OpenAI API rate limit exceeded. Please try again later.',
-          error: 'RATE_LIMIT'
+          message: 'Failed to generate content. Please try again.',
+          error: 'GENERATION_ERROR'
         });
       }
-      
+    } catch (error: any) {
+      console.error('Error in generate route:', error);
       return res.status(500).json({ 
-        message: 'Failed to generate content. Please try again.',
-        error: 'GENERATION_ERROR'
+        message: 'Internal server error processing your request',
+        error: 'SERVER_ERROR'
       });
     }
-  } catch (error: any) {
-    console.error('Error in generate route:', error);
-    return res.status(500).json({ 
-      message: 'Internal server error processing your request',
-      error: 'SERVER_ERROR'
-    });
-  }
 });
 
 export default router; 

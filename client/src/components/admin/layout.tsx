@@ -88,6 +88,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
     { name: "Integrations", href: "/admin/integrations", icon: Plug2 },
     { name: "Security", href: "/admin/security", icon: Shield },
     { name: "System Status", href: "/admin/system-status", icon: Server },
+    { name: "Subscriptions", href: "/admin/subscriptions", icon: CreditCard },
   ];
 
   return (

@@ -211,6 +211,225 @@ export const apiKeys = pgTable("api_keys", {
   updatedAt: timestamp("updated_at").defaultNow()
 });
 
+// ============= Subscription SaaS Model Schemas =============
+
+// Subscription Billing Cycle Enum
+export const billingCycleEnum = pgEnum('billing_cycle', [
+  'MONTHLY',
+  'YEARLY'
+]);
+
+// Region Target Enum
+export const targetRegionEnum = pgEnum('target_region', [
+  'INDIA',
+  'GLOBAL'
+]);
+
+// Currency Enum
+export const currencyEnum = pgEnum('currency', [
+  'INR',
+  'USD'
+]);
+
+// Feature Type Enum
+export const featureTypeEnum = pgEnum('feature_type', [
+  'ESSENTIAL',
+  'ADVANCED',
+  'PROFESSIONAL'
+]);
+
+// Limit Type Enum
+export const limitTypeEnum = pgEnum('limit_type', [
+  'UNLIMITED',
+  'COUNT',
+  'BOOLEAN'
+]);
+
+// Reset Frequency Enum
+export const resetFrequencyEnum = pgEnum('reset_frequency', [
+  'NEVER',
+  'DAILY',
+  'WEEKLY',
+  'MONTHLY',
+  'YEARLY'
+]);
+
+// Subscription Status Enum
+export const subscriptionStatusEnum = pgEnum('subscription_status', [
+  'ACTIVE',
+  'GRACE_PERIOD',
+  'EXPIRED',
+  'CANCELLED'
+]);
+
+// Payment Gateway Enum
+export const paymentGatewayEnum = pgEnum('payment_gateway', [
+  'RAZORPAY',
+  'STRIPE',
+  'PAYPAL'
+]);
+
+// Payment Status Enum
+export const paymentStatusEnum = pgEnum('payment_status', [
+  'PENDING',
+  'COMPLETED',
+  'FAILED',
+  'REFUNDED'
+]);
+
+// Dispute Status Enum
+export const disputeStatusEnum = pgEnum('dispute_status', [
+  'OPEN',
+  'UNDER_REVIEW',
+  'RESOLVED',
+  'REJECTED'
+]);
+
+// Subscription Plans Table
+export const subscriptionPlans = pgTable("subscription_plans", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description").notNull(),
+  price: decimal("price", { precision: 10, scale: 2 }).notNull(),
+  billingCycle: billingCycleEnum("billing_cycle").notNull(),
+  isFeatured: boolean("is_featured").default(false).notNull(),
+  isFreemium: boolean("is_freemium").default(false).notNull(),
+  active: boolean("active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow()
+});
+
+// Plan Pricing Table for region-specific pricing
+export const planPricing = pgTable("plan_pricing", {
+  id: serial("id").primaryKey(),
+  planId: integer("plan_id").notNull().references(() => subscriptionPlans.id),
+  targetRegion: targetRegionEnum("target_region").notNull(),
+  currency: currencyEnum("currency").notNull(),
+  price: decimal("price", { precision: 10, scale: 2 }).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow()
+}, (table) => {
+  return {
+    uniquePlanRegion: unique().on(table.planId, table.targetRegion)
+  };
+});
+
+// Features Table
+export const features = pgTable("features", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  code: text("code").notNull().unique(),
+  description: text("description").notNull(),
+  featureType: featureTypeEnum("feature_type").notNull(),
+  isCountable: boolean("is_countable").default(true).notNull(),
+  isTokenBased: boolean("is_token_based").default(false).notNull(),
+  costFactor: decimal("cost_factor", { precision: 10, scale: 4 }).default("1.0000"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow()
+});
+
+// Plan Features Table
+export const planFeatures = pgTable("plan_features", {
+  id: serial("id").primaryKey(),
+  planId: integer("plan_id").notNull().references(() => subscriptionPlans.id),
+  featureId: integer("feature_id").notNull().references(() => features.id),
+  limitType: limitTypeEnum("limit_type").notNull(),
+  limitValue: integer("limit_value"),
+  isEnabled: boolean("is_enabled").default(false).notNull(),
+  resetFrequency: resetFrequencyEnum("reset_frequency"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow()
+}, (table) => {
+  return {
+    uniquePlanFeature: unique().on(table.planId, table.featureId)
+  };
+});
+
+// User Subscriptions Table
+export const userSubscriptions = pgTable("user_subscriptions", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id),
+  planId: integer("plan_id").notNull().references(() => subscriptionPlans.id),
+  startDate: timestamp("start_date").notNull(),
+  endDate: timestamp("end_date").notNull(),
+  autoRenew: boolean("auto_renew").default(true).notNull(),
+  paymentGateway: text("payment_gateway").notNull(),
+  paymentReference: text("payment_reference"),
+  status: subscriptionStatusEnum("status").notNull().default('ACTIVE'),
+  isTrial: boolean("is_trial").default(false).notNull(),
+  trialExpiryDate: timestamp("trial_expiry_date"),
+  convertedFromTrial: boolean("converted_from_trial").default(false).notNull(),
+  gracePeriodEnd: timestamp("grace_period_end"),
+  previousPlanId: integer("previous_plan_id").references(() => subscriptionPlans.id),
+  upgradeDate: timestamp("upgrade_date"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow()
+});
+
+// Feature Usage Table
+export const featureUsage = pgTable("feature_usage", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id),
+  featureId: integer("feature_id").notNull().references(() => features.id),
+  usageCount: integer("usage_count").default(0).notNull(),
+  aiModelType: text("ai_model_type"),
+  aiTokenCount: integer("ai_token_count"),
+  aiCost: decimal("ai_cost", { precision: 10, scale: 4 }),
+  lastUsed: timestamp("last_used").defaultNow(),
+  resetDate: timestamp("reset_date"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow()
+}, (table) => {
+  return {
+    uniqueUserFeature: unique().on(table.userId, table.featureId)
+  };
+});
+
+// Payment Transactions Table
+export const paymentTransactions = pgTable("payment_transactions", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id),
+  subscriptionId: integer("subscription_id").notNull().references(() => userSubscriptions.id),
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  currency: currencyEnum("currency").notNull(),
+  gateway: paymentGatewayEnum("gateway").notNull(),
+  gatewayTransactionId: text("gateway_transaction_id"),
+  status: paymentStatusEnum("status").notNull().default('PENDING'),
+  refundReason: text("refund_reason"),
+  refundAmount: decimal("refund_amount", { precision: 10, scale: 2 }),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow()
+});
+
+// Disputes Table
+export const disputes = pgTable("disputes", {
+  id: serial("id").primaryKey(),
+  transactionId: integer("transaction_id").notNull().references(() => paymentTransactions.id),
+  userId: integer("user_id").notNull().references(() => users.id),
+  reason: text("reason").notNull(),
+  status: disputeStatusEnum("status").notNull().default('OPEN'),
+  resolutionNotes: text("resolution_notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  resolvedAt: timestamp("resolved_at")
+});
+
+// Document Version Table
+export const documentVersions = pgTable("document_versions", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id),
+  documentId: integer("document_id").notNull(),
+  documentType: text("document_type").notNull(), // 'RESUME' or 'COVER_LETTER'
+  versionNumber: integer("version_number").notNull(),
+  contentHash: text("content_hash").notNull(),
+  isSignificantChange: boolean("is_significant_change").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow()
+}, (table) => {
+  return {
+    uniqueDocumentVersion: unique().on(table.documentId, table.documentType, table.versionNumber)
+  };
+});
+
 // Insert Schemas
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -278,6 +497,60 @@ export const insertCoverLetterTemplateSchema = createInsertSchema(coverLetterTem
 
 export const insertApiKeySchema = createInsertSchema(apiKeys);
 
+export const insertSubscriptionPlanSchema = createInsertSchema(subscriptionPlans).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+
+export const insertPlanPricingSchema = createInsertSchema(planPricing).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+
+export const insertFeatureSchema = createInsertSchema(features).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+
+export const insertPlanFeatureSchema = createInsertSchema(planFeatures).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+
+export const insertUserSubscriptionSchema = createInsertSchema(userSubscriptions).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+
+export const insertFeatureUsageSchema = createInsertSchema(featureUsage).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+
+export const insertPaymentTransactionSchema = createInsertSchema(paymentTransactions).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+
+export const insertDisputeSchema = createInsertSchema(disputes).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  resolvedAt: true
+});
+
+export const insertDocumentVersionSchema = createInsertSchema(documentVersions).omit({
+  id: true,
+  createdAt: true
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type AppSetting = typeof appSettings.$inferSelect;
@@ -298,6 +571,26 @@ export type InsertJobApplication = z.infer<typeof insertJobApplicationSchema>;
 export type InsertResumeTemplate = z.infer<typeof insertResumeTemplateSchema>;
 export type InsertCoverLetterTemplate = z.infer<typeof insertCoverLetterTemplateSchema>;
 export type InsertApiKey = z.infer<typeof insertApiKeySchema>;
+
+export type SubscriptionPlan = typeof subscriptionPlans.$inferSelect;
+export type PlanPricing = typeof planPricing.$inferSelect;
+export type Feature = typeof features.$inferSelect;
+export type PlanFeature = typeof planFeatures.$inferSelect;
+export type UserSubscription = typeof userSubscriptions.$inferSelect;
+export type FeatureUsage = typeof featureUsage.$inferSelect;
+export type PaymentTransaction = typeof paymentTransactions.$inferSelect;
+export type Dispute = typeof disputes.$inferSelect;
+export type DocumentVersion = typeof documentVersions.$inferSelect;
+
+export type InsertSubscriptionPlan = z.infer<typeof insertSubscriptionPlanSchema>;
+export type InsertPlanPricing = z.infer<typeof insertPlanPricingSchema>;
+export type InsertFeature = z.infer<typeof insertFeatureSchema>;
+export type InsertPlanFeature = z.infer<typeof insertPlanFeatureSchema>;
+export type InsertUserSubscription = z.infer<typeof insertUserSubscriptionSchema>;
+export type InsertFeatureUsage = z.infer<typeof insertFeatureUsageSchema>;
+export type InsertPaymentTransaction = z.infer<typeof insertPaymentTransactionSchema>;
+export type InsertDispute = z.infer<typeof insertDisputeSchema>;
+export type InsertDocumentVersion = z.infer<typeof insertDocumentVersionSchema>;
 
 // Resume-related type definitions for frontend
 export type WorkExperience = {

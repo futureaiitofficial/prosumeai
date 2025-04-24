@@ -34,6 +34,8 @@ import SystemStatusPage from "@/pages/admin/system-status";
 import BackupsPage from "@/pages/admin/backups";
 import ApiKeysPage from "@/pages/admin/api-keys";
 import { LocationProvider } from "./hooks/use-location";
+import AdminSubscriptionsPage from "@/pages/admin/subscriptions";
+import UserSubscriptionPage from "@/pages/user/subscription";
 
 function Router() {
   return (
@@ -48,6 +50,7 @@ function Router() {
       <ProtectedRoute path="/profile" component={Profile} />
       <ProtectedRoute path="/preview-generator" component={PreviewGenerator} />
       <ProtectedRoute path="/keyword-generator" component={KeywordGenerator} />
+      <ProtectedRoute path="/user/subscription" component={() => <UserSubscriptionPage />} />
       
       {/* Admin Routes */}
       <AdminRoute path="/admin" component={AdminPage} />
@@ -61,6 +64,7 @@ function Router() {
       <AdminRoute path="/admin/system-status" component={SystemStatusPage} />
       <AdminRoute path="/admin/backups" component={BackupsPage} />
       <AdminRoute path="/admin/api-keys" component={ApiKeysPage} />
+      <AdminRoute path="/admin/subscriptions" component={() => <AdminSubscriptionsPage />} />
       
       <Route component={NotFound} />
     </Switch>

@@ -66,6 +66,12 @@ export default function ATSScore({ resumeData }: ATSScoreProps) {
   // Store previous resume data for comparison
   const previousResumeDataRef = useRef<string>("");
   
+  // Track if this is the initial mount
+  const isInitialMountRef = useRef(true);
+  
+  // Store resume ID to help with caching
+  const resumeIdRef = useRef<number | string | null>(null);
+  
   // Debounce timer reference
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -101,7 +107,22 @@ export default function ATSScore({ resumeData }: ATSScoreProps) {
         all: atsScore.feedback.keywordsFeedback?.all || [],
         categories: atsScore.feedback.keywordsFeedback?.categories || {}
       });
-      // Open the sheet automatically when score is calculated
+      
+      // Update local storage cache for this resume
+      if (resumeData.id) {
+        try {
+          localStorage.setItem(`ats_score_${resumeData.id}`, JSON.stringify({
+            score: atsScore,
+            timestamp: Date.now(),
+            jobTitle: resumeData.targetJobTitle,
+            jobDescriptionHash: hashString(resumeData.jobDescription || '')
+          }));
+        } catch (e) {
+          console.warn('Failed to cache ATS score in localStorage:', e);
+        }
+      }
+      
+      // Open the sheet automatically when score is calculated manually
       setIsOpen(true);
     } catch (error) {
       toast({
@@ -113,6 +134,43 @@ export default function ATSScore({ resumeData }: ATSScoreProps) {
     } finally {
       setIsCalculating(false);
     }
+  };
+
+  // Simple string hashing function for comparing job descriptions
+  const hashString = (str: string): string => {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash;
+    }
+    return hash.toString();
+  };
+  
+  // Try to load a cached score from localStorage
+  const loadCachedScore = () => {
+    if (!resumeData?.id) return null;
+    
+    try {
+      const cachedData = localStorage.getItem(`ats_score_${resumeData.id}`);
+      if (!cachedData) return null;
+      
+      const parsed = JSON.parse(cachedData);
+      
+      // Verify the cached data is still relevant
+      const isRelevant = 
+        parsed.jobTitle === resumeData.targetJobTitle &&
+        parsed.jobDescriptionHash === hashString(resumeData.jobDescription || '');
+      
+      // Use cached data only if still relevant and less than 24 hours old
+      const ONE_DAY = 24 * 60 * 60 * 1000;
+      if (isRelevant && (Date.now() - parsed.timestamp) < ONE_DAY) {
+        return parsed.score;
+      }
+    } catch (e) {
+      console.warn('Failed to load cached ATS score:', e);
+    }
+    return null;
   };
 
   const getScoreColor = (score: number) => {
@@ -165,7 +223,6 @@ export default function ATSScore({ resumeData }: ATSScoreProps) {
   // Silent calculation that doesn't show toasts or open the sheet
   const calculateScoreQuietly = async () => {
     try {
-      
       // Skip validation - this is only called when we know we have the required data
       setIsCalculating(true);
       
@@ -178,7 +235,20 @@ export default function ATSScore({ resumeData }: ATSScoreProps) {
         all: atsScore.feedback.keywordsFeedback?.all || [],
         categories: atsScore.feedback.keywordsFeedback?.categories || {}
       });
-      // Don't open the sheet automatically for the quiet update
+      
+      // Update localStorage cache
+      if (resumeData.id) {
+        try {
+          localStorage.setItem(`ats_score_${resumeData.id}`, JSON.stringify({
+            score: atsScore,
+            timestamp: Date.now(),
+            jobTitle: resumeData.targetJobTitle,
+            jobDescriptionHash: hashString(resumeData.jobDescription || '')
+          }));
+        } catch (e) {
+          console.warn('Failed to cache ATS score in localStorage:', e);
+        }
+      }
     } catch (error) {
       console.error("Silent ATS score calculation error:", error);
     } finally {
@@ -186,10 +256,38 @@ export default function ATSScore({ resumeData }: ATSScoreProps) {
     }
   };
   
+  // Load cached score on initial mount
+  useEffect(() => {
+    if (resumeData?.id) {
+      const resumeId = String(resumeData.id); // Convert to string for consistent comparison
+      if (resumeId !== String(resumeIdRef.current)) {
+        resumeIdRef.current = resumeId;
+        const cachedScore = loadCachedScore();
+        if (cachedScore) {
+          setScore(cachedScore);
+          setKeywords({
+            found: cachedScore.feedback.keywordsFeedback?.found || [],
+            missing: cachedScore.feedback.keywordsFeedback?.missing || [],
+            all: cachedScore.feedback.keywordsFeedback?.all || [],
+            categories: cachedScore.feedback.keywordsFeedback?.categories || {}
+          });
+        }
+      }
+    }
+  }, [resumeData?.id]);
+  
   // Watch for resume data changes
   useEffect(() => {
     // Stringify the resumeData for comparison
-    const currentResumeDataString = JSON.stringify(resumeData);
+    const currentResumeDataString = JSON.stringify({
+      targetJobTitle: resumeData.targetJobTitle,
+      jobDescription: resumeData.jobDescription,
+      summary: resumeData.summary,
+      workExperience: resumeData.workExperience,
+      skills: resumeData.skills,
+      technicalSkills: resumeData.technicalSkills,
+      softSkills: resumeData.softSkills
+    });
     
     // Compare with previous data
     if (previousResumeDataRef.current !== currentResumeDataString) {
@@ -204,11 +302,17 @@ export default function ATSScore({ resumeData }: ATSScoreProps) {
         (resumeData.technicalSkills && resumeData.technicalSkills.length > 0);
       
       // Skip the first run (when component mounts)
-      if (previousResumeDataRef.current !== "") {
-        // Only auto-calculate if we have sufficient resume content
-        if (hasEssentialContent) {
-          debouncedCalculateScore();
-        } else if (score) {
+      if (isInitialMountRef.current) {
+        isInitialMountRef.current = false;
+      } else {
+        // Only auto-calculate if we have sufficient resume content and data has actually changed
+        if (hasEssentialContent && resumeData?.targetJobTitle && resumeData?.jobDescription) {
+          // Check if cached score exists and is still valid
+          const cachedScore = loadCachedScore();
+          if (!cachedScore) {
+            debouncedCalculateScore();
+          }
+        } else if (score && !hasEssentialContent) {
           // If we previously had a score but the resume is now empty, reset the score
           setScore(null);
         }

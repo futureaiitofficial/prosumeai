@@ -24,6 +24,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { coverLetterTemplates as importedTemplates } from "@/templates/registerCoverLetterTemplates";
+import { TokenUsage } from "@/components/ui/token-usage";
+import { useTokenWarning } from "@/hooks/use-token-warning";
 
 // Cover letter creation steps
 type BuilderStep = "template" | "job-details" | "personal-info" | "company-info" | "content" | "export";
@@ -86,6 +88,7 @@ export default function CoverLetterBuilder() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [coverLetterId, setCoverLetterId] = useState<number | null>(null);
+  const [isNewCoverLetter, setIsNewCoverLetter] = useState(false);
   
   // Form data state
   const [formData, setFormData] = useState({
@@ -162,7 +165,16 @@ export default function CoverLetterBuilder() {
   // Create cover letter mutation
   const createCoverLetterMutation = useMutation({
     mutationFn: async (coverLetterData: Partial<CoverLetter>): Promise<CoverLetter> => {
-      const response = await apiRequest('POST', '/api/cover-letters', coverLetterData);
+      const cleanData = {
+        ...coverLetterData,
+        fullName: coverLetterData.fullName || '',
+        email: coverLetterData.email || '',
+        phone: coverLetterData.phone || '',
+        address: coverLetterData.address || '',
+        content: coverLetterData.content || ''
+      };
+      console.log('Creating cover letter with sanitized data:', cleanData);
+      const response = await apiRequest('POST', '/api/cover-letters', cleanData);
       return await response.json();
     },
     onSuccess: (data) => {
@@ -192,7 +204,15 @@ export default function CoverLetterBuilder() {
   const updateCoverLetterMutation = useMutation({
     mutationFn: async (coverLetterData: Partial<CoverLetter>): Promise<CoverLetter> => {
       if (!coverLetterId) throw new Error("No cover letter ID specified for update.");
-      const response = await apiRequest('PUT', `/api/cover-letters/${coverLetterId}`, coverLetterData);
+      const cleanedData = {
+        ...coverLetterData,
+        fullName: coverLetterData.fullName !== undefined ? coverLetterData.fullName : (coverLetters.find((c: CoverLetter) => c.id === coverLetterId)?.fullName || ''),
+        email: coverLetterData.email !== undefined ? coverLetterData.email : (coverLetters.find((c: CoverLetter) => c.id === coverLetterId)?.email || ''),
+        phone: coverLetterData.phone !== undefined ? coverLetterData.phone : (coverLetters.find((c: CoverLetter) => c.id === coverLetterId)?.phone || ''),
+        address: coverLetterData.address !== undefined ? coverLetterData.address : (coverLetters.find((c: CoverLetter) => c.id === coverLetterId)?.address || ''),
+      };
+      console.log('Updating cover letter with data:', cleanedData);
+      const response = await apiRequest('PUT', `/api/cover-letters/${coverLetterId}`, cleanedData);
       return await response.json();
     },
     onSuccess: () => {
@@ -258,6 +278,9 @@ export default function CoverLetterBuilder() {
       });
     }
   });
+
+  // Add this near other hooks in the component
+  const { WarningDialog: TokenWarningDialog } = useTokenWarning("GENERATE_COVER_LETTER", 75);
 
   // Function to generate content based on resume, job details, etc.
   const generateContent = async () => {
@@ -430,6 +453,7 @@ export default function CoverLetterBuilder() {
 
     // Sanitize the data
     const sanitizedData = sanitizeObject(coverLetterData) as Partial<CoverLetter>;
+    console.log('Sanitized data for save:', sanitizedData);
 
     if (coverLetterId) {
       return updateCoverLetterMutation.mutateAsync(sanitizedData);
@@ -612,79 +636,106 @@ export default function CoverLetterBuilder() {
     }
   };
 
-  // Check URL for cover letter ID
+  // Effect to handle the URL query parameter (for editing)
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const id = params.get('id');
-    const isNewCoverLetter = params.get('new') === 'true';
-    
-    if (id && !isNewCoverLetter) {
-      const coverId = parseInt(id);
-      setCoverLetterId(coverId);
-      setIsEditing(true);
+    const fetchCoverLetter = async () => {
+      const params = new URLSearchParams(window.location.search);
+      const id = params.get('id');
+      const isNew = params.get('new') === 'true';
       
-      // Fetch cover letter data
-      const fetchCoverLetter = async () => {
-        try {
-          const response = await apiRequest('GET', `/api/cover-letters/${coverId}`);
-          const coverLetter: CoverLetter = await response.json();
-          
-          setFormData({
-            title: coverLetter.title || '',
-            content: coverLetter.content || '',
-            template: coverLetter.template || 'standard'
-          });
-          
-          setJobDetails({
-            jobTitle: coverLetter.jobTitle || '',
-            jobDescription: coverLetter.jobDescription || ''
-          });
-          
-          setCompanyInfo({
-            companyName: coverLetter.company || '',
-            recipientName: coverLetter.recipientName || ''
-          });
-          
-          setPersonalInfo({
-            resumeId: coverLetter.resumeId || null,
-            fullName: coverLetter.fullName || '',
-            email: coverLetter.email || '',
-            phone: coverLetter.phone || '',
-            address: coverLetter.address || ''
-          });
-          
-        } catch (error) {
-          console.error("Error fetching cover letter:", error);
-          toast({
-            title: "Error",
-            description: "Failed to load cover letter. Please try again.",
-            variant: "destructive",
-          });
-        }
-      };
+      console.log('URL params:', { id, isNew });
+      setIsNewCoverLetter(isNew);
       
-      fetchCoverLetter();
-    } else {
-      // Try to restore state from session storage
-      const savedState = sessionStorage.getItem('coverLetterBuilderState');
-      if (savedState) {
-        try {
-          const state = JSON.parse(savedState);
-          setFormData(state.formData);
-          setJobDetails(state.jobDetails);
-          setCompanyInfo(state.companyInfo);
-          setPersonalInfo(state.personalInfo);
+      if (id) {
+        const parsedId = parseInt(id);
+        if (!isNaN(parsedId)) {
+          setCoverLetterId(parsedId);
           
-          if (state.currentStep) {
-            setCurrentStep(state.currentStep as BuilderStep);
+          // Fetch the cover letter data
+          try {
+            const response = await apiRequest('GET', `/api/cover-letters/${parsedId}`);
+            if (response.ok) {
+              const coverLetterData = await response.json();
+              console.log('Loaded cover letter data:', coverLetterData);
+              
+              // Populate form data
+              setFormData({
+                title: coverLetterData.title || '',
+                content: coverLetterData.content || '',
+                template: coverLetterData.template || 'standard'
+              });
+              
+              // Populate job details
+              setJobDetails({
+                jobTitle: coverLetterData.jobTitle || '',
+                jobDescription: coverLetterData.jobDescription || ''
+              });
+              
+              // Populate personal info
+              setPersonalInfo({
+                resumeId: coverLetterData.resumeId,
+                fullName: coverLetterData.fullName || '',
+                email: coverLetterData.email || '',
+                phone: coverLetterData.phone || '',
+                address: coverLetterData.address || ''
+              });
+              
+              // Populate company info
+              setCompanyInfo({
+                companyName: coverLetterData.company || '',
+                recipientName: coverLetterData.recipientName || ''
+              });
+              
+              // Debug log to verify the state is correctly initialized
+              console.log('After initialization:', {
+                formData: {
+                  title: coverLetterData.title || '',
+                  content: coverLetterData.content || '',
+                  template: coverLetterData.template || 'standard'
+                },
+                personalInfo: {
+                  resumeId: coverLetterData.resumeId,
+                  fullName: coverLetterData.fullName || '',
+                  email: coverLetterData.email || '',
+                  phone: coverLetterData.phone || '',
+                  address: coverLetterData.address || ''
+                },
+                jobDetails: {
+                  jobTitle: coverLetterData.jobTitle || '',
+                  jobDescription: coverLetterData.jobDescription || ''
+                },
+                companyInfo: {
+                  companyName: coverLetterData.company || '',
+                  recipientName: coverLetterData.recipientName || ''
+                }
+              });
+              
+              // If this is a new cover letter, ensure all personal fields are empty
+              if (isNew) {
+                console.log('This is a new cover letter - resetting personal fields to empty strings');
+                setPersonalInfo({
+                  resumeId: null,
+                  fullName: '',
+                  email: '',
+                  phone: '',
+                  address: ''
+                });
+              }
+            }
+          } catch (error) {
+            console.error('Error fetching cover letter:', error);
+            toast({
+              title: "Error",
+              description: "Failed to load cover letter. Please try again.",
+              variant: "destructive"
+            });
           }
-        } catch (error) {
-          console.error("Error restoring state:", error);
-          sessionStorage.removeItem('coverLetterBuilderState');
         }
       }
-    }
-  }, []);
+    };
+    
+    fetchCoverLetter();
+  }, [toast]);
 
   // Add a function to generate PDF from the actual React template components
   const generatePDFFromCoverLetterTemplate = async (templateName: string, templateData: any) => {
@@ -1336,6 +1387,50 @@ export default function CoverLetterBuilder() {
     );
   };
 
+  // In the component before the return statement, add debugging for initialization
+  useEffect(() => {
+    // Check query parameters for initialization
+    const params = new URLSearchParams(window.location.search);
+    const isNew = params.get('new') === 'true';
+    const coverIdParam = params.get('id');
+    
+    // Only proceed if we have a valid cover ID
+    if (!coverIdParam) return;
+    
+    const coverId = parseInt(coverIdParam);
+    
+    // Log initialization details
+    console.log('Cover Letter Builder Initialization:', { 
+      isNew,
+      coverId,
+      coverLetter: coverLetters.find((c: CoverLetter) => c.id === coverId),
+      isLoading: createCoverLetterMutation.isPending || updateCoverLetterMutation.isPending
+    });
+    
+    if (isNew) {
+      console.log('New cover letter being created with ID:', coverId);
+      
+      // Verify if we should initialize from scratch or if unintended data exists
+      const currentLetter = coverLetters.find((c: CoverLetter) => c.id === coverId);
+      if (currentLetter) {
+        console.log('Initial cover letter data:', {
+          content: currentLetter.content,
+          fullName: currentLetter.fullName || '',
+          email: currentLetter.email || '',
+          phone: currentLetter.phone || '',
+          address: currentLetter.address || '',
+          title: currentLetter.title || '',
+          company: currentLetter.company || '',
+        });
+        
+        // If this is a new cover letter but has unexpected data, we need to make sure it's properly initialized
+        if (isNew && (currentLetter.fullName || currentLetter.email || currentLetter.phone || currentLetter.address)) {
+          console.warn('Warning: New cover letter has pre-populated personal data which may indicate a data leak from another letter.');
+        }
+      }
+    }
+  }, [coverLetters, createCoverLetterMutation.isPending, updateCoverLetterMutation.isPending]);
+
   return (
     <div className="flex flex-col min-h-screen">
       <Header />
@@ -1370,6 +1465,8 @@ export default function CoverLetterBuilder() {
               </li>
             ))}
           </ul>
+          
+          <TokenUsage featureCode="GENERATE_COVER_LETTER" compact={true} className="mt-2" />
         </div>
 
         {/* Main content */}
@@ -1518,6 +1615,9 @@ export default function CoverLetterBuilder() {
           </div>
         </div>
       </div>
+      
+      {/* Add the token warning dialog */}
+      <TokenWarningDialog />
     </div>
   );
 }

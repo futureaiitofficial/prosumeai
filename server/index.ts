@@ -104,11 +104,11 @@ app.use((req, res, next) => {
   next();
 });
 
-// Register routes
-app.use('/api/ai', router);
-
 (async () => {
   const server = await registerRoutes(app);
+  
+  // Add the AI router registration here, after auth is set up
+  app.use('/api/ai', router);  // Register AI routes AFTER auth is initialized
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;

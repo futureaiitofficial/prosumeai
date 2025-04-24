@@ -96,6 +96,9 @@ export default function CoverLetters() {
   });
   const [showDateFilter, setShowDateFilter] = useState(false);
 
+  // Add this state variable at the top level of the component
+  const [jobApplicationsUrl, setJobApplicationsUrl] = useState<string | null>(null);
+
   // Fetch cover letters
   const { data: coverLetters = [], isLoading } = useQuery<CoverLetter[]>({
     queryKey: ["/api/cover-letters"],
@@ -159,17 +162,24 @@ export default function CoverLetters() {
   // Create cover letter mutation
   const createCoverLetterMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
-      // Note: resumeId is explicitly removed by the server API,
-      // but we'll keep this here for future schema enhancements
-      const res = await apiRequest("POST", "/api/cover-letters", {
-        ...data,
-        userId: user?.id,
+      // Ensure we're only sending clean data to prevent mixing with existing cover letters
+      const payload = {
+        title: data.title.trim(),
+        company: data.company.trim(),
+        jobTitle: data.jobTitle.trim(),
+        recipientName: data.recipientName?.trim() || "",
+        recipientTitle: data.recipientTitle?.trim() || "",
         resumeId: data.resumeId ? parseInt(data.resumeId, 10) : null,
         template: "standard", // Default template that exists in the system
-        content: " ", // Required by schema, will be filled in by the builder
-        company: data.company, // Ensure the company is passed correctly
-        jobTitle: data.jobTitle // Ensure the job title is passed correctly
-      });
+        content: " ", // Minimal content required by schema
+        // Explicitly initialize fields to prevent data leakage
+        fullName: "",
+        email: "",
+        phone: "",
+        address: ""
+      };
+      
+      const res = await apiRequest("POST", "/api/cover-letters", payload);
       return await res.json();
     },
     onSuccess: (data) => {
@@ -179,6 +189,7 @@ export default function CoverLetters() {
         description: "Let's build your professional cover letter."
       });
       setOpen(false);
+      // Reset form data completely
       setFormData({
         title: "",
         resumeId: "",
@@ -203,7 +214,17 @@ export default function CoverLetters() {
   // Delete cover letter mutation
   const deleteCoverLetterMutation = useMutation({
     mutationFn: async (id: number) => {
-      await apiRequest("DELETE", `/api/cover-letters/${id}`);
+      const response = await apiRequest("DELETE", `/api/cover-letters/${id}`);
+      // If the response is not ok, parse the error message
+      if (!response.ok) {
+        const errorData = await response.json();
+        // Check if it's a foreign key constraint error
+        if (errorData.error && errorData.error.includes('foreign key constraint')) {
+          throw new Error("LINKED_TO_JOB_APPLICATION");
+        }
+        throw new Error(errorData.message || "Failed to delete cover letter");
+      }
+      return await response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/cover-letters"] });
@@ -215,11 +236,22 @@ export default function CoverLetters() {
       setCoverLetterToDelete(null);
     },
     onError: (error: Error) => {
-      toast({
-        title: "Failed to delete cover letter",
-        description: error.message,
-        variant: "destructive"
-      });
+      // Handle specific error cases
+      if (error.message === "LINKED_TO_JOB_APPLICATION") {
+        setJobApplicationsUrl('/job-applications-enhanced');
+        toast({
+          title: "Cannot Delete Cover Letter",
+          description: "This cover letter is linked to one or more job applications. Please remove those links first.",
+          variant: "destructive",
+          duration: 6000
+        });
+      } else {
+        toast({
+          title: "Failed to delete cover letter",
+          description: error.message,
+          variant: "destructive"
+        });
+      }
       setDeleteDialogOpen(false);
       setCoverLetterToDelete(null);
     }
@@ -595,10 +627,28 @@ export default function CoverLetters() {
                 <AlertDialogDescription>
                   This action cannot be undone. This will permanently delete your
                   cover letter and all associated data.
+                  
+                  {jobApplicationsUrl && (
+                    <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-md text-amber-800">
+                      <p className="font-medium">Note: Cover letters linked to job applications cannot be deleted.</p>
+                      <p className="text-sm mt-1">You must first remove the connection in the job applications section.</p>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="mt-2 border-amber-300 text-amber-800 hover:bg-amber-100"
+                        onClick={() => {
+                          setDeleteDialogOpen(false);
+                          navigate(jobApplicationsUrl);
+                        }}
+                      >
+                        View Job Applications
+                      </Button>
+                    </div>
+                  )}
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogCancel onClick={() => setJobApplicationsUrl(null)}>Cancel</AlertDialogCancel>
                 <AlertDialogAction
                   className="bg-red-500 hover:bg-red-600"
                   onClick={() =>

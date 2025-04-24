@@ -29,6 +29,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { ToastAction } from "@/components/ui/toast";
 import { sanitizeObject } from "@/utils/sanitize";
 import { format, parseISO, isAfter, isBefore, isToday, addDays, subDays } from "date-fns";
 import { Badge } from "@/components/ui/badge";
@@ -71,29 +72,6 @@ import {
   JobApplicationFormData,
   statusColors
 } from "@/types/job-application";
-
-// The enum is now imported from the types file
-// export enum JobApplicationStatus {
-//   Applied = 'applied',
-//   Screening = 'screening',
-//   Interview = 'interview',
-//   Assessment = 'assessment',
-//   Offer = 'offer',
-//   Rejected = 'rejected',
-//   Accepted = 'accepted'
-// }
-
-// The statusColors are now imported from the types file
-// const statusColors = {
-//   [JobApplicationStatus.Applied]: "blue",
-//   [JobApplicationStatus.Screening]: "purple",
-//   [JobApplicationStatus.Interview]: "cyan",
-//   [JobApplicationStatus.Assessment]: "green",
-//   [JobApplicationStatus.Offer]: "orange",
-//   [JobApplicationStatus.Rejected]: "red",
-//   [JobApplicationStatus.Accepted]: "emerald",
-//   default: "gray"
-// };
 
 const priorityColors = {
   high: "red",
@@ -236,6 +214,12 @@ export default function JobApplicationsEnhanced() {
       const payload = sanitizeObject(unsanitizedPayload);
       
       const res = await apiRequest("POST", "/api/job-applications", payload);
+      
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || 'Failed to create job application');
+      }
+      
       return await res.json();
     },
     onSuccess: () => {
@@ -248,11 +232,20 @@ export default function JobApplicationsEnhanced() {
       setFormData(initialFormData);
     },
     onError: (error: any) => {
-      toast({
-        title: "Failed to create job application",
-        description: error.message,
-        variant: "destructive",
-      });
+      if (error.message.includes('Feature usage limit exceeded') || error.message.includes('limit exceeded')) {
+        toast({
+          title: "Subscription Limit Reached",
+          description: "You've reached your job application limit for this billing cycle. Please upgrade your plan for more job applications.",
+          variant: "destructive",
+          duration: 6000,
+        });
+      } else {
+        toast({
+          title: "Failed to create job application",
+          description: error.message,
+          variant: "destructive",
+        });
+      }
     },
   });
 
@@ -638,6 +631,58 @@ export default function JobApplicationsEnhanced() {
       return aValue < bValue ? 1 : -1;
     }
   });
+
+  // Add additional state for subscription plan information display
+  const [showingPlanDetails, setShowingPlanDetails] = useState(false);
+
+  // Add function to display upgrade subscription message
+  const displayUpgradeMessage = () => {
+    setShowingPlanDetails(true);
+    toast({
+      title: "Want to track more job applications?",
+      description: "Upgrade your subscription plan for higher job application limits.",
+      duration: 5000,
+      action: (
+        <ToastAction 
+          altText="Upgrade" 
+          onClick={() => {
+            window.location.href = '/user/subscription';
+          }}
+        >
+          View Plans
+        </ToastAction>
+      ),
+    });
+  };
+
+  // Check if user is approaching their limit and display a helpful message 
+  useEffect(() => {
+    // Only show message if we have more than 70% of limit
+    if (jobApplications.length > 0) {
+      const fetchFeatureUsage = async () => {
+        try {
+          const response = await apiRequest("GET", "/api/user/token-usage");
+          const data = await response.json();
+          
+          if (data && data.features && data.features.length > 0) {
+            const jobAppFeature = data.features.find((f: any) => f.featureCode === 'job_application');
+            if (jobAppFeature) {
+              const { usageCount, tokenLimit } = jobAppFeature;
+              const usagePercent = (usageCount / tokenLimit) * 100;
+              
+              if (usagePercent >= 70 && !showingPlanDetails) {
+                displayUpgradeMessage();
+              }
+            }
+          }
+        } catch (error) {
+          console.error("Error fetching usage data:", error);
+        }
+      };
+      
+      fetchFeatureUsage();
+    }
+  }, [jobApplications.length, user, showingPlanDetails]);
 
   return (
     <DefaultLayout pageTitle="Job Applications" pageDescription="Track and manage your job applications and interviews">

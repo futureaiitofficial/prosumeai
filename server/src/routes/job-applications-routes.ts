@@ -5,6 +5,9 @@ import { type InsertJobApplication } from "@shared/schema";
 import { z } from 'zod';
 import { Router } from 'express';
 
+// Add the import for feature access middleware
+import { requireFeatureAccess, trackFeatureUsage } from '../../middleware/feature-access';
+
 const router = Router();
 
 // Job application status enum values - matches PostgreSQL enum
@@ -75,7 +78,11 @@ export function registerJobApplicationRoutes(app: express.Express) {
   });
   
   // Create a new job application
-  app.post('/api/job-applications', requireUser, async (req, res) => {
+  app.post('/api/job-applications', 
+    requireUser, 
+    requireFeatureAccess('job_application'), // Check if user has access to this feature
+    trackFeatureUsage('job_application'),    // Track usage for this feature
+    async (req, res) => {
     try {
       if (!req.user) {
         return res.status(401).json({ message: "Unauthorized" });

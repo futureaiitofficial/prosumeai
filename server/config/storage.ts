@@ -140,12 +140,12 @@ export class DatabaseStorage implements IStorage {
       
       const recentUsers = await db.select({ count: sql`count(*)` })
         .from(users)
-        .where(sql`created_at > ${lastWeek.toISOString()}`);
+        .where(sql`"created_at" > ${lastWeek.toISOString()}`);
       
       // Get users who have logged in recently (last 7 days)
       const recentLogins = await db.select({ count: sql`count(*)` })
         .from(users)
-        .where(sql`last_login > ${lastWeek.toISOString()}`);
+        .where(sql`"last_login" > ${lastWeek.toISOString()}`);
       
       return {
         totalUsers: userCount[0]?.count || 0,

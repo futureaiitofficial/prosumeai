@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import Header from "@/components/layouts/header";
 import { motion } from "framer-motion";
+import { TokenUsage } from "@/components/ui/token-usage";
 
 // Import form components
 import PersonalInfoForm from "@/components/resume-builder/personal-info-form";
@@ -837,6 +838,7 @@ export default function ResumeBuilder() {
               ))}
             </ul>
           </div>
+          <TokenUsage featureCode="resume" compact={true} className="mt-4" />
         </div>
 
         {/* Main content area with better overflow control */}
