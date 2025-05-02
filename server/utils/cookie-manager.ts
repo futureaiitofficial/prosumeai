@@ -20,7 +20,7 @@ export class CookieManager {
   private cookiePrefix: string;
   private defaultOptions: CookieOptions;
 
-  constructor(appName = 'prosumeai', environment = process.env.NODE_ENV || 'development') {
+  constructor(appName = 'ATScribe', environment = process.env.NODE_ENV || 'development') {
     this.cookiePrefix = appName;
     
     // Set default options based on environment

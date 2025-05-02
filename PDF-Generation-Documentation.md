@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document explains how resumes are converted to PDFs in the ProsumeAI application. The process involves both client-side and server-side operations to ensure high-quality, properly formatted resume PDFs with optimal page breaks.
+This document explains how resumes are converted to PDFs in the ATScribe application. The process involves both client-side and server-side operations to ensure high-quality, properly formatted resume PDFs with optimal page breaks.
 
 ## Process Flow
 

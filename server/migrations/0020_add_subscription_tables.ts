@@ -9,7 +9,7 @@ export async function runMigration() {
   console.log('Starting migration: Adding subscription model tables');
   
   // Use environment variables or fallback to default values
-  const dbUrl = process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/prosumeai';
+  const dbUrl = process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/ATScribe';
   
   // Create a postgres client
   const client = postgres(dbUrl, { max: 1 });

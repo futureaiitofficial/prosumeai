@@ -1,6 +1,6 @@
-# Prosume - Professional Resume & Job Application Manager
+# ATScribe - Professional Resume & Job Application Manager
 
-Prosume is a comprehensive job application management platform that empowers job seekers with advanced AI-driven resume parsing, tracking, and career progression tools. The platform provides intelligent resume enhancement, career transition support, and personalized job application insights through an interactive Kanban-style interface.
+ATScribe is a comprehensive job application management platform that empowers job seekers with advanced AI-driven resume parsing, tracking, and career progression tools. The platform provides intelligent resume enhancement, career transition support, and personalized job application insights through an interactive Kanban-style interface.
 
 ## Table of Contents
 
@@ -110,8 +110,8 @@ Prosume is a comprehensive job application management platform that empowers job
 
 1. Clone the repository:
    ```
-   git clone https://github.com/your-username/prosume.git
-   cd prosume
+   git clone https://github.com/your-username/ATScribe.git
+   cd ATScribe
    ```
 
 2. Install dependencies:

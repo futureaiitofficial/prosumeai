@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# ProsumeAI Upgrade Script
-echo "🚀 Starting ProsumeAI upgrade process..."
+# ATScribe Upgrade Script
+echo "🚀 Starting ATScribe upgrade process..."
 
 # Load environment variables from .env
 if [ -f .env ]; then
@@ -25,7 +25,7 @@ if [ -z "$DATABASE_URL" ]; then
   else
     echo "🔴 Database connection information missing!"
     echo "Please set DATABASE_URL in your .env file before running migrations."
-    echo "Example: DATABASE_URL=postgresql://username:password@localhost:5432/prosumeai"
+    echo "Example: DATABASE_URL=postgresql://username:password@localhost:5432/ATScribe"
     
     # Ask if we should continue without running migrations
     read -p "Continue without running migrations? (y/n) " -n 1 -r

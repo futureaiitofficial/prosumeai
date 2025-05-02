@@ -337,7 +337,7 @@ export default function AdminDashboard() {
             />
             <StatsCard 
               title="AI Tokens Used" 
-              value={statsLoading ? "Loading..." : (dashboardStats?.aiStats.totalTokens || 0).toLocaleString()}
+              value={statsLoading ? "Loading..." : (dashboardStats?.aiStats?.totalTokens || 0).toLocaleString()}
               icon={<Activity className="h-4 w-4 text-muted-foreground" />}
             />
           </div>

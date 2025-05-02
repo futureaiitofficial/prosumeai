@@ -121,7 +121,7 @@ export function AdminDashboardPage() {
         <div>
           <h1 className="text-2xl font-bold">Admin Dashboard</h1>
           <p className="text-muted-foreground">
-            Manage all aspects of the Prosume application
+            Manage all aspects of the ATScribe application
           </p>
         </div>
         

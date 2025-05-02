@@ -1,0 +1,49 @@
+import postgres from 'postgres';
+import dotenv from 'dotenv';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+// Initialize environment variables
+dotenv.config();
+
+// Get current file directory with ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+export async function runMigration() {
+  console.log('Starting migration: Adding PayPal support');
+  
+  const dbUrl = process.env.DATABASE_URL || 'postgres://raja:raja@localhost:5432/ATScribe';
+  const client = postgres(dbUrl, { max: 1 });
+  
+  try {
+    // Read the SQL file
+    const sqlFilePath = path.join(__dirname, '015_add_paypal_support.sql');
+    const sql = fs.readFileSync(sqlFilePath, 'utf8');
+    
+    // Execute the SQL
+    await client.unsafe(sql);
+    
+    console.log('Migration complete: PayPal support added successfully');
+  } catch (error) {
+    console.error('Migration failed:', error);
+    throw error;
+  } finally {
+    // Close the postgres client
+    await client.end();
+  }
+}
+
+// Run the migration if this file is executed directly
+if (import.meta.url === `file://${process.argv[1]}`) {
+  runMigration()
+    .then(() => {
+      console.log('Migration completed successfully');
+      process.exit(0);
+    })
+    .catch((error) => {
+      console.error('Migration failed:', error);
+      process.exit(1);
+    });
+}

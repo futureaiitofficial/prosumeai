@@ -82,7 +82,7 @@ export default function Header() {
             <div className="flex items-center">
               <img 
                 src="/logo.png" 
-                alt="Prosume" 
+                alt="ATScribe" 
                 className="h-8 w-8 rounded-md" 
                 onError={(e) => {
                   // Fallback if logo image doesn't exist
@@ -90,7 +90,7 @@ export default function Header() {
                   target.style.display = 'none';
                 }}
               />
-              <span className="ml-2 text-xl font-bold">Prosume</span>
+              <span className="ml-2 text-xl font-bold">ATScribe</span>
             </div>
           </Link>
         </div>

@@ -26,6 +26,7 @@ export function ProtectedRoute({
           return <Redirect to="/auth" />;
         }
 
+        // We allow all authenticated users to access protected routes
         return <Component />;
       }}
     </Route>

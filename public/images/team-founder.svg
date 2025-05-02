@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400">
+  <!-- Background -->
+  <rect width="400" height="400" fill="#4F46E5" opacity="0.1"/>
+  
+  <!-- Person silhouette -->
+  <circle cx="200" cy="140" r="70" fill="#4F46E5" opacity="0.2"/>
+  <path d="M200 230 Q 120 230 100 320 L 300 320 Q 280 230 200 230" fill="#4F46E5" opacity="0.2"/>
+  
+  <!-- Placeholder text -->
+  <text x="200" y="360" font-family="Arial, sans-serif" font-size="16" text-anchor="middle" fill="#4F46E5">
+    Founder Image
+  </text>
+</svg> 

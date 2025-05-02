@@ -1,0 +1,61 @@
+<svg width="300" height="300" viewBox="0 0 300 300" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="300" height="300" rx="8" fill="#1E293B" />
+  
+  <!-- Cover Letter Document Background -->
+  <rect x="70" y="50" width="160" height="180" rx="4" fill="#FFFFFF" />
+  
+  <!-- Document Content Lines -->
+  <rect x="85" y="70" width="130" height="6" rx="1" fill="#E2E8F0" />
+  <rect x="85" y="85" width="100" height="6" rx="1" fill="#E2E8F0" />
+  <rect x="85" y="100" width="120" height="6" rx="1" fill="#E2E8F0" />
+  
+  <!-- Highlighted Keywords in Document -->
+  <rect x="95" y="115" width="40" height="6" rx="1" fill="#4F46E5" />
+  <rect x="140" y="115" width="30" height="6" rx="1" fill="#E2E8F0" />
+  <rect x="175" y="115" width="25" height="6" rx="1" fill="#E2E8F0" />
+  
+  <rect x="85" y="130" width="25" height="6" rx="1" fill="#E2E8F0" />
+  <rect x="115" y="130" width="45" height="6" rx="1" fill="#8B5CF6" />
+  <rect x="165" y="130" width="35" height="6" rx="1" fill="#E2E8F0" />
+  
+  <rect x="85" y="145" width="35" height="6" rx="1" fill="#E2E8F0" />
+  <rect x="125" y="145" width="40" height="6" rx="1" fill="#E2E8F0" />
+  <rect x="170" y="145" width="30" height="6" rx="1" fill="#10B981" />
+  
+  <rect x="85" y="160" width="130" height="6" rx="1" fill="#E2E8F0" />
+  <rect x="85" y="175" width="90" height="6" rx="1" fill="#E2E8F0" />
+  <rect x="85" y="190" width="110" height="6" rx="1" fill="#E2E8F0" />
+  <rect x="85" y="205" width="75" height="6" rx="1" fill="#E2E8F0" />
+  
+  <!-- Pie Chart -->
+  <g transform="translate(220, 235) scale(0.5)">
+    <circle cx="0" cy="0" r="80" fill="#27364B" />
+    
+    <!-- Pie Sections -->
+    <!-- 35% - Keyword Match -->
+    <path d="M0 -80 A80 80 0 0 1 76 -24 L0 0 Z" fill="#4F46E5" />
+    
+    <!-- 30% - Personalization -->
+    <path d="M76 -24 A80 80 0 0 1 24 76 L0 0 Z" fill="#8B5CF6" />
+    
+    <!-- 20% - ATS Score -->
+    <path d="M24 76 A80 80 0 0 1 -56 56 L0 0 Z" fill="#EC4899" />
+    
+    <!-- 15% - Relevance -->
+    <path d="M-56 56 A80 80 0 0 1 0 -80 L0 0 Z" fill="#10B981" />
+  </g>
+  
+  <!-- Metrics Cards -->
+  <rect x="40" y="240" width="55" height="40" rx="4" fill="#312E81" opacity="0.7" />
+  <text x="67" y="260" font-family="Arial" font-size="10" font-weight="bold" fill="#E2E8F0" text-anchor="middle">Keyword</text>
+  <text x="67" y="272" font-family="Arial" font-size="12" font-weight="bold" fill="#4F46E5" text-anchor="middle">95%</text>
+  
+  <rect x="105" y="240" width="72" height="40" rx="4" fill="#312E81" opacity="0.7" />
+  <text x="141" y="260" font-family="Arial" font-size="10" font-weight="bold" fill="#E2E8F0" text-anchor="middle">Personalized</text>
+  <text x="141" y="272" font-family="Arial" font-size="12" font-weight="bold" fill="#8B5CF6" text-anchor="middle">100%</text>
+  
+  <rect x="187" y="240" width="55" height="40" rx="4" fill="#312E81" opacity="0.7" />
+  <text x="214" y="260" font-family="Arial" font-size="10" font-weight="bold" fill="#E2E8F0" text-anchor="middle">ATS</text>
+  <text x="214" y="272" font-family="Arial" font-size="12" font-weight="bold" fill="#EC4899" text-anchor="middle">92%</text>
+</svg> 

@@ -1,8 +1,8 @@
-# ProsumeAI Template System Guide
+# ATScribe Template System Guide
 
 ## Overview
 
-The ProsumeAI template system provides a flexible framework for managing resume and cover letter templates. This guide explains the architecture, registration process, and how to create new templates.
+The ATScribe template system provides a flexible framework for managing resume and cover letter templates. This guide explains the architecture, registration process, and how to create new templates.
 
 ## Architecture
 

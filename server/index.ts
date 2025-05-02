@@ -25,7 +25,7 @@ const app = express();
 // Configure and use CORS middleware
 app.use(cors({
   origin: process.env.NODE_ENV === 'production' 
-    ? process.env.CORS_ORIGIN || 'https://www.prosumeai.com' 
+    ? process.env.CORS_ORIGIN || 'https://www.ATScribe.com' 
     : ['http://localhost:3000', 'http://localhost:5173', 'http://127.0.0.1:3000', 'http://127.0.0.1:5173'],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
@@ -37,73 +37,22 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
 // Add cookie-parser middleware 
-const cookieSecret = process.env.COOKIE_SECRET || process.env.SESSION_SECRET || 'prosumeai-cookie-secret';
+const cookieSecret = process.env.COOKIE_SECRET || process.env.SESSION_SECRET || 'ATScribe-cookie-secret';
 app.use(cookieParser(cookieSecret));
 
 // Serve static files from the public directory
 app.use(express.static('public'));
 console.log('Static file serving configured for public directory');
 
+// Set trust proxy for production behind load balancers or when using ngrok
+if (app.get("env") === "production") {
+  app.set("trust proxy", 1);
+  console.log("Trust proxy enabled for production");
+}
+
 // Add a middleware to log all requests
 app.use((req, res, next) => {
   console.log(`${req.method} ${req.path}`);
-  next();
-});
-
-// Enhance response with cookie manager methods
-app.use((req: Request, res: Response, next: NextFunction) => {
-  // Add custom methods to response object
-  (res as any).setCookie = (name: string, value: string, options = {}) => {
-    cookieManager.setCookie(res, name, value, options);
-  };
-  
-  // Save the original clearCookie method before overriding it
-  (res as any)._clearCookie = res.clearCookie;
-  
-  (res as any).clearCookie = (name: string, options = {}) => {
-    cookieManager.clearCookie(res, name, options);
-  };
-  
-  // Add helper to get cookie from request
-  (req as any).getCookie = (name: string) => {
-    return cookieManager.getCookie(req, name);
-  };
-  
-  // Add helper to get user preferences
-  (req as any).getUserPreferences = () => {
-    return cookieManager.getUserPreferences(req);
-  };
-  
-  next();
-});
-
-app.use((req, res, next) => {
-  const start = Date.now();
-  const path = req.path;
-  let capturedJsonResponse: Record<string, any> | undefined = undefined;
-
-  const originalResJson = res.json;
-  res.json = function (bodyJson, ...args) {
-    capturedJsonResponse = bodyJson;
-    return originalResJson.apply(res, [bodyJson, ...args]);
-  };
-
-  res.on("finish", () => {
-    const duration = Date.now() - start;
-    if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-      }
-
-      if (logLine.length > 80) {
-        logLine = logLine.slice(0, 79) + "…";
-      }
-
-      log(logLine);
-    }
-  });
-
   next();
 });
 

@@ -86,6 +86,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
     { name: "API Keys", href: "/admin/api-keys", icon: Key },
     { name: "Email Templates", href: "/admin/email-templates", icon: Mail },
     { name: "Integrations", href: "/admin/integrations", icon: Plug2 },
+    { name: "Payment Gateways", href: "/admin/payment", icon: DollarSign },
     { name: "Security", href: "/admin/security", icon: Shield },
     { name: "System Status", href: "/admin/system-status", icon: Server },
     { name: "Subscriptions", href: "/admin/subscriptions", icon: CreditCard },
@@ -107,7 +108,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
         )}>
           {!isCollapsed ? (
             <Link href="/" className="font-bold text-lg flex items-center">
-              ProsumeAI
+              ATScribe
               <Badge variant="outline" className="ml-2 text-xs">Admin</Badge>
             </Link>
           ) : (
@@ -178,7 +179,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
               <DropdownMenuSeparator />
               <DropdownMenuItem asChild>
                 <Link 
-                  href="/" 
+                  href="/dashboard" 
                   className="flex w-full cursor-pointer items-center"
                 >
                   <Home className="mr-2 h-4 w-4" />
@@ -225,7 +226,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
         {/* Mobile sidebar header */}
         <div className="flex h-16 items-center justify-between border-b border-gray-200 dark:border-gray-800 px-4">
           <Link href="/" className="font-bold text-lg flex items-center">
-            ProsumeAI
+            ATScribe
             <Badge variant="outline" className="ml-2 text-xs">Admin</Badge>
           </Link>
           <Button 

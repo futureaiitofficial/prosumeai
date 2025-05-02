@@ -6,11 +6,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Progress } from '@/components/ui/progress';
-import { CreditCard, Check, X, AlertCircle, Calendar, ChevronsUpDown, Sparkles } from 'lucide-react';
+import { CreditCard, Check, X, AlertCircle, Calendar, ChevronsUpDown, Sparkles, Globe } from 'lucide-react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import DefaultLayout from '@/components/layouts/default-layout';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface UserSubscription {
   id: number;
@@ -45,6 +46,8 @@ interface SubscriptionPlan {
     currency: 'USD' | 'INR';
     price: string;
   }[];
+  displayPrice?: string;
+  displayCurrency?: string;
 }
 
 interface UserRegion {
@@ -74,6 +77,7 @@ const UserSubscriptionPage: React.FC = () => {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<'current' | 'features' | 'plans'>('current');
   const [userRegion, setUserRegion] = useState<UserRegion>({ region: 'GLOBAL', currency: 'USD' });
+  const [manualRegion, setManualRegion] = useState<string>('');
 
   // Fetch user's region based on IP
   const { data: regionData, isLoading: isRegionLoading } = useQuery({
@@ -83,7 +87,13 @@ const UserSubscriptionPage: React.FC = () => {
         const response = await apiRequest('GET', '/api/user/region');
         const data = await response.json();
         console.log("Detected user region:", data);
-        setUserRegion(data);
+        
+        // Only set the region if we didn't get an error
+        if (!data.error) {
+          setUserRegion(data);
+        } else {
+          console.warn("Using default region due to geolocation error:", data.error);
+        }
         return data;
       } catch (error) {
         console.error("Error fetching user region:", error);
@@ -92,6 +102,17 @@ const UserSubscriptionPage: React.FC = () => {
     },
     staleTime: 24 * 60 * 60 * 1000 // Cache for 24 hours
   });
+
+  // Apply manual region change when selected
+  useEffect(() => {
+    if (manualRegion) {
+      if (manualRegion === 'INDIA') {
+        setUserRegion({ region: 'INDIA', currency: 'INR', country: 'India' });
+      } else {
+        setUserRegion({ region: 'GLOBAL', currency: 'USD', country: manualRegion === 'GLOBAL' ? 'Global' : manualRegion });
+      }
+    }
+  }, [manualRegion]);
 
   // Fetch current subscription
   const { data: subscriptionData, isLoading: isSubscriptionLoading, refetch: refetchSubscription } = useQuery({
@@ -255,19 +276,89 @@ const UserSubscriptionPage: React.FC = () => {
   const upgradeMutation = useMutation({
     mutationFn: async (planId: number) => {
       const response = await apiRequest('POST', '/api/user/subscription/upgrade', { planId });
-      return await response.json();
+      const data = await response.json();
+      
+      // Check if redirection to payment is required
+      if (data.redirectToPayment) {
+        // If server provided a payment URL, use it
+        if (data.paymentUrl) {
+          console.log('Redirecting to checkout using server URL:', data.paymentUrl);
+          window.location.href = data.paymentUrl;
+        } else {
+          // Otherwise, construct the checkout URL with required parameters
+          let checkoutUrl = `/checkout?planId=${planId}`;
+          
+          // Add proration amount if present
+          if (data.prorationAmount !== undefined) {
+            checkoutUrl += `&prorationAmount=${data.prorationAmount}`;
+          }
+          
+          console.log('Redirecting to checkout:', checkoutUrl);
+          window.location.href = checkoutUrl;
+        }
+      }
+      
+      return data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['userSubscription'] });
-      queryClient.invalidateQueries({ queryKey: ['planFeatures'] });
-      toast({
-        title: 'Subscription Upgraded',
-        description: 'Your subscription has been upgraded successfully',
-      });
+    onSuccess: (data) => {
+      if (!data.pendingPayment) {
+        // Only invalidate queries if we've completed the upgrade
+        // (not if we've redirected to payment)
+        queryClient.invalidateQueries({ queryKey: ['userSubscription'] });
+        queryClient.invalidateQueries({ queryKey: ['planFeatures'] });
+        toast({
+          title: 'Subscription Upgraded',
+          description: 'Your subscription has been upgraded successfully',
+        });
+      }
     },
     onError: (error: Error) => {
       toast({
         title: 'Upgrade Failed',
+        description: error.message,
+        variant: 'destructive',
+      });
+    }
+  });
+
+  // Handle subscription downgrade  
+  const downgradeMutation = useMutation({
+    mutationFn: async (planId: number) => {
+      const response = await apiRequest('POST', '/api/user/subscription/downgrade', { planId });
+      return await response.json();
+    },
+    onSuccess: (data) => {
+      // Check if we need to redirect to upgrade flow instead
+      if (data.redirectToUpgrade) {
+        toast({
+          title: 'This is an Upgrade',
+          description: 'This plan change is actually an upgrade. Redirecting to upgrade flow.',
+        });
+        // Redirect to upgrade flow
+        upgradeMutation.mutate(data.planId);
+        return;
+      }
+      
+      queryClient.invalidateQueries({ queryKey: ['userSubscription'] });
+      queryClient.invalidateQueries({ queryKey: ['planFeatures'] });
+      
+      // If there's a proration credit, mention it in the toast
+      if (data.prorationCredit > 0) {
+        toast({
+          title: 'Subscription Downgraded',
+          description: `Your subscription has been downgraded successfully. A credit of ${data.prorationCredit} will be applied to your next billing cycle.`,
+          duration: 6000, // Show for longer
+        });
+      } else {
+        toast({
+          title: 'Subscription Downgraded',
+          description: 'Your subscription has been downgraded successfully',
+        });
+      }
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Downgrade Failed',
         description: error.message,
         variant: 'destructive',
       });
@@ -454,6 +545,11 @@ const UserSubscriptionPage: React.FC = () => {
       return 'Free';
     }
     
+    // Check if the plan has displayPrice and displayCurrency fields from the server
+    if (plan.displayPrice && plan.displayCurrency) {
+      return `${plan.displayPrice} ${plan.displayCurrency}`;
+    }
+    
     // Find pricing for the user's region
     const userRegionPricing = plan.pricing.find(p => p.targetRegion === userRegion.region);
     
@@ -470,6 +566,56 @@ const UserSubscriptionPage: React.FC = () => {
     
     // Last resort fallback
     return plan.price && plan.price !== '0.00' ? `${plan.price} USD` : 'Free';
+  };
+
+  // Helper function to get plan price as a number for comparison
+  const getPlanPrice = (plan: SubscriptionPlan) => {
+    if (plan.isFreemium) return 0;
+    
+    // If we have displayPrice from the server, use that
+    if (plan.displayPrice) {
+      return parseFloat(plan.displayPrice);
+    }
+    
+    if (plan.pricing && plan.pricing.length > 0) {
+      const regionPricing = plan.pricing.find(p => p.targetRegion === userRegion.region);
+      if (regionPricing) {
+        return parseFloat(regionPricing.price);
+      }
+      
+      const globalPricing = plan.pricing.find(p => p.targetRegion === 'GLOBAL');
+      if (globalPricing) {
+        return parseFloat(globalPricing.price);
+      }
+    }
+    
+    return parseFloat(plan.price || '0');
+  };
+
+  // Function to handle plan selection
+  const handlePlanSelection = (plan: SubscriptionPlan) => {
+    const isCurrentPlan = subscription && subscription.planId === plan.id;
+    if (isCurrentPlan) return; // Do nothing if this is the current plan
+    
+    if (plan.isFreemium) {
+      // Free plans are activated immediately
+      console.log(`Activating free plan: ${plan.name} (ID: ${plan.id})`);
+      upgradeMutation.mutate(plan.id);
+      return;
+    }
+    
+    // For paid plans, redirect directly to checkout
+    console.log(`Redirecting to checkout for plan: ${plan.name} (ID: ${plan.id})`);
+    // Clear any previous checkout redirect information
+    sessionStorage.removeItem('checkoutRedirectAttempt');
+    // Store the selected plan ID in session storage
+    sessionStorage.setItem('selectedPlanId', plan.id.toString());
+    
+    // Set a small delay to ensure state updates are processed
+    setTimeout(() => {
+      // Direct URL navigation instead of using mutation
+      window.location.href = `/checkout?planId=${plan.id}`;
+    }, 100);
   };
 
   if (isLoading) {
@@ -708,11 +854,32 @@ const UserSubscriptionPage: React.FC = () => {
         {/* Available Plans Tab */}
         <TabsContent value="plans">
           <div className="space-y-6">
-            {userRegion.country && (
-              <div className="text-sm text-muted-foreground mb-4">
-                Showing prices for {userRegion.region === 'INDIA' ? 'India' : 'your region'} ({userRegion.country})
+            <div className="flex items-center justify-between">
+              <div className="text-sm text-muted-foreground">
+                {userRegion.country ? (
+                  <>Showing prices for {userRegion.region === 'INDIA' ? 'India' : 'your region'} ({userRegion.country})</>
+                ) : (
+                  <>Showing global prices</>
+                )}
               </div>
-            )}
+              
+              <div className="flex items-center gap-2">
+                <Globe className="h-4 w-4 text-muted-foreground" />
+                <Select value={manualRegion} onValueChange={setManualRegion}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Select Region" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="GLOBAL">Global (USD)</SelectItem>
+                    <SelectItem value="INDIA">India (INR)</SelectItem>
+                    <SelectItem value="US">United States (USD)</SelectItem>
+                    <SelectItem value="UK">United Kingdom (USD)</SelectItem>
+                    <SelectItem value="CA">Canada (USD)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {plans
                 .filter((plan: SubscriptionPlan) => plan.active)
@@ -770,16 +937,20 @@ const UserSubscriptionPage: React.FC = () => {
                         <Button 
                           className="w-full" 
                           variant={isCurrentPlan ? "outline" : "default"}
-                          onClick={() => !isCurrentPlan && upgradeMutation.mutate(plan.id)}
-                          disabled={isCurrentPlan || upgradeMutation.isPending}
+                          onClick={() => !isCurrentPlan && handlePlanSelection(plan)}
+                          disabled={isCurrentPlan || upgradeMutation.isPending || downgradeMutation.isPending}
                         >
                           {isCurrentPlan 
                             ? 'Current Plan' 
-                            : upgradeMutation.isPending 
+                            : upgradeMutation.isPending || downgradeMutation.isPending
                               ? 'Processing...' 
                               : plan.isFreemium 
                                 ? 'Select Free Plan' 
-                                : 'Upgrade Plan'
+                                : subscription 
+                                  ? getPlanPrice(plan) > getPlanPrice(plans.find((p: SubscriptionPlan) => p.id === subscription.planId)!)
+                                    ? 'Upgrade Plan' 
+                                    : 'Downgrade Plan'
+                                  : 'Select Plan'
                           }
                         </Button>
                       </CardFooter>

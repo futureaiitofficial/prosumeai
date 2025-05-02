@@ -8,7 +8,7 @@ export async function updateFeatureTypeEnum() {
   console.log('Starting migration to update feature_type enum...');
   
   // Use environment variables or fallback to provided value
-  const dbUrl = process.env.DATABASE_URL || 'postgres://raja:raja@localhost:5432/prosumeai';
+  const dbUrl = process.env.DATABASE_URL || 'postgres://raja:raja@localhost:5432/ATScribe';
   
   // Create a postgres client
   const client = postgres(dbUrl, { max: 1 });

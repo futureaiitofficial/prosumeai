@@ -1,10 +1,10 @@
-# Adding Templates to ProsumeAI with Feature Flags
+# Adding Templates to ATScribe with Feature Flags
 
-This document provides a step-by-step guide on how to add new resume and cover letter templates to ProsumeAI while properly integrating them with the feature management system.
+This document provides a step-by-step guide on how to add new resume and cover letter templates to ATScribe while properly integrating them with the feature management system.
 
 ## Table of Contents
 
-- [Adding Templates to ProsumeAI with Feature Flags](#adding-templates-to-prosumeai-with-feature-flags)
+- [Adding Templates to ATScribe with Feature Flags](#adding-templates-to-ATScribe-with-feature-flags)
   - [Table of Contents](#table-of-contents)
   - [Overview](#overview)
   - [Resume Templates](#resume-templates)

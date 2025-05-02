@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -13,7 +13,8 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Loader2 } from "lucide-react";
+import { Loader2, Eye, EyeOff } from "lucide-react";
+import { motion } from "framer-motion";
 
 const loginSchema = z.object({
   username: z.string().min(3, {
@@ -26,9 +27,14 @@ const loginSchema = z.object({
 
 type LoginFormValues = z.infer<typeof loginSchema>;
 
-export default function LoginForm() {
+interface LoginFormProps {
+  selectedPlanId?: string | null;
+}
+
+export default function LoginForm({ selectedPlanId }: LoginFormProps) {
   const { loginMutation } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
+  const [isPasswordField, setIsPasswordField] = useState(false);
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -39,18 +45,28 @@ export default function LoginForm() {
   });
 
   const onSubmit = (data: LoginFormValues) => {
-    loginMutation.mutate(data);
+    const loginData = selectedPlanId 
+      ? { ...data, selectedPlanId } 
+      : data;
+    loginMutation.mutate(loginData);
+  };
+
+  // Track focus on password field to coordinate with mascot animation
+  const handlePasswordFocus = (focused: boolean) => {
+    setIsPasswordField(focused);
+    // Update global state for mascot
+    if (window.authMascot?.setPasswordMode) {
+      window.authMascot.setPasswordMode(focused);
+    }
   };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">Sign in to your account</h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-          Enter your credentials to access your account
-        </p>
-      </div>
-      
+    <motion.div 
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.6 }}
+      className="space-y-4"
+    >
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
           <FormField
@@ -58,15 +74,42 @@ export default function LoginForm() {
             name="username"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Username</FormLabel>
+                <FormLabel className="text-sm font-medium text-gray-700">Username</FormLabel>
                 <FormControl>
                   <Input 
                     placeholder="Your username" 
                     {...field}
+                    className="h-9 rounded-lg border-gray-300 bg-white/50 focus:border-indigo-500 focus:ring-indigo-500"
                     disabled={loginMutation.isPending}
+                    onChange={(e) => {
+                      field.onChange(e);
+                      // Trigger keydown event to make mascot react to typing
+                      const customEvent = new KeyboardEvent('keydown', { bubbles: true });
+                      window.dispatchEvent(customEvent);
+                      
+                      // Manually trigger selection change to update cursor position
+                      setTimeout(() => {
+                        e.target.dispatchEvent(new Event('select', { bubbles: true }));
+                      }, 10);
+                    }}
+                    onFocus={(e) => {
+                      // Force cursor tracking to update immediately on focus
+                      const customEvent = new KeyboardEvent('keydown', { bubbles: true });
+                      window.dispatchEvent(customEvent);
+                      // Ensure cursor is tracked
+                      setTimeout(() => {
+                        e.target.dispatchEvent(new Event('select', { bubbles: true }));
+                      }, 10);
+                    }}
+                    onMouseUp={(e) => {
+                      // Update cursor tracking when user clicks to position cursor
+                      setTimeout(() => {
+                        e.target.dispatchEvent(new Event('select', { bubbles: true }));
+                      }, 10);
+                    }}
                   />
                 </FormControl>
-                <FormMessage />
+                <FormMessage className="text-xs" />
               </FormItem>
             )}
           />
@@ -77,25 +120,53 @@ export default function LoginForm() {
             render={({ field }) => (
               <FormItem>
                 <div className="flex items-center justify-between">
-                  <FormLabel>Password</FormLabel>
-                  <Button
-                    type="button"
-                    variant="link"
-                    className="text-xs font-normal p-0 h-auto"
-                    onClick={() => setShowPassword(!showPassword)}
-                  >
-                    {showPassword ? "Hide" : "Show"}
-                  </Button>
+                  <FormLabel className="text-sm font-medium text-gray-700">Password</FormLabel>
                 </div>
                 <FormControl>
-                  <Input 
-                    type={showPassword ? "text" : "password"} 
-                    placeholder="Your password" 
-                    {...field}
-                    disabled={loginMutation.isPending}
-                  />
+                  <div className="relative">
+                    <Input 
+                      type={showPassword ? "text" : "password"} 
+                      placeholder="Your password" 
+                      {...field}
+                      className="h-9 rounded-lg border-gray-300 bg-white/50 focus:border-indigo-500 focus:ring-indigo-500 pr-10"
+                      disabled={loginMutation.isPending}
+                      onFocus={(e) => {
+                        handlePasswordFocus(true);
+                        // Force cursor tracking to update immediately on focus
+                        const customEvent = new KeyboardEvent('keydown', { bubbles: true });
+                        window.dispatchEvent(customEvent);
+                      }}
+                      onBlur={() => handlePasswordFocus(false)}
+                      onChange={(e) => {
+                        field.onChange(e);
+                        // Trigger keydown event to make mascot react to typing
+                        const customEvent = new KeyboardEvent('keydown', { bubbles: true });
+                        window.dispatchEvent(customEvent);
+                        
+                        // Manually trigger selection change to update cursor position
+                        setTimeout(() => {
+                          e.target.dispatchEvent(new Event('select', { bubbles: true }));
+                        }, 10);
+                      }}
+                      onMouseUp={(e) => {
+                        // Update cursor tracking when user clicks to position cursor
+                        setTimeout(() => {
+                          e.target.dispatchEvent(new Event('select', { bubbles: true }));
+                        }, 10);
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 text-gray-500"
+                      onClick={() => setShowPassword(!showPassword)}
+                    >
+                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </Button>
+                  </div>
                 </FormControl>
-                <FormMessage />
+                <FormMessage className="text-xs" />
               </FormItem>
             )}
           />
@@ -105,20 +176,20 @@ export default function LoginForm() {
               <input
                 type="checkbox"
                 id="remember"
-                className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
               />
-              <label htmlFor="remember" className="text-sm text-gray-600 dark:text-gray-400">
+              <label htmlFor="remember" className="text-sm text-gray-600">
                 Remember me
               </label>
             </div>
-            <Button variant="link" className="text-xs p-0 h-auto">
+            <Button variant="link" className="text-xs p-0 h-auto text-indigo-600">
               Forgot password?
             </Button>
           </div>
 
           <Button 
             type="submit" 
-            className="w-full" 
+            className="w-full bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white h-10 rounded-lg font-medium" 
             disabled={loginMutation.isPending}
           >
             {loginMutation.isPending ? (
@@ -132,6 +203,16 @@ export default function LoginForm() {
           </Button>
         </form>
       </Form>
-    </div>
+    </motion.div>
   );
+}
+
+// Make TypeScript happy with global state for mascot
+declare global {
+  interface Window {
+    authMascot?: {
+      isPasswordField: boolean;
+      setPasswordMode: (focused: boolean) => void;
+    };
+  }
 }

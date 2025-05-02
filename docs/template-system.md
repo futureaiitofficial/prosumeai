@@ -1,6 +1,6 @@
 # Template System Documentation
 
-This document provides a comprehensive guide on how to create, customize, and register new resume templates in the ProsumeAI system.
+This document provides a comprehensive guide on how to create, customize, and register new resume templates in the ATScribe system.
 
 ## Table of Contents
 

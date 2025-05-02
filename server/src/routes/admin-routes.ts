@@ -23,6 +23,7 @@ import adminRouter from "./admin/index";
 import { z } from "zod";
 import { exec } from "child_process";
 import { promisify } from "util";
+import { registerPaymentGatewayAdminRoutes } from './admin/payment-gateway-routes';
 
 // Configure multer for file uploads
 const templateStorage = multer.diskStorage({
@@ -73,6 +74,9 @@ const upload = multer({
 export function registerAdminRoutes(app: Express) {
   // Mount the admin router that includes server-status router
   app.use('/api/admin', adminRouter);
+  
+  // Register payment gateway routes
+  registerPaymentGatewayAdminRoutes(app);
   
   // Debug endpoint - available without admin check to help troubleshoot admin access
   app.get("/api/admin/debug", (req: Request, res: Response) => {
@@ -422,7 +426,7 @@ export function registerAdminRoutes(app: Express) {
   });
   
   // Get dashboard statistics
-  app.get('/dashboard', async (req: Request, res: Response) => {
+  app.get('/api/admin/dashboard', requireAdmin, async (req: Request, res: Response) => {
     try {
       // Get total users count
       const [userCount] = await db.select({ count: count() }).from(users);
@@ -439,6 +443,9 @@ export function registerAdminRoutes(app: Express) {
         userStats: {
           total: userCount?.count || 0,
           recentRegistrations: recentUsers?.count || 0,
+        },
+        aiStats: {
+          totalTokens: 0 // Add a default value for now
         }
       });
     } catch (error) {
@@ -448,7 +455,7 @@ export function registerAdminRoutes(app: Express) {
   });
   
   // Get all users
-  app.get('/users', async (req: Request, res: Response) => {
+  app.get('/api/admin/users', async (req: Request, res: Response) => {
     try {
       const allUsers = await db.select({
         id: users.id,
@@ -657,7 +664,7 @@ export function registerAdminRoutes(app: Express) {
     try {
       const execPromise = promisify(exec);
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const backupFileName = `prosumeai-backup-${timestamp}.sql`;
+      const backupFileName = `ATScribe-backup-${timestamp}.sql`;
       const backupDir = path.join(process.cwd(), 'backups');
       const backupPath = path.join(backupDir, backupFileName);
 

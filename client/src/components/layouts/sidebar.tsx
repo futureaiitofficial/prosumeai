@@ -47,7 +47,7 @@ export default function Sidebar() {
   };
 
   const links = [
-    { href: "/", label: "Dashboard", icon: Home },
+    { href: "/dashboard", label: "Dashboard", icon: Home },
     { href: "/resumes", label: "Resumes", icon: File },
     { href: "/cover-letters", label: "Cover Letters", icon: FileText },
     { href: "/job-applications", label: "Job Applications", icon: Clipboard },

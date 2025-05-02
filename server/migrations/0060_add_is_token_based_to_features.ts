@@ -7,7 +7,7 @@ async function migrate() {
   console.log('Starting migration: Adding isTokenBased to features.');
 
   // Use environment variables or fallback to default values
-  const dbUrl = process.env.DATABASE_URL || 'postgres://raja:raja@localhost:5432/prosumeai';
+  const dbUrl = process.env.DATABASE_URL || 'postgres://raja:raja@localhost:5432/ATScribe';
 
   // Create a postgres client
   const client = postgres(dbUrl, { max: 1 });

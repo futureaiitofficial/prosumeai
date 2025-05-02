@@ -5,7 +5,7 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-echo -e "${GREEN}Starting ProsumeAI server for public testing...${NC}"
+echo -e "${GREEN}Starting ATScribe server for public testing...${NC}"
 
 # Start the server in background
 echo -e "${YELLOW}Starting local server...${NC}"

@@ -1,0 +1,189 @@
+<svg width="800" height="600" viewBox="0 0 1200 800" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="1200" height="800" rx="12" fill="#1E293B" />
+  
+  <!-- Sidebar -->
+  <rect x="0" y="0" width="240" height="800" fill="#0F172A" />
+  
+  <!-- Sidebar Logo -->
+  <rect x="24" y="24" width="36" height="36" rx="8" fill="#3B82F6" />
+  <rect x="72" y="32" width="120" height="20" rx="4" fill="#334155" />
+  
+  <!-- Sidebar Menu Items -->
+  <rect x="24" y="90" width="192" height="40" rx="6" fill="#1E293B" />
+  <rect x="32" y="106" width="20" height="8" rx="2" fill="#3B82F6" />
+  <rect x="64" y="102" width="100" height="16" rx="2" fill="#94A3B8" />
+  
+  <rect x="24" y="140" width="192" height="40" rx="6" fill="#0F172A" />
+  <rect x="32" y="156" width="20" height="8" rx="2" fill="#64748B" />
+  <rect x="64" y="152" width="100" height="16" rx="2" fill="#64748B" />
+  
+  <rect x="24" y="190" width="192" height="40" rx="6" fill="#0F172A" />
+  <rect x="32" y="206" width="20" height="8" rx="2" fill="#64748B" />
+  <rect x="64" y="202" width="100" height="16" rx="2" fill="#64748B" />
+  
+  <rect x="24" y="240" width="192" height="40" rx="6" fill="#0F172A" />
+  <rect x="32" y="256" width="20" height="8" rx="2" fill="#64748B" />
+  <rect x="64" y="252" width="100" height="16" rx="2" fill="#64748B" />
+  
+  <!-- Main Content -->
+  <!-- Header -->
+  <rect x="264" y="24" width="912" height="60" rx="8" fill="#1E293B" />
+  <rect x="284" y="44" width="320" height="20" rx="4" fill="#334155" />
+  <rect x="1040" y="38" width="32" height="32" rx="16" fill="#334155" />
+  <rect x="984" y="38" width="32" height="32" rx="16" fill="#334155" />
+  
+  <!-- Stats Cards -->
+  <rect x="264" y="108" width="210" height="120" rx="8" fill="#334155" />
+  <rect x="284" y="128" width="120" height="16" rx="2" fill="#64748B" />
+  <text x="284" y="124" font-family="Arial" font-size="12" fill="#94A3B8">Resume Score</text>
+  <rect x="284" y="156" width="100" height="24" rx="4" fill="#3B82F6" />
+  <text x="334" y="173" font-family="Arial" font-size="14" font-weight="bold" fill="#FFFFFF">92%</text>
+  <rect x="284" y="192" width="80" height="12" rx="2" fill="#64748B" />
+  <text x="324" y="202" font-family="Arial" font-size="10" fill="#94A3B8">ATS Optimized</text>
+  
+  <rect x="490" y="108" width="210" height="120" rx="8" fill="#334155" />
+  <rect x="510" y="128" width="120" height="16" rx="2" fill="#64748B" />
+  <text x="510" y="124" font-family="Arial" font-size="12" fill="#94A3B8">Applications</text>
+  <rect x="510" y="156" width="100" height="24" rx="4" fill="#8B5CF6" />
+  <text x="560" y="173" font-family="Arial" font-size="14" font-weight="bold" fill="#FFFFFF">24</text>
+  <rect x="510" y="192" width="80" height="12" rx="2" fill="#64748B" />
+  <text x="550" y="202" font-family="Arial" font-size="10" fill="#94A3B8">Submitted</text>
+  
+  <rect x="716" y="108" width="210" height="120" rx="8" fill="#334155" />
+  <rect x="736" y="128" width="120" height="16" rx="2" fill="#64748B" />
+  <text x="736" y="124" font-family="Arial" font-size="12" fill="#94A3B8">Interviews</text>
+  <rect x="736" y="156" width="100" height="24" rx="4" fill="#EC4899" />
+  <text x="786" y="173" font-family="Arial" font-size="14" font-weight="bold" fill="#FFFFFF">5</text>
+  <rect x="736" y="192" width="80" height="12" rx="2" fill="#64748B" />
+  <text x="776" y="202" font-family="Arial" font-size="10" fill="#94A3B8">Scheduled</text>
+  
+  <rect x="942" y="108" width="210" height="120" rx="8" fill="#334155" />
+  <rect x="962" y="128" width="120" height="16" rx="2" fill="#64748B" />
+  <text x="962" y="124" font-family="Arial" font-size="12" fill="#94A3B8">Keywords</text>
+  <rect x="962" y="156" width="100" height="24" rx="4" fill="#10B981" />
+  <text x="1012" y="173" font-family="Arial" font-size="14" font-weight="bold" fill="#FFFFFF">98%</text>
+  <rect x="962" y="192" width="80" height="12" rx="2" fill="#64748B" />
+  <text x="1002" y="202" font-family="Arial" font-size="10" fill="#94A3B8">Matched</text>
+  
+  <!-- Main Resume Section -->
+  <rect x="264" y="252" width="580" height="300" rx="8" fill="#334155" />
+  <rect x="284" y="272" width="200" height="20" rx="4" fill="#64748B" />
+  <text x="284" y="288" font-family="Arial" font-size="16" font-weight="bold" fill="#E2E8F0">Resume Builder</text>
+  <rect x="284" y="304" width="160" height="12" rx="2" fill="#475569" />
+  <text x="284" y="315" font-family="Arial" font-size="10" fill="#94A3B8">Optimize your resume for ATS systems</text>
+  
+  <!-- Resume Sections -->
+  <rect x="284" y="340" width="540" height="50" rx="4" fill="#1E293B" />
+  <text x="300" y="370" font-family="Arial" font-size="14" fill="#E2E8F0">Personal Information</text>
+  <rect x="520" y="355" width="60" height="20" rx="4" fill="#3B82F6" opacity="0.7" />
+  <text x="550" y="369" font-family="Arial" font-size="10" fill="#FFFFFF" text-anchor="middle">Edit</text>
+  
+  <rect x="284" y="400" width="540" height="50" rx="4" fill="#1E293B" />
+  <text x="300" y="430" font-family="Arial" font-size="14" fill="#E2E8F0">Work Experience</text>
+  <rect x="520" y="415" width="60" height="20" rx="4" fill="#3B82F6" opacity="0.7" />
+  <text x="550" y="429" font-family="Arial" font-size="10" fill="#FFFFFF" text-anchor="middle">Edit</text>
+  
+  <rect x="284" y="460" width="540" height="50" rx="4" fill="#1E293B" />
+  <text x="300" y="490" font-family="Arial" font-size="14" fill="#E2E8F0">Skills</text>
+  <rect x="520" y="475" width="60" height="20" rx="4" fill="#3B82F6" opacity="0.7" />
+  <text x="550" y="489" font-family="Arial" font-size="10" fill="#FFFFFF" text-anchor="middle">Edit</text>
+  
+  <!-- ATS Scanning Animation -->
+  <rect x="860" y="252" width="292" height="300" rx="8" fill="#334155" />
+  <text x="880" y="280" font-family="Arial" font-size="16" font-weight="bold" fill="#E2E8F0">ATS Optimization</text>
+  
+  <!-- Document with Scan Effect -->
+  <rect x="900" y="300" width="212" height="200" rx="4" fill="#1E293B" />
+  
+  <!-- Document Content Lines -->
+  <rect x="920" y="320" width="172" height="10" rx="2" fill="#475569" />
+  <rect x="920" y="340" width="150" height="10" rx="2" fill="#475569" />
+  <rect x="920" y="360" width="172" height="10" rx="2" fill="#475569" />
+  <rect x="920" y="380" width="140" height="10" rx="2" fill="#475569" />
+  <rect x="920" y="400" width="160" height="10" rx="2" fill="#475569" />
+  <rect x="920" y="420" width="172" height="10" rx="2" fill="#475569" />
+  <rect x="920" y="440" width="130" height="10" rx="2" fill="#475569" />
+  <rect x="920" y="460" width="150" height="10" rx="2" fill="#475569" />
+  
+  <!-- Scanner Line Animation -->
+  <rect x="900" y="360" width="212" height="3" rx="1" fill="#3B82F6" opacity="0.8">
+    <animate attributeName="y" from="300" to="500" dur="2s" repeatCount="indefinite" />
+  </rect>
+  
+  <!-- Scanner Highlight Effects -->
+  <rect x="920" y="360" width="172" height="10" rx="2" fill="#3B82F6" opacity="0.3">
+    <animate attributeName="opacity" values="0.1;0.4;0.1" dur="2s" repeatCount="indefinite" />
+  </rect>
+  
+  <rect x="920" y="400" width="160" height="10" rx="2" fill="#10B981" opacity="0.3">
+    <animate attributeName="opacity" values="0.1;0.4;0.1" dur="2s" repeatCount="indefinite" />
+  </rect>
+  
+  <rect x="920" y="440" width="130" height="10" rx="2" fill="#3B82F6" opacity="0.3">
+    <animate attributeName="opacity" values="0.1;0.4;0.1" dur="2s" repeatCount="indefinite" />
+  </rect>
+  
+  <!-- Keywords Highlighted -->
+  <circle cx="900" y="520" r="5" fill="#3B82F6" />
+  <text x="910" y="523" font-family="Arial" font-size="10" fill="#94A3B8">Keyword Matched</text>
+  
+  <circle cx="900" y="540" r="5" fill="#10B981" />
+  <text x="910" y="543" font-family="Arial" font-size="10" fill="#94A3B8">ATS Optimized</text>
+  
+  <!-- Table -->
+  <rect x="264" y="576" width="888" height="200" rx="8" fill="#334155" />
+  <rect x="284" y="596" width="200" height="20" rx="4" fill="#64748B" />
+  <text x="284" y="612" font-family="Arial" font-size="16" font-weight="bold" fill="#E2E8F0">Job Application Tracker</text>
+  
+  <!-- Table Header -->
+  <rect x="284" y="636" width="140" height="16" rx="2" fill="#475569" />
+  <text x="354" y="648" font-family="Arial" font-size="12" fill="#E2E8F0" text-anchor="middle">Company</text>
+  
+  <rect x="444" y="636" width="140" height="16" rx="2" fill="#475569" />
+  <text x="514" y="648" font-family="Arial" font-size="12" fill="#E2E8F0" text-anchor="middle">Position</text>
+  
+  <rect x="604" y="636" width="140" height="16" rx="2" fill="#475569" />
+  <text x="674" y="648" font-family="Arial" font-size="12" fill="#E2E8F0" text-anchor="middle">Date Applied</text>
+  
+  <rect x="764" y="636" width="140" height="16" rx="2" fill="#475569" />
+  <text x="834" y="648" font-family="Arial" font-size="12" fill="#E2E8F0" text-anchor="middle">Resume</text>
+  
+  <rect x="924" y="636" width="140" height="16" rx="2" fill="#475569" />
+  <text x="994" y="648" font-family="Arial" font-size="12" fill="#E2E8F0" text-anchor="middle">Status</text>
+  
+  <!-- Table Rows -->
+  <rect x="284" y="672" width="840" height="1" fill="#475569" />
+  
+  <rect x="284" y="693" width="140" height="16" rx="2" fill="#64748B" />
+  <text x="354" y="705" font-family="Arial" font-size="12" fill="#E2E8F0" text-anchor="middle">Google</text>
+  
+  <rect x="444" y="693" width="140" height="16" rx="2" fill="#64748B" />
+  <text x="514" y="705" font-family="Arial" font-size="12" fill="#E2E8F0" text-anchor="middle">Software Engineer</text>
+  
+  <rect x="604" y="693" width="140" height="16" rx="2" fill="#64748B" />
+  <text x="674" y="705" font-family="Arial" font-size="12" fill="#E2E8F0" text-anchor="middle">Jun 15, 2023</text>
+  
+  <rect x="764" y="693" width="140" height="16" rx="2" fill="#64748B" />
+  <text x="834" y="705" font-family="Arial" font-size="12" fill="#E2E8F0" text-anchor="middle">Resume_v3.pdf</text>
+  
+  <rect x="924" y="693" width="60" height="16" rx="8" fill="#10B981" />
+  <text x="954" y="705" font-family="Arial" font-size="10" fill="#FFFFFF" text-anchor="middle">Interview</text>
+  
+  <rect x="284" y="728" width="840" height="1" fill="#475569" />
+  
+  <rect x="284" y="749" width="140" height="16" rx="2" fill="#64748B" />
+  <text x="354" y="761" font-family="Arial" font-size="12" fill="#E2E8F0" text-anchor="middle">Meta</text>
+  
+  <rect x="444" y="749" width="140" height="16" rx="2" fill="#64748B" />
+  <text x="514" y="761" font-family="Arial" font-size="12" fill="#E2E8F0" text-anchor="middle">Product Designer</text>
+  
+  <rect x="604" y="749" width="140" height="16" rx="2" fill="#64748B" />
+  <text x="674" y="761" font-family="Arial" font-size="12" fill="#E2E8F0" text-anchor="middle">Jun 20, 2023</text>
+  
+  <rect x="764" y="749" width="140" height="16" rx="2" fill="#64748B" />
+  <text x="834" y="761" font-family="Arial" font-size="12" fill="#E2E8F0" text-anchor="middle">Resume_v4.pdf</text>
+  
+  <rect x="924" y="749" width="60" height="16" rx="8" fill="#3B82F6" />
+  <text x="954" y="761" font-family="Arial" font-size="10" fill="#FFFFFF" text-anchor="middle">Applied</text>
+</svg> 

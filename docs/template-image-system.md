@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document explains how template images are managed in the ProsumeAI system. It covers the relationship between templates and their images, how images are stored, displayed, and the troubleshooting steps for common issues.
+This document explains how template images are managed in the ATScribe system. It covers the relationship between templates and their images, how images are stored, displayed, and the troubleshooting steps for common issues.
 
 ## System Architecture
 

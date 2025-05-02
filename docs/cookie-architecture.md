@@ -1,8 +1,8 @@
-# ProsumeAI Cookie Management Architecture
+# ATScribe Cookie Management Architecture
 
 ## Overview
 
-ProsumeAI's cookie management architecture provides a robust, secure system for handling user sessions, preferences, and authentication. This document outlines the architecture, components, installation process, and best practices.
+ATScribe's cookie management architecture provides a robust, secure system for handling user sessions, preferences, and authentication. This document outlines the architecture, components, installation process, and best practices.
 
 ## Table of Contents
 
@@ -23,7 +23,7 @@ The central component is the `CookieManager` class located in `server/utils/cook
 
 ```typescript
 export class CookieManager {
-  constructor(appName = 'prosumeai', environment = 'development') { /*...*/ }
+  constructor(appName = 'ATScribe', environment = 'development') { /*...*/ }
   
   // Core methods
   setCookie(res, name, value, options = {}) { /*...*/ }
@@ -275,11 +275,11 @@ If you see errors like "database does not exist":
 1. Ensure PostgreSQL is running
 2. Create the database if needed:
    ```sql
-   CREATE DATABASE prosumeai;
+   CREATE DATABASE ATScribe;
    ```
 3. Verify your `DATABASE_URL` in `.env` is correct:
    ```
-   DATABASE_URL=postgresql://username:password@localhost:5432/prosumeai
+   DATABASE_URL=postgresql://username:password@localhost:5432/ATScribe
    ```
 
 ### Missing Environment Variables
@@ -318,4 +318,4 @@ The cookie management system is designed for high performance:
 - Memory usage is minimal
 - Batched operations are supported for high-volume scenarios
 
-This architecture ensures ProsumeAI can scale to handle more users while maintaining robust security and excellent performance. 
+This architecture ensures ATScribe can scale to handle more users while maintaining robust security and excellent performance. 

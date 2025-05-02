@@ -1,4 +1,4 @@
-# ProsumeAI SaaS Model
+# ATScribe SaaS Model
 
 ## Table of Contents
 - [Introduction](#introduction)
@@ -13,7 +13,7 @@
 
 ## Introduction
 
-This document outlines the SaaS model for ProsumeAI, a resume and job application management platform. The model includes region-specific pricing (India vs Global), multiple payment gateways, feature access controls, and comprehensive usage tracking.
+This document outlines the SaaS model for ATScribe, a resume and job application management platform. The model includes region-specific pricing (India vs Global), multiple payment gateways, feature access controls, and comprehensive usage tracking.
 
 ### Core Principles
 

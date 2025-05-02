@@ -1,0 +1,208 @@
+import { useState, useEffect } from 'react';
+import { Link } from 'wouter';
+import { AnimatePresence, motion } from 'framer-motion';
+import { useAuth } from '@/hooks/use-auth';
+
+type SharedHeaderProps = {
+  isLandingPage?: boolean;
+};
+
+export default function SharedHeader({ isLandingPage = false }: SharedHeaderProps) {
+  const [isScrolled, setIsScrolled] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const { user } = useAuth();
+  const isLoggedIn = !!user;
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 50);
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+    };
+  }, []);
+
+  const toggleMobileMenu = () => {
+    setIsMobileMenuOpen(!isMobileMenuOpen);
+  };
+
+  // Close mobile menu when clicking a link
+  const handleNavLinkClick = () => {
+    setIsMobileMenuOpen(false);
+  };
+
+  return (
+    <>
+      {/* Header */}
+      <header className={`fixed top-0 left-0 right-0 z-50 flex justify-between items-center p-4 md:p-6 transition-all duration-300 ${isScrolled ? 'bg-indigo-950/95 shadow-md backdrop-blur-sm' : 'bg-transparent'}`}>
+        <Link href="/">
+          <a className="text-xl md:text-2xl font-bold text-white">ATScribe</a>
+        </Link>
+        
+        {/* Desktop Navigation */}
+        <nav className="hidden md:flex space-x-8">
+          {isLandingPage ? (
+            <a href="#features" className="text-white hover:text-blue-400 transition-colors">Features</a>
+          ) : (
+            <Link href="/#features">
+              <a className="text-white hover:text-blue-400 transition-colors">Features</a>
+            </Link>
+          )}
+          
+          <Link href="/pricing">
+            <a className="text-white hover:text-blue-400 transition-colors">Pricing</a>
+          </Link>
+          
+          <Link href="/about">
+            <a className="text-white hover:text-blue-400 transition-colors">About Us</a>
+          </Link>
+          
+          {isLandingPage ? (
+            <a href="#testimonials" className="text-white hover:text-blue-400 transition-colors">Testimonials</a>
+          ) : (
+            <Link href="/#testimonials">
+              <a className="text-white hover:text-blue-400 transition-colors">Testimonials</a>
+            </Link>
+          )}
+        </nav>
+        
+        {/* Desktop Auth/Dashboard Buttons */}
+        <div className="hidden md:flex space-x-4">
+          {isLoggedIn ? (
+            <Link href="/dashboard">
+              <a className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md transition-colors">
+                Dashboard
+              </a>
+            </Link>
+          ) : (
+            <>
+              <Link href="/auth">
+                <a className="px-4 py-2 text-white hover:text-blue-200 transition-colors">Login</a>
+              </Link>
+              <Link href="/auth?signup=true">
+                <a className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md transition-colors">Sign Up</a>
+              </Link>
+            </>
+          )}
+        </div>
+        
+        {/* Mobile Menu Button */}
+        <button 
+          className="md:hidden text-white focus:outline-none"
+          onClick={toggleMobileMenu}
+          aria-label="Toggle menu"
+        >
+          {isMobileMenuOpen ? (
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+          ) : (
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16"></path>
+            </svg>
+          )}
+        </button>
+      </header>
+
+      {/* Mobile Menu */}
+      <AnimatePresence>
+        {isMobileMenuOpen && (
+          <motion.div 
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.2 }}
+            className="fixed top-16 left-0 right-0 z-40 bg-indigo-950/95 backdrop-blur-sm shadow-lg p-4"
+          >
+            <nav className="flex flex-col space-y-3">
+              {isLandingPage ? (
+                <a 
+                  href="#features" 
+                  className="text-white hover:text-blue-400 transition-colors py-2 px-2 border-b border-indigo-800/50 w-full text-left"
+                  onClick={handleNavLinkClick}
+                >
+                  Features
+                </a>
+              ) : (
+                <Link href="/#features">
+                  <a 
+                    className="text-white hover:text-blue-400 transition-colors py-2 px-2 border-b border-indigo-800/50 w-full text-left"
+                    onClick={handleNavLinkClick}
+                  >
+                    Features
+                  </a>
+                </Link>
+              )}
+              
+              <Link href="/pricing">
+                <a 
+                  className="text-white hover:text-blue-400 transition-colors py-2 px-2 border-b border-indigo-800/50 w-full text-left"
+                  onClick={handleNavLinkClick}
+                >
+                  Pricing
+                </a>
+              </Link>
+              
+              <Link href="/about">
+                <a 
+                  className="text-white hover:text-blue-400 transition-colors py-2 px-2 border-b border-indigo-800/50 w-full text-left"
+                  onClick={handleNavLinkClick}
+                >
+                  About Us
+                </a>
+              </Link>
+              
+              {isLandingPage ? (
+                <a 
+                  href="#testimonials" 
+                  className="text-white hover:text-blue-400 transition-colors py-2 px-2 border-b border-indigo-800/50 w-full text-left"
+                  onClick={handleNavLinkClick}
+                >
+                  Testimonials
+                </a>
+              ) : (
+                <Link href="/#testimonials">
+                  <a 
+                    className="text-white hover:text-blue-400 transition-colors py-2 px-2 border-b border-indigo-800/50 w-full text-left"
+                    onClick={handleNavLinkClick}
+                  >
+                    Testimonials
+                  </a>
+                </Link>
+              )}
+              
+              {/* Mobile Auth/Dashboard Buttons */}
+              {isLoggedIn ? (
+                <div className="w-full pt-3">
+                  <Link href="/dashboard">
+                    <a className="w-full px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md transition-colors text-center block"
+                       onClick={handleNavLinkClick}>
+                      Dashboard
+                    </a>
+                  </Link>
+                </div>
+              ) : (
+                <div className="flex flex-row space-x-2 pt-3 w-full">
+                  <Link href="/auth">
+                    <a className="flex-1 px-4 py-2 text-white hover:text-blue-200 transition-colors border border-indigo-700 rounded-md text-center"
+                       onClick={handleNavLinkClick}>
+                      Login
+                    </a>
+                  </Link>
+                  <Link href="/auth?signup=true">
+                    <a className="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md transition-colors text-center"
+                       onClick={handleNavLinkClick}>
+                      Sign Up
+                    </a>
+                  </Link>
+                </div>
+              )}
+            </nav>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
+  );
+} 

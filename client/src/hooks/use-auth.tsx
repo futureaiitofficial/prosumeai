@@ -46,7 +46,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         title: "Login successful",
         description: `Welcome back, ${userData.username}!`,
       });
-      setLocation("/");
+      
+      // Redirect to appropriate page based on user role
+      if (userData.isAdmin) {
+        setLocation("/admin/dashboard");
+      } else {
+        setLocation("/dashboard");
+      }
     },
     onError: (error: Error) => {
       toast({
@@ -66,9 +72,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       queryClient.setQueryData(["/api/user"], userData);
       toast({
         title: "Registration successful",
-        description: `Welcome to Prosume, ${userData.username}!`,
+        description: `Welcome to ATScribe, ${userData.username}!`,
       });
-      setLocation("/");
+      // Redirect based on user role
+      if (userData.isAdmin) {
+        setLocation("/admin/dashboard");
+      } else {
+        setLocation("/dashboard");
+      }
     },
     onError: (error: Error) => {
       toast({
@@ -100,7 +111,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         title: "Logged out",
         description: "You have been successfully logged out.",
       });
-      setLocation("/auth");
+      setLocation("/");
     },
     onError: (error: Error) => {
       console.error("Logout client error:", error);
@@ -112,7 +123,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         title: "Logout status",
         description: "You have been logged out, but there may have been an issue with the server.",
       });
-      setLocation("/auth");
+      setLocation("/");
     },
   });
 

@@ -36,12 +36,21 @@ import ApiKeysPage from "@/pages/admin/api-keys";
 import { LocationProvider } from "./hooks/use-location";
 import AdminSubscriptionsPage from "@/pages/admin/subscriptions";
 import UserSubscriptionPage from "@/pages/user/subscription";
+import CheckoutPage from "@/pages/checkout";
+import { AdminPaymentPage } from '@/components/admin/AdminPaymentPage';
+import LandingPage from '@/pages/landing';
+import AboutPage from '@/pages/about';
+import PricingPage from '@/pages/pricing';
+import AuthenticatedRedirect from '@/components/auth/authenticated-redirect';
 
 function Router() {
   return (
     <Switch>
+      <Route path="/" component={LandingPage} />
+      <Route path="/about" component={AboutPage} />
+      <Route path="/pricing" component={PricingPage} />
       <Route path="/auth" component={AuthPage} />
-      <ProtectedRoute path="/" component={Dashboard} />
+      <ProtectedRoute path="/dashboard" component={Dashboard} />
       <ProtectedRoute path="/resumes" component={Resumes} />
       <ProtectedRoute path="/resume-builder" component={ResumeBuilder} />
       <ProtectedRoute path="/cover-letters" component={CoverLetters} />
@@ -51,6 +60,7 @@ function Router() {
       <ProtectedRoute path="/preview-generator" component={PreviewGenerator} />
       <ProtectedRoute path="/keyword-generator" component={KeywordGenerator} />
       <ProtectedRoute path="/user/subscription" component={() => <UserSubscriptionPage />} />
+      <ProtectedRoute path="/checkout" component={() => <CheckoutPage />} />
       
       {/* Admin Routes */}
       <AdminRoute path="/admin" component={AdminPage} />
@@ -65,6 +75,7 @@ function Router() {
       <AdminRoute path="/admin/backups" component={BackupsPage} />
       <AdminRoute path="/admin/api-keys" component={ApiKeysPage} />
       <AdminRoute path="/admin/subscriptions" component={() => <AdminSubscriptionsPage />} />
+      <AdminRoute path="/admin/payment" component={() => <AdminPaymentPage />} />
       
       <Route component={NotFound} />
     </Switch>

@@ -35,13 +35,13 @@ export function registerTemplates(): TemplateFactory {
     const minimalistAtsTemplate = factory.createTemplate('minimalist-ats');
     
     // Ensure template names are consistent
-    if (professionalTemplate) {
+    if (professionalTemplate && professionalTemplate.metadata) {
       professionalTemplate.metadata.name = 'Professional';
     }
-    if (elegantDividerTemplate) {
+    if (elegantDividerTemplate && elegantDividerTemplate.metadata) {
       elegantDividerTemplate.metadata.name = 'Elegant Divider';
     }
-    if (minimalistAtsTemplate) {
+    if (minimalistAtsTemplate && minimalistAtsTemplate.metadata) {
       minimalistAtsTemplate.metadata.name = 'Minimalist ATS';
     }
     

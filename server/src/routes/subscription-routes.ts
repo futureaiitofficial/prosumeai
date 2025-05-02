@@ -1,8 +1,21 @@
 import express from 'express';
 import { requireUser, requireAdmin } from '../../middleware/auth';
 import { db } from '../../config/db';
-import { subscriptionPlans, features, planFeatures, userSubscriptions, featureUsage, paymentTransactions, disputes, planPricing, users } from '@shared/schema';
-import { eq, and } from 'drizzle-orm';
+import { 
+  subscriptionPlans, 
+  planPricing, 
+  planFeatures, 
+  features, 
+  userSubscriptions,
+  featureUsage,
+  users,
+  userBillingDetails,
+  paymentTransactions,
+  disputes,
+  appSettings
+} from '@shared/schema';
+import { eq, and, gte, lte, desc, asc, isNull, inArray } from 'drizzle-orm';
+import { SubscriptionService } from '../../services/subscription-service';
 
 /**
  * Register subscription routes
@@ -784,7 +797,116 @@ export function registerSubscriptionRoutes(app: express.Express) {
     }
   });
 
+  // Updated route - Using SubscriptionService for upgrade
   app.post('/api/user/subscription/upgrade', requireUser, async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ message: 'Unauthorized' });
+      }
+      const userId = req.user.id;
+      const { planId } = req.body;
+      if (!planId || isNaN(planId)) {
+        return res.status(400).json({ message: 'Invalid plan ID' });
+      }
+      
+      console.log(`Processing subscription upgrade - User: ${userId}, Plan ID: ${planId}`);
+      
+      // Check if plan exists and is active
+      const plan = await db.select().from(subscriptionPlans).where(and(eq(subscriptionPlans.id, planId), eq(subscriptionPlans.active, true))).limit(1);
+      if (!plan.length) {
+        console.error(`Plan ${planId} not found or not active`);
+        return res.status(404).json({ message: 'Plan not found or not active' });
+      }
+      
+      console.log(`Found active plan: ${plan[0].name}`);
+
+      // Check if the plan is free (freemium)
+      if (plan[0].isFreemium) {
+        console.log(`Activating free plan subscription for user ${userId} to plan ${planId}`);
+        const subscription = await SubscriptionService.activateFreePlan(userId, planId);
+        return res.status(201).json({
+          subscription,
+          message: 'Free plan subscription activated successfully'
+        });
+      }
+      
+      // Get user's region
+      const billingDetails = await db.select()
+        .from(userBillingDetails)
+        .where(eq(userBillingDetails.userId, userId))
+        .limit(1);
+      
+      // Determine region based on user's country
+      const userRegion = billingDetails.length > 0 && billingDetails[0].country === 'IN' 
+        ? 'INDIA' 
+        : 'GLOBAL';
+        
+      console.log(`User region determined as: ${userRegion}`);
+      
+      // Calculate proration if the user is upgrading from an existing plan
+      const proration = await SubscriptionService.calculateProration(userId, planId);
+      console.log(`Proration calculation result:`, proration);
+      
+      // Get the pricing applicable for this user's region
+      const pricing = await db.select()
+        .from(planPricing)
+        .where(and(
+          eq(planPricing.planId, planId),
+          eq(planPricing.targetRegion, userRegion as any)
+        ))
+        .limit(1);
+      
+      // If there's no specific pricing for this region, get the GLOBAL pricing
+      let pricingInfo = null;
+      if (!pricing.length) {
+        console.log(`No specific pricing found for region ${userRegion}, falling back to GLOBAL`);
+        const globalPricing = await db.select()
+          .from(planPricing)
+          .where(and(
+            eq(planPricing.planId, planId),
+            eq(planPricing.targetRegion, 'GLOBAL')
+          ))
+          .limit(1);
+          
+        if (globalPricing.length) {
+          pricingInfo = globalPricing[0];
+        } else {
+          console.error(`No pricing information found for plan ${planId}`);
+          return res.status(404).json({ message: 'No pricing information found for this plan' });
+        }
+      } else {
+        pricingInfo = pricing[0];
+      }
+      
+      // Construct the checkout URL with correct query parameters
+      const queryParams = new URLSearchParams();
+      queryParams.append('planId', planId.toString());
+      if (proration.prorationAmount > 0) {
+        queryParams.append('prorationAmount', proration.prorationAmount.toString());
+      }
+      
+      const checkoutUrl = `/checkout?${queryParams.toString()}`;
+      console.log(`Redirecting to checkout: ${checkoutUrl}`);
+      
+      return res.json({
+        plan: plan[0],
+        pricing: pricingInfo,
+        proration,
+        requiresPayment: proration.requiresPayment,
+        redirectToPayment: proration.requiresPayment,
+        paymentUrl: checkoutUrl
+      });
+    } catch (error: any) {
+      console.error('Error in POST /api/user/subscription/upgrade:', error);
+      res.status(500).json({ 
+        message: 'Failed to upgrade subscription', 
+        error: error.message 
+      });
+    }
+  });
+
+  // New route - Downgrade subscription
+  app.post('/api/user/subscription/downgrade', requireUser, async (req, res) => {
     try {
       if (!req.user) {
         return res.status(401).json({ message: 'Unauthorized' });
@@ -801,141 +923,63 @@ export function registerSubscriptionRoutes(app: express.Express) {
         return res.status(404).json({ message: 'Plan not found or not active' });
       }
 
-      // FRAUD PREVENTION: Get user's region based on IP
-      const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
-      const clientIp = Array.isArray(ip) ? ip[0] : ip.split(',')[0].trim();
-      
-      console.log(`Verifying region for subscription upgrade - IP: ${clientIp}, User ID: ${userId}, Plan ID: ${planId}`);
-      
-      let userRegion = 'GLOBAL';
-      
-      // Skip geolocation for localhost/development
-      if (!(clientIp === '127.0.0.1' || clientIp === '::1' || clientIp.includes('192.168.') || clientIp.includes('10.0.'))) {
-        try {
-          // Call IP geolocation API
-          const response = await fetch(`https://ipapi.co/${clientIp}/json/`);
-          const data = await response.json();
-          
-          console.log('IP Geolocation for payment validation:', data);
-          
-          if (!data.error) {
-            // Set region based on country code
-            userRegion = data.country_code === 'IN' ? 'INDIA' : 'GLOBAL';
-          }
-        } catch (geoError) {
-          console.error('Error verifying user region during payment:', geoError);
-          // Continue with default GLOBAL region but log the error
-        }
+      // If the plan is free, use the activateFreePlan method
+      if (plan[0].isFreemium) {
+        const subscription = await SubscriptionService.activateFreePlan(userId, planId);
+        return res.status(201).json({
+          subscription,
+          message: 'Successfully downgraded to free plan'
+        });
       }
       
-      // Get the pricing applicable for this user's region
-      const pricing = await db.select()
-        .from(planPricing)
-        .where(and(
-          eq(planPricing.planId, planId),
-          eq(planPricing.targetRegion, userRegion as any)
-        ))
-        .limit(1);
+      // Calculate proration for downgrade
+      const proration = await SubscriptionService.calculateProration(userId, planId);
       
-      // If there's no specific pricing for this region, get the GLOBAL pricing
-      if (!pricing.length) {
-        console.log(`No specific pricing found for region ${userRegion}, falling back to GLOBAL`);
-        const globalPricing = await db.select()
-          .from(planPricing)
-          .where(and(
-            eq(planPricing.planId, planId),
-            eq(planPricing.targetRegion, 'GLOBAL')
-          ))
-          .limit(1);
-          
-        if (globalPricing.length) {
-          console.log(`Using GLOBAL pricing: ${globalPricing[0].price} ${globalPricing[0].currency}`);
-        } else {
-          console.log('No pricing information found for this plan');
-        }
-      } else {
-        console.log(`Using ${userRegion} pricing: ${pricing[0].price} ${pricing[0].currency}`);
+      // If it's actually an upgrade, redirect to the upgrade flow
+      if (proration.isUpgrade) {
+        return res.json({
+          message: 'This change is an upgrade rather than a downgrade',
+          redirectToUpgrade: true,
+          upgradeUrl: `/api/user/subscription/upgrade`,
+          planId
+        });
       }
       
-      // Check current subscription
-      const currentSubscription = await db.select().from(userSubscriptions).where(eq(userSubscriptions.userId, userId)).limit(1);
-      let newSubscription;
-      const now = new Date();
-      const endDate = new Date(now);
+      // Process the downgrade with the calculated credit
+      const subscription = await SubscriptionService.downgradeWithCredit(
+        userId, 
+        planId, 
+        proration.prorationCredit
+      );
       
-      // Set end date based on billing cycle
-      if (plan[0].billingCycle === 'YEARLY') {
-        // For yearly plans, add 1 year
-        endDate.setFullYear(now.getFullYear() + 1);
-      } else if (plan[0].billingCycle === 'MONTHLY') {
-        // For monthly plans, add 1 month
-        endDate.setMonth(now.getMonth() + 1);
-      } else if (plan[0].billingCycle === 'WEEKLY') {
-        // For weekly plans, add 7 days
-        endDate.setDate(now.getDate() + 7);
-      } else if (plan[0].billingCycle === 'DAILY') {
-        // For daily plans, add 1 day
-        endDate.setDate(now.getDate() + 1);
-      }
-      
-      console.log(`Creating subscription with billing cycle ${plan[0].billingCycle}:`, {
-        startDate: now.toISOString(),
-        endDate: endDate.toISOString()
+      return res.json({
+        subscription,
+        prorationCredit: proration.prorationCredit,
+        message: 'Subscription downgraded successfully',
+        effectiveImmediately: true
       });
-
-      if (currentSubscription.length) {
-        // Update existing subscription
-        newSubscription = await db.update(userSubscriptions)
-          .set({
-            planId,
-            startDate: now,
-            endDate: endDate,
-            status: 'ACTIVE',
-            previousPlanId: currentSubscription[0].planId
-          })
-          .where(eq(userSubscriptions.id, currentSubscription[0].id))
-          .returning();
-      } else {
-        // Create new subscription
-        newSubscription = await db.insert(userSubscriptions)
-          .values([{
-            userId,
-            planId,
-            startDate: now,
-            endDate: endDate,
-            status: 'ACTIVE',
-            paymentGateway: 'STRIPE',
-            autoRenew: false
-          }])
-          .returning();
-      }
-      res.status(201).json(newSubscription[0]);
     } catch (error: any) {
-      console.error('Error in POST /api/user/subscription/upgrade:', error);
+      console.error('Error in POST /api/user/subscription/downgrade:', error);
       res.status(500).json({ 
-        message: 'Failed to upgrade subscription', 
+        message: 'Failed to downgrade subscription', 
         error: error.message 
       });
     }
   });
 
+  // Updated route - Using SubscriptionService for cancellation
   app.post('/api/user/subscription/cancel', requireUser, async (req, res) => {
     try {
       if (!req.user) {
         return res.status(401).json({ message: 'Unauthorized' });
       }
       const userId = req.user.id;
-      const currentSubscription = await db.select().from(userSubscriptions).where(eq(userSubscriptions.userId, userId)).limit(1);
-      if (!currentSubscription.length) {
-        return res.status(404).json({ message: 'No active subscription found' });
-      }
-      if (currentSubscription[0].status === 'CANCELLED') {
-        return res.status(400).json({ message: 'Subscription already cancelled' });
-      }
-      await db.update(userSubscriptions)
-        .set({ status: 'CANCELLED' })
-        .where(eq(userSubscriptions.id, currentSubscription[0].id));
-      res.json({ message: 'Subscription cancelled successfully' });
+      
+      const subscription = await SubscriptionService.cancelSubscription(userId);
+      res.json({ 
+        message: 'Subscription cancelled successfully',
+        subscription
+      });
     } catch (error: any) {
       console.error('Error in POST /api/user/subscription/cancel:', error);
       res.status(500).json({ 
@@ -1039,16 +1083,101 @@ export function registerSubscriptionRoutes(app: express.Express) {
       res.setHeader('Expires', '0');
       res.setHeader('Surrogate-Control', 'no-store');
       
+      // Get active subscription plans
       const plans = await db.select().from(subscriptionPlans).where(eq(subscriptionPlans.active, true));
+      
+      // Determine user's region
+      let userRegion = 'GLOBAL';
+      
+      // If the user is authenticated, check their billing details first
+      if (req.isAuthenticated() && req.user) {
+        const userId = req.user.id;
+        const billingDetails = await db.select()
+          .from(userBillingDetails)
+          .where(eq(userBillingDetails.userId, userId))
+          .limit(1);
+        
+        if (billingDetails.length > 0 && billingDetails[0].country === 'IN') {
+          userRegion = 'INDIA';
+          console.log(`Using billing details region for user ${userId}: INDIA`);
+        } else {
+          // Try to get region from IP geolocation cache
+          try {
+            // Get the IP address
+            const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
+            const clientIp = Array.isArray(ip) ? ip[0] : ip.split(',')[0].trim();
+            
+            // Try getting from cache
+            const cacheKey = `ip-region-${clientIp}`;
+            const cachedRegion = await db.select()
+              .from(appSettings)
+              .where(eq(appSettings.key, cacheKey))
+              .limit(1);
+            
+            if (cachedRegion.length > 0 && cachedRegion[0].value) {
+              const regionData = cachedRegion[0].value as any;
+              if (regionData.country === 'IN') {
+                userRegion = 'INDIA';
+                console.log(`Using cached IP geolocation for plans display: INDIA`);
+              }
+            }
+          } catch (geoError) {
+            console.warn('Error checking IP geolocation cache:', geoError);
+            // Continue with GLOBAL as default
+          }
+        }
+      } else {
+        // For non-authenticated users, try IP-based region detection
+        try {
+          const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
+          const clientIp = Array.isArray(ip) ? ip[0] : ip.split(',')[0].trim();
+          
+          // Try getting from cache
+          const cacheKey = `ip-region-${clientIp}`;
+          const cachedRegion = await db.select()
+            .from(appSettings)
+            .where(eq(appSettings.key, cacheKey))
+            .limit(1);
+          
+          if (cachedRegion.length > 0 && cachedRegion[0].value) {
+            const regionData = cachedRegion[0].value as any;
+            if (regionData.country === 'IN') {
+              userRegion = 'INDIA';
+              console.log(`Using cached IP geolocation for anonymous user plans: INDIA`);
+            }
+          }
+        } catch (geoError) {
+          console.warn('Error checking IP geolocation for anonymous user:', geoError);
+        }
+      }
+      
+      console.log(`Subscription plans using region: ${userRegion}`);
+      
       // Fetch pricing data for each plan
       const pricing = await db.select().from(planPricing);
       
-      // Combine plans with their pricing information
+      // Combine plans with their pricing information, prioritizing the determined region
       const plansWithPricing = plans.map(plan => {
         const planPricingData = pricing.filter(price => price.planId === plan.id);
+        
+        // Sort pricing with user's region first, then GLOBAL
+        const sortedPricing = [...planPricingData].sort((a, b) => {
+          if (a.targetRegion === userRegion && b.targetRegion !== userRegion) return -1;
+          if (a.targetRegion !== userRegion && b.targetRegion === userRegion) return 1;
+          return 0;
+        });
+        
         return { 
           ...plan,
-          pricing: planPricingData 
+          pricing: sortedPricing,
+          // Add a displayPrice field with the appropriate region's price
+          displayPrice: sortedPricing.find(p => p.targetRegion === userRegion)?.price || 
+                        sortedPricing.find(p => p.targetRegion === 'GLOBAL')?.price || 
+                        plan.price,
+          displayCurrency: sortedPricing.find(p => p.targetRegion === userRegion)?.currency || 
+                           sortedPricing.find(p => p.targetRegion === 'GLOBAL')?.currency || 
+                           'USD',
+          preferredRegion: userRegion
         };
       });
       
@@ -1057,6 +1186,50 @@ export function registerSubscriptionRoutes(app: express.Express) {
       console.error('Error in GET /api/public/subscription-plans:', error);
       res.status(500).json({ 
         message: 'Failed to fetch subscription plans', 
+        error: error.message 
+      });
+    }
+  });
+
+  // Get a single subscription plan by ID
+  app.get('/api/public/subscription-plans/:id', async (req, res) => {
+    try {
+      // Set cache control headers to prevent caching
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+      res.setHeader('Surrogate-Control', 'no-store');
+      
+      const planId = parseInt(req.params.id);
+      if (isNaN(planId)) {
+        return res.status(400).json({ message: 'Invalid plan ID' });
+      }
+      
+      // Get plan details
+      const plan = await db.select().from(subscriptionPlans)
+        .where(and(
+          eq(subscriptionPlans.id, planId),
+          eq(subscriptionPlans.active, true)
+        ))
+        .limit(1);
+      
+      if (!plan.length) {
+        return res.status(404).json({ message: 'Plan not found' });
+      }
+      
+      // Get pricing for this plan
+      const pricing = await db.select().from(planPricing)
+        .where(eq(planPricing.planId, planId));
+      
+      // Return the plan with pricing information
+      res.json({
+        ...plan[0],
+        pricing
+      });
+    } catch (error: any) {
+      console.error(`Error in GET /api/public/subscription-plans/${req.params.id}:`, error);
+      res.status(500).json({ 
+        message: 'Failed to fetch subscription plan', 
         error: error.message 
       });
     }
@@ -1250,30 +1423,83 @@ export function registerSubscriptionRoutes(app: express.Express) {
         return res.json({ region: 'GLOBAL', currency: 'USD' });
       }
       
+      // Cache key for IP address
+      const cacheKey = `ip-region-${clientIp}`;
+      
+      // Try to get cached result first
       try {
-        // Call IP geolocation API
-        const response = await fetch(`https://ipapi.co/${clientIp}/json/`);
+        const cachedResult = await db.select()
+          .from(appSettings)
+          .where(eq(appSettings.key, cacheKey))
+          .limit(1);
+        
+        if (cachedResult.length > 0 && cachedResult[0].value) {
+          console.log(`Using cached geolocation for IP: ${clientIp}`);
+          const regionData = cachedResult[0].value as any;
+          return res.json(regionData);
+        }
+      } catch (cacheError) {
+        console.warn('Error checking cache for IP region:', cacheError);
+        // Continue to API call if cache fails
+      }
+      
+      try {
+        // Call IP geolocation API with timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout
+        
+        const response = await fetch(`https://ipapi.co/${clientIp}/json/`, {
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        
         const data = await response.json();
         
         console.log('IP Geolocation response:', data);
         
         if (data.error) {
+          // Handle rate limiting specifically
+          if (data.reason === 'RateLimited') {
+            console.warn('IP geolocation rate limited, trying alternative service');
+            // Try alternative service or fallback mechanism
+            return await tryAlternativeGeolocation(clientIp, res, cacheKey);
+          }
           throw new Error(`Geolocation API error: ${data.reason}`);
         }
         
         // Determine region based on country code
         const country = data.country_code;
+        const countryName = data.country_name;
         
-        // Check if user is in India
-        if (country === 'IN') {
-          return res.json({ region: 'INDIA', currency: 'INR', country });
-        } else {
-          return res.json({ region: 'GLOBAL', currency: 'USD', country });
+        // Create result
+        const regionResult = country === 'IN' 
+          ? { region: 'INDIA', currency: 'INR', country, countryName } 
+          : { region: 'GLOBAL', currency: 'USD', country, countryName };
+        
+        // Cache the result for future use
+        try {
+          // Store or update cache
+          await db.insert(appSettings)
+            .values({
+              key: cacheKey,
+              value: regionResult,
+              category: 'ip-geolocation',
+            })
+            .onConflictDoUpdate({
+              target: appSettings.key,
+              set: { value: regionResult, updatedAt: new Date() }
+            });
+            
+          console.log(`Cached geolocation data for IP: ${clientIp}`);
+        } catch (cacheError) {
+          console.error('Failed to cache IP geolocation:', cacheError);
+          // Continue even if caching fails
         }
+        
+        return res.json(regionResult);
       } catch (geoError) {
-        console.error('Error with geolocation service:', geoError);
-        // Default to GLOBAL if geolocation fails
-        return res.json({ region: 'GLOBAL', currency: 'USD', error: 'Geolocation failed' });
+        console.error('Error with primary geolocation service:', geoError);
+        return await tryAlternativeGeolocation(clientIp, res, cacheKey);
       }
     } catch (error: any) {
       console.error('Error in GET /api/user/region:', error);
@@ -1281,4 +1507,53 @@ export function registerSubscriptionRoutes(app: express.Express) {
       res.json({ region: 'GLOBAL', currency: 'USD', error: error.message });
     }
   });
+  
+  // Alternative geolocation function to handle rate limiting
+  async function tryAlternativeGeolocation(clientIp: string, res: express.Response, cacheKey: string) {
+    try {
+      // Try GeoJS as an alternative (no API key required)
+      const response = await fetch(`https://get.geojs.io/v1/ip/country/${clientIp}.json`);
+      const data = await response.json();
+      
+      console.log('Alternative geolocation response:', data);
+      
+      if (data.country) {
+        const country = data.country;
+        const countryName = data.name || country;
+        
+        // Create result
+        const regionResult = country === 'IN' 
+          ? { region: 'INDIA', currency: 'INR', country, countryName } 
+          : { region: 'GLOBAL', currency: 'USD', country, countryName };
+        
+        // Cache the result
+        try {
+          await db.insert(appSettings)
+            .values({
+              key: cacheKey,
+              value: regionResult,
+              category: 'ip-geolocation',
+            })
+            .onConflictDoUpdate({
+              target: appSettings.key,
+              set: { value: regionResult, updatedAt: new Date() }
+            });
+        } catch (cacheError) {
+          console.warn('Failed to cache alternative geolocation data:', cacheError);
+        }
+        
+        return res.json(regionResult);
+      }
+      
+      throw new Error('Failed to get country data from alternative service');
+    } catch (error) {
+      console.error('Error with alternative geolocation service:', error);
+      // If all else fails, return GLOBAL
+      return res.json({ 
+        region: 'GLOBAL', 
+        currency: 'USD', 
+        error: 'All geolocation services failed' 
+      });
+    }
+  }
 } 

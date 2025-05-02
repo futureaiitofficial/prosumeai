@@ -14,6 +14,7 @@ import { registerCoverLetterRoutes } from "./cover-letter-routes";
 import { registerJobApplicationRoutes } from "./job-applications-routes";
 import { registerSubscriptionRoutes } from "./subscription-routes";
 import { registerUserRoutes } from "./user-routes";
+import { registerPaymentRoutes } from "./payment-routes";
 
 /**
  * Register all application routes
@@ -48,6 +49,7 @@ export function registerRoutes(app: express.Express): Server {
   registerCoverLetterRoutes(app);
   registerJobApplicationRoutes(app);
   registerSubscriptionRoutes(app);
+  registerPaymentRoutes(app);
   registerUserRoutes(app);
 
   return server;

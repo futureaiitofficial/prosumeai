@@ -143,7 +143,7 @@ router.get('/server-status', requireAdmin, async (req: Request, res: Response) =
     const cookieManagerInfo = {
       enabled: safeBoolean(cookieManager),
       settings: {
-        prefix: safeString(cookieManager ? (cookieManager as any).prefix || 'prosume' : 'prosume'),
+        prefix: safeString(cookieManager ? (cookieManager as any).prefix || 'ATScribe' : 'ATScribe'),
         secure: safeBoolean(process.env.NODE_ENV === 'production'),
         sameSite: safeString(process.env.NODE_ENV === 'production' ? 'strict' : 'lax')
       }

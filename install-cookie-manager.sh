@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# ProsumeAI Cookie Management System Installer
-echo "🍪 ProsumeAI Cookie Management System Installer"
+# ATScribe Cookie Management System Installer
+echo "🍪 ATScribe Cookie Management System Installer"
 echo "==============================================="
 
 # Install required dependencies
@@ -24,7 +24,7 @@ if [ -z "$DATABASE_URL" ]; then
   else
     echo "🔴 Database connection information missing!"
     echo "Please set DATABASE_URL in your .env file before running migrations."
-    echo "Example: DATABASE_URL=postgresql://username:password@localhost:5432/prosumeai"
+    echo "Example: DATABASE_URL=postgresql://username:password@localhost:5432/ATScribe"
     echo -e "\n⚠️ Skipping migration step. You can run it manually later with: npm run db:migrate"
     SKIP_MIGRATION=true
   fi
@@ -72,7 +72,7 @@ if [ ! -f .env ]; then
     echo "✓  Created .env file from .env.example"
   else
     # Create a basic .env file
-    echo "DATABASE_URL=postgresql://username:password@localhost:5432/prosumeai" > .env
+    echo "DATABASE_URL=postgresql://username:password@localhost:5432/ATScribe" > .env
     echo "SESSION_SECRET=your-secure-session-secret-key-here" >> .env
     echo "COOKIE_SECRET=your-secure-cookie-secret-key-here" >> .env
     echo "✓  Created basic .env file"

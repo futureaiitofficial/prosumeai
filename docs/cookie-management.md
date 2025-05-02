@@ -1,8 +1,8 @@
-# ProsumeAI Cookie Management System
+# ATScribe Cookie Management System
 
 ## Overview
 
-The ProsumeAI cookie management system provides a centralized, secure approach to handling cookies throughout the application. It implements best practices for cookie security and privacy compliance.
+The ATScribe cookie management system provides a centralized, secure approach to handling cookies throughout the application. It implements best practices for cookie security and privacy compliance.
 
 ## Architecture
 

@@ -9,7 +9,7 @@
 
 export const environment = {
   // App info
-  appName: 'ProsumeAI',
+  appName: 'ATScribe',
   appVersion: '1.0.0',
   isDevelopment: window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1',
   apiBaseUrl: window.location.hostname === 'localhost' ? 'http://localhost:3001' : '',

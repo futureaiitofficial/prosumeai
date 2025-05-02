@@ -39,7 +39,7 @@ export function getCookieConfig(env: string): session.CookieOptions {
     maxAge: parseInt(process.env.SESSION_MAX_AGE || '604800000'), // 7 days in ms
     httpOnly: true, // Prevent client-side JS from reading the cookie
     secure: env === "production", // Only use secure in production, not in dev
-    sameSite: env === "production" ? 'strict' as const : 'lax' as const, // Protect against CSRF
+    sameSite: env === "production" ? 'none' as const : 'lax' as const, // Changed from 'strict' to 'none' for ngrok
     path: '/', // Cookie available across the entire site
     // Domain restriction for production environments
     domain: env === "production" ? process.env.COOKIE_DOMAIN || undefined : undefined,
@@ -50,7 +50,7 @@ export function setupAuth(app: Express) {
   const env = process.env.NODE_ENV || 'development';
   const sessionSecret = process.env.SESSION_SECRET || randomBytes(32).toString('hex');
   
-  if (env === 'production' && (!process.env.SESSION_SECRET || process.env.SESSION_SECRET === 'prosume-secret-key')) {
+  if (env === 'production' && (!process.env.SESSION_SECRET || process.env.SESSION_SECRET === 'ATScribe-secret-key')) {
     console.warn('WARNING: Using default session secret in production is a security risk!');
   }
   
@@ -60,7 +60,7 @@ export function setupAuth(app: Express) {
     resave: false,
     saveUninitialized: false,
     store: storage.sessionStore,
-    name: 'prosumeai.sid', // Custom cookie name for better security
+    name: 'ATScribe.sid', // Custom cookie name for better security
     cookie: getCookieConfig(env),
   };
 
@@ -246,7 +246,7 @@ export function setupAuth(app: Express) {
             domain: env === 'production' ? process.env.COOKIE_DOMAIN : undefined
           };
           
-          originalClearCookie.call(res, 'prosumeai.sid', clearCookieOptions);
+          originalClearCookie.call(res, 'ATScribe.sid', clearCookieOptions);
           
           res.sendStatus(200);
         });
@@ -282,3 +282,5 @@ export function setupAuth(app: Express) {
     });
   }
 }
+
+

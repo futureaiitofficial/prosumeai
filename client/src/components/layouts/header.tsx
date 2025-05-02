@@ -57,7 +57,7 @@ export default function Header() {
                 <path d="M2 17l10 5 10-5"></path>
                 <path d="M2 12l10 5 10-5"></path>
               </svg>
-              <span className="text-xl font-bold">Prosume</span>
+              <span className="text-xl font-bold">ATScribe</span>
             </div>
           </Link>
         </div>

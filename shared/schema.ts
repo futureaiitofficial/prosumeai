@@ -263,10 +263,9 @@ export const subscriptionStatusEnum = pgEnum('subscription_status', [
 ]);
 
 // Payment Gateway Enum
-export const paymentGatewayEnum = pgEnum('payment_gateway', [
+export const PaymentGatewayEnum = pgEnum('payment_gateway', [
   'RAZORPAY',
-  'STRIPE',
-  'PAYPAL'
+  'NONE'
 ]);
 
 // Payment Status Enum
@@ -352,15 +351,13 @@ export const userSubscriptions = pgTable("user_subscriptions", {
   planId: integer("plan_id").notNull().references(() => subscriptionPlans.id),
   startDate: timestamp("start_date").notNull(),
   endDate: timestamp("end_date").notNull(),
-  autoRenew: boolean("auto_renew").default(true).notNull(),
-  paymentGateway: text("payment_gateway").notNull(),
-  paymentReference: text("payment_reference"),
   status: subscriptionStatusEnum("status").notNull().default('ACTIVE'),
-  isTrial: boolean("is_trial").default(false).notNull(),
-  trialExpiryDate: timestamp("trial_expiry_date"),
-  convertedFromTrial: boolean("converted_from_trial").default(false).notNull(),
+  autoRenew: boolean("auto_renew").default(false).notNull(),
+  cancelDate: timestamp("cancel_date"),
   gracePeriodEnd: timestamp("grace_period_end"),
-  previousPlanId: integer("previous_plan_id").references(() => subscriptionPlans.id),
+  paymentGateway: PaymentGatewayEnum("payment_gateway"),
+  paymentReference: text("payment_reference"),
+  previousPlanId: integer("previous_plan_id"),
   upgradeDate: timestamp("upgrade_date"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow()
@@ -392,7 +389,7 @@ export const paymentTransactions = pgTable("payment_transactions", {
   subscriptionId: integer("subscription_id").notNull().references(() => userSubscriptions.id),
   amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
   currency: currencyEnum("currency").notNull(),
-  gateway: paymentGatewayEnum("gateway").notNull(),
+  gateway: PaymentGatewayEnum("gateway").notNull(),
   gatewayTransactionId: text("gateway_transaction_id"),
   status: paymentStatusEnum("status").notNull().default('PENDING'),
   refundReason: text("refund_reason"),
@@ -428,6 +425,68 @@ export const documentVersions = pgTable("document_versions", {
   return {
     uniqueDocumentVersion: unique().on(table.documentId, table.documentType, table.versionNumber)
   };
+});
+
+// User Billing Details Schema
+export const userBillingDetails = pgTable("user_billing_details", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id).unique(),
+  fullName: text("full_name").notNull(),
+  country: text("country").notNull(),
+  addressLine1: text("address_line_1").notNull(),
+  addressLine2: text("address_line_2"),
+  city: text("city").notNull(),
+  state: text("state").notNull(),
+  postalCode: text("postal_code").notNull(),
+  phoneNumber: text("phone_number"),
+  taxId: text("tax_id"), // For GST in India, VAT/Tax ID for other countries
+  companyName: text("company_name"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow()
+});
+
+// Payment Gateway Configurations Table (more specialized than general apiKeys)
+export const paymentGatewayConfigs = pgTable("payment_gateway_configs", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  service: PaymentGatewayEnum("service").notNull(),
+  key: text("key").notNull(), // Encrypted API key
+  isActive: boolean("is_active").default(true).notNull(),
+  isDefault: boolean("is_default").default(false).notNull(),
+  configOptions: jsonb("config_options").default({}), // For additional options like webhook secrets
+  lastUsed: timestamp("last_used"),
+  testMode: boolean("test_mode").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow()
+});
+
+// Saved Payment Methods Table
+export const paymentMethods = pgTable("payment_methods", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id),
+  gateway: PaymentGatewayEnum("gateway").notNull(),
+  type: text("type").notNull(), // "card", "upi", "netbanking", etc.
+  lastFour: text("last_four"), // Last 4 digits of card or partial payment info
+  expiryMonth: integer("expiry_month"),
+  expiryYear: integer("expiry_year"),
+  isDefault: boolean("is_default").default(false).notNull(),
+  // In a real implementation, you would store tokenized payment information securely
+  gatewayPaymentMethodId: text("gateway_payment_method_id").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at")
+});
+
+// Payment Webhook Events Table
+export const paymentWebhookEvents = pgTable("payment_webhook_events", {
+  id: serial("id").primaryKey(),
+  gateway: PaymentGatewayEnum("gateway").notNull(),
+  eventType: text("event_type").notNull(), // e.g., "payment.success", "subscription.created"
+  eventId: text("event_id").notNull(), // ID from payment gateway
+  rawData: jsonb("raw_data").notNull(), // Complete webhook payload
+  processed: boolean("processed").default(false).notNull(),
+  processingErrors: text("processing_errors"),
+  createdAt: timestamp("created_at").defaultNow()
 });
 
 // Insert Schemas
@@ -551,6 +610,30 @@ export const insertDocumentVersionSchema = createInsertSchema(documentVersions).
   createdAt: true
 });
 
+export const insertUserBillingDetailsSchema = createInsertSchema(userBillingDetails).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+
+export const insertPaymentGatewayConfigSchema = createInsertSchema(paymentGatewayConfigs).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+
+export const insertPaymentMethodSchema = createInsertSchema(paymentMethods).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  deletedAt: true
+});
+
+export const insertPaymentWebhookEventSchema = createInsertSchema(paymentWebhookEvents).omit({
+  id: true,
+  createdAt: true
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type AppSetting = typeof appSettings.$inferSelect;
@@ -591,6 +674,16 @@ export type InsertFeatureUsage = z.infer<typeof insertFeatureUsageSchema>;
 export type InsertPaymentTransaction = z.infer<typeof insertPaymentTransactionSchema>;
 export type InsertDispute = z.infer<typeof insertDisputeSchema>;
 export type InsertDocumentVersion = z.infer<typeof insertDocumentVersionSchema>;
+
+export type InsertUserBillingDetails = z.infer<typeof insertUserBillingDetailsSchema>;
+
+export type PaymentGatewayConfig = typeof paymentGatewayConfigs.$inferSelect;
+export type PaymentMethod = typeof paymentMethods.$inferSelect;
+export type PaymentWebhookEvent = typeof paymentWebhookEvents.$inferSelect;
+
+export type InsertPaymentGatewayConfig = z.infer<typeof insertPaymentGatewayConfigSchema>;
+export type InsertPaymentMethod = z.infer<typeof insertPaymentMethodSchema>;
+export type InsertPaymentWebhookEvent = z.infer<typeof insertPaymentWebhookEventSchema>;
 
 // Resume-related type definitions for frontend
 export type WorkExperience = {
@@ -643,3 +736,5 @@ export type StatusHistoryEntry = {
   date: string;
   notes: string | null;
 };
+
+export type UserBillingDetails = typeof userBillingDetails.$inferSelect;

@@ -1,4 +1,5 @@
 import { useAdmin } from "@/hooks/use-admin";
+import { useAuth } from "@/hooks/use-auth";
 import { Loader2 } from "lucide-react";
 import { Redirect, Route } from "wouter";
 
@@ -13,25 +14,34 @@ export function AdminRoute({
   path: string;
   component: () => React.JSX.Element;
 }) {
+  const { user } = useAuth();
   const { isAdmin, isLoading } = useAdmin();
 
-  if (isLoading) {
-    return (
-      <Route path={path}>
-        <div className="flex items-center justify-center min-h-screen">
-          <Loader2 className="h-8 w-8 animate-spin text-border" />
-        </div>
-      </Route>
-    );
-  }
+  return (
+    <Route path={path}>
+      {() => {
+        // If auth is still loading
+        if (isLoading) {
+          return (
+            <div className="flex items-center justify-center min-h-screen">
+              <Loader2 className="h-8 w-8 animate-spin text-border" />
+            </div>
+          );
+        }
 
-  if (!isAdmin) {
-    return (
-      <Route path={path}>
-        <Redirect to="/dashboard" />
-      </Route>
-    );
-  }
+        // If not authenticated, redirect to login
+        if (!user) {
+          return <Redirect to="/auth" />;
+        }
 
-  return <Route path={path} component={Component} />;
+        // If authenticated but not admin, redirect to dashboard
+        if (!isAdmin) {
+          return <Redirect to="/dashboard" />;
+        }
+
+        // If user is admin, show the admin component
+        return <Component />;
+      }}
+    </Route>
+  );
 }
