@@ -260,8 +260,9 @@ export class ElegantDividerTemplate extends BaseTemplate {
                         <div style={{ marginBottom: '0.5rem' }} className="technical-skills no-break-inside">
                           <div style={skillCategoryStyle}>Professional</div>
                           {data.technicalSkills.map((skill, index) => (
-                            <div key={index} style={skillItemStyle}>
-                              • {skill}
+                            <div key={index} style={{...skillItemStyle, position: 'relative', paddingLeft: '10px'}}>
+                              <span style={{ position: 'absolute', left: '0', top: '0' }}>•</span>
+                              {skill.replace(/^[•\-\*]\s*/, '')}
                             </div>
                           ))}
                         </div>
@@ -271,8 +272,9 @@ export class ElegantDividerTemplate extends BaseTemplate {
                         <div className="soft-skills no-break-inside">
                           <div style={skillCategoryStyle}>Technical</div>
                           {data.softSkills.map((skill, index) => (
-                            <div key={index} style={skillItemStyle}>
-                              • {skill}
+                            <div key={index} style={{...skillItemStyle, position: 'relative', paddingLeft: '10px'}}>
+                              <span style={{ position: 'absolute', left: '0', top: '0' }}>•</span>
+                              {skill.replace(/^[•\-\*]\s*/, '')}
                             </div>
                           ))}
                         </div>
@@ -358,7 +360,7 @@ export class ElegantDividerTemplate extends BaseTemplate {
                           {exp.achievements.map((achievement, i) => (
                             <li key={i} style={bulletItemStyle} className="no-break-inside">
                               <span style={{ position: 'absolute', left: '0', top: '0' }}>•</span>
-                              {achievement}
+                              {achievement.replace(/^[•\-\*]\s*/, '')}
                             </li>
                           ))}
                         </ul>
@@ -433,8 +435,42 @@ export class ElegantDividerTemplate extends BaseTemplate {
       console.log("Starting PDF export for:", filename);
       console.log("PDF export using section order:", data.sectionOrder);
       
-      // Pass the exact same data to renderPreview to maintain section order
-      const element = this.renderPreview(data);
+      // Format URLs for display before PDF generation
+      const dataWithFormattedUrls = { ...data };
+      
+      // Format LinkedIn URL
+      if (dataWithFormattedUrls.linkedinUrl) {
+        try {
+          const url = new URL(dataWithFormattedUrls.linkedinUrl);
+          let host = url.hostname;
+          if (host.startsWith('www.')) {
+            host = host.substring(4);
+          }
+          dataWithFormattedUrls.formattedLinkedinUrl = host + url.pathname;
+        } catch (e) {
+          dataWithFormattedUrls.formattedLinkedinUrl = dataWithFormattedUrls.linkedinUrl;
+        }
+      }
+      
+      // Format portfolio/website URL
+      if (dataWithFormattedUrls.portfolioUrl) {
+        try {
+          const url = new URL(dataWithFormattedUrls.portfolioUrl);
+          let host = url.hostname;
+          if (host.startsWith('www.')) {
+            host = host.substring(4);
+          }
+          dataWithFormattedUrls.formattedPortfolioUrl = host + url.pathname;
+        } catch (e) {
+          dataWithFormattedUrls.formattedPortfolioUrl = dataWithFormattedUrls.portfolioUrl;
+        }
+      }
+      
+      // Add contact separator
+      dataWithFormattedUrls.contactSeparator = "|";
+      
+      // Pass the enhanced data to renderPreview
+      const element = this.renderPreview(dataWithFormattedUrls);
       return await generatePDFFromReactElement(element, filename);
     } catch (error) {
       console.error("Error in ElegantDividerTemplate.exportToPDF:", error);

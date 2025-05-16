@@ -1,0 +1,49 @@
+[2025-05-16T00:59:25.402Z] === Razorpay Invoice Auto-Sync Started ===
+[2025-05-16T00:59:25.402Z] Process ID: 17205
+[2025-05-16T00:59:25.402Z] Current directory: /Users/raja/Development/ProsumeAI/server
+[2025-05-16T00:59:25.402Z] Log file: /Users/raja/Development/ProsumeAI/server/logs/auto_sync_2025-05-16_00_59.log
+[2025-05-16T00:59:25.402Z] Sync interval: 900 seconds
+[2025-05-16T00:59:25.402Z] Starting invoice synchronization...
+[2025-05-16T00:59:25.403Z] Running sync script: /Users/raja/Development/ProsumeAI/server/scripts/sync-subscription-invoices.ts
+[2025-05-16T00:59:25.403Z] Executing command: cd /Users/raja/Development/ProsumeAI/server && npx tsx /Users/raja/Development/ProsumeAI/server/scripts/sync-subscription-invoices.ts
+[2025-05-16T00:59:32.731Z] [STDOUT] Using database connection: postgres://***:***@localhost:5432/prosumeai
+[2025-05-16T00:59:32.731Z] [STDOUT] Starting subscription invoice synchronization...
+[2025-05-16T00:59:32.731Z] [STDOUT] Database schema validated successfully
+[2025-05-16T00:59:32.731Z] [STDOUT] Found 4 active Razorpay subscriptions to sync
+[2025-05-16T00:59:32.731Z] [STDOUT] Processing subscription 20 with Razorpay ID: sub_QUxcCis3igdqUA
+[2025-05-16T00:59:32.731Z] [STDOUT] Subscription 20 has 1 existing transactions
+[2025-05-16T00:59:32.731Z] [STDOUT] Razorpay initialization in progress, waiting...
+[2025-05-16T00:59:32.732Z] [STDOUT] Retrieved and decrypted razorpay key
+[2025-05-16T00:59:32.732Z] [STDOUT] Razorpay initialized successfully
+[2025-05-16T00:59:32.732Z] [STDOUT] Retrieved and decrypted razorpay key
+[2025-05-16T00:59:32.732Z] [STDOUT] Razorpay initialized successfully
+[2025-05-16T00:59:32.732Z] [STDOUT] Fetching invoices for subscription ID: sub_QUxcCis3igdqUA
+[2025-05-16T00:59:32.732Z] [STDOUT] Found 0 invoices for subscription: sub_QUxcCis3igdqUA
+[2025-05-16T00:59:32.732Z] [STDOUT] Found 0 invoices for subscription sub_QUxcCis3igdqUA
+[2025-05-16T00:59:32.732Z] [STDOUT] Processing subscription 24 with Razorpay ID: sub_QV05DCrgh3A2rL
+[2025-05-16T00:59:32.732Z] [STDOUT] Subscription 24 has 1 existing transactions
+[2025-05-16T00:59:32.732Z] [STDOUT] Fetching invoices for subscription ID: sub_QV05DCrgh3A2rL
+[2025-05-16T00:59:32.732Z] [STDOUT] Found 1 invoices for subscription: sub_QV05DCrgh3A2rL
+[2025-05-16T00:59:32.732Z] [STDOUT] Transaction for payment pay_QV05q44fHQzL1q already exists in database (1 records), skipping
+[2025-05-16T00:59:32.732Z] [STDOUT] Found 1 invoices for subscription sub_QV05DCrgh3A2rL
+[2025-05-16T00:59:32.732Z] [STDOUT] Processing subscription 25 with Razorpay ID: sub_QV1W0JNq2cOk7s
+[2025-05-16T00:59:32.732Z] [STDOUT] Subscription 25 has 2 existing transactions
+[2025-05-16T00:59:32.732Z] [STDOUT] Fetching invoices for subscription ID: sub_QV1W0JNq2cOk7s
+[2025-05-16T00:59:32.732Z] [STDOUT] Found 1 invoices for subscription: sub_QV1W0JNq2cOk7s
+[2025-05-16T00:59:32.732Z] [STDOUT] Transaction for payment pay_QV1WoyCgCY23iO already exists in database (2 records), skipping
+[2025-05-16T00:59:32.732Z] [STDOUT] Found 1 invoices for subscription sub_QV1W0JNq2cOk7s
+[2025-05-16T00:59:32.732Z] [STDOUT] Processing subscription 26 with Razorpay ID: sub_QVIG6dAuP0UXXn
+[2025-05-16T00:59:32.732Z] [STDOUT] Subscription 26 has 2 existing transactions
+[2025-05-16T00:59:32.732Z] [STDOUT] Fetching invoices for subscription ID: sub_QVIG6dAuP0UXXn
+[2025-05-16T00:59:32.732Z] [STDOUT] Found 2 invoices for subscription: sub_QVIG6dAuP0UXXn
+[2025-05-16T00:59:32.732Z] [STDOUT] Transaction for payment pay_QVILKDuy9v6ovq already exists in database (1 records), skipping
+[2025-05-16T00:59:32.732Z] [STDOUT] Transaction for payment pay_QVIGtXTXkm93W8 already exists in database (1 records), skipping
+[2025-05-16T00:59:32.732Z] [STDOUT] Found 2 invoices for subscription sub_QVIG6dAuP0UXXn
+[2025-05-16T00:59:32.732Z] [STDOUT] Subscription invoice synchronization complete!
+[2025-05-16T00:59:32.732Z] [STDOUT] Processed 4 subscriptions
+[2025-05-16T00:59:32.732Z] [STDOUT] Success: 4, Errors: 0
+[2025-05-16T00:59:32.732Z] [STDOUT] Added 0 new transactions
+[2025-05-16T00:59:32.732Z] [STDOUT] Script execution completed
+[2025-05-16T00:59:32.732Z] Synchronization completed successfully
+[2025-05-16T00:59:32.732Z] Next sync scheduled in 900 seconds
+[2025-05-16T01:04:32.458Z] Received SIGINT, shutting down...

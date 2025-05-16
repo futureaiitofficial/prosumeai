@@ -41,7 +41,12 @@ import { AdminPaymentPage } from '@/components/admin/AdminPaymentPage';
 import LandingPage from '@/pages/landing';
 import AboutPage from '@/pages/about';
 import PricingPage from '@/pages/pricing';
+import ContactPage from '@/pages/contact';
 import AuthenticatedRedirect from '@/components/auth/authenticated-redirect';
+import AdminToolsPage from '@/pages/admin/tools';
+import AdminSecurityPage from '@/pages/admin/security';
+import ForgotPasswordPage from '@/pages/forgot-password';
+import ResetPasswordPage from '@/pages/reset-password';
 
 function Router() {
   return (
@@ -49,7 +54,10 @@ function Router() {
       <Route path="/" component={LandingPage} />
       <Route path="/about" component={AboutPage} />
       <Route path="/pricing" component={PricingPage} />
+      <Route path="/contact" component={ContactPage} />
       <Route path="/auth" component={AuthPage} />
+      <Route path="/forgot-password" component={ForgotPasswordPage} />
+      <Route path="/reset-password" component={ResetPasswordPage} />
       <ProtectedRoute path="/dashboard" component={Dashboard} />
       <ProtectedRoute path="/resumes" component={Resumes} />
       <ProtectedRoute path="/resume-builder" component={ResumeBuilder} />
@@ -76,6 +84,8 @@ function Router() {
       <AdminRoute path="/admin/api-keys" component={ApiKeysPage} />
       <AdminRoute path="/admin/subscriptions" component={() => <AdminSubscriptionsPage />} />
       <AdminRoute path="/admin/payment" component={() => <AdminPaymentPage />} />
+      <AdminRoute path="/admin/tools" component={AdminToolsPage} />
+      <AdminRoute path="/admin/security" component={AdminSecurityPage} />
       
       <Route component={NotFound} />
     </Switch>

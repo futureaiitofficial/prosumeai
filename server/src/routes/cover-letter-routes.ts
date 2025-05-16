@@ -2,6 +2,7 @@ import express from 'express';
 import { storage } from "../../config/storage";
 import { requireUser } from "../../middleware/auth";
 import { requireFeatureAccess, trackFeatureUsage } from "../../middleware/feature-access";
+import { withEncryption } from "../../middleware/index";
 import { type InsertCoverLetter } from "@shared/schema";
 
 /**
@@ -9,7 +10,10 @@ import { type InsertCoverLetter } from "@shared/schema";
  */
 export function registerCoverLetterRoutes(app: express.Express) {
   // Get all cover letters for the current user
-  app.get('/api/cover-letters', requireUser, async (req, res) => {
+  app.get('/api/cover-letters', 
+    requireUser, 
+    ...withEncryption('coverLetters'),
+    async (req, res) => {
     try {
       if (!req.isAuthenticated() || !req.user) {
         return res.status(401).json({ message: "Unauthorized" });
@@ -27,7 +31,10 @@ export function registerCoverLetterRoutes(app: express.Express) {
   });
   
   // Get a specific cover letter
-  app.get('/api/cover-letters/:id', requireUser, async (req, res) => {
+  app.get('/api/cover-letters/:id', 
+    requireUser, 
+    ...withEncryption('coverLetters'),
+    async (req, res) => {
     try {
       if (!req.isAuthenticated() || !req.user) {
         return res.status(401).json({ message: "Unauthorized" });
@@ -65,6 +72,7 @@ export function registerCoverLetterRoutes(app: express.Express) {
     requireUser,
     requireFeatureAccess('cover_letter'),
     trackFeatureUsage('cover_letter'),
+    ...withEncryption('coverLetters'),
     async (req, res) => {
       console.log('Creating new cover letter, received data:', JSON.stringify(req.body, null, 2));
       
@@ -126,6 +134,7 @@ export function registerCoverLetterRoutes(app: express.Express) {
   app.put('/api/cover-letters/:id', 
     requireUser, 
     trackFeatureUsage('cover_letter_update'),
+    ...withEncryption('coverLetters'),
     async (req, res) => {
     try {
       if (!req.isAuthenticated() || !req.user) {

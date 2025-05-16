@@ -27,7 +27,7 @@ import {
 } from "lucide-react";
 import Header from "@/components/layouts/header";
 import { motion } from "framer-motion";
-import { TokenUsage } from "@/components/ui/token-usage";
+
 
 // Import form components
 import PersonalInfoForm from "@/components/resume-builder/personal-info-form";
@@ -74,26 +74,122 @@ export const AnimatedResumeDownloadButton = ({ resumeData, className }: Animated
       // Show animation
       setShowAnimation(true);
       
-      // Import the required modules dynamically to avoid the circle dependency
+      // Set animation start time to enforce minimum display duration
+      const animationStartTime = Date.now();
+      const minimumAnimationDuration = 3000; // 3 seconds minimum display time
+      
+      // Import required components
       const { registerTemplates } = await import("@/templates/registerTemplates");
       const { TemplateFactory } = await import("@/templates/core/TemplateFactory");
       
-      // Re-register templates
+      // Register templates to ensure they're available
       registerTemplates();
       
-      // Get the template instance
+      // Get the template instance to render HTML
       const templateFactory = TemplateFactory.getInstance();
       const template = templateFactory.getTemplate(resumeData.template);
       
       if (!template) {
-        throw new Error(`Failed to instantiate template: ${resumeData.template}`);
+        throw new Error(`Template not found: ${resumeData.template}`);
       }
       
-      // Wait to ensure animation displays for minimum time
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      // Format URLs for display before rendering
+      const formatUrls = (data: any) => {
+        const result = { ...data };
+        
+        // Format LinkedIn URL
+        if (result.linkedinUrl) {
+          try {
+            const url = new URL(result.linkedinUrl);
+            let host = url.hostname;
+            if (host.startsWith('www.')) {
+              host = host.substring(4);
+            }
+            result.formattedLinkedinUrl = host + url.pathname;
+          } catch (e) {
+            result.formattedLinkedinUrl = result.linkedinUrl;
+          }
+        }
+        
+        // Format portfolio/website URL
+        if (result.portfolioUrl) {
+          try {
+            const url = new URL(result.portfolioUrl);
+            let host = url.hostname;
+            if (host.startsWith('www.')) {
+              host = host.substring(4);
+            }
+            result.formattedPortfolioUrl = host + url.pathname;
+          } catch (e) {
+            result.formattedPortfolioUrl = result.portfolioUrl;
+          }
+        }
+
+        // Add contact separator
+        result.contactSeparator = "|";
+        
+        return result;
+      };
+
+      // Apply URL formatting to data before rendering
+      const formattedData = formatUrls(resumeData);
       
-      // Generate PDF
-      const pdfBlob = await template.exportToPDF(resumeData);
+      // Get the rendered HTML content with formatted data
+      const element = template.renderPreview(formattedData);
+
+      // Create temporary container to render the element
+      const container = document.createElement('div');
+      container.style.position = 'absolute';
+      container.style.left = '-9999px';
+      document.body.appendChild(container);
+      
+      // Render to get HTML content
+      const { createRoot } = await import('react-dom/client');
+      const root = createRoot(container);
+      root.render(element);
+      
+      // Wait for rendering
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Get HTML content
+      const htmlContent = container.innerHTML;
+      
+      // Clean up
+      root.unmount();
+      document.body.removeChild(container);
+      
+      // Prepare the request payload with HTML content
+      const payload = {
+        html: htmlContent,
+        styles: "", // Server will handle styles
+        data: resumeData
+      };
+      
+      // Send to server for PDF generation
+      const response = await fetch("/api/resume-templates/generate-pdf", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify(payload),
+      });
+      
+      // Check if the response is successful
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Server failed to generate PDF: ${errorText}`);
+      }
+      
+      // Get the PDF blob from the response
+      const pdfBlob = await response.blob();
+      
+      // Ensure animation shows for minimum time before download
+      const elapsedTime = Date.now() - animationStartTime;
+      const remainingTime = Math.max(0, minimumAnimationDuration - elapsedTime);
+      
+      // Wait to ensure animation displays for minimum time
+      await new Promise(resolve => setTimeout(resolve, remainingTime));
       
       // Create a download link
       const url = URL.createObjectURL(pdfBlob);
@@ -296,6 +392,18 @@ interface ResumeData {
   projects: Project[];
   useSkillCategories: boolean;
   sectionOrder: string[];
+  keywordsFeedback?: {
+    found: string[];
+    missing: string[];
+    all: string[];
+    categories: {
+      [category: string]: {
+        found: string[];
+        missing: string[];
+        all: string[];
+      }
+    }
+  };
 }
 
 // Initial state for resume data
@@ -604,31 +712,7 @@ export default function ResumeBuilder() {
           <div className="space-y-6">
             <ImportResumeForm data={resumeData} updateData={handleComponentUpdate} />
             
-            {/* Post-import review reminder */}
-            {resumeData.fullName && (
-              <div className="p-4 border bg-green-50 border-green-100 rounded-md mt-6">
-                <div className="flex items-start">
-                  <div className="flex-shrink-0 mt-0.5">
-                    <svg className="h-5 w-5 text-green-600" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                    </svg>
-                  </div>
-                  <div className="ml-3">
-                    <h3 className="text-sm font-medium text-green-800">Resume data detected!</h3>
-                    <div className="mt-2 text-sm text-green-700">
-                      <p>We've populated your resume with the data we could extract. Please proceed through each section to:</p>
-                      <ul className="list-disc pl-5 mt-1 space-y-1">
-                        <li>Review all extracted information</li>
-                        <li>Add any missing details</li>
-                        <li>Verify education details (these are often incomplete)</li>
-                        <li>Enhance skills categorization and descriptions</li>
-                      </ul>
-                      <p className="mt-2 font-medium">Click "Next" to begin reviewing section by section.</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
+
           </div>
         );
       
@@ -838,7 +922,6 @@ export default function ResumeBuilder() {
               ))}
             </ul>
           </div>
-          <TokenUsage featureCode="resume" compact={true} className="mt-4" />
         </div>
 
         {/* Main content area with better overflow control */}
@@ -881,7 +964,8 @@ export default function ResumeBuilder() {
                     name: cert.name,
                     issuer: cert.issuer,
                     date: cert.date || ''
-                  })) || []
+                  })) || [],
+                  updateData: handleComponentUpdate
                 }} />
               </div>
               
@@ -956,14 +1040,24 @@ export default function ResumeBuilder() {
                         Previous
                       </Button>
                       
-                      <Button
-                        onClick={navigateToNext}
-                        disabled={currentStep === "download"}
-                        size={window.innerWidth < 640 ? "sm" : "default"}
-                      >
-                        Next
-                        <ChevronRight className="h-4 w-4 ml-2" />
-                      </Button>
+                      {currentStep === "download" ? (
+                        <Button
+                          onClick={() => navigate("/resumes")}
+                          size={window.innerWidth < 640 ? "sm" : "default"}
+                          className="bg-blue-600 hover:bg-blue-700"
+                        >
+                          Back to Dashboard
+                          <ArrowLeft className="h-4 w-4 ml-2" />
+                        </Button>
+                      ) : (
+                        <Button
+                          onClick={navigateToNext}
+                          size={window.innerWidth < 640 ? "sm" : "default"}
+                        >
+                          Next
+                          <ChevronRight className="h-4 w-4 ml-2" />
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </div>

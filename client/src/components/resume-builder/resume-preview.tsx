@@ -81,11 +81,11 @@ export default function ResumePreview({ data, hideDownloadButton = false }: Resu
     };
   }, []);
   
-  // Process data to ensure summary is truncated
+  // Process data to ensure summary is truncated and achievements have bullet points
   const processedData = useMemo(() => {
     if (!data) return data;
 
-    // Handler for null dates
+    // Handler for null dates and formatting achievements
     const processNullDates = (obj: any): any => {
       if (!obj) return obj;
       
@@ -104,7 +104,18 @@ export default function ResumePreview({ data, hideDownloadButton = false }: Resu
             // Handle dates
             if ((key === 'startDate' || key === 'endDate' || key === 'date') && obj[key] === null) {
               result[key] = '';
-            } else if (typeof obj[key] === 'object') {
+            } 
+            // Handle achievements arrays to ensure bullet points
+            else if (key === 'achievements' && Array.isArray(obj[key])) {
+              result[key] = obj[key].map((achievement: string) => {
+                if (!achievement) return achievement;
+                const trimmed = achievement.trim();
+                // Add bullet point if it doesn't already have one
+                return trimmed.startsWith('•') || trimmed.startsWith('-') || trimmed.startsWith('*') ? 
+                  trimmed : `• ${trimmed}`;
+              });
+            }
+            else if (typeof obj[key] === 'object') {
               result[key] = processNullDates(obj[key]);
             } else {
               result[key] = obj[key];
@@ -118,8 +129,51 @@ export default function ResumePreview({ data, hideDownloadButton = false }: Resu
       return obj;
     };
     
+    // Format URLs for display
+    const formatContactUrls = (data: any) => {
+      const result = { ...data };
+      
+      // Format LinkedIn URL
+      if (result.linkedinUrl) {
+        try {
+          const url = new URL(result.linkedinUrl);
+          let host = url.hostname;
+          if (host.startsWith('www.')) {
+            host = host.substring(4);
+          }
+          result.formattedLinkedinUrl = host + url.pathname;
+        } catch (e) {
+          result.formattedLinkedinUrl = result.linkedinUrl;
+        }
+      }
+      
+      // Format portfolio/website URL
+      if (result.portfolioUrl) {
+        try {
+          const url = new URL(result.portfolioUrl);
+          let host = url.hostname;
+          if (host.startsWith('www.')) {
+            host = host.substring(4);
+          }
+          result.formattedPortfolioUrl = host + url.pathname;
+        } catch (e) {
+          result.formattedPortfolioUrl = result.portfolioUrl;
+        }
+      }
+      
+      return result;
+    };
+    
+    // Add contact separator to data for templates to use
+    const addContactSeparator = (data: any) => {
+      return {
+        ...data,
+        contactSeparator: "|", // Compact separator for contact info
+      };
+    };
+    
     return {
-      ...processNullDates(data),
+      ...addContactSeparator(formatContactUrls(processNullDates(data))),
       summary: data.summary && data.summary.length > MAX_SUMMARY_CHARS 
         ? data.summary.substring(0, MAX_SUMMARY_CHARS - 3) + "..."
         : data.summary,

@@ -51,9 +51,16 @@ export async function generateProfessionalSummary(
     const data = await response.json();
     let summary = data.summary || "";
     
-    // Ensure client-side enforcement of 300 character limit
+    // Ensure client-side enforcement of 300 character limit, but trim to last complete sentence
     if (summary.length > 300) {
-      summary = summary.substring(0, 297) + "...";
+      summary = summary.substring(0, 300);
+      // Find the last period to trim to a complete sentence
+      const lastPeriodIndex = summary.lastIndexOf('.');
+      if (lastPeriodIndex > 0) {
+        summary = summary.substring(0, lastPeriodIndex + 1);
+      } else {
+        summary = summary.substring(0, 297) + "...";
+      }
     }
     
     return summary;
@@ -211,5 +218,27 @@ export async function calculateATSScore(
   } catch (error) {
     console.error('Failed to calculate ATS score:', error);
     throw new Error('Could not calculate ATS score. Please try again later.');
+  }
+}
+
+/**
+ * Generate skills based on just the target job position
+ */
+export async function generateSkillsForPosition(
+  jobTitle: string
+): Promise<{technicalSkills: string[], softSkills: string[]}> {
+  try {
+    const response = await apiRequest('POST', '/api/resume-ai/generate-position-skills', {
+      jobTitle
+    });
+    
+    const data = await response.json();
+    return {
+      technicalSkills: data.technicalSkills || [],
+      softSkills: data.softSkills || []
+    };
+  } catch (error) {
+    console.error('Failed to generate skills for position:', error);
+    throw new Error('Could not generate skills. Please try again later.');
   }
 }

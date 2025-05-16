@@ -1,0 +1,149 @@
+[2025-05-15T20:37:24.977Z] === Razorpay Invoice Auto-Sync Started ===
+[2025-05-15T20:37:24.978Z] Process ID: 43732
+[2025-05-15T20:37:24.978Z] Current directory: /Users/raja/Development/ProsumeAI/server
+[2025-05-15T20:37:24.978Z] Log file: /Users/raja/Development/ProsumeAI/server/logs/auto_sync_2025-05-15_20_37.log
+[2025-05-15T20:37:24.978Z] Sync interval: 5 seconds
+[2025-05-15T20:37:24.978Z] Starting invoice synchronization...
+[2025-05-15T20:37:25.072Z] Using ts-node at: Unknown command: "bin"/ts-node
+[2025-05-15T20:37:25.072Z] Running sync script: /Users/raja/Development/ProsumeAI/server/scripts/sync-subscription-invoices.ts
+[2025-05-15T20:37:25.073Z] [ERROR] Failed to start sync process: spawn Unknown command: "bin"/ts-node ENOENT
+[2025-05-15T20:37:25.073Z] Using ts-node at: To see a list of supported npm commands, run:
+  npm help/ts-node
+[2025-05-15T20:37:25.073Z] Running sync script: /Users/raja/Development/ProsumeAI/server/scripts/sync-subscription-invoices.ts
+[2025-05-15T20:37:25.074Z] [ERROR] Failed to start sync process: spawn To see a list of supported npm commands, run:
+  npm help/ts-node ENOENT
+[2025-05-15T20:37:25.074Z] Synchronization process finished with code -2
+[2025-05-15T20:37:25.074Z] Next sync scheduled in 5 seconds
+[2025-05-15T20:37:25.075Z] Synchronization process finished with code -2
+[2025-05-15T20:37:25.075Z] Next sync scheduled in 5 seconds
+[2025-05-15T20:37:29.981Z] Starting invoice synchronization...
+[2025-05-15T20:37:30.092Z] Using ts-node at: Unknown command: "bin"/ts-node
+[2025-05-15T20:37:30.092Z] Running sync script: /Users/raja/Development/ProsumeAI/server/scripts/sync-subscription-invoices.ts
+[2025-05-15T20:37:30.093Z] [ERROR] Failed to start sync process: spawn Unknown command: "bin"/ts-node ENOENT
+[2025-05-15T20:37:30.093Z] Using ts-node at: To see a list of supported npm commands, run:
+  npm help/ts-node
+[2025-05-15T20:37:30.093Z] Running sync script: /Users/raja/Development/ProsumeAI/server/scripts/sync-subscription-invoices.ts
+[2025-05-15T20:37:30.093Z] [ERROR] Failed to start sync process: spawn To see a list of supported npm commands, run:
+  npm help/ts-node ENOENT
+[2025-05-15T20:37:30.094Z] Synchronization process finished with code -2
+[2025-05-15T20:37:30.094Z] Next sync scheduled in 5 seconds
+[2025-05-15T20:37:30.094Z] Synchronization process finished with code -2
+[2025-05-15T20:37:30.094Z] Next sync scheduled in 5 seconds
+[2025-05-15T20:37:34.981Z] Starting invoice synchronization...
+[2025-05-15T20:37:35.084Z] Using ts-node at: Unknown command: "bin"/ts-node
+[2025-05-15T20:37:35.084Z] Running sync script: /Users/raja/Development/ProsumeAI/server/scripts/sync-subscription-invoices.ts
+[2025-05-15T20:37:35.085Z] [ERROR] Failed to start sync process: spawn Unknown command: "bin"/ts-node ENOENT
+[2025-05-15T20:37:35.085Z] Using ts-node at: To see a list of supported npm commands, run:
+  npm help/ts-node
+[2025-05-15T20:37:35.085Z] Running sync script: /Users/raja/Development/ProsumeAI/server/scripts/sync-subscription-invoices.ts
+[2025-05-15T20:37:35.085Z] [ERROR] Failed to start sync process: spawn To see a list of supported npm commands, run:
+  npm help/ts-node ENOENT
+[2025-05-15T20:37:35.085Z] Synchronization process finished with code -2
+[2025-05-15T20:37:35.085Z] Next sync scheduled in 5 seconds
+[2025-05-15T20:37:35.085Z] Synchronization process finished with code -2
+[2025-05-15T20:37:35.085Z] Next sync scheduled in 5 seconds
+[2025-05-15T20:37:39.982Z] Starting invoice synchronization...
+[2025-05-15T20:37:40.095Z] Using ts-node at: Unknown command: "bin"/ts-node
+[2025-05-15T20:37:40.095Z] Running sync script: /Users/raja/Development/ProsumeAI/server/scripts/sync-subscription-invoices.ts
+[2025-05-15T20:37:40.095Z] [ERROR] Failed to start sync process: spawn Unknown command: "bin"/ts-node ENOENT
+[2025-05-15T20:37:40.095Z] Using ts-node at: To see a list of supported npm commands, run:
+  npm help/ts-node
+[2025-05-15T20:37:40.095Z] Running sync script: /Users/raja/Development/ProsumeAI/server/scripts/sync-subscription-invoices.ts
+[2025-05-15T20:37:40.096Z] [ERROR] Failed to start sync process: spawn To see a list of supported npm commands, run:
+  npm help/ts-node ENOENT
+[2025-05-15T20:37:40.096Z] Synchronization process finished with code -2
+[2025-05-15T20:37:40.096Z] Next sync scheduled in 5 seconds
+[2025-05-15T20:37:40.096Z] Synchronization process finished with code -2
+[2025-05-15T20:37:40.096Z] Next sync scheduled in 5 seconds
+[2025-05-15T20:37:44.983Z] Starting invoice synchronization...
+[2025-05-15T20:37:45.086Z] Using ts-node at: Unknown command: "bin"/ts-node
+[2025-05-15T20:37:45.087Z] Running sync script: /Users/raja/Development/ProsumeAI/server/scripts/sync-subscription-invoices.ts
+[2025-05-15T20:37:45.087Z] [ERROR] Failed to start sync process: spawn Unknown command: "bin"/ts-node ENOENT
+[2025-05-15T20:37:45.087Z] Using ts-node at: To see a list of supported npm commands, run:
+  npm help/ts-node
+[2025-05-15T20:37:45.087Z] Running sync script: /Users/raja/Development/ProsumeAI/server/scripts/sync-subscription-invoices.ts
+[2025-05-15T20:37:45.088Z] [ERROR] Failed to start sync process: spawn To see a list of supported npm commands, run:
+  npm help/ts-node ENOENT
+[2025-05-15T20:37:45.088Z] Synchronization process finished with code -2
+[2025-05-15T20:37:45.088Z] Next sync scheduled in 5 seconds
+[2025-05-15T20:37:45.088Z] Synchronization process finished with code -2
+[2025-05-15T20:37:45.088Z] Next sync scheduled in 5 seconds
+[2025-05-15T20:37:49.983Z] Starting invoice synchronization...
+[2025-05-15T20:37:50.109Z] Using ts-node at: Unknown command: "bin"/ts-node
+[2025-05-15T20:37:50.109Z] Running sync script: /Users/raja/Development/ProsumeAI/server/scripts/sync-subscription-invoices.ts
+[2025-05-15T20:37:50.110Z] [ERROR] Failed to start sync process: spawn Unknown command: "bin"/ts-node ENOENT
+[2025-05-15T20:37:50.110Z] Using ts-node at: To see a list of supported npm commands, run:
+  npm help/ts-node
+[2025-05-15T20:37:50.110Z] Running sync script: /Users/raja/Development/ProsumeAI/server/scripts/sync-subscription-invoices.ts
+[2025-05-15T20:37:50.110Z] [ERROR] Failed to start sync process: spawn To see a list of supported npm commands, run:
+  npm help/ts-node ENOENT
+[2025-05-15T20:37:50.110Z] Synchronization process finished with code -2
+[2025-05-15T20:37:50.110Z] Next sync scheduled in 5 seconds
+[2025-05-15T20:37:50.110Z] Synchronization process finished with code -2
+[2025-05-15T20:37:50.110Z] Next sync scheduled in 5 seconds
+[2025-05-15T20:37:54.984Z] Starting invoice synchronization...
+[2025-05-15T20:37:55.089Z] Using ts-node at: Unknown command: "bin"/ts-node
+[2025-05-15T20:37:55.089Z] Running sync script: /Users/raja/Development/ProsumeAI/server/scripts/sync-subscription-invoices.ts
+[2025-05-15T20:37:55.089Z] [ERROR] Failed to start sync process: spawn Unknown command: "bin"/ts-node ENOENT
+[2025-05-15T20:37:55.089Z] Using ts-node at: To see a list of supported npm commands, run:
+  npm help/ts-node
+[2025-05-15T20:37:55.089Z] Running sync script: /Users/raja/Development/ProsumeAI/server/scripts/sync-subscription-invoices.ts
+[2025-05-15T20:37:55.090Z] [ERROR] Failed to start sync process: spawn To see a list of supported npm commands, run:
+  npm help/ts-node ENOENT
+[2025-05-15T20:37:55.090Z] Synchronization process finished with code -2
+[2025-05-15T20:37:55.090Z] Next sync scheduled in 5 seconds
+[2025-05-15T20:37:55.090Z] Synchronization process finished with code -2
+[2025-05-15T20:37:55.090Z] Next sync scheduled in 5 seconds
+[2025-05-15T20:37:59.985Z] Starting invoice synchronization...
+[2025-05-15T20:38:00.089Z] Using ts-node at: Unknown command: "bin"/ts-node
+[2025-05-15T20:38:00.089Z] Running sync script: /Users/raja/Development/ProsumeAI/server/scripts/sync-subscription-invoices.ts
+[2025-05-15T20:38:00.090Z] [ERROR] Failed to start sync process: spawn Unknown command: "bin"/ts-node ENOENT
+[2025-05-15T20:38:00.090Z] Using ts-node at: To see a list of supported npm commands, run:
+  npm help/ts-node
+[2025-05-15T20:38:00.090Z] Running sync script: /Users/raja/Development/ProsumeAI/server/scripts/sync-subscription-invoices.ts
+[2025-05-15T20:38:00.090Z] [ERROR] Failed to start sync process: spawn To see a list of supported npm commands, run:
+  npm help/ts-node ENOENT
+[2025-05-15T20:38:00.090Z] Synchronization process finished with code -2
+[2025-05-15T20:38:00.090Z] Next sync scheduled in 5 seconds
+[2025-05-15T20:38:00.090Z] Synchronization process finished with code -2
+[2025-05-15T20:38:00.090Z] Next sync scheduled in 5 seconds
+[2025-05-15T20:38:04.986Z] Starting invoice synchronization...
+[2025-05-15T20:38:05.077Z] Using ts-node at: Unknown command: "bin"/ts-node
+[2025-05-15T20:38:05.077Z] Running sync script: /Users/raja/Development/ProsumeAI/server/scripts/sync-subscription-invoices.ts
+[2025-05-15T20:38:05.078Z] [ERROR] Failed to start sync process: spawn Unknown command: "bin"/ts-node ENOENT
+[2025-05-15T20:38:05.078Z] Using ts-node at: To see a list of supported npm commands, run:
+  npm help/ts-node
+[2025-05-15T20:38:05.078Z] Running sync script: /Users/raja/Development/ProsumeAI/server/scripts/sync-subscription-invoices.ts
+[2025-05-15T20:38:05.078Z] [ERROR] Failed to start sync process: spawn To see a list of supported npm commands, run:
+  npm help/ts-node ENOENT
+[2025-05-15T20:38:05.078Z] Synchronization process finished with code -2
+[2025-05-15T20:38:05.078Z] Next sync scheduled in 5 seconds
+[2025-05-15T20:38:05.078Z] Synchronization process finished with code -2
+[2025-05-15T20:38:05.078Z] Next sync scheduled in 5 seconds
+[2025-05-15T20:38:09.986Z] Starting invoice synchronization...
+[2025-05-15T20:38:10.081Z] Using ts-node at: Unknown command: "bin"/ts-node
+[2025-05-15T20:38:10.081Z] Running sync script: /Users/raja/Development/ProsumeAI/server/scripts/sync-subscription-invoices.ts
+[2025-05-15T20:38:10.081Z] [ERROR] Failed to start sync process: spawn Unknown command: "bin"/ts-node ENOENT
+[2025-05-15T20:38:10.081Z] Using ts-node at: To see a list of supported npm commands, run:
+  npm help/ts-node
+[2025-05-15T20:38:10.081Z] Running sync script: /Users/raja/Development/ProsumeAI/server/scripts/sync-subscription-invoices.ts
+[2025-05-15T20:38:10.081Z] [ERROR] Failed to start sync process: spawn To see a list of supported npm commands, run:
+  npm help/ts-node ENOENT
+[2025-05-15T20:38:10.082Z] Synchronization process finished with code -2
+[2025-05-15T20:38:10.082Z] Next sync scheduled in 5 seconds
+[2025-05-15T20:38:10.082Z] Synchronization process finished with code -2
+[2025-05-15T20:38:10.082Z] Next sync scheduled in 5 seconds
+[2025-05-15T20:38:14.988Z] Starting invoice synchronization...
+[2025-05-15T20:38:15.088Z] Using ts-node at: Unknown command: "bin"/ts-node
+[2025-05-15T20:38:15.088Z] Running sync script: /Users/raja/Development/ProsumeAI/server/scripts/sync-subscription-invoices.ts
+[2025-05-15T20:38:15.089Z] [ERROR] Failed to start sync process: spawn Unknown command: "bin"/ts-node ENOENT
+[2025-05-15T20:38:15.089Z] Using ts-node at: To see a list of supported npm commands, run:
+  npm help/ts-node
+[2025-05-15T20:38:15.089Z] Running sync script: /Users/raja/Development/ProsumeAI/server/scripts/sync-subscription-invoices.ts
+[2025-05-15T20:38:15.089Z] [ERROR] Failed to start sync process: spawn To see a list of supported npm commands, run:
+  npm help/ts-node ENOENT
+[2025-05-15T20:38:15.089Z] Synchronization process finished with code -2
+[2025-05-15T20:38:15.089Z] Next sync scheduled in 5 seconds
+[2025-05-15T20:38:15.089Z] Synchronization process finished with code -2
+[2025-05-15T20:38:15.089Z] Next sync scheduled in 5 seconds
+[2025-05-15T20:38:15.433Z] Received SIGTERM, shutting down...

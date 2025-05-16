@@ -12,6 +12,11 @@ import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import DefaultLayout from '@/components/layouts/default-layout';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { InfoIcon } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
+import axios from 'axios';
+import { useLocation, useRoute } from "wouter";
 
 interface UserSubscription {
   id: number;
@@ -26,6 +31,9 @@ interface UserSubscription {
   billingCycle: string;
   createdAt?: string;
   updatedAt?: string;
+  pendingPlanChangeTo?: number;
+  pendingPlanChangeDate?: string;
+  pendingPlanChangeType?: 'UPGRADE' | 'DOWNGRADE';
 }
 
 interface SubscriptionPlan {
@@ -78,6 +86,10 @@ const UserSubscriptionPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'current' | 'features' | 'plans'>('current');
   const [userRegion, setUserRegion] = useState<UserRegion>({ region: 'GLOBAL', currency: 'USD' });
   const [manualRegion, setManualRegion] = useState<string>('');
+  const [pendingPlanName, setPendingPlanName] = useState<string | null>(null);
+  const [pendingChangeLoading, setPendingChangeLoading] = useState(false);
+  const [isChangingPlan, setIsChangingPlan] = useState(false);
+  const [location] = useLocation();
 
   // Fetch user's region based on IP
   const { data: regionData, isLoading: isRegionLoading } = useQuery({
@@ -272,6 +284,54 @@ const UserSubscriptionPage: React.FC = () => {
     }
   });
 
+  // Fetch pending subscription change
+  const { data: pendingChangeData, isLoading: isPendingChangeLoading, refetch: refetchPendingChange } = useQuery({
+    queryKey: ['pendingSubscriptionChange'],
+    queryFn: async () => {
+      try {
+        const response = await apiRequest('GET', '/api/user/subscription/pending-change');
+        const data = await response.json();
+        console.log("Fetched pending change data:", data);
+        
+        // If we have a pending plan change, fetch the plan name
+        if (data.hasPendingChange && data.pendingPlan) {
+          setPendingPlanName(data.pendingPlan.name);
+        } else {
+          setPendingPlanName(null);
+        }
+        
+        return data;
+      } catch (error) {
+        console.error("Error fetching pending subscription change:", error);
+        return { hasPendingChange: false };
+      }
+    },
+    enabled: !!subscriptionData // Only run if we have an active subscription
+  });
+
+  // Handle cancellation of pending subscription change
+  const cancelPendingChangeMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest('POST', '/api/user/subscription/cancel-pending-change');
+      return await response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['userSubscription'] });
+      queryClient.invalidateQueries({ queryKey: ['pendingSubscriptionChange'] });
+      toast({
+        title: 'Change Cancelled',
+        description: 'Your pending subscription change has been cancelled.',
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Cancellation Failed',
+        description: error.message,
+        variant: 'destructive',
+      });
+    }
+  });
+
   // Handle subscription upgrade
   const upgradeMutation = useMutation({
     mutationFn: async (planId: number) => {
@@ -375,7 +435,7 @@ const UserSubscriptionPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['userSubscription'] });
       toast({
         title: 'Subscription Cancelled',
-        description: 'Your subscription has been cancelled. You can still use the features until the end of your billing period.',
+        description: 'Your subscription has been cancelled. You can still use all features until the end of your current billing period.',
       });
     },
     onError: (error: Error) => {
@@ -435,7 +495,7 @@ const UserSubscriptionPage: React.FC = () => {
     }
   ) : null;
 
-  const isLoading = isSubscriptionLoading || isPlansLoading || isFeaturesLoading || isAllFeaturesLoading || isFeatureUsageLoading || isRegionLoading;
+  const isLoading = isSubscriptionLoading || isPlansLoading || isFeaturesLoading || isAllFeaturesLoading || isFeatureUsageLoading || isRegionLoading || isPendingChangeLoading;
 
   // Format date for display
   const formatDate = (dateString: string) => {
@@ -592,31 +652,214 @@ const UserSubscriptionPage: React.FC = () => {
     return parseFloat(plan.price || '0');
   };
 
-  // Function to handle plan selection
+  // Handle plan selection
   const handlePlanSelection = (plan: SubscriptionPlan) => {
-    const isCurrentPlan = subscription && subscription.planId === plan.id;
-    if (isCurrentPlan) return; // Do nothing if this is the current plan
+    if (!plan) return;
     
-    if (plan.isFreemium) {
-      // Free plans are activated immediately
-      console.log(`Activating free plan: ${plan.name} (ID: ${plan.id})`);
-      upgradeMutation.mutate(plan.id);
+    // If user doesn't have a subscription yet, go straight to checkout/upgrade
+    if (!subscription) {
+      handleUpgrade(plan.id);
       return;
     }
     
-    // For paid plans, redirect directly to checkout
-    console.log(`Redirecting to checkout for plan: ${plan.name} (ID: ${plan.id})`);
-    // Clear any previous checkout redirect information
-    sessionStorage.removeItem('checkoutRedirectAttempt');
-    // Store the selected plan ID in session storage
-    sessionStorage.setItem('selectedPlanId', plan.id.toString());
+    const currentPlanId = subscription.planId;
+    if (currentPlanId === plan.id) {
+      toast({
+        title: "Same Plan Selected",
+        description: "You are already subscribed to this plan.",
+        variant: "default"
+      });
+      return;
+    }
     
-    // Set a small delay to ensure state updates are processed
-    setTimeout(() => {
-      // Direct URL navigation instead of using mutation
-      window.location.href = `/checkout?planId=${plan.id}`;
-    }, 100);
+    // Check pricing to determine if this is an upgrade or downgrade
+    const currentPlan = plans.find((p: SubscriptionPlan) => p.id === currentPlanId);
+    if (!currentPlan) return;
+    
+    const currentPrice = getPlanPrice(currentPlan);
+    const newPrice = getPlanPrice(plan);
+    
+    if (newPrice > currentPrice) {
+      handleUpgrade(plan.id);
+    } else {
+      handleDowngrade(plan.id);
+    }
   };
+
+  // Handle upgrade to a higher plan
+  const handleUpgrade = async (planId: number) => {
+    setIsChangingPlan(true);
+    
+    try {
+      const response = await axios.post('/api/user/subscription/upgrade', { planId });
+      const data = response.data;
+      
+      if (data.redirectToDowngrade) {
+        // This is not an upgrade, it's a downgrade
+        toast({
+          title: "Plan Change",
+          description: "This is actually a downgrade, redirecting...",
+          variant: "default"
+        });
+        handleDowngrade(planId);
+        return;
+      }
+      
+      if (data.redirectToPayment) {
+        // Show proration details before redirecting if available
+        if (data.proration && subscription) {
+          // Find plans first to avoid redeclaration issues
+          const selectedNewPlan = plans.find((p: SubscriptionPlan) => p.id === planId);
+          const selectedCurrentPlan = plans.find((p: SubscriptionPlan) => p.id === subscription?.planId);
+          
+          // Format amounts for display - handle INR and USD differently
+          const formatAmount = (amount: number, currency: string) => {
+            if (currency === 'INR') {
+              return `₹${amount.toFixed(0)}`; // No decimals for INR
+            }
+            return `$${amount.toFixed(2)}`; // 2 decimals for USD
+          };
+          
+          // Extract proration information
+          const prorationAmount = data.proration.prorationAmount || 0;
+          // Attempt to get remaining value from diagnosticInfo if available
+          const remainingValue = data.proration.remainingValue || 
+                             (data.proration.diagnosticInfo?.remainingValue || 0);
+          const newPlanPrice = data.proration.newPlanPrice || 
+                            (data.proration.diagnosticInfo?.newPrice || 0);
+          const currency = data.proration.currency || 
+                       (data.proration.diagnosticInfo?.currency || 
+                       (selectedNewPlan?.displayCurrency || 'USD'));
+          
+          // Create user-friendly proration message
+          let prorationMessage = '';
+          
+          // Only show detailed breakdown if we have all values
+          if (prorationAmount > 0 && newPlanPrice > 0 && remainingValue > 0) {
+            prorationMessage = `You'll be charged ${formatAmount(prorationAmount, currency)} now (${formatAmount(newPlanPrice, currency)} for the new plan, minus ${formatAmount(remainingValue, currency)} credit from your current plan).`;
+          } else if (prorationAmount > 0) {
+            prorationMessage = `You'll be charged ${formatAmount(prorationAmount, currency)} for this upgrade.`;
+          } else {
+            prorationMessage = `You'll be charged for this upgrade immediately.`;
+          }
+          
+          // Confirm with user before redirecting to checkout
+          const confirmed = window.confirm(
+            `Upgrade from ${selectedCurrentPlan?.name || 'current plan'} to ${selectedNewPlan?.name || 'new plan'}\n\n` +
+            `${prorationMessage}\n\n` +
+            `Would you like to proceed with this upgrade?`
+          );
+          
+          if (!confirmed) {
+            setIsChangingPlan(false);
+            return;
+          }
+        } else if (data.proration) {
+          // This is a new subscription, not an upgrade
+          const selectedPlan = plans.find((p: SubscriptionPlan) => p.id === planId);
+          const planName = selectedPlan?.name || 'selected plan';
+          const currency = selectedPlan?.displayCurrency || 'USD';
+          const price = selectedPlan?.displayPrice || '0';
+          
+          // For new users, show a simpler confirmation
+          const confirmed = window.confirm(
+            `You're about to subscribe to the ${planName} plan.\n\n` +
+            `You'll be charged ${currency === 'INR' ? '₹' : '$'}${price} for this subscription.\n\n` +
+            `Would you like to proceed?`
+          );
+          
+          if (!confirmed) {
+            setIsChangingPlan(false);
+            return;
+          }
+        }
+        
+        // Redirect to checkout with proration amount if available
+        const params = new URLSearchParams();
+        params.append('planId', planId.toString());
+        
+        if (data.proration && data.proration.prorationAmount) {
+          params.append('prorationAmount', data.proration.prorationAmount.toString());
+        }
+        
+        params.append('upgradeFlow', 'true');
+        
+        const url = `/checkout?${params.toString()}`;
+        window.location.href = url; // Use direct navigation
+      } else if (data.subscription) {
+        // Subscription was created/updated without payment (free plan)
+        toast({
+          title: "Success",
+          description: "Your subscription has been upgraded successfully",
+          variant: "default"
+        });
+        refetchSubscription();
+      }
+    } catch (error) {
+      console.error('Error upgrading subscription:', error);
+      toast({
+        title: "Upgrade Failed",
+        description: "Failed to upgrade subscription. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsChangingPlan(false);
+    }
+  };
+
+  // Handle downgrade to a lower plan
+  const handleDowngrade = async (planId: number) => {
+    setIsChangingPlan(true);
+    
+    try {
+      const response = await axios.post('/api/user/subscription/downgrade', { planId });
+      const data = response.data;
+      
+      if (data.redirectToUpgrade) {
+        // This is not a downgrade, it's an upgrade
+        toast({
+          title: "Plan Change",
+          description: "This is actually an upgrade, redirecting...",
+          variant: "default"
+        });
+        handleUpgrade(planId);
+        return;
+      }
+      
+      if (data.subscription) {
+        if (data.scheduledChange) {
+          // Downgrade has been scheduled for end of billing cycle
+          toast({
+            title: "Downgrade Scheduled",
+            description: `Your plan will be changed to ${data.scheduledChange.toPlanName} on ${formatDate(data.scheduledChange.effectiveDate)}`,
+            variant: "default"
+          });
+        } else {
+          // Immediate downgrade (for free plans)
+          toast({
+            title: "Success",
+            description: "Your subscription has been downgraded successfully",
+            variant: "default"
+          });
+        }
+        
+        refetchSubscription();
+      }
+    } catch (error) {
+      console.error('Error downgrading subscription:', error);
+      toast({
+        title: "Downgrade Failed",
+        description: "Failed to downgrade subscription. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsChangingPlan(false);
+    }
+  };
+
+  const hasPendingChange = pendingChangeData?.hasPendingChange || false;
+  const pendingChange = pendingChangeData?.subscription;
+  const pendingPlan = pendingChangeData?.pendingPlan;
 
   if (isLoading) {
     return (
@@ -632,9 +875,9 @@ const UserSubscriptionPage: React.FC = () => {
     <DefaultLayout pageTitle="My Subscription" pageDescription="Manage your subscription and view your available features">
       <Tabs defaultValue={activeTab} onValueChange={setTab} className="space-y-6">
         <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="current">Current Plan</TabsTrigger>
+          <TabsTrigger value="current">{subscription ? 'Current Plan' : 'No Subscription'}</TabsTrigger>
           <TabsTrigger value="features">Features & Limits</TabsTrigger>
-          <TabsTrigger value="plans">Available Plans</TabsTrigger>
+          <TabsTrigger value="plans">{subscription ? 'Available Plans' : 'Choose a Plan'}</TabsTrigger>
         </TabsList>
         
         {/* Current Plan Tab */}
@@ -689,6 +932,39 @@ const UserSubscriptionPage: React.FC = () => {
                         <div className="text-xs text-amber-500 text-right mt-1">
                           Note: Your monthly plan shows an incorrect end date. This is a known issue with some monthly subscriptions. Please contact our support team and reference "monthly subscription date correction" in your message.
                         </div>
+                      )}
+                      
+                      {/* Add pending change information */}
+                      {hasPendingChange && pendingChange && (
+                        <>
+                          <Separator className="my-2" />
+                          <div className="bg-amber-50 dark:bg-amber-900/20 p-3 rounded-md border border-amber-200 dark:border-amber-800 mt-3">
+                            <div className="flex items-start">
+                              <Calendar className="h-4 w-4 text-amber-600 dark:text-amber-400 mr-2 mt-0.5 flex-shrink-0" />
+                              <div>
+                                <h4 className="text-sm font-medium text-amber-800 dark:text-amber-300">
+                                  Scheduled Plan Change
+                                </h4>
+                                <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">
+                                  Your subscription will change to{' '}
+                                  <span className="font-medium">{pendingPlanName || `Plan ID: ${pendingChange.pendingPlanChangeTo}`}</span>{' '}
+                                  on {formatDate(pendingChange.pendingPlanChangeDate || pendingChange.endDate)}
+                                </p>
+                                <div className="mt-2">
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm"
+                                    className="h-7 text-xs" 
+                                    onClick={() => cancelPendingChangeMutation.mutate()}
+                                    disabled={cancelPendingChangeMutation.isPending}
+                                  >
+                                    {cancelPendingChangeMutation.isPending ? 'Cancelling...' : 'Cancel Change'}
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </>
                       )}
                     </div>
                   </div>
@@ -766,7 +1042,7 @@ const UserSubscriptionPage: React.FC = () => {
                   <Button 
                     variant="destructive" 
                     onClick={() => cancelMutation.mutate()} 
-                    disabled={subscription.status !== 'ACTIVE' || cancelMutation.isPending}
+                    disabled={subscription.status !== 'ACTIVE' || !subscription.autoRenew || cancelMutation.isPending}
                   >
                     {cancelMutation.isPending ? 'Processing...' : 'Cancel Subscription'}
                   </Button>
@@ -885,11 +1161,19 @@ const UserSubscriptionPage: React.FC = () => {
                 .filter((plan: SubscriptionPlan) => plan.active)
                 .map((plan: SubscriptionPlan) => {
                   const isCurrentPlan = subscription && subscription.planId === plan.id;
+                  const isPendingPlan = hasPendingChange && pendingChange && pendingChange.pendingPlanChangeTo === plan.id;
+                  
+                  // Determine if this is an upgrade or downgrade
+                  const isUpgrade = subscription && getPlanPrice(plan) > getPlanPrice(plans.find((p: SubscriptionPlan) => p.id === subscription.planId)!);
+                  
                   return (
-                    <Card key={plan.id} className={`${isCurrentPlan ? 'border-primary border-2' : ''} ${plan.isFeatured ? 'shadow-md' : ''}`}>
-                      <CardHeader className={`${isCurrentPlan ? 'bg-primary/5' : ''} ${plan.isFeatured ? 'bg-muted/50' : ''}`}>
+                    <Card key={plan.id} className={`${isCurrentPlan ? 'border-primary border-2' : ''} ${isPendingPlan ? 'border-amber-500 border-2' : ''} ${plan.isFeatured ? 'shadow-md' : ''}`}>
+                      <CardHeader className={`${isCurrentPlan ? 'bg-primary/5' : ''} ${isPendingPlan ? 'bg-amber-500/5' : ''} ${plan.isFeatured ? 'bg-muted/50' : ''}`}>
                         {plan.isFeatured && (
                           <Badge className="w-fit mb-2 bg-primary">Featured</Badge>
+                        )}
+                        {isPendingPlan && (
+                          <Badge className="w-fit mb-2 bg-amber-500">Scheduled</Badge>
                         )}
                         <CardTitle>{plan.name}</CardTitle>
                         <CardDescription>{plan.description}</CardDescription>
@@ -936,21 +1220,34 @@ const UserSubscriptionPage: React.FC = () => {
                       <CardFooter>
                         <Button 
                           className="w-full" 
-                          variant={isCurrentPlan ? "outline" : "default"}
-                          onClick={() => !isCurrentPlan && handlePlanSelection(plan)}
-                          disabled={isCurrentPlan || upgradeMutation.isPending || downgradeMutation.isPending}
+                          variant={isCurrentPlan ? "outline" : isPendingPlan ? "secondary" : "default"}
+                          onClick={() => {
+                            if (!isCurrentPlan && !isPendingPlan) {
+                              // For new users with no subscription, always use handleUpgrade
+                              if (!subscription) {
+                                handleUpgrade(plan.id);
+                              } else if (isUpgrade || plan.isFreemium) {
+                                handlePlanSelection(plan);
+                              } else {
+                                handleDowngrade(plan.id);
+                              }
+                            }
+                          }}
+                          disabled={isCurrentPlan || isPendingPlan || upgradeMutation.isPending || downgradeMutation.isPending}
                         >
                           {isCurrentPlan 
                             ? 'Current Plan' 
-                            : upgradeMutation.isPending || downgradeMutation.isPending
-                              ? 'Processing...' 
-                              : plan.isFreemium 
-                                ? 'Select Free Plan' 
-                                : subscription 
-                                  ? getPlanPrice(plan) > getPlanPrice(plans.find((p: SubscriptionPlan) => p.id === subscription.planId)!)
-                                    ? 'Upgrade Plan' 
-                                    : 'Downgrade Plan'
-                                  : 'Select Plan'
+                            : isPendingPlan
+                              ? `Scheduled for ${pendingChange?.pendingPlanChangeDate ? formatDate(pendingChange.pendingPlanChangeDate) : 'Later'}`
+                              : upgradeMutation.isPending || downgradeMutation.isPending
+                                ? 'Processing...' 
+                                : plan.isFreemium 
+                                  ? 'Select Free Plan' 
+                                  : subscription 
+                                    ? isUpgrade
+                                      ? 'Upgrade Now' 
+                                      : 'Schedule Downgrade'
+                                    : 'Subscribe Now'
                           }
                         </Button>
                       </CardFooter>

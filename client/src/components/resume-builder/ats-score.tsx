@@ -14,7 +14,9 @@ import { ResumeData } from "@/types/resume";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 interface ATSScoreProps {
-  resumeData: ResumeData;
+  resumeData: ResumeData & {
+    updateData?: (data: any) => void;
+  };
 }
 
 interface KeywordCategory {
@@ -101,12 +103,23 @@ export default function ATSScore({ resumeData }: ATSScoreProps) {
       const atsScore = await calculateATSScore(resumeData);
       
       setScore(atsScore);
-      setKeywords({
+      
+      // Update keywords data
+      const keywordsFeedback = {
         found: atsScore.feedback.keywordsFeedback?.found || [],
         missing: atsScore.feedback.keywordsFeedback?.missing || [],
         all: atsScore.feedback.keywordsFeedback?.all || [],
         categories: atsScore.feedback.keywordsFeedback?.categories || {}
-      });
+      };
+      
+      setKeywords(keywordsFeedback);
+      
+      // Update the resumeData with the keywords feedback for use in other components
+      if (resumeData.updateData && typeof resumeData.updateData === 'function') {
+        resumeData.updateData({
+          keywordsFeedback: keywordsFeedback
+        });
+      }
       
       // Update local storage cache for this resume
       if (resumeData.id) {
@@ -229,12 +242,23 @@ export default function ATSScore({ resumeData }: ATSScoreProps) {
       const atsScore = await calculateATSScore(resumeData);
       
       setScore(atsScore);
-      setKeywords({
+      
+      // Update keywords data
+      const keywordsFeedback = {
         found: atsScore.feedback.keywordsFeedback?.found || [],
         missing: atsScore.feedback.keywordsFeedback?.missing || [],
         all: atsScore.feedback.keywordsFeedback?.all || [],
         categories: atsScore.feedback.keywordsFeedback?.categories || {}
-      });
+      };
+      
+      setKeywords(keywordsFeedback);
+      
+      // Update the resumeData with the keywords feedback for use in other components
+      if (resumeData.updateData && typeof resumeData.updateData === 'function') {
+        resumeData.updateData({
+          keywordsFeedback: keywordsFeedback
+        });
+      }
       
       // Update localStorage cache
       if (resumeData.id) {

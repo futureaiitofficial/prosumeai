@@ -1,0 +1,7 @@
+Starting auto-sync for subscription invoices
+Sync interval: 5000ms (5 seconds)
+
+[2025-05-15T20:27:45.312Z] Running sync (run #1)...
+Error executing sync script: Command failed: tsx scripts/sync-subscription-invoices.ts
+/bin/sh: tsx: command not found
+

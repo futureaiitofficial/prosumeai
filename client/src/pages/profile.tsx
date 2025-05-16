@@ -13,6 +13,29 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { TokenUsage } from "@/components/ui/token-usage";
+import BillingDetailsForm from "@/components/checkout/billing-details-form";
+import { Loader2 } from "lucide-react";
+import { PaymentService } from "@/services/payment-service";
+import type { BillingDetails } from "@/services/payment-service";
+
+// List of countries for billing information display
+interface CountryOption {
+  value: string;
+  label: string;
+}
+
+const countries: CountryOption[] = [
+  { value: 'US', label: 'United States' },
+  { value: 'IN', label: 'India' },
+  { value: 'GB', label: 'United Kingdom' },
+  { value: 'CA', label: 'Canada' },
+  { value: 'AU', label: 'Australia' },
+  { value: 'DE', label: 'Germany' },
+  { value: 'FR', label: 'France' },
+  { value: 'JP', label: 'Japan' },
+  { value: 'SG', label: 'Singapore' },
+  { value: 'AE', label: 'United Arab Emirates' },
+];
 
 export default function Profile() {
   const { user } = useAuth();
@@ -22,6 +45,21 @@ export default function Profile() {
     fullName: user?.fullName || "",
     email: user?.email || "",
     username: user?.username || "",
+  });
+  const [editingBilling, setEditingBilling] = useState(false);
+
+  // Query to fetch billing details
+  const billingDetailsQuery = useQuery({
+    queryKey: ['billingDetails'],
+    queryFn: async () => {
+      try {
+        return await PaymentService.getBillingDetails();
+      } catch (error) {
+        console.error('Error fetching billing details:', error);
+        return null;
+      }
+    },
+    enabled: !!user,
   });
 
   const updateProfileMutation = useMutation({
@@ -77,8 +115,9 @@ export default function Profile() {
         </Card>
 
         <Tabs defaultValue="personal" className="w-full">
-          <TabsList className="grid w-full grid-cols-3 mb-4">
+          <TabsList className="grid w-full grid-cols-4 mb-4">
             <TabsTrigger value="personal">Personal Information</TabsTrigger>
+            <TabsTrigger value="billing">Billing Information</TabsTrigger>
             <TabsTrigger value="security">Security</TabsTrigger>
             <TabsTrigger value="usage">Usage & Limits</TabsTrigger>
           </TabsList>
@@ -140,6 +179,84 @@ export default function Profile() {
                   </Button>
                 </CardFooter>
               </form>
+            </Card>
+          </TabsContent>
+          
+          <TabsContent value="billing">
+            <Card>
+              <CardHeader>
+                <CardTitle>Billing Information</CardTitle>
+                <CardDescription>
+                  Manage your billing details for invoices and subscriptions
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {billingDetailsQuery.isLoading ? (
+                  <div className="flex items-center justify-center py-10">
+                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                  </div>
+                ) : editingBilling ? (
+                  <BillingDetailsForm
+                    existingDetails={billingDetailsQuery.data || null}
+                    onDetailsSubmitted={(details) => {
+                      // Update the billing details in the cache
+                      queryClient.setQueryData(['billingDetails'], details);
+                      setEditingBilling(false);
+                      toast({
+                        title: 'Billing details updated',
+                        description: 'Your billing information has been updated successfully.'
+                      });
+                    }}
+                    onCancel={() => setEditingBilling(false)}
+                  />
+                ) : (
+                  <div className="space-y-6">
+                    {billingDetailsQuery.data ? (
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="space-y-1">
+                            <h3 className="text-sm font-medium">Full Name</h3>
+                            <p className="text-sm text-muted-foreground">{billingDetailsQuery.data?.fullName}</p>
+                          </div>
+                          <div className="space-y-1">
+                            <h3 className="text-sm font-medium">Company</h3>
+                            <p className="text-sm text-muted-foreground">{billingDetailsQuery.data?.companyName || 'Not provided'}</p>
+                          </div>
+                          <div className="space-y-1">
+                            <h3 className="text-sm font-medium">Address</h3>
+                            <p className="text-sm text-muted-foreground">
+                              {billingDetailsQuery.data?.addressLine1}<br />
+                              {billingDetailsQuery.data?.addressLine2 && <>{billingDetailsQuery.data?.addressLine2}<br /></>}
+                              {billingDetailsQuery.data?.city}, {billingDetailsQuery.data?.state} {billingDetailsQuery.data?.postalCode}<br />
+                                                             {countries.find((c: CountryOption) => c.value === billingDetailsQuery.data?.country)?.label || billingDetailsQuery.data?.country}
+                            </p>
+                          </div>
+                          <div className="space-y-1">
+                            <h3 className="text-sm font-medium">Contact</h3>
+                            <p className="text-sm text-muted-foreground">
+                              Phone: {billingDetailsQuery.data?.phoneNumber || 'Not provided'}<br />
+                              Tax ID: {billingDetailsQuery.data?.taxId || 'Not provided'}
+                            </p>
+                          </div>
+                        </div>
+                        <Button
+                          onClick={() => setEditingBilling(true)}
+                          variant="outline"
+                        >
+                          Edit Billing Information
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="text-center py-4">
+                        <p className="text-muted-foreground mb-4">No billing information on file.</p>
+                        <Button onClick={() => setEditingBilling(true)}>
+                          Add Billing Information
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </CardContent>
             </Card>
           </TabsContent>
           

@@ -5,7 +5,7 @@ import {
   subscriptionPlans, 
   planPricing, 
   planFeatures, 
-  features, 
+  features as featuresTable,
   userSubscriptions,
   featureUsage,
   users,
@@ -14,8 +14,13 @@ import {
   disputes,
   appSettings
 } from '@shared/schema';
-import { eq, and, gte, lte, desc, asc, isNull, inArray } from 'drizzle-orm';
+import { eq, and, gte, lte, desc, asc, isNull, inArray, isNotNull } from 'drizzle-orm';
 import { SubscriptionService } from '../../services/subscription-service';
+import { 
+  trackUserDevice, 
+  checkFreemiumEligibility, 
+  updateFreemiumRestrictions 
+} from '../../middleware/session-security';
 
 /**
  * Register subscription routes
@@ -170,7 +175,7 @@ export function registerSubscriptionRoutes(app: express.Express) {
   // Features Management (Admin Only)
   app.get('/api/admin/features', requireAdmin, async (req, res) => {
     try {
-      const featureList = await db.select().from(features);
+      const featureList = await db.select().from(featuresTable);
       res.json(featureList);
     } catch (error: any) {
       console.error('Error in GET /api/admin/features:', error);
@@ -188,7 +193,7 @@ export function registerSubscriptionRoutes(app: express.Express) {
       const { id, ...featureDataWithoutId } = featureData;
       // Ensure isTokenBased is set to false if not provided
       featureDataWithoutId.isTokenBased = featureDataWithoutId.isTokenBased || false;
-      const newFeature = await db.insert(features).values(featureDataWithoutId).returning();
+      const newFeature = await db.insert(featuresTable).values(featureDataWithoutId).returning();
       res.status(201).json(newFeature);
     } catch (error: any) {
       console.error('Error in POST /api/admin/features:', error);
@@ -201,14 +206,14 @@ export function registerSubscriptionRoutes(app: express.Express) {
 
   app.patch('/api/admin/features/:id', requireAdmin, async (req, res) => {
     try {
-      const featureId = parseInt(req.params.id);
+      const featureId = parseInt(req.params.id, 10);
       if (isNaN(featureId)) {
         return res.status(400).json({ message: 'Invalid feature ID' });
       }
       const updateData = req.body;
-      const updatedFeature = await db.update(features)
+      const updatedFeature = await db.update(featuresTable)
         .set(updateData)
-        .where(eq(features.id, featureId))
+        .where(eq(featuresTable.id, featureId))
         .returning();
       if (!updatedFeature.length) {
         return res.status(404).json({ message: 'Feature not found' });
@@ -225,12 +230,12 @@ export function registerSubscriptionRoutes(app: express.Express) {
 
   app.delete('/api/admin/features/:id', requireAdmin, async (req, res) => {
     try {
-      const featureId = parseInt(req.params.id);
+      const featureId = parseInt(req.params.id, 10);
       if (isNaN(featureId)) {
         return res.status(400).json({ message: 'Invalid feature ID' });
       }
-      const deleted = await db.delete(features)
-        .where(eq(features.id, featureId));
+      const deleted = await db.delete(featuresTable)
+        .where(eq(featuresTable.id, featureId));
       res.json({ message: 'Feature deleted successfully', id: featureId });
     } catch (error: any) {
       console.error(`Error in DELETE /api/admin/features/${req.params.id}:`, error);
@@ -337,7 +342,8 @@ export function registerSubscriptionRoutes(app: express.Express) {
           autoRenew: userSubscriptions.autoRenew,
           planName: subscriptionPlans.name,
           planDescription: subscriptionPlans.description,
-          billingCycle: subscriptionPlans.billingCycle
+          billingCycle: subscriptionPlans.billingCycle,
+          isFreemium: subscriptionPlans.isFreemium
         })
         .from(userSubscriptions)
         .leftJoin(subscriptionPlans, eq(userSubscriptions.planId, subscriptionPlans.id))
@@ -346,10 +352,22 @@ export function registerSubscriptionRoutes(app: express.Express) {
           eq(userSubscriptions.status, 'ACTIVE')
         ));
       
-      console.log(`Returning fresh subscription data for user ${userId}: ${JSON.stringify(subscriptions)}`);
+      // Hide billing cycle for freemium plans
+      const subscriptionsWithHiddenFreemiumCycle = subscriptions.map(sub => {
+        if (sub.isFreemium) {
+          return {
+            ...sub,
+            billingCycle: null, // Hide billing cycle for freemium plans
+            displayBillingCycle: false // Add flag to indicate billing cycle should be hidden
+          };
+        }
+        return sub;
+      });
+      
+      console.log(`Returning fresh subscription data for user ${userId}: ${JSON.stringify(subscriptionsWithHiddenFreemiumCycle)}`);
       
       // Return the active subscription or an empty array
-      res.json(subscriptions);
+      res.json(subscriptionsWithHiddenFreemiumCycle);
     } catch (error: any) {
       console.error('Error in GET /api/user/subscription:', error);
       res.status(500).json({ 
@@ -430,14 +448,14 @@ export function registerSubscriptionRoutes(app: express.Express) {
           limitValue: planFeatures.limitValue,
           resetFrequency: planFeatures.resetFrequency,
           isEnabled: planFeatures.isEnabled,
-          featureName: features.name,
-          featureCode: features.code,
-          featureDescription: features.description,
-          featureType: features.featureType,
-          isTokenBased: features.isTokenBased
+          featureName: featuresTable.name,
+          featureCode: featuresTable.code,
+          featureDescription: featuresTable.description,
+          featureType: featuresTable.featureType,
+          isTokenBased: featuresTable.isTokenBased
         })
         .from(planFeatures)
-        .innerJoin(features, eq(planFeatures.featureId, features.id))
+        .innerJoin(featuresTable, eq(planFeatures.featureId, featuresTable.id))
         .where(eq(planFeatures.planId, planId));
         
       console.log(`Found ${planFeaturesData.length} features for plan ${planId} (${plan[0].name})`);
@@ -510,6 +528,10 @@ export function registerSubscriptionRoutes(app: express.Express) {
           resetDate: usage.resetDate
         });
       });
+      
+      // Check if plan is freemium
+      const isFreemiumPlan = plan[0].isFreemium;
+      
       // Fetch all features with explicit mapping in plan_features for the user's plan
       const planFeaturesData = await db
         .select({
@@ -519,21 +541,24 @@ export function registerSubscriptionRoutes(app: express.Express) {
           limitValue: planFeatures.limitValue,
           resetFrequency: planFeatures.resetFrequency,
           isEnabled: planFeatures.isEnabled,
-          featureName: features.name,
-          featureCode: features.code,
-          featureType: features.featureType,
-          isTokenBased: features.isTokenBased,
-          featureDescription: features.description
+          featureName: featuresTable.name,
+          featureCode: featuresTable.code,
+          featureType: featuresTable.featureType,
+          isTokenBased: featuresTable.isTokenBased,
+          featureDescription: featuresTable.description
         })
         .from(planFeatures)
-        .innerJoin(features, eq(planFeatures.featureId, features.id))
+        .innerJoin(featuresTable, eq(planFeatures.featureId, featuresTable.id))
         .where(eq(planFeatures.planId, planId));
       // Build the feature access list
       const featuresAccess = planFeaturesData.map(pf => {
         const usage = usageMap.get(pf.featureId);
-        const isResetNeeded = usage && usage.resetDate && usage.resetDate < new Date();
+        
+        // Only check for reset if it's NOT a freemium plan
+        const isResetNeeded = !isFreemiumPlan && usage && usage.resetDate && usage.resetDate < new Date();
         const currentUsage = isResetNeeded ? 0 : (usage?.usageCount || 0);
         const currentTokenUsage = isResetNeeded ? 0 : (usage?.aiTokenCount || 0);
+        
         let hasAccess = false;
         if (pf.limitType === 'BOOLEAN') {
           hasAccess = pf.isEnabled;
@@ -557,8 +582,8 @@ export function registerSubscriptionRoutes(app: express.Express) {
           limitValue: pf.limitValue,
           isEnabled: pf.isEnabled,
           currentUsage: pf.isTokenBased ? currentTokenUsage : currentUsage,
-          resetFrequency: pf.resetFrequency,
-          resetDate: usage?.resetDate || null,
+          resetFrequency: isFreemiumPlan ? null : pf.resetFrequency, // No reset frequency for freemium
+          resetDate: isFreemiumPlan ? null : (usage?.resetDate || null), // No reset date for freemium
           isTokenBased: pf.isTokenBased || false,
           aiTokenCount: currentTokenUsage
         };
@@ -797,6 +822,108 @@ export function registerSubscriptionRoutes(app: express.Express) {
     }
   });
 
+  // New route - Get pending subscription change
+  app.get('/api/user/subscription/pending-change', requireUser, async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user) {
+        return res.status(401).json({ message: 'Unauthorized' });
+      }
+      const userId = req.user.id;
+      
+      // Get user's active subscription with pending change details
+      const subscription = await db
+        .select({
+          id: userSubscriptions.id,
+          userId: userSubscriptions.userId,
+          planId: userSubscriptions.planId,
+          pendingPlanChangeTo: userSubscriptions.pendingPlanChangeTo,
+          pendingPlanChangeDate: userSubscriptions.pendingPlanChangeDate,
+          pendingPlanChangeType: userSubscriptions.pendingPlanChangeType,
+          currentPlanName: subscriptionPlans.name,
+          startDate: userSubscriptions.startDate,
+          endDate: userSubscriptions.endDate
+        })
+        .from(userSubscriptions)
+        .leftJoin(subscriptionPlans, eq(userSubscriptions.planId, subscriptionPlans.id))
+        .where(and(
+          eq(userSubscriptions.userId, userId),
+          eq(userSubscriptions.status, 'ACTIVE'),
+          isNotNull(userSubscriptions.pendingPlanChangeTo)
+        ))
+        .limit(1);
+        
+      if (!subscription.length) {
+        return res.json({ hasPendingChange: false });
+      }
+      
+      // Get the pending plan details
+      const pendingPlanId = subscription[0].pendingPlanChangeTo;
+      const pendingPlan = await db.select()
+        .from(subscriptionPlans)
+        .where(eq(subscriptionPlans.id, pendingPlanId as number))
+        .limit(1);
+      
+      return res.json({
+        hasPendingChange: true,
+        subscription: subscription[0],
+        pendingPlan: pendingPlan.length ? pendingPlan[0] : null
+      });
+    } catch (error: any) {
+      console.error('Error in GET /api/user/subscription/pending-change:', error);
+      res.status(500).json({ 
+        message: 'Failed to fetch pending subscription change', 
+        error: error.message 
+      });
+    }
+  });
+
+  // Update route - Cancel pending subscription change
+  app.post('/api/user/subscription/cancel-pending-change', requireUser, async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user) {
+        return res.status(401).json({ message: 'Unauthorized' });
+      }
+      const userId = req.user.id;
+      
+      // Get user's active subscription with pending change
+      const subscription = await db
+        .select()
+        .from(userSubscriptions)
+        .where(and(
+          eq(userSubscriptions.userId, userId),
+          eq(userSubscriptions.status, 'ACTIVE'),
+          isNotNull(userSubscriptions.pendingPlanChangeTo)
+        ))
+        .limit(1);
+        
+      if (!subscription.length) {
+        return res.status(404).json({ message: 'No pending subscription change found' });
+      }
+      
+      // Clear the pending change
+      const updatedSubscription = await db.update(userSubscriptions)
+        .set({
+          pendingPlanChangeTo: null,
+          pendingPlanChangeDate: null,
+          pendingPlanChangeType: null,
+          updatedAt: new Date()
+        })
+        .where(eq(userSubscriptions.id, subscription[0].id))
+        .returning();
+        
+      return res.json({
+        message: 'Pending subscription change cancelled successfully',
+        subscription: updatedSubscription[0]
+      });
+    } catch (error: any) {
+      console.error('Error in POST /api/user/subscription/cancel-pending-change:', error);
+      res.status(500).json({ 
+        message: 'Failed to cancel pending subscription change', 
+        error: error.message 
+      });
+    }
+  });
+
   // Updated route - Using SubscriptionService for upgrade
   app.post('/api/user/subscription/upgrade', requireUser, async (req, res) => {
     try {
@@ -809,7 +936,11 @@ export function registerSubscriptionRoutes(app: express.Express) {
         return res.status(400).json({ message: 'Invalid plan ID' });
       }
       
-      console.log(`Processing subscription upgrade - User: ${userId}, Plan ID: ${planId}`);
+      // Check if this is a new subscription or an upgrade
+      const currentSubscription = await SubscriptionService.getActiveSubscription(userId);
+      const isNewSubscription = !currentSubscription;
+      
+      console.log(`Processing subscription ${isNewSubscription ? 'creation' : 'upgrade'} - User: ${userId}, Plan ID: ${planId}`);
       
       // Check if plan exists and is active
       const plan = await db.select().from(subscriptionPlans).where(and(eq(subscriptionPlans.id, planId), eq(subscriptionPlans.active, true))).limit(1);
@@ -830,6 +961,21 @@ export function registerSubscriptionRoutes(app: express.Express) {
         });
       }
       
+      // Check if user has an active subscription with a pending downgrade
+      if (currentSubscription && 'pendingPlanChangeTo' in currentSubscription && currentSubscription.pendingPlanChangeTo) {
+        // Clear the pending downgrade first
+        await db.update(userSubscriptions)
+          .set({
+            pendingPlanChangeTo: null,
+            pendingPlanChangeDate: null,
+            pendingPlanChangeType: null,
+            updatedAt: new Date()
+          })
+          .where(eq(userSubscriptions.id, currentSubscription.id));
+          
+        console.log(`Cleared pending downgrade for user ${userId} before processing upgrade`);
+      }
+      
       // Get user's region
       const billingDetails = await db.select()
         .from(userBillingDetails)
@@ -846,6 +992,16 @@ export function registerSubscriptionRoutes(app: express.Express) {
       // Calculate proration if the user is upgrading from an existing plan
       const proration = await SubscriptionService.calculateProration(userId, planId);
       console.log(`Proration calculation result:`, proration);
+
+      // Verify this is actually an upgrade, not a downgrade
+      if (!proration.isUpgrade) {
+        return res.json({
+          message: 'This change is a downgrade rather than an upgrade',
+          redirectToDowngrade: true,
+          downgradeUrl: `/api/user/subscription/downgrade`,
+          planId
+        });
+      }
       
       // Get the pricing applicable for this user's region
       const pricing = await db.select()
@@ -884,6 +1040,7 @@ export function registerSubscriptionRoutes(app: express.Express) {
       if (proration.prorationAmount > 0) {
         queryParams.append('prorationAmount', proration.prorationAmount.toString());
       }
+      queryParams.append('upgradeFlow', 'true'); // Flag to indicate this is an upgrade flow
       
       const checkoutUrl = `/checkout?${queryParams.toString()}`;
       console.log(`Redirecting to checkout: ${checkoutUrl}`);
@@ -894,7 +1051,8 @@ export function registerSubscriptionRoutes(app: express.Express) {
         proration,
         requiresPayment: proration.requiresPayment,
         redirectToPayment: proration.requiresPayment,
-        paymentUrl: checkoutUrl
+        paymentUrl: checkoutUrl,
+        isUpgrade: true
       });
     } catch (error: any) {
       console.error('Error in POST /api/user/subscription/upgrade:', error);
@@ -905,34 +1063,43 @@ export function registerSubscriptionRoutes(app: express.Express) {
     }
   });
 
-  // New route - Downgrade subscription
+  // Updated route - Downgrade subscription using scheduleDowngrade
   app.post('/api/user/subscription/downgrade', requireUser, async (req, res) => {
     try {
-      if (!req.user) {
-        return res.status(401).json({ message: 'Unauthorized' });
-      }
-      const userId = req.user.id;
+      const userId = req.user!.id;
       const { planId } = req.body;
-      if (!planId || isNaN(planId)) {
-        return res.status(400).json({ message: 'Invalid plan ID' });
+      
+      if (!planId) {
+        return res.status(400).json({ message: 'Missing plan ID' });
       }
       
-      // Check if plan exists and is active
-      const plan = await db.select().from(subscriptionPlans).where(and(eq(subscriptionPlans.id, planId), eq(subscriptionPlans.active, true))).limit(1);
+      console.log(`Processing subscription downgrade - User: ${userId}, Plan ID: ${planId}`);
+      
+      // Get the plan to check if it's free
+      const plan = await db.select()
+        .from(subscriptionPlans)
+        .where(eq(subscriptionPlans.id, planId))
+        .limit(1);
+        
       if (!plan.length) {
-        return res.status(404).json({ message: 'Plan not found or not active' });
+        return res.status(404).json({ message: 'Plan not found' });
       }
-
-      // If the plan is free, use the activateFreePlan method
-      if (plan[0].isFreemium) {
-        const subscription = await SubscriptionService.activateFreePlan(userId, planId);
-        return res.status(201).json({
-          subscription,
-          message: 'Successfully downgraded to free plan'
+      
+      // Get current subscription to determine end date
+      const currentSubscription = await SubscriptionService.getActiveSubscription(userId);
+      
+      // If user doesn't have an active subscription, this is an upgrade, not a downgrade
+      if (!currentSubscription) {
+        console.log(`No active subscription found for user ${userId}, redirecting to upgrade flow`);
+        return res.json({
+          message: 'New subscription required - not a downgrade',
+          redirectToUpgrade: true,
+          upgradeUrl: `/api/user/subscription/upgrade`,
+          planId
         });
       }
       
-      // Calculate proration for downgrade
+      // Calculate proration to determine if it's actually a downgrade
       const proration = await SubscriptionService.calculateProration(userId, planId);
       
       // If it's actually an upgrade, redirect to the upgrade flow
@@ -945,24 +1112,30 @@ export function registerSubscriptionRoutes(app: express.Express) {
         });
       }
       
-      // Process the downgrade with the calculated credit
-      const subscription = await SubscriptionService.downgradeWithCredit(
-        userId, 
-        planId, 
-        proration.prorationCredit
-      );
+      // Calculate the effective date (end of current billing cycle)
+      const effectiveDate = new Date(currentSubscription.endDate);
       
-      return res.json({
-        subscription,
-        prorationCredit: proration.prorationCredit,
-        message: 'Subscription downgraded successfully',
-        effectiveImmediately: true
+      // Process the downgrade
+      const result = await SubscriptionService.scheduleDowngrade(userId, planId);
+      
+      return res.status(200).json({
+        success: true,
+        message: result.message,
+        subscription: result.subscription,
+        isScheduledDowngrade: true,
+        effectiveDate: effectiveDate.toISOString(),
+        downgradeInfo: {
+          currentPlanId: currentSubscription.planId,
+          currentPlanName: currentSubscription.planName,
+          newPlanId: planId,
+          newPlanName: plan[0].name,
+          effectiveDate: effectiveDate.toISOString()
+        }
       });
     } catch (error: any) {
       console.error('Error in POST /api/user/subscription/downgrade:', error);
-      res.status(500).json({ 
-        message: 'Failed to downgrade subscription', 
-        error: error.message 
+      return res.status(500).json({
+        message: `Failed to downgrade subscription: ${error.message}`
       });
     }
   });
@@ -977,7 +1150,7 @@ export function registerSubscriptionRoutes(app: express.Express) {
       
       const subscription = await SubscriptionService.cancelSubscription(userId);
       res.json({ 
-        message: 'Subscription cancelled successfully',
+        message: 'Your subscription has been cancelled. You can still use all features until the end of your current billing period.',
         subscription
       });
     } catch (error: any) {
@@ -1077,116 +1250,36 @@ export function registerSubscriptionRoutes(app: express.Express) {
 
   app.get('/api/public/subscription-plans', async (req, res) => {
     try {
-      // Set cache control headers to prevent caching
-      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-      res.setHeader('Pragma', 'no-cache');
-      res.setHeader('Expires', '0');
-      res.setHeader('Surrogate-Control', 'no-store');
+      const plans = await db
+        .select()
+        .from(subscriptionPlans)
+        .where(eq(subscriptionPlans.active, true));
       
-      // Get active subscription plans
-      const plans = await db.select().from(subscriptionPlans).where(eq(subscriptionPlans.active, true));
-      
-      // Determine user's region
-      let userRegion = 'GLOBAL';
-      
-      // If the user is authenticated, check their billing details first
-      if (req.isAuthenticated() && req.user) {
-        const userId = req.user.id;
-        const billingDetails = await db.select()
-          .from(userBillingDetails)
-          .where(eq(userBillingDetails.userId, userId))
-          .limit(1);
+      // Add pricing information for each plan
+      const plansWithPricing = await Promise.all(plans.map(async (plan) => {
+        const pricing = await db
+          .select()
+          .from(planPricing)
+          .where(eq(planPricing.planId, plan.id));
         
-        if (billingDetails.length > 0 && billingDetails[0].country === 'IN') {
-          userRegion = 'INDIA';
-          console.log(`Using billing details region for user ${userId}: INDIA`);
-        } else {
-          // Try to get region from IP geolocation cache
-          try {
-            // Get the IP address
-            const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
-            const clientIp = Array.isArray(ip) ? ip[0] : ip.split(',')[0].trim();
-            
-            // Try getting from cache
-            const cacheKey = `ip-region-${clientIp}`;
-            const cachedRegion = await db.select()
-              .from(appSettings)
-              .where(eq(appSettings.key, cacheKey))
-              .limit(1);
-            
-            if (cachedRegion.length > 0 && cachedRegion[0].value) {
-              const regionData = cachedRegion[0].value as any;
-              if (regionData.country === 'IN') {
-                userRegion = 'INDIA';
-                console.log(`Using cached IP geolocation for plans display: INDIA`);
-              }
-            }
-          } catch (geoError) {
-            console.warn('Error checking IP geolocation cache:', geoError);
-            // Continue with GLOBAL as default
-          }
-        }
-      } else {
-        // For non-authenticated users, try IP-based region detection
-        try {
-          const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
-          const clientIp = Array.isArray(ip) ? ip[0] : ip.split(',')[0].trim();
-          
-          // Try getting from cache
-          const cacheKey = `ip-region-${clientIp}`;
-          const cachedRegion = await db.select()
-            .from(appSettings)
-            .where(eq(appSettings.key, cacheKey))
-            .limit(1);
-          
-          if (cachedRegion.length > 0 && cachedRegion[0].value) {
-            const regionData = cachedRegion[0].value as any;
-            if (regionData.country === 'IN') {
-              userRegion = 'INDIA';
-              console.log(`Using cached IP geolocation for anonymous user plans: INDIA`);
-            }
-          }
-        } catch (geoError) {
-          console.warn('Error checking IP geolocation for anonymous user:', geoError);
-        }
-      }
-      
-      console.log(`Subscription plans using region: ${userRegion}`);
-      
-      // Fetch pricing data for each plan
-      const pricing = await db.select().from(planPricing);
-      
-      // Combine plans with their pricing information, prioritizing the determined region
-      const plansWithPricing = plans.map(plan => {
-        const planPricingData = pricing.filter(price => price.planId === plan.id);
-        
-        // Sort pricing with user's region first, then GLOBAL
-        const sortedPricing = [...planPricingData].sort((a, b) => {
-          if (a.targetRegion === userRegion && b.targetRegion !== userRegion) return -1;
-          if (a.targetRegion !== userRegion && b.targetRegion === userRegion) return 1;
-          return 0;
-        });
-        
-        return { 
+        // Hide billing cycle for freemium plans
+        const modifiedPlan = { 
           ...plan,
-          pricing: sortedPricing,
-          // Add a displayPrice field with the appropriate region's price
-          displayPrice: sortedPricing.find(p => p.targetRegion === userRegion)?.price || 
-                        sortedPricing.find(p => p.targetRegion === 'GLOBAL')?.price || 
-                        plan.price,
-          displayCurrency: sortedPricing.find(p => p.targetRegion === userRegion)?.currency || 
-                           sortedPricing.find(p => p.targetRegion === 'GLOBAL')?.currency || 
-                           'USD',
-          preferredRegion: userRegion
+          pricing: pricing,
+          // For freemium plans, don't show billing cycle
+          billingCycle: plan.isFreemium ? null : plan.billingCycle,
+          displayBillingCycle: !plan.isFreemium
         };
-      });
+        
+        return modifiedPlan;
+      }));
       
       res.json(plansWithPricing);
     } catch (error: any) {
       console.error('Error in GET /api/public/subscription-plans:', error);
-      res.status(500).json({ 
-        message: 'Failed to fetch subscription plans', 
-        error: error.message 
+      res.status(500).json({
+        message: 'Failed to fetch subscription plans',
+        error: error.message
       });
     }
   });
@@ -1254,12 +1347,12 @@ export function registerSubscriptionRoutes(app: express.Express) {
           limitValue: planFeatures.limitValue,
           resetFrequency: planFeatures.resetFrequency,
           isEnabled: planFeatures.isEnabled,
-          featureName: features.name,
-          featureCode: features.code,
-          description: features.description
+          featureName: featuresTable.name,
+          featureCode: featuresTable.code,
+          description: featuresTable.description
         })
         .from(planFeatures)
-        .innerJoin(features, eq(planFeatures.featureId, features.id));
+        .innerJoin(featuresTable, eq(planFeatures.featureId, featuresTable.id));
       
       res.json(planFeaturesData);
     } catch (error: any) {
@@ -1404,6 +1497,82 @@ export function registerSubscriptionRoutes(app: express.Express) {
       res.status(500).json({ 
         message: 'Failed to fix subscription dates', 
         error: error.message 
+      });
+    }
+  });
+
+  // Admin endpoint to configure freemium restrictions
+  app.post('/api/admin/freemium-restrictions', requireAdmin, async (req, res) => {
+    try {
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({ message: 'Unauthorized' });
+      }
+      
+      const adminId = req.user.id;
+      const adminEmail = req.user.email;
+      const adminUsername = req.user.username;
+      
+      console.log(`Admin user ${adminUsername} (ID: ${adminId}, Email: ${adminEmail}) updating freemium restrictions`);
+      
+      // Validate the incoming settings
+      const {
+        enabled,
+        maxAccountsPerIp,
+        maxAccountsPerDevice,
+        trackIpAddresses,
+        trackDevices
+      } = req.body;
+      
+      // Create settings object with only valid properties
+      const newSettings: any = {};
+      
+      if (typeof enabled === 'boolean') {
+        newSettings.enabled = enabled;
+      }
+      
+      if (typeof maxAccountsPerIp === 'number' && maxAccountsPerIp >= 1) {
+        newSettings.maxAccountsPerIp = maxAccountsPerIp;
+      }
+      
+      if (typeof maxAccountsPerDevice === 'number' && maxAccountsPerDevice >= 1) {
+        newSettings.maxAccountsPerDevice = maxAccountsPerDevice;
+      }
+      
+      if (typeof trackIpAddresses === 'boolean') {
+        newSettings.trackIpAddresses = trackIpAddresses;
+      }
+      
+      if (typeof trackDevices === 'boolean') {
+        newSettings.trackDevices = trackDevices;
+      }
+      
+      // Only proceed if there are valid settings to update
+      if (Object.keys(newSettings).length === 0) {
+        return res.status(400).json({
+          message: 'No valid settings provided',
+          validProperties: [
+            'enabled (boolean)',
+            'maxAccountsPerIp (number >= 1)',
+            'maxAccountsPerDevice (number >= 1)',
+            'trackIpAddresses (boolean)',
+            'trackDevices (boolean)'
+          ]
+        });
+      }
+      
+      // Update the settings
+      await updateFreemiumRestrictions(newSettings);
+      
+      // Return success
+      res.status(200).json({
+        message: 'Freemium restrictions updated successfully',
+        updatedSettings: newSettings
+      });
+    } catch (error: any) {
+      console.error('Error updating freemium restrictions:', error);
+      res.status(500).json({
+        message: 'Failed to update freemium restrictions',
+        error: error.message
       });
     }
   });
@@ -1556,4 +1725,339 @@ export function registerSubscriptionRoutes(app: express.Express) {
       });
     }
   }
+
+  // Process upgrade payment
+  app.post('/api/user/subscription/upgrade/verify', requireUser, async (req, res) => {
+    try {
+      const userId = req.user!.id;
+      const { paymentId, signature, planId, subscriptionId } = req.body;
+      
+      if (!paymentId || !signature || !planId) {
+        return res.status(400).json({ message: 'Missing required fields' });
+      }
+      
+      console.log(`Processing subscription upgrade payment verification - User: ${userId}, Plan ID: ${planId}, Payment ID: ${paymentId}`);
+      
+      // Check if user has an active subscription with a pending downgrade
+      const activeSubscription = await SubscriptionService.getActiveSubscription(userId);
+      if (activeSubscription && activeSubscription.pendingPlanChangeTo && activeSubscription.pendingPlanChangeType === 'DOWNGRADE') {
+        // Clear the pending downgrade first
+        try {
+          // Update the subscription to remove the pending change
+          await db.update(userSubscriptions)
+            .set({
+              pendingPlanChangeTo: null,
+              pendingPlanChangeDate: null,
+              pendingPlanChangeType: null,
+              updatedAt: new Date()
+            })
+            .where(eq(userSubscriptions.id, activeSubscription.id));
+            
+          console.log(`Cleared pending downgrade for user ${userId} before processing upgrade`);
+        } catch (error) {
+          console.error('Error clearing pending downgrade:', error);
+          // Continue anyway - we'll override the subscription
+        }
+      }
+      
+      // Process the upgrade with the verified payment
+      const result = await SubscriptionService.processUpgrade(
+        userId,
+        planId,
+        paymentId,
+        'razorpay',
+        signature,
+        subscriptionId,
+        { isUpgrade: true }
+      );
+      
+      return res.status(200).json({
+        success: true,
+        message: result.message || 'Subscription upgraded successfully',
+        subscription: result.subscription
+      });
+    } catch (error: any) {
+      console.error('Error in POST /api/user/subscription/upgrade/verify:', error);
+      return res.status(500).json({
+        message: `Failed to verify upgrade payment: ${error.message}`
+      });
+    }
+  });
+
+  // Dedicated endpoint for activating freemium plans
+  app.post('/api/subscriptions/activate-freemium', requireUser, async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ message: 'Unauthorized' });
+      }
+
+      const userId = req.user.id;
+      const { planId } = req.body;
+      
+      if (!planId) {
+        return res.status(400).json({ 
+          message: 'Bad Request',
+          error: 'Plan ID is required' 
+        });
+      }
+
+      console.log(`API request to activate freemium plan ${planId} for user ${userId}`);
+      
+      // Get plan details first to verify it's truly freemium
+      const plan = await db.select()
+        .from(subscriptionPlans)
+        .where(eq(subscriptionPlans.id, planId))
+        .limit(1);
+        
+      if (!plan.length) {
+        return res.status(404).json({ message: 'Plan not found' });
+      }
+      
+      // Verify this is a free plan before proceeding
+      if (!plan[0].isFreemium) {
+        const pricing = await db.select()
+          .from(planPricing)
+          .where(eq(planPricing.planId, planId));
+          
+        const hasFreePrice = pricing.some(p => p.price === '0.00' || p.price === '0');
+        
+        if (!hasFreePrice) {
+          return res.status(400).json({
+            message: 'Bad Request',
+            error: 'Cannot activate non-free plan using this endpoint'
+          });
+        }
+      }
+
+      // Check if user has an active subscription
+      const existingSubscription = await SubscriptionService.getActiveSubscription(userId);
+      
+      // If user already has this exact plan active, just return success
+      if (existingSubscription && existingSubscription.planId === planId) {
+        return res.status(200).json({
+          success: true,
+          message: 'User already has this freemium plan active',
+          subscription: existingSubscription,
+          planName: plan[0].name
+        });
+      }
+      
+      // If user has a different plan, provide detailed response about what will happen
+      if (existingSubscription) {
+        const existingPlan = await db.select()
+          .from(subscriptionPlans)
+          .where(eq(subscriptionPlans.id, existingSubscription.planId))
+          .limit(1);
+          
+        const existingPlanName = existingPlan.length ? existingPlan[0].name : 'Unknown Plan';
+        
+        // If current plan is paid and new plan is free, this would be a downgrade
+        if (!existingPlan[0]?.isFreemium && plan[0].isFreemium) {
+          return res.status(200).json({
+            success: false,
+            requiresDowngrade: true,
+            message: `User already has an active ${existingPlanName} plan. Use the downgrade endpoint to switch to a freemium plan.`,
+            currentSubscription: {
+              id: existingSubscription.id,
+              planId: existingSubscription.planId,
+              planName: existingPlanName
+            },
+            targetPlan: {
+              id: planId,
+              name: plan[0].name
+            }
+          });
+        }
+      }
+      
+      // Check if the user is eligible for freemium plan based on IP/device tracking
+      const eligibility = await checkFreemiumEligibility(req, userId);
+      if (!eligibility.eligible) {
+        return res.status(403).json({
+          success: false,
+          message: 'You are not eligible for another freemium plan',
+          reason: eligibility.reason || 'Multiple accounts detected',
+          error: 'Freemium plan limit reached'
+        });
+      }
+      
+      // Track the user's device and IP for future freemium eligibility checks
+      await trackUserDevice(req, userId);
+      
+      // Activate the free plan
+      const subscription = await SubscriptionService.activateFreePlan(userId, planId);
+      
+      // Get available features for this plan
+      const planFeaturesList = await db.select({
+        id: planFeatures.id,
+        featureId: planFeatures.featureId,
+        limitType: planFeatures.limitType,
+        limitValue: planFeatures.limitValue,
+        isEnabled: planFeatures.isEnabled,
+        resetFrequency: planFeatures.resetFrequency
+      })
+      .from(planFeatures)
+      .where(and(
+        eq(planFeatures.planId, planId),
+        eq(planFeatures.isEnabled, true)
+      ));
+      
+      return res.status(200).json({
+        success: true,
+        message: `Successfully activated ${plan[0].name} freemium plan`,
+        subscription,
+        planName: plan[0].name,
+        features: planFeaturesList
+      });
+    } catch (error: any) {
+      console.error('Error activating freemium plan:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to activate freemium plan',
+        error: error.message
+      });
+    }
+  });
+
+  // Dedicated endpoint for requesting downgrade to freemium
+  app.post('/api/subscriptions/downgrade-to-freemium', requireUser, async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ message: 'Unauthorized' });
+      }
+
+      const userId = req.user.id;
+      const { freemiumPlanId } = req.body;
+      
+      if (!freemiumPlanId) {
+        return res.status(400).json({ 
+          message: 'Bad Request',
+          error: 'Freemium plan ID is required' 
+        });
+      }
+
+      console.log(`API request to downgrade to freemium plan ${freemiumPlanId} for user ${userId}`);
+      
+      // Get plan details first to verify it's truly freemium
+      const plan = await db.select()
+        .from(subscriptionPlans)
+        .where(and(
+          eq(subscriptionPlans.id, freemiumPlanId),
+          eq(subscriptionPlans.active, true)
+        ))
+        .limit(1);
+        
+      if (!plan.length) {
+        return res.status(404).json({ message: 'Freemium plan not found or not active' });
+      }
+      
+      // Verify this is a free plan before proceeding
+      if (!plan[0].isFreemium) {
+        const pricing = await db.select()
+          .from(planPricing)
+          .where(eq(planPricing.planId, freemiumPlanId));
+          
+        const hasFreePrice = pricing.some(p => p.price === '0.00' || p.price === '0');
+        
+        if (!hasFreePrice) {
+          return res.status(400).json({
+            message: 'Bad Request',
+            error: 'Cannot downgrade to a non-free plan using this endpoint'
+          });
+        }
+      }
+
+      // Check if the user is eligible for freemium plan based on IP/device tracking
+      const eligibility = await checkFreemiumEligibility(req, userId);
+      if (!eligibility.eligible) {
+        return res.status(403).json({
+          success: false,
+          message: 'You are not eligible for another freemium plan',
+          reason: eligibility.reason || 'Multiple accounts detected',
+          error: 'Freemium plan limit reached'
+        });
+      }
+      
+      // Track the user's device and IP for future freemium eligibility checks
+      await trackUserDevice(req, userId);
+
+      // Get active subscription
+      const existingSubscription = await SubscriptionService.getActiveSubscription(userId);
+      
+      if (!existingSubscription) {
+        // If no active subscription, just activate the freemium plan directly
+        const subscription = await SubscriptionService.activateFreePlan(userId, freemiumPlanId);
+        
+        // Get available features for this plan
+        const planFeaturesList = await db.select({
+          id: planFeatures.id,
+          featureId: planFeatures.featureId,
+          limitType: planFeatures.limitType,
+          limitValue: planFeatures.limitValue,
+          isEnabled: planFeatures.isEnabled,
+          resetFrequency: planFeatures.resetFrequency
+        })
+        .from(planFeatures)
+        .where(and(
+          eq(planFeatures.planId, freemiumPlanId),
+          eq(planFeatures.isEnabled, true)
+        ));
+        
+        return res.status(200).json({
+          success: true,
+          message: `Activated ${plan[0].name} freemium plan`,
+          subscription,
+          planName: plan[0].name,
+          features: planFeaturesList
+        });
+      }
+      
+      // Schedule the downgrade
+      const result = await SubscriptionService.scheduleDowngrade(userId, freemiumPlanId);
+      
+      // Get the effective date from the existing subscription and format it
+      const effectiveDate = new Date(existingSubscription.endDate);
+      const displayOptions: Intl.DateTimeFormatOptions = { year: 'numeric', month: 'long', day: 'numeric' };
+      const displayDate = effectiveDate.toLocaleDateString('en-US', displayOptions);
+      
+      // Get available features for this plan
+      const futureFeaturesAvailable = await db.select({
+        id: planFeatures.id,
+        featureId: planFeatures.featureId,
+        limitType: planFeatures.limitType,
+        limitValue: planFeatures.limitValue,
+        isEnabled: planFeatures.isEnabled,
+        resetFrequency: planFeatures.resetFrequency
+      })
+      .from(planFeatures)
+      .where(and(
+        eq(planFeatures.planId, freemiumPlanId),
+        eq(planFeatures.isEnabled, true)
+      ));
+      
+      // Return a more detailed response with feature information
+      return res.status(200).json({
+        success: true,
+        message: result.message,
+        downgradeScheduled: true,
+        currentSubscription: {
+          id: existingSubscription.id,
+          planId: existingSubscription.planId
+        },
+        freemiumPlan: {
+          id: freemiumPlanId,
+          name: plan[0].name
+        },
+        effectiveDate: displayDate,
+        futureFeaturesAvailable
+      });
+    } catch (error: any) {
+      console.error('Error scheduling downgrade to freemium:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to schedule downgrade to freemium plan',
+        error: error.message
+      });
+    }
+  });
 } 

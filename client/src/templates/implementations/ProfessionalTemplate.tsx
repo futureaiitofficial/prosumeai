@@ -78,7 +78,7 @@ export class ProfessionalTemplate extends BaseTemplate {
       display: 'flex',
       justifyContent: 'center',
       flexWrap: 'wrap',
-      gap: '0.6rem',
+      gap: '0.2rem',
       fontSize: '0.85rem',
       marginBottom: '0.4rem',
       width: '100%',
@@ -88,7 +88,7 @@ export class ProfessionalTemplate extends BaseTemplate {
     };
 
     const contactItemStyle: React.CSSProperties = {
-      padding: '0 0.3rem',
+      padding: '0 0.1rem',
       position: 'relative',
       display: 'inline-block'
     };
@@ -150,10 +150,40 @@ export class ProfessionalTemplate extends BaseTemplate {
           {/* Contact Info */}
           <div style={contactStyle}>
             {data.email && <span style={contactItemStyle}>{data.email}</span>}
+            {data.email && (data.phone || data.city || data.state || data.formattedLinkedinUrl || data.formattedPortfolioUrl) && 
+              <span style={{...contactItemStyle, padding: '0 0.1rem'}}>{data.contactSeparator || "|"}</span>}
+            
             {data.phone && <span style={contactItemStyle}>{data.phone}</span>}
-            {data.location && <span style={contactItemStyle}>{data.location}</span>}
-            {data.linkedinUrl && <span style={contactItemStyle}>{data.linkedinUrl}</span>}
-            {data.portfolioUrl && <span style={contactItemStyle}>{data.portfolioUrl}</span>}
+            {data.phone && (data.city || data.state || data.formattedLinkedinUrl || data.formattedPortfolioUrl) && 
+              <span style={{...contactItemStyle, padding: '0 0.1rem'}}>{data.contactSeparator || "|"}</span>}
+            
+            {data.city && data.state && <span style={contactItemStyle}>{`${data.city}, ${data.state}`}</span>}
+            {data.city && data.state && (data.formattedLinkedinUrl || data.formattedPortfolioUrl) && 
+              <span style={{...contactItemStyle, padding: '0 0.1rem'}}>{data.contactSeparator || "|"}</span>}
+            
+            {data.formattedLinkedinUrl && 
+              <span style={contactItemStyle}>
+                <a 
+                  href={data.linkedinUrl} 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  style={{ color: colors.primary || '#000000', textDecoration: 'none' }}>
+                  {data.formattedLinkedinUrl}
+                </a>
+              </span>}
+            {data.formattedLinkedinUrl && data.formattedPortfolioUrl && 
+              <span style={{...contactItemStyle, padding: '0 0.1rem'}}>{data.contactSeparator || "|"}</span>}
+              
+            {data.formattedPortfolioUrl && 
+              <span style={contactItemStyle}>
+                <a 
+                  href={data.portfolioUrl} 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  style={{ color: colors.primary || '#000000', textDecoration: 'none' }}>
+                  {data.formattedPortfolioUrl}
+                </a>
+              </span>}
           </div>
         </header>
         
@@ -320,8 +350,42 @@ export class ProfessionalTemplate extends BaseTemplate {
       console.log("Starting PDF export for:", filename);
       console.log("PDF export using section order:", data.sectionOrder);
       
-      // Pass the exact same data to renderPreview to maintain section order
-      const element = this.renderPreview(data);
+      // Format URLs for display before PDF generation
+      const dataWithFormattedUrls = { ...data };
+      
+      // Format LinkedIn URL
+      if (dataWithFormattedUrls.linkedinUrl) {
+        try {
+          const url = new URL(dataWithFormattedUrls.linkedinUrl);
+          let host = url.hostname;
+          if (host.startsWith('www.')) {
+            host = host.substring(4);
+          }
+          dataWithFormattedUrls.formattedLinkedinUrl = host + url.pathname;
+        } catch (e) {
+          dataWithFormattedUrls.formattedLinkedinUrl = dataWithFormattedUrls.linkedinUrl;
+        }
+      }
+      
+      // Format portfolio/website URL
+      if (dataWithFormattedUrls.portfolioUrl) {
+        try {
+          const url = new URL(dataWithFormattedUrls.portfolioUrl);
+          let host = url.hostname;
+          if (host.startsWith('www.')) {
+            host = host.substring(4);
+          }
+          dataWithFormattedUrls.formattedPortfolioUrl = host + url.pathname;
+        } catch (e) {
+          dataWithFormattedUrls.formattedPortfolioUrl = dataWithFormattedUrls.portfolioUrl;
+        }
+      }
+      
+      // Add contact separator
+      dataWithFormattedUrls.contactSeparator = "|";
+      
+      // Pass the enhanced data to renderPreview
+      const element = this.renderPreview(dataWithFormattedUrls);
       return await generatePDFFromReactElement(element, filename);
     } catch (error) {
       console.error("Error in ProfessionalTemplate.exportToPDF:", error);

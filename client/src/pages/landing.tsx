@@ -1,89 +1,461 @@
-import { useRef } from 'react';
+import { useRef, useEffect, useState } from 'react';
 import { Link } from 'wouter';
-import { motion, useScroll, useTransform } from 'framer-motion';
+import { motion, useScroll, useTransform, useSpring, AnimatePresence, useInView } from 'framer-motion';
 import ParallaxSection from '@/components/ParallaxSection';
 import FloatingElement from '@/components/FloatingElement';
 import Testimonial from '@/components/Testimonial';
-import { useParallaxY, useParallaxOpacity } from '@/utils/animation';
+import { useParallaxY, useParallaxOpacity, useParallaxRotate, useParallaxScale } from '@/utils/animation';
 import SharedHeader from '@/components/layouts/shared-header';
 
 export default function LandingPage() {
   const containerRef = useRef<HTMLDivElement>(null);
+  const heroButtonsRef = useRef<HTMLDivElement>(null);
+  const [scrollY, setScrollY] = useState(0);
+  const [isReady, setIsReady] = useState(false);
+  const isButtonsInView = useInView(heroButtonsRef, { once: false });
+
+  // Initialize scroll tracking
   const { scrollYProgress } = useScroll({
     target: containerRef,
     offset: ["start start", "end end"]
   });
+  
+  // Smooth spring animation for scroll progress
+  const smoothScrollYProgress = useSpring(scrollYProgress, {
+    stiffness: 100,
+    damping: 30,
+    restDelta: 0.001
+  });
 
-  const y1 = useParallaxY(scrollYProgress, -300);
-  const y2 = useParallaxY(scrollYProgress, -150);
-  const y3 = useParallaxY(scrollYProgress, -75);
+  // Effect for tracking scroll position
+  useEffect(() => {
+    const handleScroll = () => {
+      setScrollY(window.scrollY);
+    };
+    
+    window.addEventListener('scroll', handleScroll);
+    setIsReady(true);
+    
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+    };
+  }, []);
+
+  // Advanced parallax values
+  const y1 = useTransform(smoothScrollYProgress, [0, 1], [0, -300]);
+  const y2 = useTransform(smoothScrollYProgress, [0, 1], [0, -200]);
+  const y3 = useTransform(smoothScrollYProgress, [0, 1], [0, -100]);
+  const scale1 = useParallaxScale(smoothScrollYProgress, [0, 0.3], [1, 0.85]);
+  const opacity1 = useParallaxOpacity(smoothScrollYProgress, [0, 0.3], [1, 0]);
+  const opacity2 = useParallaxOpacity(smoothScrollYProgress, [0.1, 0.4], [0, 1]);
   const heroOpacity = useParallaxOpacity(scrollYProgress, [0, 0.3], [1, 0]);
+  const rotate1 = useParallaxRotate(smoothScrollYProgress, 10);
+  const rotate2 = useParallaxRotate(smoothScrollYProgress, -5);
+
+  // Calculate dynamic hero size
+  const heroMinHeight = useTransform(
+    smoothScrollYProgress,
+    [0, 0.2],
+    ['100vh', '80vh']
+  );
+
+  // Section animations
+  const sectionAnimationProps = {
+    initial: { opacity: 0, y: 50 },
+    whileInView: { opacity: 1, y: 0 },
+    viewport: { once: true, margin: "-100px" },
+    transition: { duration: 0.8, ease: [0.25, 0.1, 0.25, 1.0] }
+  };
+
+  // Hero button animations
+  const buttonVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: (i: number) => ({
+      opacity: 1,
+      y: 0,
+      transition: {
+        delay: i * 0.2 + 0.6,
+        duration: 0.8,
+        ease: [0.25, 0.1, 0.25, 1.0]
+      }
+    }),
+    hover: { 
+      scale: 1.05,
+      boxShadow: "0 10px 25px -5px rgba(79, 70, 229, 0.4)",
+      transition: { 
+        type: "spring", 
+        stiffness: 400, 
+        damping: 10
+      }
+    },
+    tap: { 
+      scale: 0.98,
+      boxShadow: "0 5px 15px -5px rgba(79, 70, 229, 0.4)",
+    }
+  };
+
+  // Floating blobs animation
+  const floatingAnimation = {
+    y: [0, -20, 0],
+    transition: {
+      duration: 6,
+      repeat: Infinity,
+      repeatType: "reverse" as const,
+      ease: "easeInOut"
+    }
+  };
 
   return (
-    <div ref={containerRef} className="relative min-h-screen overflow-hidden">
+    <div ref={containerRef} className="relative min-h-screen overflow-hidden bg-slate-50">
       <SharedHeader isLandingPage={true} />
 
-      {/* Hero Section with Gradient Background */}
-      <section className="relative min-h-screen flex items-center justify-center bg-gradient-to-b from-indigo-950 via-indigo-900 to-purple-900 overflow-hidden py-16 md:py-0">
-        <div className="absolute inset-0 bg-grid-pattern opacity-10"></div>
+      {/* Hero Section with Enhanced Gradient Background */}
+      <motion.section 
+        className="relative flex items-center justify-center bg-gradient-to-b from-indigo-950 via-indigo-900 to-purple-900 overflow-hidden pt-20"
+        style={{ minHeight: heroMinHeight }}
+      >
+        {/* Animated background grid */}
+        <motion.div 
+          className="absolute inset-0 bg-grid-pattern opacity-10"
+          style={{ 
+            scale: scale1,
+            rotate: rotate1
+          }}
+          animate={{ backgroundPosition: ["0px 0px", "100px 100px"] }}
+          transition={{ 
+            duration: 20, 
+            ease: "linear", 
+            repeat: Infinity, 
+            repeatType: "reverse" 
+          }}
+        ></motion.div>
         
-        <FloatingElement y={20} duration={6} className="absolute w-64 md:w-96 h-64 md:h-96 rounded-full bg-indigo-500/20 blur-3xl">
-          <div className="w-full h-full"></div>
-        </FloatingElement>
-        <FloatingElement y={15} duration={5} delay={0.5} className="absolute -right-20 top-20 w-48 md:w-64 h-48 md:h-64 rounded-full bg-purple-500/20 blur-3xl">
-          <div className="w-full h-full"></div>
-        </FloatingElement>
-        <FloatingElement y={25} duration={7} delay={1} className="absolute left-20 md:left-40 bottom-20 w-60 md:w-80 h-60 md:h-80 rounded-full bg-blue-500/20 blur-3xl">
-          <div className="w-full h-full"></div>
-        </FloatingElement>
+        {/* Animated floating blobs with enhanced parallax */}
+        <motion.div 
+          className="absolute w-[600px] h-[600px] rounded-full bg-indigo-500/20 blur-3xl -left-64 -top-64"
+          style={{ y: useTransform(smoothScrollYProgress, [0, 1], [0, -150]) }}
+          animate={floatingAnimation}
+        ></motion.div>
+        <motion.div 
+          className="absolute w-[500px] h-[500px] rounded-full bg-purple-500/20 blur-3xl -right-32 top-64"
+          style={{ 
+            y: useTransform(smoothScrollYProgress, [0, 1], [0, -200]),
+            rotate: rotate2
+          }}
+          animate={{
+            ...floatingAnimation,
+            transition: { ...floatingAnimation.transition, delay: 1 }
+          }}
+        ></motion.div>
+        <motion.div 
+          className="absolute w-[700px] h-[700px] rounded-full bg-blue-500/20 blur-3xl left-1/2 -bottom-96"
+          style={{ y: useTransform(smoothScrollYProgress, [0, 1], [0, -250]) }}
+          animate={{
+            ...floatingAnimation,
+            transition: { ...floatingAnimation.transition, delay: 2 }
+          }}
+        ></motion.div>
 
-        <div className="container mx-auto px-4 flex flex-col lg:flex-row items-center pt-16 md:pt-0">
+        <div className="container mx-auto px-4 flex flex-col lg:flex-row items-center z-10 pt-16 md:pt-0">
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8 }}
             className="lg:w-1/2 text-center lg:text-left lg:pr-12 mb-10 lg:mb-0"
           >
-            <span className="text-xs font-semibold uppercase tracking-wider text-indigo-300 mb-2 md:mb-4 inline-block">FOR STUDENTS & EARLY CAREERS</span>
-            <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-white mb-4 md:mb-6">
-              Build Your <br className="hidden sm:block"/>
-              <span className="text-indigo-400">Career</span>
-            </h1>
-            <p className="text-base md:text-lg text-indigo-200 mb-6 md:mb-8 max-w-md mx-auto lg:mx-0">
-              Affordable AI-powered resume tools designed specifically for students and early career professionals. Beat the ATS and land more interviews.
-            </p>
-            <div className="flex flex-col sm:flex-row justify-center lg:justify-start gap-4">
-              <Link href="/auth?signup=true">
-                <a className="px-6 md:px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-md transition-colors text-center w-full sm:w-auto">
-                  Get Started
+            <motion.span 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.8, delay: 0.2 }}
+              className="text-xs font-semibold uppercase tracking-wider text-indigo-300 mb-2 md:mb-4 inline-block"
+            >
+              AFFORDABLE AI-POWERED TOOLS
+            </motion.span>
+            <motion.h1 
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, delay: 0.3 }}
+              className="text-4xl md:text-5xl lg:text-6xl font-bold text-white mb-4 md:mb-6"
+            >
+              Land Your Dream Job with{" "}
+              <motion.span 
+                className="text-indigo-400 inline-block"
+                animate={{ 
+                  color: ["#818cf8", "#a5b4fc", "#818cf8"],
+                  textShadow: [
+                    "0 0 5px rgba(129, 140, 248, 0)",
+                    "0 0 15px rgba(129, 140, 248, 0.5)",
+                    "0 0 5px rgba(129, 140, 248, 0)"
+                  ]
+                }}
+                transition={{ 
+                  duration: 3, 
+                  repeat: Infinity, 
+                  repeatType: "reverse" 
+                }}
+              >
+                AI-Optimized
+              </motion.span> Applications
+            </motion.h1>
+            <motion.p
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, delay: 0.5 }}
+              className="text-base md:text-lg text-indigo-200 mb-6 md:mb-8 max-w-md mx-auto lg:mx-0"
+            >
+              The most affordable, AI-powered platform designed specifically for students and early career professionals. Create ATS-optimized resumes, tailored cover letters, and track your applications—all in one secure place.
+            </motion.p>
+            <motion.div 
+              ref={heroButtonsRef}
+              className="flex flex-col sm:flex-row justify-center lg:justify-start gap-4 sm:gap-5"
+              initial="hidden"
+              animate="visible"
+              variants={{
+                hidden: { opacity: 0 },
+                visible: {
+                  opacity: 1,
+                  transition: {
+                    staggerChildren: 0.2
+                  }
+                }
+              }}
+            >
+              <motion.div
+                custom={0}
+                variants={buttonVariants}
+                whileHover="hover"
+                whileTap="tap"
+                className="w-full sm:w-auto flex"
+              >
+                <Link href="/auth?signup=true">
+                  <a className="inline-flex items-center justify-center px-8 py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-md transition-all duration-300 shadow-lg shadow-indigo-600/30 w-full h-[56px] sm:w-auto min-w-[180px]">
+                    <span className="flex items-center">
+                      <span>Get Started Free</span>
+                      <motion.svg 
+                        className="w-5 h-5 ml-2" 
+                        animate={{ x: [0, 5, 0] }}
+                        transition={{ duration: 1.5, repeat: Infinity, repeatType: "reverse", repeatDelay: 2 }}
+                        fill="none" 
+                        stroke="currentColor" 
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path>
+                      </motion.svg>
+                    </span>
+                  </a>
+                </Link>
+              </motion.div>
+              <motion.div
+                custom={1}
+                variants={buttonVariants}
+                whileHover="hover"
+                whileTap="tap"
+                className="w-full sm:w-auto flex"
+              >
+                <a href="#features" className="inline-flex items-center justify-center px-8 py-4 border-2 border-indigo-400 text-indigo-200 hover:bg-indigo-800/30 hover:border-indigo-300 hover:text-indigo-100 font-medium rounded-md transition-all duration-300 w-full h-[56px] sm:w-auto min-w-[180px]">
+                  <span className="flex items-center">
+                    <span>Explore Features</span>
+                  </span>
                 </a>
-              </Link>
-            </div>
+              </motion.div>
+            </motion.div>
           </motion.div>
           
           <motion.div 
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.2 }}
-            className="lg:w-1/2 w-full max-w-md lg:max-w-none mx-auto"
+            style={{ 
+              y: useTransform(smoothScrollYProgress, [0, 0.5], [0, 100]),
+              scale: useTransform(smoothScrollYProgress, [0, 0.5], [1, 0.9]),
+              rotate: useParallaxRotate(smoothScrollYProgress, 2)
+            }}
+            className="lg:w-1/2 w-full max-w-md lg:max-w-none mx-auto z-10"
           >
             <div className="relative">
-              <div className="absolute -inset-0.5 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-lg blur opacity-30"></div>
-              <div className="relative bg-slate-900 rounded-lg border border-slate-800 shadow-xl overflow-hidden">
+              <motion.div 
+                className="absolute -inset-0.5 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-lg blur opacity-30"
+                animate={{ 
+                  opacity: [0.2, 0.4, 0.2],
+                  background: [
+                    "linear-gradient(to right, #6366f1, #a855f7)",
+                    "linear-gradient(to right, #8b5cf6, #ec4899)",
+                    "linear-gradient(to right, #6366f1, #a855f7)"
+                  ]
+                }}
+                transition={{ 
+                  duration: 8, 
+                  repeat: Infinity,
+                  repeatType: "reverse" 
+                }}
+              ></motion.div>
+              <motion.div 
+                className="relative bg-slate-900 rounded-lg border border-slate-800 shadow-xl overflow-hidden"
+                whileHover={{ 
+                  scale: 1.01,
+                  boxShadow: "0 25px 50px -12px rgba(79, 70, 229, 0.4)"
+                }}
+                transition={{ type: "spring", stiffness: 300, damping: 15 }}
+              >
                 <img 
                   src="/images/dashboard-preview.svg" 
-                  alt="ATScribe Dashboard" 
+                  alt="ATScribe Dashboard - AI-powered ATS resume builder and job application tracker" 
                   className="w-full h-auto" 
                 />
-              </div>
+                <motion.div 
+                  className="absolute inset-0 bg-gradient-to-t from-indigo-900/50 to-transparent"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ duration: 1, delay: 1 }}
+                ></motion.div>
+              </motion.div>
             </div>
           </motion.div>
         </div>
-      </section>
+        
+        <motion.div 
+          className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-slate-50 to-transparent"
+          style={{ 
+            opacity: useTransform(smoothScrollYProgress, [0, 0.1], [0, 1]) 
+          }}
+        ></motion.div>
+      </motion.section>
 
-      {/* Customer Loyalty Stats Section */}
-      <section className="bg-slate-50 py-12 md:py-16">
-        <div className="container mx-auto px-4">
+      {/* Key Features Overview */}
+      <motion.section 
+        id="features" 
+        className="bg-white py-16 md:py-20 relative"
+        {...sectionAnimationProps}
+      >
+        <motion.div 
+          className="absolute inset-0 bg-gradient-to-b from-transparent to-slate-50/50"
+          style={{ 
+            opacity: useTransform(smoothScrollYProgress, [0.1, 0.3], [0, 1]) 
+          }}
+        ></motion.div>
+        
+        <div className="container mx-auto px-4 relative z-10">
+          <motion.div 
+            className="text-center mb-12 md:mb-16"
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-100px" }}
+            transition={{ duration: 0.6 }}
+          >
+            <span className="text-xs font-semibold uppercase tracking-wider text-indigo-600 mb-2 md:mb-4 inline-block">WHY CHOOSE ATSCRIBE</span>
+            <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mb-6">
+              The Complete Job Application Solution
+            </h2>
+            <p className="text-slate-600 max-w-3xl mx-auto">
+              ATScribe combines advanced AI technology with affordable pricing to give students and early career professionals the edge they need in today's competitive job market.
+            </p>
+          </motion.div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5 }}
+              whileHover={{ 
+                y: -10, 
+                boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)"
+              }}
+              className="bg-slate-50 p-6 rounded-xl border border-slate-100 transition-all duration-300"
+            >
+              <div className="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center mb-4 text-indigo-600">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+              </div>
+              <h3 className="text-xl font-bold mb-2">Student-Friendly Pricing</h3>
+              <p className="text-slate-600">
+                Premium AI tools at an affordable price, specifically designed for students and those starting their careers.
+              </p>
+            </motion.div>
+            
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5, delay: 0.1 }}
+              whileHover={{ 
+                y: -10, 
+                boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)"
+              }}
+              className="bg-slate-50 p-6 rounded-xl border border-slate-100 transition-all duration-300"
+            >
+              <div className="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center mb-4 text-indigo-600">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
+                </svg>
+              </div>
+              <h3 className="text-xl font-bold mb-2">Perfect ATS Optimization</h3>
+              <p className="text-slate-600">
+                Advanced algorithms ensure your resume passes through Applicant Tracking Systems with real-time scoring.
+              </p>
+            </motion.div>
+            
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5, delay: 0.2 }}
+              whileHover={{ 
+                y: -10, 
+                boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)"
+              }}
+              className="bg-slate-50 p-6 rounded-xl border border-slate-100 transition-all duration-300"
+            >
+              <div className="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center mb-4 text-indigo-600">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path>
+                </svg>
+              </div>
+              <h3 className="text-xl font-bold mb-2">Tailored Content</h3>
+              <p className="text-slate-600">
+                Every resume and cover letter is uniquely crafted based on your experience and the specific job you're applying for.
+              </p>
+            </motion.div>
+            
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5, delay: 0.3 }}
+              whileHover={{ 
+                y: -10, 
+                boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)"
+              }}
+              className="bg-slate-50 p-6 rounded-xl border border-slate-100 transition-all duration-300"
+            >
+              <div className="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center mb-4 text-indigo-600">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path>
+                </svg>
+              </div>
+              <h3 className="text-xl font-bold mb-2">Application Tracking</h3>
+              <p className="text-slate-600">
+                Maintain discipline and consistency with a comprehensive system to track all your job applications in one secure place.
+              </p>
+            </motion.div>
+          </div>
+        </div>
+      </motion.section>
+
+      {/* ATS-Optimized Resumes Section */}
+      <motion.section 
+        className="bg-slate-50 py-16 md:py-24 relative overflow-hidden"
+        {...sectionAnimationProps}
+      >
+        <motion.div 
+          className="absolute -left-64 top-0 w-[500px] h-[500px] rounded-full bg-indigo-100 blur-3xl opacity-50"
+          style={{ 
+            y: useTransform(smoothScrollYProgress, [0.2, 0.4], [100, -100])
+          }}
+        ></motion.div>
+        
+        <div className="container mx-auto px-4 relative z-10">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 md:gap-12 items-center">
             <div>
               <motion.h2 
@@ -93,8 +465,8 @@ export default function LandingPage() {
                 transition={{ duration: 0.6 }}
                 className="text-2xl md:text-3xl font-bold text-slate-900 mb-4 md:mb-6 text-center lg:text-left"
               >
-                Build ATS-Optimized<br/>
-                <span className="text-indigo-600">Resumes & Cover Letters</span>
+                ATS-Optimized<br/>
+                <span className="text-indigo-600">Resumes That Get Results</span>
               </motion.h2>
               <motion.p
                 initial={{ opacity: 0, y: 20 }}
@@ -103,83 +475,442 @@ export default function LandingPage() {
                 transition={{ duration: 0.6, delay: 0.2 }}
                 className="text-slate-600 mb-6 md:mb-8 text-center lg:text-left"
               >
-                Our advanced AI algorithms analyze job descriptions and optimize your resume to pass ATS filters,
-                ensuring your application gets seen by human recruiters. Affordable pricing makes these powerful
-                tools accessible for students and early career professionals.
+                Our intelligent AI analyzes job descriptions to create perfectly tailored resumes that pass ATS filters and highlight your key achievements. Get real-time ATS scores and personalized suggestions to optimize each section of your resume.
               </motion.p>
-              <ul className="space-y-2 mb-8 max-w-lg mx-auto lg:mx-0">
+              <ul className="space-y-3 mb-8 max-w-lg mx-auto lg:mx-0">
                 <li className="flex items-start">
                   <svg className="w-5 h-5 text-green-500 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
                   </svg>
-                  <span className="text-slate-700">AI-powered keyword extraction and optimization</span>
+                  <span className="text-slate-700">Smart keyword extraction and optimization for each job</span>
                 </li>
                 <li className="flex items-start">
                   <svg className="w-5 h-5 text-green-500 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
                   </svg>
-                  <span className="text-slate-700">90%+ ATS success rate</span>
+                  <span className="text-slate-700">Highlights key achievements in your experience</span>
                 </li>
                 <li className="flex items-start">
                   <svg className="w-5 h-5 text-green-500 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
                   </svg>
-                  <span className="text-slate-700">Student-friendly pricing</span>
+                  <span className="text-slate-700">AI-generated professional summaries tailored to each position</span>
+                </li>
+                <li className="flex items-start">
+                  <svg className="w-5 h-5 text-green-500 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                  </svg>
+                  <span className="text-slate-700">Real-time ATS score calculation with improvement suggestions</span>
                 </li>
               </ul>
             </div>
             
-            <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-2 lg:grid-cols-2 gap-6">
               <motion.div 
-                initial={{ opacity: 0, scale: 0.9 }}
+                initial={{ opacity: 0, scale: 0.95 }}
                 whileInView={{ opacity: 1, scale: 1 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.4 }}
-                className="bg-indigo-50 p-4 md:p-6 rounded-lg text-center"
+                className="bg-white p-6 rounded-lg shadow-md border border-slate-100 col-span-2 hover:shadow-xl transition-all duration-300"
+                style={{
+                  y: useTransform(smoothScrollYProgress, [0.25, 0.35], [50, 0])
+                }}
               >
-                <span className="block text-indigo-600 text-2xl md:text-3xl font-bold mb-1">90%+</span>
-                <span className="text-slate-600 text-xs md:text-sm">ATS Success</span>
+                <h3 className="text-lg font-semibold text-indigo-700 mb-3">ATS Score Optimization</h3>
+                <div className="bg-indigo-50 rounded-lg p-4 mb-3">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-sm font-medium text-slate-700">Current Score</span>
+                    <span className="text-indigo-600 font-bold">85%</span>
+                  </div>
+                  <div className="w-full bg-slate-200 rounded-full h-2.5">
+                    <div className="bg-indigo-600 h-2.5 rounded-full" style={{ width: '85%' }}></div>
+                  </div>
+                </div>
+                <p className="text-sm text-slate-600">Get real-time feedback and suggestions to improve your ATS compatibility score.</p>
               </motion.div>
               
               <motion.div 
-                initial={{ opacity: 0, scale: 0.9 }}
+                initial={{ opacity: 0, scale: 0.95 }}
                 whileInView={{ opacity: 1, scale: 1 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.4, delay: 0.1 }}
-                className="bg-indigo-50 p-4 md:p-6 rounded-lg text-center"
+                className="bg-white p-6 rounded-lg shadow-md border border-slate-100 col-span-2 hover:shadow-xl transition-all duration-300"
+                style={{
+                  y: useTransform(smoothScrollYProgress, [0.25, 0.35], [25, -25])
+                }}
               >
-                <span className="block text-indigo-600 text-2xl md:text-3xl font-bold mb-1">15K+</span>
-                <span className="text-slate-600 text-xs md:text-sm">Resumes</span>
+                <h3 className="text-lg font-semibold text-indigo-700 mb-3">Keywords Extracted</h3>
+                <div className="flex flex-wrap gap-2 mb-3">
+                  <span className="px-2 py-1 bg-indigo-100 text-indigo-800 rounded-full text-xs font-medium">React.js</span>
+                  <span className="px-2 py-1 bg-indigo-100 text-indigo-800 rounded-full text-xs font-medium">TypeScript</span>
+                  <span className="px-2 py-1 bg-indigo-100 text-indigo-800 rounded-full text-xs font-medium">UI/UX</span>
+                  <span className="px-2 py-1 bg-indigo-100 text-indigo-800 rounded-full text-xs font-medium">Frontend</span>
+                  <span className="px-2 py-1 bg-indigo-100 text-indigo-800 rounded-full text-xs font-medium">Responsive</span>
+                </div>
+                <p className="text-sm text-slate-600">Intelligent keyword extraction from job descriptions, displayed as a visual word cloud.</p>
               </motion.div>
-              
+            </div>
+          </div>
+        </div>
+      </motion.section>
+
+      {/* Feature categories ribbon */}
+      <div className="bg-indigo-100 py-3 md:py-4 overflow-hidden">
+        <div className="flex space-x-8 md:space-x-12 animate-marquee whitespace-nowrap">
+          <span className="text-indigo-600 font-medium text-sm md:text-base mx-3 md:mx-4">✦ ATS optimization</span>
+          <span className="text-indigo-600 font-medium text-sm md:text-base mx-3 md:mx-4">✦ tailored resumes</span>
+          <span className="text-indigo-600 font-medium text-sm md:text-base mx-3 md:mx-4">✦ smart cover letters</span>
+          <span className="text-indigo-600 font-medium text-sm md:text-base mx-3 md:mx-4">✦ job tracking</span>
+          <span className="text-indigo-600 font-medium text-sm md:text-base mx-3 md:mx-4">✦ keywords extraction</span>
+          <span className="text-indigo-600 font-medium text-sm md:text-base mx-3 md:mx-4">✦ affordable pricing</span>
+          <span className="text-indigo-600 font-medium text-sm md:text-base mx-3 md:mx-4">✦ secure encryption</span>
+          <span className="text-indigo-600 font-medium text-sm md:text-base mx-3 md:mx-4">✦ student friendly</span>
+        </div>
+      </div>
+
+      {/* Final CTA Section */}
+      <motion.section 
+        className="bg-gradient-to-r from-indigo-600 to-purple-600 py-16 md:py-24 relative overflow-hidden"
+        {...sectionAnimationProps}
+      >
+        <motion.div 
+          className="absolute -right-64 -top-64 w-[500px] h-[500px] rounded-full bg-purple-500/20 blur-3xl"
+          style={{ 
+            y: useTransform(smoothScrollYProgress, [0.8, 1], [0, -100]),
+            x: useTransform(smoothScrollYProgress, [0.8, 1], [0, -50])
+          }}
+        ></motion.div>
+        
+        <motion.div 
+          className="absolute -left-64 -bottom-64 w-[600px] h-[600px] rounded-full bg-indigo-500/20 blur-3xl"
+          style={{ 
+            y: useTransform(smoothScrollYProgress, [0.8, 1], [0, 100]),
+            x: useTransform(smoothScrollYProgress, [0.8, 1], [0, -50])
+          }}
+        ></motion.div>
+        
+        <div className="container mx-auto px-4 text-center relative z-10">
+          <motion.div 
+            className="max-w-3xl mx-auto"
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+          >
+            <h2 className="text-3xl md:text-4xl font-bold text-white mb-6">
+              Begin Your Job Search Journey Today
+            </h2>
+            <p className="text-xl text-indigo-100 mb-8 md:mb-10">
+              ATScribe offers the most affordable, AI-powered tools to help students and early career professionals land their dream jobs. Join now and transform your job search experience.
+            </p>
+            <div className="flex flex-col sm:flex-row justify-center gap-4">
+              <motion.div
+                custom={0}
+                variants={buttonVariants}
+                whileHover="hover"
+                whileTap="tap"
+                className="w-full sm:w-auto flex"
+              >
+                <Link href="/auth?signup=true">
+                  <a className="inline-flex items-center justify-center px-8 py-4 bg-white hover:bg-indigo-50 text-indigo-600 font-medium text-lg rounded-md transition-all duration-300 shadow-lg shadow-indigo-600/30 w-full h-[56px] sm:w-auto min-w-[180px]">
+                    <motion.span
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ duration: 0.3, delay: 0.8 }}
+                      className="mr-2"
+                    >
+                      Get Started Free
+                    </motion.span>
+                    <motion.svg 
+                      className="w-5 h-5" 
+                      animate={{ x: [0, 5, 0] }}
+                      transition={{ duration: 1.5, repeat: Infinity, repeatType: "reverse", repeatDelay: 2 }}
+                      fill="none" 
+                      stroke="currentColor" 
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path>
+                    </motion.svg>
+                  </a>
+                </Link>
+              </motion.div>
+              <motion.div
+                custom={1}
+                variants={buttonVariants}
+                whileHover="hover"
+                whileTap="tap"
+                className="w-full sm:w-auto flex"
+              >
+                <a href="/pricing" className="inline-flex items-center justify-center px-8 py-4 bg-transparent border-2 border-white hover:bg-white/10 text-white font-medium text-lg rounded-md transition-all duration-300 w-full h-[56px] sm:w-auto min-w-[180px]">
+                  View Pricing
+                </a>
+              </motion.div>
+            </div>
+            <div className="mt-10 md:mt-12 grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-8">
               <motion.div 
-                initial={{ opacity: 0, scale: 0.9 }}
-                whileInView={{ opacity: 1, scale: 1 }}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.4 }}
+                className="bg-white/10 backdrop-blur-sm p-4 rounded-lg"
+              >
+                <h3 className="text-white font-semibold mb-1">Student-Friendly</h3>
+                <p className="text-indigo-200 text-sm">Affordable pricing for students</p>
+              </motion.div>
+              <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.4, delay: 0.1 }}
+                className="bg-white/10 backdrop-blur-sm p-4 rounded-lg"
+              >
+                <h3 className="text-white font-semibold mb-1">ATS-Optimized</h3>
+                <p className="text-indigo-200 text-sm">Get past the digital gatekeepers</p>
+              </motion.div>
+              <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.4, delay: 0.2 }}
-                className="bg-indigo-50 p-4 md:p-6 rounded-lg text-center"
+                className="bg-white/10 backdrop-blur-sm p-4 rounded-lg"
               >
-                <span className="block text-indigo-600 text-2xl md:text-3xl font-bold mb-1">4.8</span>
-                <span className="text-slate-600 text-xs md:text-sm">Rating</span>
+                <h3 className="text-white font-semibold mb-1">Secure</h3>
+                <p className="text-indigo-200 text-sm">End-to-end data encryption</p>
               </motion.div>
-              
               <motion.div 
-                initial={{ opacity: 0, scale: 0.9 }}
-                whileInView={{ opacity: 1, scale: 1 }}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.4, delay: 0.3 }}
-                className="bg-indigo-50 p-4 md:p-6 rounded-lg text-center"
+                className="bg-white/10 backdrop-blur-sm p-4 rounded-lg"
               >
-                <span className="block text-indigo-600 text-2xl md:text-3xl font-bold mb-1">24/7</span>
-                <span className="text-slate-600 text-xs md:text-sm">Support</span>
+                <h3 className="text-white font-semibold mb-1">Advanced AI</h3>
+                <p className="text-indigo-200 text-sm">Cutting-edge algorithms</p>
               </motion.div>
+            </div>
+          </motion.div>
+        </div>
+      </motion.section>
+
+      {/* Cover Letters Section */}
+      <section className="bg-white py-16 md:py-24">
+        <div className="container mx-auto px-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+            <motion.div 
+              initial={{ opacity: 0, x: 30 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6 }}
+              className="order-1 md:order-1 mb-8 md:mb-0"
+            >
+              <div className="relative">
+                <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-xl blur opacity-20"></div>
+                <div className="bg-white relative p-6 md:p-8 rounded-xl border border-slate-100 shadow-lg">
+                  <h3 className="text-xl font-bold text-indigo-700 mb-4">Cover Letter Generator</h3>
+                  <div className="bg-slate-50 p-4 rounded-lg mb-5">
+                    <p className="text-sm text-slate-700 italic mb-3">
+                      "Dear Hiring Manager,
+                    </p>
+                    <p className="text-sm text-slate-700 italic mb-3">
+                      I am writing to express my interest in the Frontend Developer position at Acme Tech. With my strong foundation in React.js and TypeScript, combined with my passion for creating responsive and accessible user interfaces, I believe I am an excellent candidate for this role.
+                    </p>
+                    <p className="text-sm text-slate-700 italic">
+                      My experience developing interactive web applications aligns perfectly with your requirements..."
+                    </p>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <div className="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600 mr-3">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                        </svg>
+                      </div>
+                      <span className="text-sm font-medium text-slate-700">AI-Generated</span>
+                    </div>
+                    <span className="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full">Job-Specific</span>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+            
+            <motion.div 
+              initial={{ opacity: 0, x: -30 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6 }}
+              className="order-2 md:order-2"
+            >
+              <span className="text-xs font-semibold uppercase tracking-wider text-indigo-600 mb-2 md:mb-4 inline-block">PERSONALIZED OUTREACH</span>
+              <h2 className="text-2xl md:text-3xl font-bold text-slate-900 mb-3 md:mb-4">
+                AI-Powered <br className="hidden sm:block"/>
+                <span className="text-indigo-600">Cover Letters</span>
+              </h2>
+              <p className="text-slate-600 mb-4 md:mb-6 text-sm md:text-base">
+                Our advanced AI analyzes both your resume and the job description to generate highly personalized cover letters that showcase your relevant experiences and skills. Each letter is uniquely tailored to highlight why you're the perfect fit for the specific position.
+              </p>
+              <ul className="space-y-3 mb-6 md:mb-8">
+                <li className="flex items-start">
+                  <svg className="w-5 h-5 text-green-500 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                  </svg>
+                  <span className="text-slate-700 text-sm md:text-base">Personalized for each specific job application</span>
+                </li>
+                <li className="flex items-start">
+                  <svg className="w-5 h-5 text-green-500 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                  </svg>
+                  <span className="text-slate-700 text-sm md:text-base">Highlights the most relevant experience and achievements</span>
+                </li>
+                <li className="flex items-start">
+                  <svg className="w-5 h-5 text-green-500 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                  </svg>
+                  <span className="text-slate-700 text-sm md:text-base">Maintains professional tone with compelling content</span>
+                </li>
+                <li className="flex items-start">
+                  <svg className="w-5 h-5 text-green-500 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                  </svg>
+                  <span className="text-slate-700 text-sm md:text-base">Multiple export formats with perfect formatting</span>
+                </li>
+              </ul>
+              <Link href="/auth?signup=true">
+                <a className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-md transition-colors inline-block">
+                  Create Your Cover Letter
+                </a>
+              </Link>
+            </motion.div>
+          </div>
+        </div>
+      </section>
+
+      {/* Application Tracking System Section */}
+      <section className="bg-gradient-to-b from-indigo-950 via-indigo-900 to-purple-900 py-24 text-white">
+        <div className="container mx-auto px-4">
+          <div className="text-center mb-16">
+            <span className="text-xs font-semibold uppercase tracking-wider text-indigo-300 mb-4 inline-block">STAY ORGANIZED & FOCUSED</span>
+            <h2 className="text-4xl font-bold mb-4">
+              Comprehensive<br/>
+              <span className="text-indigo-400">Application Tracking</span>
+            </h2>
+            <p className="text-indigo-200 max-w-2xl mx-auto">
+              Keep your job search disciplined and organized with our powerful application tracking system. Monitor status changes, upcoming interviews, and application deadlines—all in a secure, encrypted environment.
+            </p>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6 }}
+              className="bg-indigo-900/30 rounded-xl p-6 backdrop-blur-sm border border-indigo-800/50"
+            >
+              <div className="w-12 h-12 mb-4 flex items-center justify-center bg-indigo-800/50 rounded-xl">
+                <svg className="w-6 h-6 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                </svg>
+              </div>
+              <h3 className="text-xl font-semibold mb-3">Multi-stage Tracking</h3>
+              <p className="text-indigo-200 text-sm">
+                Track each application through every stage: Applied, Screening, Interview, Assessment, Offer, Rejected, or Accepted with complete status history.
+              </p>
+            </motion.div>
+            
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6, delay: 0.2 }}
+              className="bg-indigo-900/30 rounded-xl p-6 backdrop-blur-sm border border-indigo-800/50"
+            >
+              <div className="w-12 h-12 mb-4 flex items-center justify-center bg-indigo-800/50 rounded-xl">
+                <svg className="w-6 h-6 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                </svg>
+              </div>
+              <h3 className="text-xl font-semibold mb-3">Interview Management</h3>
+              <p className="text-indigo-200 text-sm">
+                Never miss an interview with our integrated calendar features. Track interview types, dates, and preparation notes all in one place.
+              </p>
+            </motion.div>
+            
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6, delay: 0.4 }}
+              className="bg-indigo-900/30 rounded-xl p-6 backdrop-blur-sm border border-indigo-800/50"
+            >
+              <div className="w-12 h-12 mb-4 flex items-center justify-center bg-indigo-800/50 rounded-xl">
+                <svg className="w-6 h-6 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
+                </svg>
+              </div>
+              <h3 className="text-xl font-semibold mb-3">Document Association</h3>
+              <p className="text-indigo-200 text-sm">
+                Link the exact version of your resume and cover letter used for each application, ensuring you always know which documents you submitted.
+              </p>
+            </motion.div>
+          </div>
+          
+          <div className="bg-indigo-900/50 rounded-xl p-8 max-w-4xl mx-auto">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+              <div>
+                <h3 className="text-2xl font-bold mb-4">
+                  Visualize Your<br/>
+                  <span className="text-indigo-400">Job Search Progress</span>
+                </h3>
+                <p className="text-indigo-200 mb-6">
+                  Our intuitive Kanban board interface gives you a visual overview of all your applications at different stages, helping you stay organized and focused on your job search goals.
+                </p>
+                <Link href="/auth?signup=true">
+                  <a className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-md transition-colors inline-block text-sm">
+                    Start Tracking Applications
+                  </a>
+                </Link>
+              </div>
+              
+              <div className="relative">
+                <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-lg blur opacity-30"></div>
+                <div className="relative bg-indigo-900 rounded-lg border border-indigo-700 overflow-hidden">
+                  <div className="bg-indigo-800/80 p-3 text-xs font-medium text-indigo-200">Application Tracker</div>
+                  <div className="grid grid-cols-3 gap-2 p-4">
+                    <div className="bg-indigo-800/50 p-2 rounded">
+                      <div className="text-xs text-indigo-300 mb-1">Applied</div>
+                      <div className="bg-indigo-700/50 p-2 rounded mb-2">
+                        <div className="h-2 w-12 bg-indigo-500/50 rounded mb-1"></div>
+                        <div className="h-2 w-16 bg-indigo-500/50 rounded"></div>
+                      </div>
+                      <div className="bg-indigo-700/50 p-2 rounded">
+                        <div className="h-2 w-14 bg-indigo-500/50 rounded mb-1"></div>
+                        <div className="h-2 w-10 bg-indigo-500/50 rounded"></div>
+                      </div>
+                    </div>
+                    <div className="bg-indigo-800/50 p-2 rounded">
+                      <div className="text-xs text-indigo-300 mb-1">Interview</div>
+                      <div className="bg-cyan-700/50 p-2 rounded mb-2">
+                        <div className="h-2 w-12 bg-cyan-500/50 rounded mb-1"></div>
+                        <div className="h-2 w-16 bg-cyan-500/50 rounded"></div>
+                      </div>
+                    </div>
+                    <div className="bg-indigo-800/50 p-2 rounded">
+                      <div className="text-xs text-indigo-300 mb-1">Offer</div>
+                      <div className="bg-emerald-700/50 p-2 rounded mb-2">
+                        <div className="h-2 w-12 bg-emerald-500/50 rounded mb-1"></div>
+                        <div className="h-2 w-16 bg-emerald-500/50 rounded"></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Online Shop Section */}
-      <section className="bg-white py-20">
+      {/* Security & Data Protection Section */}
+      <section className="bg-white py-16 md:py-24">
         <div className="container mx-auto px-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             <motion.div 
@@ -189,19 +920,41 @@ export default function LandingPage() {
               transition={{ duration: 0.6 }}
               className="order-2 lg:order-1"
             >
-              <span className="text-xs font-semibold uppercase tracking-wider text-indigo-600 mb-4 inline-block">BEAT THE ATS</span>
+              <span className="text-xs font-semibold uppercase tracking-wider text-indigo-600 mb-4 inline-block">YOUR DATA, PROTECTED</span>
               <h2 className="text-3xl font-bold text-slate-900 mb-4">
-                ATS-Optimized <br/>
-                <span className="text-indigo-600">Resumes</span>
+                Enterprise-Grade <br/>
+                <span className="text-indigo-600">Security</span>
               </h2>
               <p className="text-slate-600 mb-8">
-                Our AI ensures your resume passes through Applicant Tracking Systems with a 90%+ success rate. 
-                Stand out from the crowd with a resume specifically optimized for ATS, ensuring your 
-                application gets seen by hiring managers.
+                We take your privacy seriously. ATScribe employs advanced encryption for all sensitive data, 
+                ensuring your personal information and job application details remain secure and private.
               </p>
-              <Link href="/auth?signup=true">
-                <a className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-md transition-colors inline-block">
-                  Build Your Resume
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
+                <div className="bg-slate-50 p-4 rounded-lg border border-slate-100">
+                  <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center mb-3 text-indigo-600">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                    </svg>
+                  </div>
+                  <h3 className="text-slate-900 font-semibold mb-1">Data Encryption</h3>
+                  <p className="text-sm text-slate-600">All sensitive information is encrypted at rest and in transit.</p>
+                </div>
+                <div className="bg-slate-50 p-4 rounded-lg border border-slate-100">
+                  <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center mb-3 text-indigo-600">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
+                    </svg>
+                  </div>
+                  <h3 className="text-slate-900 font-semibold mb-1">Secure Authentication</h3>
+                  <p className="text-sm text-slate-600">Advanced authentication protocols protect your account access.</p>
+                </div>
+              </div>
+              <Link href="/privacy">
+                <a className="text-indigo-600 hover:text-indigo-800 font-medium inline-flex items-center">
+                  Learn about our privacy practices
+                  <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path>
+                  </svg>
                 </a>
               </Link>
             </motion.div>
@@ -214,13 +967,48 @@ export default function LandingPage() {
               className="order-1 lg:order-2"
             >
               <div className="relative">
-                <div className="bg-slate-800 p-6 rounded-lg">
-                  <div className="text-xs text-slate-400 mb-3">Resume Optimization</div>
-                  <img 
-                    src="/images/analytics-chart.svg" 
-                    alt="resume optimization" 
-                    className="w-full h-auto" 
-                  />
+                <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-xl blur opacity-20"></div>
+                <div className="bg-indigo-50 relative p-6 md:p-8 rounded-xl border border-slate-100 shadow-lg">
+                  <div className="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center mb-5 text-indigo-600">
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
+                    </svg>
+                  </div>
+                  <h3 className="text-xl font-bold text-slate-900 mb-4">Your Data, Your Control</h3>
+                  <ul className="space-y-3 mb-5">
+                    <li className="flex items-start">
+                      <svg className="w-5 h-5 text-green-500 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                      </svg>
+                      <span className="text-slate-700 text-sm">Field-level encryption for sensitive information</span>
+                    </li>
+                    <li className="flex items-start">
+                      <svg className="w-5 h-5 text-green-500 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                      </svg>
+                      <span className="text-slate-700 text-sm">Compliance with data protection regulations</span>
+                    </li>
+                    <li className="flex items-start">
+                      <svg className="w-5 h-5 text-green-500 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                      </svg>
+                      <span className="text-slate-700 text-sm">Download or delete your data at any time</span>
+                    </li>
+                    <li className="flex items-start">
+                      <svg className="w-5 h-5 text-green-500 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                      </svg>
+                      <span className="text-slate-700 text-sm">Secure middleware for all sensitive operations</span>
+                    </li>
+                  </ul>
+                  <div className="rounded-lg bg-white p-4 border border-slate-200 flex items-center">
+                    <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center text-green-600 mr-3 flex-shrink-0">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                      </svg>
+                    </div>
+                    <p className="text-sm text-slate-700">Your data is encrypted using industry-standard protocols to ensure maximum security</p>
+                  </div>
                 </div>
               </div>
             </motion.div>
@@ -228,45 +1016,47 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Feature categories ribbon */}
-      <div className="bg-indigo-100 py-3 md:py-4 overflow-hidden">
-        <div className="flex space-x-8 md:space-x-12 animate-marquee whitespace-nowrap">
-          <span className="text-indigo-600 font-medium text-sm md:text-base mx-3 md:mx-4">✦ resumes</span>
-          <span className="text-indigo-600 font-medium text-sm md:text-base mx-3 md:mx-4">✦ cover letters</span>
-          <span className="text-indigo-600 font-medium text-sm md:text-base mx-3 md:mx-4">✦ job tracking</span>
-          <span className="text-indigo-600 font-medium text-sm md:text-base mx-3 md:mx-4">✦ ats optimization</span>
-          <span className="text-indigo-600 font-medium text-sm md:text-base mx-3 md:mx-4">✦ keywords</span>
-          <span className="text-indigo-600 font-medium text-sm md:text-base mx-3 md:mx-4">✦ analytics</span>
-          <span className="text-indigo-600 font-medium text-sm md:text-base mx-3 md:mx-4">✦ resumes</span>
-          <span className="text-indigo-600 font-medium text-sm md:text-base mx-3 md:mx-4">✦ cover letters</span>
-        </div>
-      </div>
-
-      {/* Online Marketing Section - Cover Letters */}
-      <section className="bg-white py-12 md:py-20">
+      {/* Keyword Extraction Section */}
+      <section className="bg-slate-50 py-16 md:py-20" id="features">
         <div className="container mx-auto px-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 md:gap-12 items-center">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             <motion.div 
               initial={{ opacity: 0, x: 30 }}
               whileInView={{ opacity: 1, x: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.6 }}
-              className="order-1 md:order-1 mb-8 md:mb-0"
+              className="order-1 lg:order-2"
             >
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="bg-slate-800 p-4 rounded-lg">
-                  <img 
-                    src="/images/analytics-chart.svg" 
-                    alt="Analytics Chart" 
-                    className="w-full h-auto" 
-                  />
-                </div>
-                <div className="bg-slate-800 p-4 rounded-lg">
-                  <img 
-                    src="/images/pie-chart.svg" 
-                    alt="Pie Chart" 
-                    className="w-full h-auto" 
-                  />
+              <div className="relative">
+                <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-xl blur opacity-20"></div>
+                <div className="bg-white relative p-6 md:p-8 rounded-xl border border-slate-100 shadow-lg">
+                  <h3 className="text-xl font-bold text-indigo-700 mb-4">Keyword Analysis</h3>
+                  <p className="text-sm text-slate-600 mb-4">Job Description Keywords Extracted:</p>
+                  <div className="mb-6">
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      <span className="px-3 py-1.5 bg-indigo-600 text-white rounded-full text-sm">React.js</span>
+                      <span className="px-3 py-1.5 bg-indigo-500 text-white rounded-full text-sm">TypeScript</span>
+                      <span className="px-3 py-1.5 bg-indigo-400 text-white rounded-full text-sm">Frontend</span>
+                      <span className="px-3 py-1.5 bg-indigo-500 text-white rounded-full text-sm">UI/UX</span>
+                      <span className="px-3 py-1.5 bg-indigo-300 text-indigo-900 rounded-full text-sm">CSS</span>
+                      <span className="px-3 py-1.5 bg-indigo-300 text-indigo-900 rounded-full text-sm">Agile</span>
+                      <span className="px-3 py-1.5 bg-indigo-400 text-white rounded-full text-sm">Tailwind</span>
+                      <span className="px-3 py-1.5 bg-indigo-600 text-white rounded-full text-sm">Jest</span>
+                      <span className="px-3 py-1.5 bg-indigo-500 text-white rounded-full text-sm">Git</span>
+                      <span className="px-3 py-1.5 bg-indigo-400 text-white rounded-full text-sm">API</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <div className="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600 mr-3">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path>
+                        </svg>
+                      </div>
+                      <span className="text-sm font-medium text-slate-700">AI Analyzed</span>
+                    </div>
+                    <span className="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full">Intelligent Categorization</span>
+                  </div>
                 </div>
               </div>
             </motion.div>
@@ -276,335 +1066,120 @@ export default function LandingPage() {
               whileInView={{ opacity: 1, x: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.6 }}
-              className="order-2 md:order-2"
+              className="order-2 lg:order-1"
             >
-              <span className="text-xs font-semibold uppercase tracking-wider text-indigo-600 mb-2 md:mb-4 inline-block">STAND OUT FROM THE CROWD</span>
+              <span className="text-xs font-semibold uppercase tracking-wider text-indigo-600 mb-2 md:mb-4 inline-block">INTELLIGENT ANALYSIS</span>
               <h2 className="text-2xl md:text-3xl font-bold text-slate-900 mb-3 md:mb-4">
-                Tailored <br className="hidden sm:block"/>
-                <span className="text-indigo-600">Cover Letters</span>
+                Advanced <br className="hidden sm:block"/>
+                <span className="text-indigo-600">Keyword Extraction</span>
               </h2>
               <p className="text-slate-600 mb-4 md:mb-6 text-sm md:text-base">
-                Generate personalized cover letters that perfectly match both your experience and the job requirements.
-                Our AI analyzes job descriptions to highlight the most relevant qualifications and skills, increasing your chances of landing an interview.
+                Our sophisticated AI doesn't just scan for keywords—it intelligently categorizes them by importance and relevance. Get a beautiful, interactive word cloud visualization that helps you understand exactly what employers are looking for.
               </p>
-              <ul className="space-y-2 md:space-y-3 mb-6 md:mb-8">
+              <ul className="space-y-3 mb-6 md:mb-8">
                 <li className="flex items-start">
                   <svg className="w-5 h-5 text-green-500 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
                   </svg>
-                  <span className="text-slate-700 text-sm md:text-base">Personalized for each job application</span>
+                  <span className="text-slate-700 text-sm md:text-base">Visual word cloud with intelligent categorization</span>
                 </li>
                 <li className="flex items-start">
                   <svg className="w-5 h-5 text-green-500 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
                   </svg>
-                  <span className="text-slate-700 text-sm md:text-base">Highlights relevant experience</span>
+                  <span className="text-slate-700 text-sm md:text-base">Differentiation between technical and soft skills</span>
                 </li>
                 <li className="flex items-start">
                   <svg className="w-5 h-5 text-green-500 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
                   </svg>
-                  <span className="text-slate-700 text-sm md:text-base">Professional tone and formatting</span>
+                  <span className="text-slate-700 text-sm md:text-base">Identification of primary, secondary, and tertiary requirements</span>
+                </li>
+                <li className="flex items-start">
+                  <svg className="w-5 h-5 text-green-500 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                  </svg>
+                  <span className="text-slate-700 text-sm md:text-base">Smart suggestions to incorporate keywords naturally</span>
                 </li>
               </ul>
-            </motion.div>
-          </div>
-        </div>
-      </section>
-
-      {/* Business Insights Section */}
-      <section className="bg-gradient-to-b from-indigo-950 via-indigo-900 to-purple-900 py-24 text-white">
-        <div className="container mx-auto px-4">
-          <div className="text-center mb-16">
-            <span className="text-xs font-semibold uppercase tracking-wider text-indigo-300 mb-4 inline-block">STAY ORGANIZED</span>
-            <h2 className="text-4xl font-bold mb-4">
-              Track Your<br/>
-              <span className="text-indigo-400">Applications</span>
-            </h2>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.6 }}
-              className="text-center"
-            >
-              <div className="w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-                <svg className="w-12 h-12 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
-                </svg>
-              </div>
-              <h3 className="text-xl font-semibold mb-2">Application Status</h3>
-              <p className="text-indigo-200 text-sm">
-                Keep track of all your job applications in one place with real-time status updates.
-              </p>
-            </motion.div>
-            
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.6, delay: 0.2 }}
-              className="text-center"
-            >
-              <div className="w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-                <svg className="w-12 h-12 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M16 8v8m-4-5v5m-4-2v2m-2 4h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
-                </svg>
-              </div>
-              <h3 className="text-xl font-semibold mb-2">Document Management</h3>
-              <p className="text-indigo-200 text-sm">
-                Store all your resumes and cover letters with each application for easy reference.
-              </p>
-            </motion.div>
-            
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.6, delay: 0.4 }}
-              className="text-center"
-            >
-              <div className="w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-                <svg className="w-12 h-12 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"></path>
-                </svg>
-              </div>
-              <h3 className="text-xl font-semibold mb-2">Performance Analytics</h3>
-              <p className="text-indigo-200 text-sm">
-                Analyze your application success rate to continuously improve your job search strategy.
-              </p>
-            </motion.div>
-          </div>
-          
-          <div className="bg-indigo-900/50 rounded-xl p-8 max-w-4xl mx-auto">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
-              <div>
-                <h3 className="text-2xl font-bold mb-4">
-                  From Struggle<br/>
-                  <span className="text-indigo-400">To Solution</span>
-                </h3>
-                <p className="text-indigo-200 mb-6">
-                  During my own job search, I experienced firsthand how costly and inefficient most resume tools were. 
-                  I created this platform with a simple mission: no one should have to go through the same struggles I did.
-                </p>
-                <a href="#testimonials" className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md transition-colors inline-block text-sm">
-                  Read Success Stories
+              <Link href="/auth?signup=true">
+                <a className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-md transition-colors inline-block">
+                  Try Keyword Extraction
                 </a>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-indigo-800/50 p-4 rounded-lg">
-                  <div className="mb-3">
-                    <div className="w-12 h-12 rounded-full bg-indigo-700/60 flex items-center justify-center mb-2">
-                      <div className="w-6 h-6 rounded-full bg-indigo-500"></div>
-                    </div>
-                  </div>
-                  <div className="h-24 bg-gradient-to-t from-indigo-600/20 to-transparent rounded"></div>
-                </div>
-                <div className="grid grid-rows-2 gap-4">
-                  <div className="bg-indigo-800/50 p-4 rounded-lg">
-                    <div className="text-xs text-indigo-300">March Interviews</div>
-                    <div className="text-lg font-bold">+24</div>
-                  </div>
-                  <div className="bg-indigo-800/50 p-4 rounded-lg">
-                    <div className="text-xs text-indigo-300">April Interviews</div>
-                    <div className="text-lg font-bold">+29</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Innovations Showcase */}
-      <section className="bg-white py-16 md:py-24">
-        <div className="container mx-auto px-4">
-          <div className="text-center mb-10 md:mb-16">
-            <span className="text-xs font-semibold uppercase tracking-wider text-indigo-600 mb-2 md:mb-4 inline-block">POWERFUL FEATURES</span>
-            <h2 className="text-2xl md:text-3xl font-bold mb-4">
-              AI-Powered Tools for<br/>
-              <span className="text-indigo-600">Job Seekers</span>
-            </h2>
-          </div>
-          
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 md:gap-8">
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.6 }}
-              className="bg-white rounded-lg shadow-lg overflow-hidden"
-            >
-              <div className="h-36 md:h-48 bg-gradient-to-br from-yellow-400 to-orange-600 overflow-hidden">
-                <div className="h-full w-full flex items-center justify-center">
-                  <svg className="w-16 h-16 md:w-24 md:h-24 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                  </svg>
-                </div>
-              </div>
-              <div className="p-4 md:p-6">
-                <h3 className="text-center text-lg font-semibold mb-2">Smart Keyword Extraction</h3>
-                <p className="text-center text-slate-600 text-sm">
-                  Our algorithm identifies and incorporates the exact keywords ATS systems are programmed to look for
-                </p>
-              </div>
-            </motion.div>
-            
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.6, delay: 0.2 }}
-              className="bg-white rounded-lg shadow-lg overflow-hidden"
-            >
-              <div className="h-36 md:h-48 bg-gradient-to-br from-pink-400 to-purple-600 overflow-hidden">
-                <div className="h-full w-full flex items-center justify-center">
-                  <svg className="w-16 h-16 md:w-24 md:h-24 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z"></path>
-                  </svg>
-                </div>
-              </div>
-              <div className="p-4 md:p-6">
-                <h3 className="text-center text-lg font-semibold mb-2">Tailored Resume Creation</h3>
-                <p className="text-center text-slate-600 text-sm">
-                  Generate personalized resumes that perfectly match both your experience and the job requirements
-                </p>
-              </div>
-            </motion.div>
-            
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.6, delay: 0.4 }}
-              className="bg-white rounded-lg shadow-lg overflow-hidden sm:col-span-2 md:col-span-1 mx-auto sm:mx-0 max-w-sm sm:max-w-none"
-            >
-              <div className="h-36 md:h-48 bg-gradient-to-br from-green-400 to-teal-600 overflow-hidden">
-                <div className="h-full w-full flex items-center justify-center">
-                  <svg className="w-16 h-16 md:w-24 md:h-24 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path>
-                  </svg>
-                </div>
-              </div>
-              <div className="p-4 md:p-6">
-                <h3 className="text-center text-lg font-semibold mb-2">Application Tracking System</h3>
-                <p className="text-center text-slate-600 text-sm">
-                  Comprehensive dashboard to organize your job search and track all applications in one place
-                </p>
-              </div>
+              </Link>
             </motion.div>
           </div>
         </div>
       </section>
 
-      {/* Testimonials */}
-      <section id="testimonials" className="bg-slate-50 py-16 md:py-20">
+      {/* Future Features Section */}
+      <section className="bg-white py-16 md:py-20">
         <div className="container mx-auto px-4">
-          <div className="text-center mb-10 md:mb-16">
-            <span className="text-xs font-semibold uppercase tracking-wider text-indigo-600 mb-2 md:mb-4 inline-block">SUCCESS STORIES</span>
-            <h2 className="text-2xl md:text-3xl font-bold mb-4">
-              What Our Users<br/>
-              <span className="text-indigo-600">Are Saying</span>
+          <div className="text-center mb-12">
+            <span className="text-xs font-semibold uppercase tracking-wider text-indigo-600 mb-2 md:mb-4 inline-block">CONTINUOUS INNOVATION</span>
+            <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mb-4">
+              Coming Soon
             </h2>
-            <p className="text-slate-600 max-w-2xl mx-auto text-sm md:text-base">
-              Real stories from job seekers who transformed their career prospects using ATScribe's platform.
+            <p className="text-slate-600 max-w-3xl mx-auto">
+              We're constantly evolving ATScribe with innovative features to make your job search even more effective.
             </p>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <motion.div 
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
-              transition={{ duration: 0.6 }}
-              className="bg-white p-4 md:p-6 rounded-lg shadow-md"
+              transition={{ duration: 0.5 }}
+              className="bg-slate-50 p-6 rounded-xl border border-slate-100"
             >
-              <p className="text-slate-600 mb-6 text-sm md:text-base">
-                "Before using ATScribe, I applied to 50+ jobs with no responses. After optimizing my resume with the ATS feature, I started getting interviews within days. Now I've landed my dream job as a UX designer!"
-              </p>
-              <div className="flex items-center">
-                <div className="w-10 h-10 md:w-12 md:h-12 bg-indigo-100 rounded-full flex items-center justify-center mr-4 flex-shrink-0">
-                  <svg className="w-5 h-5 md:w-6 md:h-6 text-indigo-600" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M12 12a4 4 0 110-8 4 4 0 010 8z"></path>
-                    <path d="M20 21a8 8 0 00-16 0"></path>
-                  </svg>
-                </div>
-                <div>
-                  <h4 className="font-semibold text-sm md:text-base">Sarah Kim</h4>
-                  <p className="text-xs md:text-sm text-slate-500">Recent Graduate</p>
-                </div>
+              <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center mb-4 text-purple-600">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                </svg>
               </div>
+              <h3 className="text-xl font-bold mb-2">AI Interview Coach</h3>
+              <p className="text-slate-600">
+                Practice interviews with our AI coach that adapts questions based on the job description and provides feedback on your responses.
+              </p>
             </motion.div>
             
             <motion.div 
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
-              transition={{ duration: 0.6, delay: 0.2 }}
-              className="bg-white p-4 md:p-6 rounded-lg shadow-md"
+              transition={{ duration: 0.5, delay: 0.1 }}
+              className="bg-slate-50 p-6 rounded-xl border border-slate-100"
             >
-              <p className="text-slate-600 mb-6 text-sm md:text-base">
-                "As a student on a budget, I couldn't afford expensive resume services. ATScribe provided everything I needed at a price I could actually afford. The AI-generated cover letters were perfectly tailored for each application."
-              </p>
-              <div className="flex items-center">
-                <div className="w-10 h-10 md:w-12 md:h-12 bg-indigo-100 rounded-full flex items-center justify-center mr-4 flex-shrink-0">
-                  <svg className="w-5 h-5 md:w-6 md:h-6 text-indigo-600" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M12 12a4 4 0 110-8 4 4 0 010 8z"></path>
-                    <path d="M20 21a8 8 0 00-16 0"></path>
-                  </svg>
-                </div>
-                <div>
-                  <h4 className="font-semibold text-sm md:text-base">James Wilson</h4>
-                  <p className="text-xs md:text-sm text-slate-500">Computer Science Student</p>
-                </div>
+              <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center mb-4 text-green-600">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 8v8m-4-5v5m-4-2v2m-2 4h12a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                </svg>
               </div>
+              <h3 className="text-xl font-bold mb-2">Salary Insights</h3>
+              <p className="text-slate-600">
+                Get accurate, up-to-date salary information for specific roles, helping you negotiate better compensation packages.
+              </p>
             </motion.div>
             
             <motion.div 
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
-              transition={{ duration: 0.6, delay: 0.4 }}
-              className="bg-white p-4 md:p-6 rounded-lg shadow-md"
+              transition={{ duration: 0.5, delay: 0.2 }}
+              className="bg-slate-50 p-6 rounded-xl border border-slate-100"
             >
-              <p className="text-slate-600 mb-6 text-sm md:text-base">
-                "The application tracking system has been a game-changer. I can finally keep track of all my applications in one place, with all my documents organized. I've increased my application efficiency by 300%!"
-              </p>
-              <div className="flex items-center">
-                <div className="w-10 h-10 md:w-12 md:h-12 bg-indigo-100 rounded-full flex items-center justify-center mr-4 flex-shrink-0">
-                  <svg className="w-5 h-5 md:w-6 md:h-6 text-indigo-600" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M12 12a4 4 0 110-8 4 4 0 010 8z"></path>
-                    <path d="M20 21a8 8 0 00-16 0"></path>
-                  </svg>
-                </div>
-                <div>
-                  <h4 className="font-semibold text-sm md:text-base">Emily Rodriguez</h4>
-                  <p className="text-xs md:text-sm text-slate-500">Marketing Intern</p>
-                </div>
+              <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center mb-4 text-amber-600">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+                </svg>
               </div>
+              <h3 className="text-xl font-bold mb-2">Career Path Planner</h3>
+              <p className="text-slate-600">
+                Map your long-term career growth with AI-driven suggestions for skills development and potential career trajectories.
+              </p>
             </motion.div>
           </div>
-        </div>
-      </section>
-
-      {/* Final CTA Section */}
-      <section className="bg-gradient-to-r from-indigo-600 to-purple-600 py-12 md:py-20">
-        <div className="container mx-auto px-4 text-center">
-          <h2 className="text-2xl md:text-3xl font-bold text-white mb-4 md:mb-6">
-            Affordable Resume Tools<br/>
-            <span className="text-indigo-200">For Students & Early Careers</span>
-          </h2>
-          <p className="text-base md:text-xl text-indigo-100 mb-8 md:mb-10 max-w-2xl mx-auto">
-            Our AI-powered platform makes the job search process easier and more effective. 
-            Get the tools you need to land your dream job at a price you can afford.
-          </p>
-          <a href="/auth?signup=true" className="px-6 md:px-8 py-3 bg-white hover:bg-indigo-50 text-indigo-600 font-medium rounded-md transition-colors inline-block">
-            Start Your Job Search
-          </a>
         </div>
       </section>
 
@@ -615,7 +1190,7 @@ export default function LandingPage() {
             <div className="mb-8 md:mb-0">
               <div className="text-xl md:text-2xl font-bold mb-3 md:mb-4">ATScribe</div>
               <p className="text-slate-400 max-w-xs text-sm md:text-base">
-                AI-powered resume and cover letter builder to help students and early career professionals land their dream jobs.
+                AI-powered resume builder, cover letter generator, and job application tracker designed specifically for students and early career professionals.
               </p>
               <p className="text-slate-500 mt-3 md:mt-4 text-xs md:text-sm">
                 A product of Futureaiit Consulting Private Limited
@@ -636,7 +1211,7 @@ export default function LandingPage() {
                 <h4 className="text-base md:text-lg font-semibold mb-3 md:mb-4">Company</h4>
                 <ul className="space-y-2">
                   <li><Link href="/about"><a className="text-slate-400 hover:text-indigo-400 transition-colors text-sm md:text-base">About Us</a></Link></li>
-                  <li><a href="#testimonials" className="text-slate-400 hover:text-indigo-400 transition-colors text-sm md:text-base">Testimonials</a></li>
+                  <li><a href="#features" className="text-slate-400 hover:text-indigo-400 transition-colors text-sm md:text-base">Features</a></li>
                   <li><a href="mailto:contact@ATScribe.com" className="text-slate-400 hover:text-indigo-400 transition-colors text-sm md:text-base">Contact</a></li>
                 </ul>
               </div>

@@ -73,14 +73,17 @@ THE RETURNED TEXT MUST BE 300 CHARACTERS OR LESS (INCLUDING SPACES). This is cri
 /**
  * Enhances work experience bullet points to match the target job position
  */
-export async function enhanceExperiencePoints(
+export async function enhanceExperienceBullets(
   jobTitle: string,
   jobDescription: string,
   experienceItem: any,
   context?: {
-    existingSkills: string[],
-    missingKeywords: string[],
-    optimizationTarget: string
+    experienceTitle?: string,
+    company?: string,
+    description?: string,
+    existingSkills?: string[],
+    missingKeywords?: string[],
+    optimizationTarget?: string
   }
 ): Promise<string[]> {
   try {
@@ -129,9 +132,17 @@ export async function enhanceExperiencePoints(
     
     // Based on overlap percentage, determine if it's a career change
     const isCareerChange = overlapPercentage < 30;
+    
+    // Ensure context has required properties with defaults
+    const contextWithDefaults = {
+      existingSkills: context?.existingSkills || [],
+      missingKeywords: context?.missingKeywords || [],
+      optimizationTarget: context?.optimizationTarget || "balance keywords naturally"
+    };
+    
     const prompt = isCareerChange 
-      ? generateCareerChangePrompt(position, jobTitle, company, existingContent, priorityKeywords, context) 
-      : generateMatchingRolePrompt(position, jobTitle, jobDescription, company, existingContent, overlapPercentage, priorityKeywords, context);
+      ? generateCareerChangePrompt(position, jobTitle, company, existingContent, priorityKeywords, contextWithDefaults) 
+      : generateMatchingRolePrompt(position, jobTitle, jobDescription, company, existingContent, overlapPercentage, priorityKeywords, contextWithDefaults);
     
     const response = await OpenAIApi.chat({
       model: MODEL,
@@ -149,8 +160,43 @@ export async function enhanceExperiencePoints(
       .map(line => line.trim())
       .filter(line => line.length > 0)
       .map(line => {
-        // Remove leading bullet point symbols like "- ", "• ", "* "
-        return line.replace(/^[-•*]\s+/, '');
+        // Remove leading bullet point symbols like "- ", "• ", "* " and any quotes
+        const cleanLine = line.replace(/^[-•*]\s+/, '').replace(/^["']|["']$/g, '').trim();
+        // Add bullet point for consistency
+        return `• ${cleanLine}`;
+      })
+      // Enforce maximum bullet point length and ensure proper sentence endings
+      .map(bullet => {
+        const MAX_BULLET_LENGTH = 160; // Reduced from 200 for more concise bullets
+        
+        if (bullet.length <= MAX_BULLET_LENGTH) {
+          // Ensure bullet point ends with proper punctuation
+          return ensureProperEnding(bullet);
+        }
+        
+        // Truncate at the last sentence boundary before MAX_BULLET_LENGTH if possible
+        let truncated = bullet.substring(0, MAX_BULLET_LENGTH);
+        
+        // Try to find the last sentence boundary (period, question mark, exclamation)
+        const lastSentenceEnd = Math.max(
+          truncated.lastIndexOf('. '),
+          truncated.lastIndexOf('? '),
+          truncated.lastIndexOf('! ')
+        );
+        
+        if (lastSentenceEnd > MAX_BULLET_LENGTH * 0.7) {
+          // If we found a sentence boundary that's at least 70% into the text
+          return ensureProperEnding(bullet.substring(0, lastSentenceEnd + 1));
+        }
+        
+        // Otherwise truncate at the last word boundary
+        const lastSpaceIndex = truncated.lastIndexOf(' ');
+        if (lastSpaceIndex > 0) {
+          return ensureProperEnding(bullet.substring(0, lastSpaceIndex));
+        }
+        
+        // Last resort - just truncate at max length
+        return ensureProperEnding(truncated);
       });
 
     return bullets;
@@ -158,6 +204,24 @@ export async function enhanceExperiencePoints(
     console.error('Error enhancing experience bullets:', error);
     throw new Error('Failed to enhance experience bullets');
   }
+}
+
+/**
+ * Helper function to ensure bullet points end with proper punctuation
+ */
+function ensureProperEnding(text: string): string {
+  // If the text already ends with punctuation, return as is
+  if (/[.!?]$/.test(text)) {
+    return text;
+  }
+  
+  // If the text ends with a comma, replace it with a period
+  if (text.endsWith(',')) {
+    return text.slice(0, -1) + '.';
+  }
+  
+  // Otherwise, add a period if missing
+  return text + '.';
 }
 
 /**
@@ -192,20 +256,24 @@ OPTIMIZATION STRATEGY: ${contextualGuidance}
 
 ⚠️ CRITICAL INSTRUCTIONS ⚠️
 These positions are in different career fields. You must:
-1. Write bullet points that HONESTLY reflect work done as a ${currentPosition}
+1. Write bullet points that HONESTLY reflect work done as a ${currentPosition} at ${company} ONLY
 2. Focus on REAL achievements and responsibilities from the ${currentPosition} role
 3. DO NOT fabricate skills or experience that wouldn't be part of a ${currentPosition} role
-4. Mention skills that naturally transfer to ${targetPosition} ONLY if authentic
-5. Strategically incorporate 1-2 priority keywords per bullet point, but ONLY if they genuinely apply
-6. Quantify achievements with numbers/percentages where appropriate
-7. Balance keyword optimization with authentic experience description
+4. DO NOT write as if the person has worked in the target role or target company
+5. Mention skills that naturally transfer to ${targetPosition} ONLY if authentic
+6. Strategically incorporate 1-2 priority keywords per bullet point, but ONLY if they genuinely apply
+7. Quantify achievements with numbers/percentages where appropriate
+8. Balance keyword optimization with authentic experience description
+9. Each bullet point should be CONCISE (15-25 words) and follow this format:
+   "[Action verb] [what you did] by [how you did it], resulting in [measurable outcome with metrics]"
+10. DO NOT use quotation marks around bullet points
+11. Ensure each bullet point is a COMPLETE SENTENCE that ends with proper punctuation
 
 For example:
-• If someone was a "Chef" applying for "Software Developer":
-  ✅ "Created standardized recipe documentation system, organizing 200+ recipes in searchable digital format"
-  ❌ "Developed Python applications and designed SQL databases" (fabricated skills)
+• Spearheaded research projects by implementing agile methodologies, reducing development cycles by 25% and increasing stakeholder satisfaction.
+• Overhauled customer service protocols through data-driven analysis, resulting in 42% improvement in resolution rates.
 
-Keep each bullet point authentic, concise (15-20 words), and starting with a strong action verb.
+Keep each bullet point concise, specific, achievement-focused, and starting with a strong action verb.
 Return ONLY the bullet points with no explanations.
 
 Current Content:
@@ -253,17 +321,25 @@ ${jobKeywords.join(', ')}
 
 OPTIMIZATION STRATEGY: ${contextualGuidance}
 
-IMPORTANT GUIDELINES:
-1. Write authentic bullet points that accurately represent responsibilities as a ${currentPosition}
+⚠️ CRITICAL INSTRUCTIONS ⚠️
+1. Write authentic bullet points that accurately represent responsibilities as a ${currentPosition} at ${company} ONLY
 2. Emphasize aspects of ${currentPosition} that naturally relate to ${targetPosition}
-3. Strategically incorporate the most relevant keywords from the priority list above
-4. Use 2-3 different keywords per bullet point, focusing on the most important ones first
-5. Include metrics and quantifiable achievements where possible (percentages, numbers, timeframes)
+3. NEVER suggest the person already worked at the target company or in the target role
+4. Strategically incorporate 1-2 relevant keywords per bullet point
+5. Include metrics and quantifiable achievements where possible (percentages, numbers)
 6. Begin each bullet with a strong action verb (achieved, delivered, implemented, etc.)
 7. DO NOT fabricate experiences that wouldn't be part of the ${currentPosition} role
 8. Balance ATS keyword optimization with natural, readable language
+9. Each bullet point should be CONCISE (15-25 words) and follow this format:
+   "[Action verb] [what you did] by [how you did it], resulting in [measurable outcome with metrics]"
+10. DO NOT use quotation marks around bullet points
+11. Ensure each bullet point is a COMPLETE SENTENCE that ends with proper punctuation
 
-Create 3-5 powerful bullet points that are concise (15-20 words).
+For example:
+• Spearheaded research projects by implementing agile methodologies, reducing development cycles by 25% and increasing stakeholder satisfaction.
+• Overhauled customer service protocols through data-driven analysis, resulting in 42% improvement in resolution rates.
+
+Create 3-5 powerful bullet points that are concise, specific, and achievement-focused.
 Format your response as a list of bullet points only, with no additional text.
 
 Current Content:
@@ -1257,4 +1333,54 @@ function generateOverallSuggestions(
   }
   
   return suggestions;
+}
+
+/**
+ * Generates relevant skills for a job position without requiring a job description
+ */
+export async function generateSkillsForPosition(
+  jobTitle: string
+): Promise<{ technicalSkills: string[], softSkills: string[] }> {
+  try {
+    const prompt = `
+You are an expert resume ATS specialist. Generate relevant skills that would be expected for a "${jobTitle}" position.
+Focus on skills that would be recognized by ATS systems and relevant to this specific job role.
+
+Please identify:
+1. Technical skills (hard skills, tools, technologies, certifications, methodologies, software)
+2. Soft skills (interpersonal abilities, character traits, work style attributes)
+
+Format your response as a JSON object with two arrays: "technicalSkills" and "softSkills".
+Each array should contain 8-12 relevant skills as strings.
+
+IMPORTANT:
+- Include specific technical skills relevant to this job position
+- Include industry-standard terminology for this role
+- Be precise and focus on skills that would actually appear in job descriptions
+- Include both fundamental and advanced skills for this role
+- For technical roles, include programming languages, tools, frameworks as appropriate
+- For non-technical roles, include relevant methodologies, tools, and domain knowledge
+
+Do not include explanations, just the JSON object.
+`;
+
+    const response = await OpenAIApi.chat({
+      model: MODEL,
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 700,
+      temperature: 0.5,
+      response_format: { type: "json_object" }
+    });
+
+    const content = response.choices[0]?.message?.content?.trim() || "{}";
+    const skills = JSON.parse(content);
+
+    return {
+      technicalSkills: skills.technicalSkills || [],
+      softSkills: skills.softSkills || []
+    };
+  } catch (error) {
+    console.error('Error generating skills for position:', error);
+    throw new Error('Failed to generate skills for job position');
+  }
 }

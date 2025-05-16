@@ -33,7 +33,22 @@ export default defineConfig({
     outDir: path.resolve(__dirname, "dist/public"),
     emptyOutDir: true,
   },
+  publicDir: path.resolve(__dirname, "public"),
   server: {
+    proxy: {
+      // Proxy API requests to the backend server
+      '/api': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+        secure: false,
+      },
+      // Proxy authentication requests
+      '/auth': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+        secure: false,
+      }
+    },
     hmr: {
       overlay: false,
     },
@@ -41,8 +56,9 @@ export default defineConfig({
   define: {
     'process.env': {
       NODE_ENV: JSON.stringify(process.env.NODE_ENV),
+      API_URL: JSON.stringify('http://localhost:3000'),
       // Add any other environment variables your client code needs access to
-      // Example: VITE_API_URL: JSON.stringify(process.env.VITE_API_URL)
     },
   },
+  base: '/', // Ensure assets are served from the root path
 });

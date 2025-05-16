@@ -14,7 +14,8 @@ import {
   PlusCircle,
   Sparkles,
   RefreshCw,
-  Copy
+  Copy,
+  Edit
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { enhanceExperienceBullets } from "@/utils/ai-resume-helpers";
@@ -31,6 +32,14 @@ interface WorkExperience {
   achievements: string[];
 }
 
+// Define a type for experience data to match what enhanceExperienceBullets expects
+interface ExperienceData {
+  company: string;
+  position: string;
+  description: string;
+  achievements: string[];
+}
+
 interface WorkExperienceFormProps {
   data: any;
   updateData: (data: any) => void;
@@ -40,6 +49,9 @@ export default function WorkExperienceForm({ data, updateData }: WorkExperienceF
   const { toast } = useToast();
   const [newAchievement, setNewAchievement] = useState<{ [key: string]: string }>({});
   const [enhancements, setEnhancements] = useState<{ [key: string]: boolean }>({});
+  const [editingAchievement, setEditingAchievement] = useState<{ expId: string, index: number } | null>(null);
+  const [editValue, setEditValue] = useState<string>("");
+  const [generatingAchievements, setGeneratingAchievements] = useState<{ [key: string]: boolean }>({});
 
   // Ensure workExperience array exists
   const workExperience = data?.workExperience || [];
@@ -81,11 +93,20 @@ export default function WorkExperienceForm({ data, updateData }: WorkExperienceF
   const addAchievement = (experienceId: string) => {
     if (!newAchievement[experienceId] || !newAchievement[experienceId].trim()) return;
     
+    const achievementText = newAchievement[experienceId].trim();
+    // Add bullet point if it doesn't already start with one
+    const formattedAchievement = 
+      achievementText.startsWith('•') || 
+      achievementText.startsWith('-') || 
+      achievementText.startsWith('*') ? 
+      achievementText : 
+      `• ${achievementText}`;
+    
     const updatedExperiences = workExperience.map((exp: WorkExperience) => {
       if (exp.id === experienceId) {
         return {
           ...exp,
-          achievements: [...(exp.achievements || []), newAchievement[experienceId].trim()]
+          achievements: [...(exp.achievements || []), formattedAchievement]
         };
       }
       return exp;
@@ -96,6 +117,45 @@ export default function WorkExperienceForm({ data, updateData }: WorkExperienceF
       ...newAchievement,
       [experienceId]: ""
     });
+  };
+
+  const startEditingAchievement = (expId: string, index: number, value: string) => {
+    // Remove bullet point for editing
+    const cleanValue = value.replace(/^[•\-*]\s+/, '').trim();
+    setEditingAchievement({ expId, index });
+    setEditValue(cleanValue);
+  };
+
+  const saveEditedAchievement = () => {
+    if (!editingAchievement || !editValue.trim()) return;
+
+    const { expId, index } = editingAchievement;
+    
+    // Format with bullet point
+    const formattedValue = `• ${editValue.trim()}`;
+    
+    const updatedExperiences = workExperience.map((exp: WorkExperience) => {
+      if (exp.id === expId) {
+        const newAchievements = [...(exp.achievements || [])];
+        newAchievements[index] = formattedValue;
+        return {
+          ...exp,
+          achievements: newAchievements
+        };
+      }
+      return exp;
+    });
+    
+    updateData({ workExperience: updatedExperiences });
+    
+    // Reset editing state
+    setEditingAchievement(null);
+    setEditValue("");
+  };
+
+  const cancelEditing = () => {
+    setEditingAchievement(null);
+    setEditValue("");
   };
 
   const removeAchievement = (experienceId: string, index: number) => {
@@ -130,6 +190,95 @@ export default function WorkExperienceForm({ data, updateData }: WorkExperienceF
     updatedExperiences[newIndex] = temp;
     
     updateData({ workExperience: updatedExperiences });
+  };
+  
+  // Generate initial achievements with AI
+  const generateAchievements = async (experienceId: string) => {
+    try {
+      // Find the experience to enhance
+      const experience = workExperience.find((exp: WorkExperience) => exp.id === experienceId);
+      
+      if (!experience) {
+        toast({
+          title: "Error",
+          description: "Could not find the selected work experience.",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      // Check if we have the required data
+      if (!data.targetJobTitle) {
+        toast({
+          title: "Missing Information",
+          description: "Please enter a target job title first.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (!data.jobDescription) {
+        toast({
+          title: "Missing Information",
+          description: "Please enter a job description to generate achievements.",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      // Set generation state to loading
+      setGeneratingAchievements({
+        ...generatingAchievements,
+        [experienceId]: true,
+      });
+      
+      // Call the API to generate achievements
+      // For generation, we pass an empty array since we want to generate new achievements
+      const enhancedAchievements = await enhanceExperienceBullets(
+        data.targetJobTitle,
+        data.jobDescription,
+        [""], // Pass a placeholder to indicate we want to generate achievements
+        {
+          experienceTitle: experience.position,
+          company: experience.company,
+          description: experience.description
+        }
+      );
+      
+      if (!enhancedAchievements || enhancedAchievements.length === 0) {
+        throw new Error('No achievements generated');
+      }
+      
+      // Update the experience with generated achievements
+      const updatedExperiences = workExperience.map((exp: WorkExperience) => {
+        if (exp.id === experienceId) {
+          return {
+            ...exp,
+            achievements: enhancedAchievements,
+          };
+        }
+        return exp;
+      });
+      
+      updateData({ workExperience: updatedExperiences });
+      
+      toast({
+        title: "Achievements Generated",
+        description: "AI-generated achievements based on your job title and description.",
+      });
+    } catch (error) {
+      console.error("Achievement generation error:", error);
+      toast({
+        title: "Generation Failed",
+        description: error instanceof Error ? error.message : "There was an error generating achievements. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setGeneratingAchievements({
+        ...generatingAchievements,
+        [experienceId]: false,
+      });
+    }
   };
   
   const enhanceAchievements = async (experienceId: string) => {
@@ -180,11 +329,28 @@ export default function WorkExperienceForm({ data, updateData }: WorkExperienceF
         [experienceId]: true,
       });
       
-      // Extract keywords from both job description and experience title
-      const jobKeywords = extractKeywords(data.jobDescription);
-      const titleKeywords = extractKeywords(experience.position);
+      // Extract keywords from the ATS feedback if available
+      let missingKeywords: string[] = [];
+      let contextualOptimizationTarget = "incorporate relevant ATS keywords";
       
-      // Call the API to enhance the achievements with balanced keyword optimization
+      if (data.keywordsFeedback) {
+        missingKeywords = data.keywordsFeedback.missing || [];
+        
+        // Count how many keywords we're missing
+        const missingCount = missingKeywords.length;
+        const foundCount = (data.keywordsFeedback.found || []).length;
+        
+        // Adjust the optimization target based on the keyword gap
+        if (missingCount > foundCount) {
+          contextualOptimizationTarget = "prioritize adding missing keywords";
+        } else if (missingCount > 0) {
+          contextualOptimizationTarget = "balance existing content with missing keywords";
+        } else {
+          contextualOptimizationTarget = "refine wording while preserving existing keywords";
+        }
+      }
+      
+      // Call the API to enhance the achievements with the context from ATS analysis
       const enhancedAchievements = await enhanceExperienceBullets(
         data.targetJobTitle,
         data.jobDescription,
@@ -192,7 +358,9 @@ export default function WorkExperienceForm({ data, updateData }: WorkExperienceF
         {
           experienceTitle: experience.position,
           company: experience.company,
-          description: experience.description
+          description: experience.description,
+          existingSkills: data.keywordsFeedback?.found || [],
+          missingKeywords: data.keywordsFeedback?.missing || []
         }
       );
       
@@ -215,7 +383,7 @@ export default function WorkExperienceForm({ data, updateData }: WorkExperienceF
       
       toast({
         title: "Achievements Enhanced",
-        description: "Your achievements have been optimized with balanced keyword placement.",
+        description: "Your achievements have been optimized for ATS compatibility.",
       });
     } catch (error) {
       console.error("Experience enhancement error:", error);
@@ -303,7 +471,7 @@ export default function WorkExperienceForm({ data, updateData }: WorkExperienceF
           <p className="text-sm text-blue-600 dark:text-blue-400 flex items-center">
             <Sparkles className="h-4 w-4 mr-2 text-blue-500" />
             <span>
-              <strong>New AI feature:</strong> Add your achievements and click "Optimize for ATS" to tailor them to match your target job description.
+              <strong>New AI features:</strong> Click "Generate with AI" to create achievements or "Optimize for ATS" to tailor existing achievements to your target job.
             </span>
           </p>
         </div>
@@ -467,27 +635,49 @@ export default function WorkExperienceForm({ data, updateData }: WorkExperienceF
                 <div className="mt-6">
                   <div className="flex justify-between items-center mb-2">
                     <Label>Key Achievements</Label>
-                    {exp.achievements && exp.achievements.length > 0 && (
+                    <div className="flex gap-2">
                       <Button
-                        onClick={() => enhanceAchievements(exp.id)}
+                        onClick={() => generateAchievements(exp.id)}
                         variant="outline"
                         size="sm"
                         className="gap-2"
-                        disabled={enhancements[exp.id]}
+                        disabled={generatingAchievements[exp.id]}
                       >
-                        {enhancements[exp.id] ? (
+                        {generatingAchievements[exp.id] ? (
                           <>
                             <RefreshCw className="h-3 w-3 animate-spin" />
-                            Optimizing...
+                            Generating...
                           </>
                         ) : (
                           <>
                             <Sparkles className="h-3 w-3" />
-                            Optimize for ATS
+                            Generate with AI
                           </>
                         )}
                       </Button>
-                    )}
+                      
+                      {exp.achievements && exp.achievements.length > 0 && (
+                        <Button
+                          onClick={() => enhanceAchievements(exp.id)}
+                          variant="outline"
+                          size="sm"
+                          className="gap-2"
+                          disabled={enhancements[exp.id]}
+                        >
+                          {enhancements[exp.id] ? (
+                            <>
+                              <RefreshCw className="h-3 w-3 animate-spin" />
+                              Optimizing...
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles className="h-3 w-3" />
+                              Optimize for ATS
+                            </>
+                          )}
+                        </Button>
+                      )}
+                    </div>
                   </div>
                   
                   {exp.achievements && exp.achievements.length > 0 && (
@@ -495,16 +685,67 @@ export default function WorkExperienceForm({ data, updateData }: WorkExperienceF
                       {exp.achievements.map((achievement, i) => (
                         <li key={i} className="flex group">
                           <div className="flex-1 bg-gray-50 dark:bg-gray-800 rounded p-2 mr-2">
-                            {achievement}
+                            {editingAchievement && editingAchievement.expId === exp.id && editingAchievement.index === i ? (
+                              <div className="flex flex-col gap-2">
+                                <Input
+                                  value={editValue}
+                                  onChange={(e) => setEditValue(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter" && editValue.trim()) {
+                                      e.preventDefault();
+                                      saveEditedAchievement();
+                                    } else if (e.key === "Escape") {
+                                      e.preventDefault();
+                                      cancelEditing();
+                                    }
+                                  }}
+                                  autoFocus
+                                />
+                                <div className="flex justify-end gap-2 mt-2">
+                                  <Button 
+                                    size="sm" 
+                                    variant="outline" 
+                                    onClick={cancelEditing}
+                                  >
+                                    Cancel
+                                  </Button>
+                                  <Button 
+                                    size="sm" 
+                                    onClick={saveEditedAchievement}
+                                    disabled={!editValue.trim()}
+                                  >
+                                    Save
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : (
+                              achievement
+                            )}
                           </div>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => removeAchievement(exp.id, i)}
-                            className="h-8 w-8 opacity-0 group-hover:opacity-100 text-gray-500 hover:text-red-500"
-                          >
-                            <Trash className="h-4 w-4" />
-                          </Button>
+                          {editingAchievement && editingAchievement.expId === exp.id && editingAchievement.index === i ? (
+                            null
+                          ) : (
+                            <div className="flex opacity-0 group-hover:opacity-100">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => startEditingAchievement(exp.id, i, achievement)}
+                                className="h-8 w-8 text-gray-500 hover:text-blue-500"
+                                title="Edit"
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => removeAchievement(exp.id, i)}
+                                className="h-8 w-8 text-gray-500 hover:text-red-500"
+                                title="Delete"
+                              >
+                                <Trash className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          )}
                         </li>
                       ))}
                     </ul>
@@ -519,7 +760,7 @@ export default function WorkExperienceForm({ data, updateData }: WorkExperienceF
                         [exp.id]: e.target.value
                       })}
                       onKeyDown={(e) => {
-                        if (e.key === "Enter") {
+                        if (e.key === "Enter" && newAchievement[exp.id]?.trim()) {
                           e.preventDefault();
                           addAchievement(exp.id);
                         }

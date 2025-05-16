@@ -203,48 +203,73 @@ export default function ResumeDownloadButton({ resumeData, className }: ResumeDo
         hasWorkExperience: Boolean(resumeData.workExperience?.length),
       });
       
-      // Re-register templates to ensure they're available
-      try {
-        registerTemplates();
-        console.log("Templates re-registered for download");
-      } catch (registerError: unknown) {
-        console.error("Error re-registering templates:", registerError);
-        throw new Error(`Template registration failed: ${registerError instanceof Error ? registerError.message : 'Unknown error'}`);
-      }
+      // Import required components
+      const { registerTemplates } = await import("@/templates/registerTemplates");
+      const { TemplateFactory } = await import("@/templates/core/TemplateFactory");
       
-      // Get the template factory and check registered templates
+      // Register templates to ensure they're available
+      registerTemplates();
+      
+      // Get the template instance to render HTML
       const templateFactory = TemplateFactory.getInstance();
-      const registeredTypes = templateFactory.getRegisteredTypes();
-      console.log("Available template types:", registeredTypes);
-      
-      if (!registeredTypes.includes(resumeData.template)) {
-        throw new Error(`Template "${resumeData.template}" not found in registered templates: ${registeredTypes.join(', ')}`);
-      }
-      
-      // Get the template instance
       const template = templateFactory.getTemplate(resumeData.template);
       
       if (!template) {
-        throw new Error(`Failed to instantiate template: ${resumeData.template}`);
+        throw new Error(`Template not found: ${resumeData.template}`);
       }
       
       setStatus('generating');
-      console.log("Template instance found, generating PDF...");
       
-      // Generate PDF blob with a timeout to prevent hanging
-      let timeoutId: number;
-      const pdfPromise = Promise.race([
-        template.exportToPDF(resumeData),
-        new Promise<never>((_, reject) => {
-          timeoutId = window.setTimeout(() => {
-            reject(new Error("PDF generation timed out after 45 seconds"));
-          }, 45000); // Increased timeout for complex multi-page resumes
-        })
-      ]).finally(() => clearTimeout(timeoutId));
+      // Get the rendered HTML content
+      const element = template.renderPreview(resumeData);
       
-      const pdfBlob = await pdfPromise;
+      // Create temporary container to render the element
+      const container = document.createElement('div');
+      container.style.position = 'absolute';
+      container.style.left = '-9999px';
+      document.body.appendChild(container);
       
-      console.log("PDF blob generated successfully", {
+      // Render to get HTML content
+      const { createRoot } = await import('react-dom/client');
+      const root = createRoot(container);
+      root.render(element);
+      
+      // Wait for rendering
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Get HTML content
+      const htmlContent = container.innerHTML;
+      
+      // Clean up
+      root.unmount();
+      document.body.removeChild(container);
+      
+      // Prepare the request payload with HTML content
+      const payload = {
+        html: htmlContent,
+        styles: "", // Server will handle styles
+        data: resumeData
+      };
+      
+      console.log("Sending HTML content to server, length:", htmlContent.length);
+      
+      // Use server-side PDF generation
+      const response = await apiRequest(
+        "POST",
+        "/api/resume-templates/generate-pdf",
+        payload,
+        { responseType: "blob" }
+      );
+      
+      // Check if the response is successful and contains a PDF
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Server failed to generate PDF: ${errorText}`);
+      }
+      
+      const pdfBlob = await response.blob();
+      
+      console.log("PDF blob received from server", {
         size: pdfBlob.size,
         type: pdfBlob.type
       });
@@ -317,6 +342,8 @@ export default function ResumeDownloadButton({ resumeData, className }: ResumeDo
              errorMessage = "The generated PDF appears to be empty..."; // Shortened
           } else if (error.message.includes("not found")) {
              errorMessage = "Template not available..."; // Shortened
+          } else if (error.message.includes("Failed to fetch")) {
+             errorMessage = "Server connection failed. Please check your internet connection.";
           } else {
              errorMessage = isApiError(error) ? (error.data?.message || error.message) : error.message;
           }

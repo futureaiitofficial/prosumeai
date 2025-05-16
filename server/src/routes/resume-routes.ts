@@ -2,6 +2,7 @@ import express from 'express';
 import { storage } from "../../config/storage";
 import { requireUser } from "../../middleware/auth";
 import { requireFeatureAccess, trackFeatureUsage } from "../../middleware/feature-access";
+import { withEncryption } from "../../middleware/index";
 import { type InsertResume } from "@shared/schema";
 
 /**
@@ -9,7 +10,10 @@ import { type InsertResume } from "@shared/schema";
  */
 export function registerResumeRoutes(app: express.Express) {
   // Get all resumes for the current user
-  app.get('/api/resumes', requireUser, async (req, res) => {
+  app.get('/api/resumes', 
+    requireUser, 
+    ...withEncryption('resumes'),
+    async (req, res) => {
     try {
       if (!req.isAuthenticated() || !req.user) {
         return res.status(401).json({ message: "Unauthorized" });
@@ -27,7 +31,10 @@ export function registerResumeRoutes(app: express.Express) {
   });
   
   // Get a specific resume
-  app.get('/api/resumes/:id', requireUser, async (req, res) => {
+  app.get('/api/resumes/:id', 
+    requireUser, 
+    ...withEncryption('resumes'),
+    async (req, res) => {
     try {
       if (!req.isAuthenticated() || !req.user) {
         return res.status(401).json({ message: "Unauthorized" });
@@ -65,6 +72,7 @@ export function registerResumeRoutes(app: express.Express) {
     requireUser, 
     requireFeatureAccess('resume'), 
     trackFeatureUsage('resume'),
+    ...withEncryption('resumes'),
     async (req, res) => {
       try {
         if (!req.isAuthenticated() || !req.user) {
@@ -108,6 +116,7 @@ export function registerResumeRoutes(app: express.Express) {
   app.patch('/api/resumes/:id', 
     requireUser, 
     trackFeatureUsage('resume_update'),
+    ...withEncryption('resumes'),
     async (req, res) => {
     try {
       if (!req.isAuthenticated() || !req.user) {

@@ -683,7 +683,7 @@ const SubscriptionManagement: React.FC = () => {
                   <label className="block text-sm font-medium mb-1">Billing Cycle</label>
                   <Select
                     value={newPlan.billingCycle}
-                    onValueChange={value => setNewPlan({ ...newPlan, billingCycle: value === 'MONTHLY' ? 'MONTHLY' : 'YEARLY' })}
+                    onValueChange={(value: 'MONTHLY' | 'YEARLY') => setNewPlan({ ...newPlan, billingCycle: value })}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select billing cycle" />
@@ -827,7 +827,7 @@ const SubscriptionManagement: React.FC = () => {
                         <label className="block text-sm font-medium mb-1">Target Region</label>
                         <Select
                           value={newPricing.targetRegion}
-                          onValueChange={value => setNewPricing({ ...newPricing, targetRegion: value === 'GLOBAL' ? 'GLOBAL' : 'INDIA' })}
+                          onValueChange={(value: 'GLOBAL' | 'INDIA') => setNewPricing({ ...newPricing, targetRegion: value })}
                         >
                           <SelectTrigger>
                             <SelectValue placeholder="Select region" />
@@ -842,7 +842,7 @@ const SubscriptionManagement: React.FC = () => {
                         <label className="block text-sm font-medium mb-1">Currency</label>
                         <Select
                           value={newPricing.currency}
-                          onValueChange={value => setNewPricing({ ...newPricing, currency: value === 'USD' ? 'USD' : 'INR' })}
+                          onValueChange={(value: 'USD' | 'INR') => setNewPricing({ ...newPricing, currency: value })}
                         >
                           <SelectTrigger>
                             <SelectValue placeholder="Select currency" />
@@ -1043,7 +1043,7 @@ const SubscriptionManagement: React.FC = () => {
                   <label className="block text-sm font-medium mb-1">Feature Type</label>
                   <Select
                     value={newFeature.featureType}
-                    onValueChange={value => setNewFeature({ ...newFeature, featureType: value === 'ESSENTIAL' ? 'ESSENTIAL' : value === 'ADVANCED' ? 'ADVANCED' : 'PROFESSIONAL' })}
+                    onValueChange={(value: 'ESSENTIAL' | 'ADVANCED' | 'PROFESSIONAL') => setNewFeature({ ...newFeature, featureType: value })}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select feature type" />

@@ -76,7 +76,7 @@ export class MinimalistAtsTemplate extends BaseTemplate {
       display: 'flex',
       justifyContent: 'center',
       flexWrap: 'wrap',
-      gap: '1rem',
+      gap: '0.3rem',
       fontSize: '0.9rem',
       marginTop: '0.5rem',
       textAlign: 'center'
@@ -126,15 +126,17 @@ export class MinimalistAtsTemplate extends BaseTemplate {
 
     // Bullet styles
     const bulletListStyle: React.CSSProperties = {
-      listStyleType: 'disc',
-      paddingLeft: '1.2rem',
+      listStyleType: 'none',
+      paddingLeft: '0',
       margin: '0.5rem 0'
     };
 
     const bulletItemStyle: React.CSSProperties = {
       marginBottom: '0.3rem',
       fontSize: '0.95rem',
-      lineHeight: '1.4'
+      lineHeight: '1.4',
+      position: 'relative',
+      paddingLeft: '15px'
     };
 
     // Skills section
@@ -166,27 +168,47 @@ export class MinimalistAtsTemplate extends BaseTemplate {
           
           <div style={contactStyle} className="no-break-inside">
             {data.email && <span>{data.email}</span>}
+            {data.email && (data.phone || data.city || data.state || data.linkedinUrl || data.portfolioUrl) && (
+              <span style={{padding: '0 0.1rem'}}>{data.contactSeparator || "|"}</span>
+            )}
+            
             {data.phone && <span>{data.phone}</span>}
-            {data.location && <span>{data.location}</span>}
+            {data.phone && (data.city || data.state || data.linkedinUrl || data.portfolioUrl) && (
+              <span style={{padding: '0 0.1rem'}}>{data.contactSeparator || "|"}</span>
+            )}
+            
             {!data.location && data.city && data.state && <span>{data.city}, {data.state}</span>}
-            {data.linkedinUrl && <span>
-              <a 
-                href={data.linkedinUrl} 
-                target="_blank" 
-                rel="noopener noreferrer" 
-                style={{ color: colors.primary || '#333333', textDecoration: 'none' }}>
-                LinkedIn
-              </a>
-            </span>}
-            {data.portfolioUrl && <span>
-              <a 
-                href={data.portfolioUrl} 
-                target="_blank" 
-                rel="noopener noreferrer" 
-                style={{ color: colors.primary || '#333333', textDecoration: 'none' }}>
-                Portfolio
-              </a>
-            </span>}
+            {data.location && <span>{data.location}</span>}
+            {(data.location || (data.city && data.state)) && (data.linkedinUrl || data.portfolioUrl) && (
+              <span style={{padding: '0 0.1rem'}}>{data.contactSeparator || "|"}</span>
+            )}
+            
+            {data.linkedinUrl && 
+              <span>
+                <a 
+                  href={data.linkedinUrl} 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  style={{ color: colors.primary || '#333333', textDecoration: 'none' }}>
+                  {data.formattedLinkedinUrl || "LinkedIn"}
+                </a>
+              </span>
+            }
+            {data.linkedinUrl && data.portfolioUrl && (
+              <span style={{padding: '0 0.1rem'}}>{data.contactSeparator || "|"}</span>
+            )}
+            
+            {data.portfolioUrl && 
+              <span>
+                <a 
+                  href={data.portfolioUrl} 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  style={{ color: colors.primary || '#333333', textDecoration: 'none' }}>
+                  {data.formattedPortfolioUrl || "Portfolio"}
+                </a>
+              </span>
+            }
           </div>
         </header>
 
@@ -269,7 +291,8 @@ export class MinimalistAtsTemplate extends BaseTemplate {
                     <ul style={bulletListStyle} className="achievements-list no-break-inside">
                       {exp.achievements.map((achievement, i) => (
                         <li key={i} style={bulletItemStyle} className="no-break-inside">
-                          {achievement}
+                          <span style={{ position: 'absolute', left: '0', top: '0' }}>•</span>
+                          {achievement.replace(/^[•\-\*]\s*/, '')}
                         </li>
                       ))}
                     </ul>
@@ -382,8 +405,42 @@ export class MinimalistAtsTemplate extends BaseTemplate {
       console.log("Starting PDF export for:", filename);
       console.log("PDF export using section order:", data.sectionOrder);
       
-      // Pass the exact same data to renderPreview to maintain section order
-      const element = this.renderPreview(data);
+      // Format URLs for display before PDF generation
+      const dataWithFormattedUrls = { ...data };
+      
+      // Format LinkedIn URL
+      if (dataWithFormattedUrls.linkedinUrl) {
+        try {
+          const url = new URL(dataWithFormattedUrls.linkedinUrl);
+          let host = url.hostname;
+          if (host.startsWith('www.')) {
+            host = host.substring(4);
+          }
+          dataWithFormattedUrls.formattedLinkedinUrl = host + url.pathname;
+        } catch (e) {
+          dataWithFormattedUrls.formattedLinkedinUrl = dataWithFormattedUrls.linkedinUrl;
+        }
+      }
+      
+      // Format portfolio/website URL
+      if (dataWithFormattedUrls.portfolioUrl) {
+        try {
+          const url = new URL(dataWithFormattedUrls.portfolioUrl);
+          let host = url.hostname;
+          if (host.startsWith('www.')) {
+            host = host.substring(4);
+          }
+          dataWithFormattedUrls.formattedPortfolioUrl = host + url.pathname;
+        } catch (e) {
+          dataWithFormattedUrls.formattedPortfolioUrl = dataWithFormattedUrls.portfolioUrl;
+        }
+      }
+      
+      // Add contact separator
+      dataWithFormattedUrls.contactSeparator = "|";
+      
+      // Pass the enhanced data to renderPreview
+      const element = this.renderPreview(dataWithFormattedUrls);
       return await generatePDFFromReactElement(element, filename);
     } catch (error) {
       console.error("Error in MinimalistAtsTemplate.exportToPDF:", error);

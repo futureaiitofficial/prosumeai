@@ -22,6 +22,13 @@ export const users = pgTable("users", {
   fullName: text("full_name").notNull(),
   isAdmin: boolean("is_admin").default(false).notNull(),
   lastLogin: timestamp("last_login"),
+  razorpayCustomerId: text("razorpay_customer_id"),
+  lastPasswordChange: timestamp("last_password_change"),
+  passwordHistory: jsonb("password_history"),
+  failedLoginAttempts: integer("failed_login_attempts").default(0),
+  lockoutUntil: timestamp("lockout_until"),
+  resetPasswordToken: text("reset_password_token"),
+  resetPasswordExpiry: timestamp("reset_password_expiry"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow()
 });
@@ -262,6 +269,12 @@ export const subscriptionStatusEnum = pgEnum('subscription_status', [
   'CANCELLED'
 ]);
 
+// Plan Change Type Enum
+export const planChangeTypeEnum = pgEnum('plan_change_type', [
+  'UPGRADE',
+  'DOWNGRADE'
+]);
+
 // Payment Gateway Enum
 export const PaymentGatewayEnum = pgEnum('payment_gateway', [
   'RAZORPAY',
@@ -349,18 +362,22 @@ export const userSubscriptions = pgTable("user_subscriptions", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").notNull().references(() => users.id),
   planId: integer("plan_id").notNull().references(() => subscriptionPlans.id),
-  startDate: timestamp("start_date").notNull(),
+  startDate: timestamp("start_date").notNull().defaultNow(),
   endDate: timestamp("end_date").notNull(),
   status: subscriptionStatusEnum("status").notNull().default('ACTIVE'),
-  autoRenew: boolean("auto_renew").default(false).notNull(),
-  cancelDate: timestamp("cancel_date"),
+  autoRenew: boolean("auto_renew").notNull().default(true),
   gracePeriodEnd: timestamp("grace_period_end"),
+  cancelDate: timestamp("cancel_date"),
+  upgradeDate: timestamp("upgrade_date"),
+  previousPlanId: integer("previous_plan_id"),
   paymentGateway: PaymentGatewayEnum("payment_gateway"),
   paymentReference: text("payment_reference"),
-  previousPlanId: integer("previous_plan_id"),
-  upgradeDate: timestamp("upgrade_date"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow()
+  pendingPlanChangeTo: integer("pending_plan_change_to"),
+  pendingPlanChangeDate: timestamp("pending_plan_change_date"),
+  pendingPlanChangeType: planChangeTypeEnum("pending_plan_change_type"),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow()
 });
 
 // Feature Usage Table
@@ -394,6 +411,7 @@ export const paymentTransactions = pgTable("payment_transactions", {
   status: paymentStatusEnum("status").notNull().default('PENDING'),
   refundReason: text("refund_reason"),
   refundAmount: decimal("refund_amount", { precision: 10, scale: 2 }),
+  metadata: jsonb("metadata"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow()
 });

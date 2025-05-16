@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { X, Sparkles, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { extractRelevantSkills } from "@/utils/ai-resume-helpers";
+import { extractRelevantSkills, generateSkillsForPosition } from "@/utils/ai-resume-helpers";
 import {
   Tabs, 
   TabsContent, 
@@ -35,6 +35,7 @@ export default function SkillsForm({ data, updateData }: SkillsFormProps) {
   const [newSoftSkill, setNewSoftSkill] = useState("");
   const [combinedSkills, setCombinedSkills] = useState("");
   const [isExtracting, setIsExtracting] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
   const [activeTab, setActiveTab] = useState("all");
   const [useCategories, setUseCategories] = useState(data.useSkillCategories ?? false);
 
@@ -161,6 +162,161 @@ export default function SkillsForm({ data, updateData }: SkillsFormProps) {
     }
   };
   
+  // Helper function to merge new skills with existing ones
+  const mergeSkills = (existingSkills: string[] = [], newSkills: string[] = []): string[] => {
+    // Create a set from existing skills to track what we already have
+    const skillsSet = new Set(existingSkills);
+    
+    // Add new skills if they don't already exist
+    newSkills.forEach(skill => {
+      skillsSet.add(skill);
+    });
+    
+    // Convert back to array
+    return Array.from(skillsSet);
+  };
+
+  // Helper function to standardize capitalization of skills
+  const standardizeCapitalization = (skills: string[]): string[] => {
+    return skills.map(skill => {
+      // Split by spaces and capitalize each word
+      return skill.split(' ')
+        .map(word => {
+          // Skip capitalizing certain connecting words if not at the beginning
+          const lowerCaseWords = ['and', 'or', 'the', 'of', 'in', 'on', 'at', 'to', 'for', 'with', 'by'];
+          if (lowerCaseWords.includes(word.toLowerCase())) {
+            return word.toLowerCase();
+          }
+          
+          // Special cases for technical terms that have specific capitalization
+          const specialCases: {[key: string]: string} = {
+            'javascript': 'JavaScript',
+            'typescript': 'TypeScript',
+            'nodejs': 'Node.js',
+            'node.js': 'Node.js',
+            'react.js': 'React.js',
+            'vue.js': 'Vue.js',
+            'angular.js': 'Angular.js',
+            'php': 'PHP',
+            'html': 'HTML',
+            'css': 'CSS',
+            'api': 'API',
+            'apis': 'APIs',
+            'rest': 'REST',
+            'sql': 'SQL',
+            'nosql': 'NoSQL',
+            'aws': 'AWS',
+            'gcp': 'GCP',
+            'ui': 'UI',
+            'ux': 'UX',
+            'ci/cd': 'CI/CD',
+            'saas': 'SaaS',
+            'paas': 'PaaS',
+            'iaas': 'IaaS',
+            'ai': 'AI',
+            'ml': 'ML',
+            'nlp': 'NLP',
+            'seo': 'SEO',
+            'cro': 'CRO',
+            'crm': 'CRM',
+            'erp': 'ERP',
+          };
+          
+          if (specialCases[word.toLowerCase()]) {
+            return specialCases[word.toLowerCase()];
+          }
+          
+          // Default case - capitalize first letter
+          return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+        })
+        .join(' ');
+    });
+  };
+
+  const handleGenerateSkills = async () => {
+    try {
+      // Check if we have the required data
+      if (!data.targetJobTitle) {
+        toast({
+          title: "Missing Information",
+          description: "Please enter a target job title first.",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      setIsGenerating(true);
+      
+      const generatedSkills = await generateSkillsForPosition(
+        data.targetJobTitle
+      );
+      
+      // Check if we received any skills
+      if ((!generatedSkills.technicalSkills || generatedSkills.technicalSkills.length === 0) &&
+          (!generatedSkills.softSkills || generatedSkills.softSkills.length === 0)) {
+        toast({
+          title: "No Skills Generated",
+          description: "We couldn't generate skills for this position. Please try a more specific job title.",
+          variant: "destructive",
+        });
+        setIsGenerating(false);
+        return;
+      }
+      
+      // Filter out any non-skills that might have been incorrectly generated
+      const filteredTechnicalSkills = standardizeCapitalization(
+        generatedSkills.technicalSkills.filter(skill => isValidSkill(skill))
+      );
+      
+      const filteredSoftSkills = standardizeCapitalization(
+        generatedSkills.softSkills.filter(skill => isValidSkill(skill))
+      );
+      
+      // If using categories, MERGE the categorized skills
+      if (useCategories) {
+        const mergedTechnical = mergeSkills(data.technicalSkills, filteredTechnicalSkills);
+        const mergedSoft = mergeSkills(data.softSkills, filteredSoftSkills);
+        
+        updateData({ 
+          technicalSkills: mergedTechnical,
+          softSkills: mergedSoft,
+          useSkillCategories: true
+        });
+        
+        // Switch to categorized view
+        setActiveTab("categorized");
+      } else {
+        // If not using categories, combine all NEW skills with EXISTING skills
+        const existingSkills = data.skills || [];
+        const newSkills = [...filteredTechnicalSkills, ...filteredSoftSkills];
+        const mergedSkills = mergeSkills(existingSkills, newSkills);
+        
+        updateData({ 
+          skills: mergedSkills,
+          // Also merge the categorized skills for future use
+          technicalSkills: mergeSkills(data.technicalSkills, filteredTechnicalSkills),
+          softSkills: mergeSkills(data.softSkills, filteredSoftSkills),
+          useSkillCategories: false
+        });
+        setCombinedSkills(mergedSkills.join(", "));
+      }
+      
+      toast({
+        title: "Skills Generated",
+        description: `Added ${filteredTechnicalSkills.length} technical skills and ${filteredSoftSkills.length} soft skills for ${data.targetJobTitle}.`,
+      });
+    } catch (error) {
+      toast({
+        title: "Generation Failed",
+        description: "There was an error generating skills for this position. Please try again.",
+        variant: "destructive",
+      });
+      console.error("Skills generation error:", error);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+  
   const handleExtractSkills = async () => {
     try {
       // Check if we have the required data
@@ -189,34 +345,59 @@ export default function SkillsForm({ data, updateData }: SkillsFormProps) {
         data.jobDescription
       );
       
-      // If using categories, update the categorized skills
+      // Check if we received any skills
+      if ((!extractedSkills.technicalSkills || extractedSkills.technicalSkills.length === 0) &&
+          (!extractedSkills.softSkills || extractedSkills.softSkills.length === 0)) {
+        toast({
+          title: "No Skills Found",
+          description: "We couldn't find any relevant skills in the job description. Try entering a more detailed job description.",
+          variant: "destructive",
+        });
+        setIsExtracting(false);
+        return;
+      }
+      
+      // Filter out any non-skills that might have been incorrectly extracted
+      const filteredTechnicalSkills = standardizeCapitalization(
+        extractedSkills.technicalSkills.filter(skill => isValidSkill(skill))
+      );
+      
+      const filteredSoftSkills = standardizeCapitalization(
+        extractedSkills.softSkills.filter(skill => isValidSkill(skill))
+      );
+      
+      // If using categories, MERGE the categorized skills
       if (useCategories) {
+        const mergedTechnical = mergeSkills(data.technicalSkills, filteredTechnicalSkills);
+        const mergedSoft = mergeSkills(data.softSkills, filteredSoftSkills);
+        
         updateData({ 
-          technicalSkills: extractedSkills.technicalSkills,
-          softSkills: extractedSkills.softSkills,
+          technicalSkills: mergedTechnical,
+          softSkills: mergedSoft,
           useSkillCategories: true
         });
         
         // Switch to categorized view
         setActiveTab("categorized");
       } else {
-        // If not using categories, combine all skills into one list
-        const allSkills = [
-          ...(extractedSkills.technicalSkills || []),
-          ...(extractedSkills.softSkills || [])
-        ];
+        // If not using categories, combine all NEW skills with EXISTING skills
+        const existingSkills = data.skills || [];
+        const newSkills = [...filteredTechnicalSkills, ...filteredSoftSkills];
+        const mergedSkills = mergeSkills(existingSkills, newSkills);
+        
         updateData({ 
-          skills: allSkills,
-          technicalSkills: [],
-          softSkills: [],
+          skills: mergedSkills,
+          // Also merge the categorized skills for future use
+          technicalSkills: mergeSkills(data.technicalSkills, filteredTechnicalSkills),
+          softSkills: mergeSkills(data.softSkills, filteredSoftSkills),
           useSkillCategories: false
         });
-        setCombinedSkills(allSkills.join(", "));
+        setCombinedSkills(mergedSkills.join(", "));
       }
       
       toast({
         title: "Skills Extracted",
-        description: `Extracted ${extractedSkills.technicalSkills.length} technical skills and ${extractedSkills.softSkills.length} soft skills from the job description.`,
+        description: `Added ${filteredTechnicalSkills.length} technical skills and ${filteredSoftSkills.length} soft skills from the job description.`,
       });
     } catch (error) {
       toast({
@@ -229,12 +410,70 @@ export default function SkillsForm({ data, updateData }: SkillsFormProps) {
       setIsExtracting(false);
     }
   };
+  
+  // Helper function to validate if an item is a legitimate skill
+  const isValidSkill = (skill: string): boolean => {
+    const lowerSkill = skill.toLowerCase();
+    
+    // Filter out common non-skills markers
+    if (
+      // Too long to be a standard skill
+      skill.split(' ').length > 4 ||
+      
+      // Employment terms and logistical items
+      lowerSkill.includes(' years of experience') ||
+      lowerSkill.includes('degree in') ||
+      lowerSkill.includes('salary') ||
+      lowerSkill.includes('full-time') ||
+      lowerSkill.includes('part-time') ||
+      lowerSkill.includes('remote') ||
+      lowerSkill.includes('hybrid') ||
+      lowerSkill.includes('position') ||
+      lowerSkill.includes('job') ||
+      lowerSkill.includes('location') ||
+      
+      // Generic phrases
+      lowerSkill.includes('ability to') ||
+      lowerSkill.includes('experience with') ||
+      lowerSkill.includes('knowledge of') ||
+      lowerSkill.includes('understanding of') ||
+      
+      // Overly general terms
+      lowerSkill === 'experience' ||
+      lowerSkill === 'skills' ||
+      lowerSkill === 'qualifications' ||
+      lowerSkill === 'requirements'
+    ) {
+      return false;
+    }
+    
+    return true;
+  };
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-semibold">Skills</h2>
         <div className="flex items-center gap-2">
+          <Button 
+            onClick={handleGenerateSkills} 
+            variant="outline" 
+            size="sm"
+            disabled={isGenerating || !data.targetJobTitle}
+            className="gap-2"
+          >
+            {isGenerating ? (
+              <>
+                <RefreshCw className="h-4 w-4 animate-spin" />
+                Generating...
+              </>
+            ) : (
+              <>
+                <Sparkles className="h-4 w-4" />
+                Generate for Position
+              </>
+            )}
+          </Button>
           <Button 
             onClick={handleExtractSkills} 
             variant="outline" 
@@ -265,19 +504,28 @@ export default function SkillsForm({ data, updateData }: SkillsFormProps) {
         </div>
       </div>
       
+      <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg mb-4">
+        <p className="text-sm text-blue-600 dark:text-blue-400 flex items-center">
+          <Sparkles className="h-4 w-4 mr-2 text-blue-500" />
+          <span>
+            <strong>Pro Tip:</strong> Click "Generate for Position" to get relevant skills based on your target job title, or "Extract from Job" to identify skills from your job description.
+          </span>
+        </p>
+      </div>
+      
       <div className="flex items-center justify-between pb-4 border-b border-gray-200 dark:border-gray-700">
         <div>
           <p className="text-sm text-gray-500">
-            Categorize skills into technical and soft skills
+            Organize your skills to showcase your capabilities
           </p>
         </div>
         <div className="flex items-center space-x-2">
           <Switch 
-            id="use-categories" 
+            id="use-categories-toggle" 
             checked={useCategories} 
             onCheckedChange={handleCategoryToggleChange} 
           />
-          <Label htmlFor="use-categories">
+          <Label htmlFor="use-categories-toggle">
             {useCategories ? "Categories enabled" : "All skills"}
           </Label>
         </div>

@@ -388,6 +388,36 @@ export default function AuthPage() {
   const isSignup = params.get("signup") === "true";
   const selectedPlanId = params.get("planId");
   
+  // State for logout message
+  const [logoutMessage, setLogoutMessage] = useState<string | null>(null);
+  
+  // Check for logout message in sessionStorage on mount
+  useEffect(() => {
+    const storedMessage = sessionStorage.getItem('logout_reason');
+    const logoutTime = sessionStorage.getItem('logout_time');
+    
+    // Only show message if it was stored in the last 5 seconds
+    if (storedMessage && logoutTime) {
+      const now = Date.now();
+      const messageTime = parseInt(logoutTime, 10);
+      
+      // Message is recent (within 5 seconds)
+      if (now - messageTime < 5000) {
+        setLogoutMessage(storedMessage);
+        
+        // Clear after showing to prevent it from appearing again
+        setTimeout(() => {
+          sessionStorage.removeItem('logout_reason');
+          sessionStorage.removeItem('logout_time');
+        }, 500);
+      } else {
+        // Clear old messages
+        sessionStorage.removeItem('logout_reason');
+        sessionStorage.removeItem('logout_time');
+      }
+    }
+  }, []);
+  
   // Prevent scrolling on the body
   useEffect(() => {
     // Save original overflow value
@@ -424,6 +454,23 @@ export default function AuthPage() {
       <div className="absolute w-64 md:w-96 h-64 md:h-96 rounded-full bg-purple-500/20 blur-3xl -bottom-20 -left-20"></div>
       
       <div className="auth-card relative w-full max-w-md bg-white rounded-xl shadow-2xl p-4 md:p-6 my-4">
+        {logoutMessage && (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md mb-4 shadow-sm">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-red-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <p className="text-sm font-medium">
+                  {logoutMessage}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+        
         <div className="flex flex-col items-center">
           <svg
             xmlns="http://www.w3.org/2000/svg"

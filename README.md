@@ -136,7 +136,24 @@ ATScribe is a comprehensive job application management platform that empowers jo
    npm run dev
    ```
 
-6. The application will be available at `http://localhost:5000`
+6. The application will be available at:
+   - Frontend: `http://localhost:5173` (Vite dev server)
+   - API/Backend: `http://localhost:3000` (Express server)
+   - In development, the Express server also serves the frontend at port 3000
+
+### Development Server Configuration
+
+The development environment runs on two ports:
+
+1. **Port 5173**: Vite development server with hot reloading for frontend development
+2. **Port 3000**: Express server that serves both the API endpoints and the frontend
+
+The Express server is configured to:
+- Handle all API routes (`/api/*`)
+- Pass all non-API routes to Vite for rendering the React frontend
+- This configuration ensures API requests are properly processed while still allowing frontend development with hot reloading
+
+In production, everything runs on a single port with static file serving.
 
 ## API Endpoints
 

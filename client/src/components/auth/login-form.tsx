@@ -13,8 +13,10 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Loader2, Eye, EyeOff } from "lucide-react";
+import { Loader2, Eye, EyeOff, AlertTriangle } from "lucide-react";
 import { motion } from "framer-motion";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Link } from "wouter";
 
 const loginSchema = z.object({
   username: z.string().min(3, {
@@ -32,10 +34,10 @@ interface LoginFormProps {
 }
 
 export default function LoginForm({ selectedPlanId }: LoginFormProps) {
-  const { loginMutation } = useAuth();
+  const { loginMutation, user } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [isPasswordField, setIsPasswordField] = useState(false);
-
+  
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
@@ -45,10 +47,19 @@ export default function LoginForm({ selectedPlanId }: LoginFormProps) {
   });
 
   const onSubmit = (data: LoginFormValues) => {
+    console.log(`[LOGIN DEBUG] Submitting login form for username: ${data.username}`);
+    console.log(`[LOGIN DEBUG] Password length: ${data.password.length}`);
+    
     const loginData = selectedPlanId 
       ? { ...data, selectedPlanId } 
       : data;
-    loginMutation.mutate(loginData);
+    
+    try {
+      loginMutation.mutate(loginData);
+      console.log('[LOGIN DEBUG] Login mutation triggered');
+    } catch (error) {
+      console.error('[LOGIN DEBUG] Error triggering login mutation:', error);
+    }
   };
 
   // Track focus on password field to coordinate with mascot animation
@@ -60,6 +71,14 @@ export default function LoginForm({ selectedPlanId }: LoginFormProps) {
     }
   };
 
+  // Handle key press in form fields
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      form.handleSubmit(onSubmit)();
+    }
+  };
+
   return (
     <motion.div 
       initial={{ opacity: 0, y: 20 }}
@@ -67,6 +86,43 @@ export default function LoginForm({ selectedPlanId }: LoginFormProps) {
       transition={{ duration: 0.6 }}
       className="space-y-4"
     >
+      {/* Error message from login attempt */}
+      {loginMutation.isError && (
+        <Alert variant="destructive" className="mb-4">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle className="text-sm font-medium">Login failed</AlertTitle>
+          <AlertDescription className="text-xs">
+            {(() => {
+              const error = loginMutation.error;
+              // Handle different error formats
+              if (error instanceof Error) {
+                try {
+                  // Try to parse JSON from error message
+                  const errorData = JSON.parse(error.message);
+                  return errorData.message || "Invalid username or password. Please try again.";
+                } catch {
+                  // If not JSON, return the error message directly
+                  return error.message || "Invalid username or password. Please try again.";
+                }
+              } else if (typeof error === 'object' && error !== null) {
+                // Handle error object
+                return (error as any).message || "Invalid username or password. Please try again.";
+              } else if (typeof error === 'string') {
+                // Handle string error
+                try {
+                  const errorData = JSON.parse(error);
+                  return errorData.message || "Invalid username or password. Please try again.";
+                } catch {
+                  return error || "Invalid username or password. Please try again.";
+                }
+              }
+              // Default error message
+              return "Invalid username or password. Please try again.";
+            })()}
+          </AlertDescription>
+        </Alert>
+      )}
+
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
           <FormField
@@ -107,6 +163,7 @@ export default function LoginForm({ selectedPlanId }: LoginFormProps) {
                         e.target.dispatchEvent(new Event('select', { bubbles: true }));
                       }, 10);
                     }}
+                    onKeyPress={handleKeyPress}
                   />
                 </FormControl>
                 <FormMessage className="text-xs" />
@@ -154,6 +211,7 @@ export default function LoginForm({ selectedPlanId }: LoginFormProps) {
                           e.target.dispatchEvent(new Event('select', { bubbles: true }));
                         }, 10);
                       }}
+                      onKeyPress={handleKeyPress}
                     />
                     <Button
                       type="button"
@@ -182,9 +240,11 @@ export default function LoginForm({ selectedPlanId }: LoginFormProps) {
                 Remember me
               </label>
             </div>
-            <Button variant="link" className="text-xs p-0 h-auto text-indigo-600">
-              Forgot password?
-            </Button>
+            <Link href="/forgot-password">
+              <a className="text-xs text-indigo-600 hover:text-indigo-800">
+                Forgot password?
+              </a>
+            </Link>
           </div>
 
           <Button 

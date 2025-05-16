@@ -16,6 +16,8 @@ import { registerJobApplicationRoutes } from './src/routes/job-applications-rout
 import { registerAIResumeRoutes } from './src/routes/ai-resume-routes';
 import { registerAICoverLetterRoutes } from './src/routes/ai-cover-letter-routes';
 import router from './src/routes/ai';
+import resumeAiRoutes from './src/routes/resume-ai';
+import { initializeServices } from './middleware/index';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -57,10 +59,15 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // Initialize encryption and other services
+  await initializeServices();
+  console.log('Services initialized');
+  
   const server = await registerRoutes(app);
   
   // Add the AI router registration here, after auth is set up
   app.use('/api/ai', router);  // Register AI routes AFTER auth is initialized
+  app.use('/api/resume-ai', resumeAiRoutes);  // Register Resume AI routes
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;

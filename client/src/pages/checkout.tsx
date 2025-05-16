@@ -5,14 +5,16 @@ import DefaultLayout from '@/components/layouts/default-layout';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { CheckCircle, AlertCircle, Loader2, ShieldCheck, DollarSign, Lock, CreditCard } from 'lucide-react';
+import { CheckCircle, AlertCircle, Loader2, ShieldCheck, DollarSign, Lock, CreditCard, Calendar } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { useAuth } from '@/hooks/use-auth';
-import { PaymentService, BillingDetails } from '@/services/payment-service';
-import BillingDetailsForm from '@/components/checkout/billing-details-form';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { PaymentService, PaymentIntent, BillingDetails, GatewayKeyResponse } from '@/services/payment-service';
+import BillingDetailsForm from "@/components/checkout/billing-details-form";
 import axios from 'axios';
+import Image from 'next/image';
 
-// Add TypeScript declaration for Razorpay
+// Razorpay types
 declare global {
   interface Window {
     Razorpay: {
@@ -22,10 +24,8 @@ declare global {
   }
 }
 
-// Define checkout steps
 type CheckoutStep = 'billing' | 'payment' | 'confirmation';
 
-// Add this interface for Razorpay payment options
 interface RazorpayOptions {
   key: string;
   subscription_id?: string;
@@ -52,14 +52,12 @@ interface RazorpayOptions {
   handler?: (response: RazorpayResponse) => void;
 }
 
-// Interface for Razorpay instance
 interface RazorpayInstance {
   on(event: string, handler: (response: any) => void): void;
   open(): void;
   close(): void;
 }
 
-// Add this interface for Razorpay payment response
 interface RazorpayResponse {
   razorpay_payment_id: string;
   razorpay_subscription_id: string;
@@ -67,888 +65,1080 @@ interface RazorpayResponse {
   [key: string]: any;
 }
 
-// Add this interface near the top of the file with other type definitions
-interface PaymentIntent {
-  amount: number;
-  currency: string;
-  subscriptionId?: string;
-  short_url?: string;
-  [key: string]: any;
-}
+// Parse URL search params since wouter doesn't provide a built-in way
+const getParamsFromLocation = () => {
+  const params = new URLSearchParams(window.location.search);
+  return {
+    planId: params.get('planId') ? parseInt(params.get('planId')!) : undefined,
+    prorationAmount: params.get('prorationAmount') ? parseFloat(params.get('prorationAmount')!) : undefined,
+    upgradeFlow: params.get('upgradeFlow') === 'true'
+  };
+};
 
 export default function CheckoutPage() {
   const [location, navigate] = useLocation();
-  const { toast } = useToast();
-  const { user } = useAuth();
-  const [currentStep, setCurrentStep] = useState<CheckoutStep>('billing');
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [paymentStatus, setPaymentStatus] = useState<'pending' | 'success' | 'failed'>('pending');
+  const { planId, prorationAmount, upgradeFlow } = getParamsFromLocation();
   const [loadingProgress, setLoadingProgress] = useState(0);
+  const [currentStep, setCurrentStep] = useState<CheckoutStep>('billing');
+  const [paymentIntent, setPaymentIntent] = useState<PaymentIntent | null>(null);
+  const [paymentError, setPaymentError] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<any>(null);
   const [billingInfo, setBillingInfo] = useState<BillingDetails | null>(null);
-  const [paymentIntent, setPaymentIntent] = useState<PaymentIntent | null>(null);
-  const [gatewayKey, setGatewayKey] = useState<any>(null);
-  const [paymentError, setPaymentError] = useState('');
-  const [isFetchingBilling, setIsFetchingBilling] = useState(true);
-  const [planPricing, setPlanPricing] = useState<{ amount: number, currency: string } | null>(null);
-  const [paymentReady, setPaymentReady] = useState<boolean>(false);
-  
-  // Parse URL query parameters from location
-  const searchParams = new URLSearchParams(location.split('?')[1] || '');
-  const planIdFromUrl = searchParams.get('planId');
-  const prorationAmount = searchParams.get('prorationAmount') || 0;
-  const planId = planIdFromUrl || sessionStorage.getItem('selectedPlanId');
-  
-  // Get user's billing details
-  useEffect(() => {
-    if (!user || !user.id) return;
-    
-    const fetchBillingInfo = async () => {
-      setIsFetchingBilling(true);
-      try {
-        const details = await PaymentService.getBillingDetails();
-        console.log('Billing details fetch result:', details);
-        setBillingInfo(details);
-        
-        // If billing details already exist, move to payment step
-        if (details) {
-          console.log('Billing details found, moving to payment step');
-          setCurrentStep('payment');
-        } else {
-          // Ensure we show the billing form if no details exist
-          console.log('No billing details found, staying on billing step');
-          setCurrentStep('billing');
-        }
-      } catch (error) {
-        console.error('Error loading billing details:', error);
-        // Ensure we show billing form on error
-        console.log('Error occurred, staying on billing step');
-        setCurrentStep('billing');
-      } finally {
-        console.log('Finally block reached in fetchBillingInfo. Current step:', currentStep);
-        setIsFetchingBilling(false);
-      }
-    };
-    
-    fetchBillingInfo();
-  }, [user]);
-  
-  // Load the plan data and initialize payment intent
+  const [gatewayKey, setGatewayKey] = useState<GatewayKeyResponse | null>(null);
+  const [razorpayLoaded, setRazorpayLoaded] = useState(false);
+  const [useAlternativePayment, setUseAlternativePayment] = useState(false);
+  const [alternativePaymentUrl, setAlternativePaymentUrl] = useState('');
+  const [actuallyIsUpgrade, setActuallyIsUpgrade] = useState<boolean | undefined>(undefined);
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const [showBillingReview, setShowBillingReview] = useState(false);
+
+  // Effect to check if plan ID is provided
   useEffect(() => {
     if (!planId) {
-      console.log('No planId provided, redirecting to plan selection');
       toast({
-        title: 'No Plan Selected',
-        description: 'Please select a subscription plan to continue. Redirecting to subscription page...',
-        variant: 'destructive',
+        title: "Missing plan information",
+        description: "Please select a subscription plan first.",
+        variant: "destructive"
       });
-      
-      setTimeout(() => navigate('/user/subscription'), 2000);
+      navigate('/pricing');
       return;
     }
-    
-    console.log(`Loading plan data for ID: ${planId}`);
-    
+
+    // Initialize loading sequence
+    const interval = setInterval(() => {
+      setLoadingProgress(prev => {
+        const newProgress = prev + 5;
+        if (newProgress >= 100) {
+          clearInterval(interval);
+          return 100;
+        }
+        return newProgress;
+      });
+    }, 100);
+
+    return () => clearInterval(interval);
+  }, [planId, toast, navigate]);
+
+  // Effect to fetch necessary data when component mounts
+  useEffect(() => {
+    if (!planId) return;
+
+    const fetchBillingInfo = async () => {
+      try {
+        const billing = await PaymentService.getBillingDetails();
+        if (billing) {
+          setBillingInfo(billing);
+          // If we have billing info and plan data, advance to payment step
+          if (selectedPlan) {
+            setCurrentStep('payment');
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching billing details:', error);
+        // Don't show error toast as this might be a first-time user
+      }
+    };
+
     const fetchPlanData = async () => {
       try {
         const response = await axios.get(`/api/public/subscription-plans/${planId}`);
-        console.log('Plan data loaded successfully:', response.data);
+        const planData = response.data;
+        setSelectedPlan(planData);
         
-        if (!response.data || !response.data.id) {
-          throw new Error('Invalid plan data received');
-        }
-        
-        setSelectedPlan(response.data);
-
-        // Fetch pricing for the user's region/currency
+        // Fetch features after getting the plan
         try {
-          const pricingRes = await axios.get(`/api/public/subscription-plans/${planId}/pricing`);
-          if (pricingRes.data && pricingRes.data.amount && pricingRes.data.currency) {
-            setPlanPricing({
-              amount: pricingRes.data.amount,
-              currency: pricingRes.data.currency
-            });
-          } else {
-            setPlanPricing(null);
+          const featuresResponse = await axios.get('/api/public/plan-features');
+          const data = featuresResponse.data;
+          
+          // Transform the data into a map by planId for easier lookup
+          const featuresByPlan: { [key: number]: any[] } = {};
+          // Check if data is an array or nested
+          const featuresArray = Array.isArray(data) ? data : data.features || [];
+          featuresArray.forEach((feature: any) => {
+            const featurePlanId = feature.planId || feature.plan_id;
+            if (featurePlanId) {
+              if (!featuresByPlan[featurePlanId]) {
+                featuresByPlan[featurePlanId] = [];
+              }
+              featuresByPlan[featurePlanId].push(feature);
+            }
+          });
+          
+          // If we have features for this plan, update the plan data
+          if (featuresByPlan[planId]) {
+            console.log(`Found ${featuresByPlan[planId].length} features for plan ${planId}`);
+            const planWithFeatures = { 
+              ...planData,
+              features: featuresByPlan[planId].map(f => f.featureName || f.name)
+            };
+            setSelectedPlan(planWithFeatures);
           }
-        } catch (pricingError) {
-          setPlanPricing(null);
-        }
-
-        // Initialize payment intent if on payment step and not already initialized
-        if (currentStep === 'payment' && billingInfo && !paymentIntent) {
-          console.log('Initializing payment intent for plan:', response.data.id);
-          const intent = await PaymentService.createPaymentIntent(response.data.id);
-          if (!intent || !intent.subscriptionId) {
-            throw new Error('Failed to create payment intent');
-          }
-
-          // Validate the subscription ID
-          if (typeof intent.subscriptionId !== 'string') {
-            throw new Error(`Invalid subscription ID format: ${intent.subscriptionId}`);
-          }
-
-          // Additional validation for subscription ID format
-          if (!intent.subscriptionId.startsWith('sub_')) {
-            console.warn(`Warning: Subscription ID doesn't start with 'sub_': ${intent.subscriptionId}`);
-          }
-
-          console.log('Created payment intent with subscription ID:', intent.subscriptionId);
-          console.log('Payment intent amount:', intent.amount, 'Currency:', intent.currency);
-          setPaymentIntent(intent);
+        } catch (featuresError) {
+          console.error('Error fetching plan features:', featuresError);
+          // Don't show error toast as this is not critical
         }
       } catch (error) {
-        console.error('Error loading plan data:', error);
+        console.error('Error fetching plan details:', error);
         toast({
-          title: 'Plan Not Found',
-          description: 'The selected subscription plan could not be found. Please try selecting another plan.',
-          variant: 'destructive',
+          title: "Couldn't fetch plan details",
+          description: "Please try again or contact support.",
+          variant: "destructive"
         });
-        
-        // Redirect back to subscription page
-        navigate('/user/subscription');
+        navigate('/pricing');
       }
     };
-    
-    fetchPlanData();
-  }, [planId, toast, navigate, currentStep, billingInfo, paymentIntent]);
-  
-  // Progress bar animation for loading states
-  useEffect(() => {
-    if (!selectedPlan) {
-      const interval = setInterval(() => {
-        setLoadingProgress(prev => {
-          const newProgress = prev + 5;
-          return newProgress > 90 ? 90 : newProgress;
-        });
-      }, 100);
-      
-      return () => {
-        clearInterval(interval);
-        setLoadingProgress(100);
-      };
-    }
-  }, [selectedPlan]);
 
-  // Handle billing details submission
+    const fetchGatewayKey = async () => {
+      try {
+        const key = await PaymentService.getGatewayKey();
+        setGatewayKey(key);
+      } catch (error) {
+        console.error('Error fetching gateway key:', error);
+        toast({
+          title: "Payment system unavailable",
+          description: "Please try again later or contact support.",
+          variant: "destructive"
+        });
+      }
+    };
+
+    // Run all fetches in parallel
+    fetchBillingInfo();
+    fetchPlanData(); // Will fetch features internally
+    fetchGatewayKey();
+  }, [planId, navigate, toast]);
+
+  // Effect to auto-advance to payment step if we have billing info
+  useEffect(() => {
+    if (billingInfo && selectedPlan && currentStep === 'billing') {
+      // Instead of auto-advancing, we'll show the review screen
+      setShowBillingReview(true);
+    }
+  }, [billingInfo, selectedPlan]);
+
   const handleBillingDetailsSubmitted = (details: BillingDetails) => {
-    console.log('Billing details submitted:', details);
     setBillingInfo(details);
     setCurrentStep('payment');
-    
-    toast({
-      title: 'Billing details saved',
-      description: 'You can now proceed with payment.',
-    });
-    console.log('Transitioning to payment step with billing info:', details);
+    initPaymentIntent();
+  };
 
-    // Initialize payment intent after billing details are saved, if not already initialized
-    if (selectedPlan && !paymentIntent) {
-      const initPaymentIntent = async () => {
-        try {
-          console.log('Initializing payment intent after billing details saved for plan:', selectedPlan.id);
-          const intent = await PaymentService.createPaymentIntent(selectedPlan.id);
-          if (!intent || !intent.subscriptionId) {
-            throw new Error('Failed to create payment intent');
-          }
+  const handleReviewBillingAndContinue = () => {
+    setCurrentStep('payment');
+    initPaymentIntent();
+  };
 
-          // Validate the subscription ID
-          if (typeof intent.subscriptionId !== 'string') {
-            throw new Error(`Invalid subscription ID format: ${intent.subscriptionId}`);
-          }
+  const handleEditBillingDetails = () => {
+    setShowBillingReview(false);
+  };
 
-          // Additional validation for subscription ID format
-          if (!intent.subscriptionId.startsWith('sub_')) {
-            console.warn(`Warning: Subscription ID doesn't start with 'sub_': ${intent.subscriptionId}`);
-          }
-
-          console.log('Created payment intent with subscription ID:', intent.subscriptionId);
-          console.log('Payment intent amount:', intent.amount, 'Currency:', intent.currency);
-          setPaymentIntent(intent);
-        } catch (error) {
-          console.error('Error initializing payment intent after billing details:', error);
-          toast({
-            title: 'Payment Initialization Error',
-            description: 'Could not initialize payment. Please try again or contact support.',
-            variant: 'destructive',
-          });
-        }
+  // Create payment intent after billing details are submitted or if they already exist
+  const initPaymentIntent = async () => {
+    try {
+      if (!planId) return;
+      
+      // Create a payment details object with plan ID and always start immediately
+      const paymentDetails = {
+        planId,
+        startImmediately: true // Always start immediately for new subscriptions
       };
-      initPaymentIntent();
+      
+      console.log('Creating payment intent with details:', paymentDetails);
+      const intent = await PaymentService.createPaymentIntent(paymentDetails);
+      setPaymentIntent(intent);
+      
+    } catch (error) {
+      console.error('Error creating payment intent:', error);
+      toast({
+        title: "Payment processing error",
+        description: error instanceof Error ? error.message : "Couldn't initiate payment process",
+        variant: "destructive"
+      });
     }
   };
 
-  // Cancel billing details step
   const handleBillingCancel = () => {
-    navigate('/user/subscription');
+    // Redirect logged-in users to dashboard, others to pricing page
+    if (user) {
+      navigate('/dashboard');
+    } else {
+      navigate('/pricing');
+    }
   };
 
-  // Function to load Razorpay script (more robust version)
-  const loadRazorpayScript = (): Promise<boolean> => {
-    return new Promise((resolve) => {
-      // Check if Razorpay is already available
-      if (typeof window !== 'undefined' && typeof window.Razorpay === 'function') {
-        console.log('Razorpay already loaded');
-        resolve(true);
-        return;
-      }
+  // Get price display based on selected plan
+  const getPriceDisplay = (plan: any) => {
+    if (!plan) return 'Loading...';
+    
+    // For freemium plans
+    if (plan.isFreemium || !plan.pricing || plan.pricing?.length === 0) {
+      return 'Free';
+    }
+    
+    // Check if the plan has displayPrice and displayCurrency fields from the server
+    if (plan.displayPrice && plan.displayCurrency) {
+      return formatCurrency(parseFloat(plan.displayPrice), plan.displayCurrency);
+    }
+    
+    // Fallback to default pricing
+    const pricing = plan.pricing?.find((p: any) => p.targetRegion === 'GLOBAL');
+    if (pricing) {
+      return formatCurrency(parseFloat(pricing.price), pricing.currency);
+    }
+    
+    // Default fallback
+    if (plan.name === 'Pro') {
+      return formatCurrency(29.99, 'USD');
+    }
+    
+    // Last resort fallback
+    return plan.price && plan.price !== '0.00' 
+      ? formatCurrency(parseFloat(plan.price), plan.currency || 'USD') 
+      : 'Loading...';
+  };
 
-      // Check if script is already being loaded
-      if (document.querySelector('script[src*="checkout.razorpay.com"]')) {
-        console.log('Razorpay script already loading, waiting for it to complete');
-        
-        // Wait for Razorpay to be available with a timeout
-        const maxWaitTime = 10000; // 10 seconds
-        const startTime = Date.now();
-        
-        const checkInterval = setInterval(() => {
-          if (window.Razorpay && typeof window.Razorpay === 'function') {
-            console.log('Razorpay loaded successfully from existing script');
-            clearInterval(checkInterval);
-            resolve(true);
-            return;
-          }
+  // Load Razorpay script as soon as the component mounts
+  useEffect(() => {
+    if (!razorpayLoaded) {
+      const loadScript = async () => {
+        try {
+          const script = document.createElement('script');
+          script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+          script.async = true;
           
-          // Check for timeout
-          if (Date.now() - startTime > maxWaitTime) {
-            console.warn('Timed out waiting for Razorpay script to load');
-            clearInterval(checkInterval);
-            resolve(false);
+          const loadPromise = new Promise<boolean>((resolve) => {
+            script.onload = () => {
+              console.log('Razorpay script loaded successfully');
+              setRazorpayLoaded(true);
+              resolve(true);
+            };
+            script.onerror = () => {
+              console.error('Failed to load Razorpay script on first attempt');
+              resolve(false);
+            };
+          });
+          
+          document.body.appendChild(script);
+          
+          // Wait for script to load
+          const loaded = await loadPromise;
+          
+          // If script failed to load, try once more after a short delay
+          if (!loaded) {
+            setTimeout(async () => {
+              console.log('Retrying Razorpay script load...');
+              const retryScript = document.createElement('script');
+              retryScript.src = 'https://checkout.razorpay.com/v1/checkout.js';
+              retryScript.async = true;
+              
+              retryScript.onload = () => {
+                console.log('Razorpay script loaded successfully on retry');
+                setRazorpayLoaded(true);
+              };
+              
+              document.body.appendChild(retryScript);
+            }, 1000);
           }
-        }, 100);
-        
-        return;
-      }
+        } catch (error) {
+          console.error('Error loading Razorpay script:', error);
+        }
+      };
+      
+      loadScript();
+    }
+  }, [razorpayLoaded]);
 
-      // Load the script
-      console.log('Loading Razorpay script');
-      const script = document.createElement('script');
-      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-      script.async = true;
+  // Existing loadRazorpayScript function can be simplified since we're loading earlier
+  const loadRazorpayScript = (): Promise<boolean> => {
+    if (razorpayLoaded) return Promise.resolve(true);
+    
+    // If it's not loaded yet, wait a bit and check again
+    return new Promise((resolve) => {
+      const checkInterval = setInterval(() => {
+        if (razorpayLoaded || (window as any).Razorpay) {
+          clearInterval(checkInterval);
+          setRazorpayLoaded(true);
+          resolve(true);
+        }
+      }, 100);
       
-      script.onload = () => {
-        console.log('Razorpay script loaded successfully');
-        // Give a small delay to ensure Razorpay is initialized
-        setTimeout(() => {
-          if (typeof window.Razorpay === 'function') {
-            resolve(true);
-          } else {
-            console.error('Razorpay script loaded but global object not available');
-            resolve(false);
-          }
-        }, 300);
-      };
-      
-      script.onerror = () => {
-        console.error('Error loading Razorpay script');
+      // Timeout after 5 seconds
+      setTimeout(() => {
+        clearInterval(checkInterval);
         resolve(false);
-      };
-      
-      document.body.appendChild(script);
+      }, 5000);
     });
   };
 
   const verifyPayment = (response: RazorpayResponse) => {
     setIsProcessing(true);
     
-    console.log('======= RAZORPAY PAYMENT RESPONSE =======');
-    console.log('Full response object:', response);
-    console.log('Keys in response:', Object.keys(response));
-    
-    // Deep inspection of the response
-    Object.keys(response).forEach(key => {
-      console.log(`${key}:`, response[key]);
-    });
-    console.log('======= END PAYMENT RESPONSE =======');
-
-    // Make sure all fields are present
-    if (!response.razorpay_payment_id || !response.razorpay_signature || !response.razorpay_subscription_id) {
-      console.error('Missing required fields in Razorpay response:', response);
-      setPaymentStatus('failed');
-      
-      // Create a more detailed error message
-      const missingFields = [];
-      if (!response.razorpay_payment_id) missingFields.push('payment ID');
-      if (!response.razorpay_signature) missingFields.push('signature');
-      if (!response.razorpay_subscription_id) missingFields.push('subscription ID');
-      
-      const errorMessage = `Missing ${missingFields.join(', ')} from Razorpay response. Please try again.`;
-      setPaymentError(errorMessage);
+    if (!planId) {
+      setPaymentError('Missing plan information');
       setIsProcessing(false);
-      toast({
-        title: 'Payment verification error',
-        description: errorMessage,
-        variant: 'destructive',
-      });
       return;
     }
-
-    console.log('Payment ID:', response.razorpay_payment_id);
-    console.log('Subscription ID:', response.razorpay_subscription_id);
-    console.log('Signature:', response.razorpay_signature);
     
-    // Create the verification data with subscription ID exactly as provided by Razorpay
+    // Prepare verification data without upgrade flag
     const verificationData = {
       paymentId: response.razorpay_payment_id,
-      planId: selectedPlan?.id || 0,
       signature: response.razorpay_signature,
-      subscriptionId: response.razorpay_subscription_id // Ensure this is used exactly as provided
+      subscriptionId: response.razorpay_subscription_id,
+      planId,
     };
     
-    console.log('Sending verification data to server:', JSON.stringify(verificationData, null, 2));
+    console.log('Verifying payment with data:', verificationData);
     
     PaymentService.verifyPayment(verificationData)
-      .then((result) => {
-        console.log('Payment verification result:', result);
+      .then(result => {
         if (result.success) {
-          setPaymentStatus('success');
           setCurrentStep('confirmation');
           toast({
-            title: 'Payment successful!',
-            description: `Your subscription to ${result.planName || selectedPlan?.name} has been activated.`,
-            variant: 'default',
+            title: "Payment successful",
+            description: "Your subscription has been activated",
+            variant: "default"
           });
-          setTimeout(() => navigate('/dashboard'), 3000);
         } else {
-          setPaymentStatus('failed');
-          setPaymentError(result.message || 'Please try again or contact support.');
+          setPaymentError(result.message || 'Payment verification failed');
           toast({
-            title: 'Payment verification failed',
-            description: result.message || 'Please try again or contact support.',
-            variant: 'destructive',
+            title: "Payment verification failed",
+            description: result.message || "Please contact support for assistance",
+            variant: "destructive"
           });
         }
       })
-      .catch((error) => {
-        console.error('Payment verification error:', error);
-        setPaymentStatus('failed');
-        setPaymentError(error instanceof Error ? error.message : 'Please try again or contact support.');
+      .catch(error => {
+        console.error('Error in payment verification:', error);
+        setPaymentError('Payment verification failed. Please contact support.');
         toast({
-          title: 'Payment verification error',
-          description: error instanceof Error ? error.message : 'Please try again or contact support.',
-          variant: 'destructive',
+          title: "Error during verification",
+          description: "There was a problem confirming your payment",
+          variant: "destructive"
         });
       })
       .finally(() => {
         setIsProcessing(false);
-        
-        // Clear any URL parameters to avoid double processing on refresh
-        if (window.history && window.history.replaceState) {
-          const url = window.location.href.split('?')[0];
-          window.history.replaceState({}, document.title, url);
-        }
       });
   };
 
-  // Format currency for display
   const formatCurrency = (amount: number, currencyCode: string = 'USD') => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: currencyCode,
-      minimumFractionDigits: 2,
-    }).format(amount);
-  };
-
-  // Add useEffect to check for payment verification data in URL
-  useEffect(() => {
-    // Check if we have payment verification data in the URL
-    const params = new URLSearchParams(window.location.search);
-    const razorpayPaymentId = params.get('razorpay_payment_id');
-    const razorpaySignature = params.get('razorpay_signature');
-    const razorpaySubscriptionId = params.get('razorpay_subscription_id');
-    
-    // If we have all params, verify the payment
-    if (razorpayPaymentId && razorpaySignature && razorpaySubscriptionId && selectedPlan) {
-      console.log('Found payment verification data in URL, verifying payment');
-      verifyPayment({
-        razorpay_payment_id: razorpayPaymentId,
-        razorpay_signature: razorpaySignature,
-        razorpay_subscription_id: razorpaySubscriptionId
-      });
-      
-      // Clear URL parameters after processing to prevent multiple verifications on refresh
-      if (window.history && window.history.replaceState) {
-        const url = window.location.href.split('?')[0];
-        window.history.replaceState({}, document.title, url);
-      }
+    // For INR, check if we need to convert from smallest unit
+    if (currencyCode === 'INR' && amount > 10000 && amount % 1 === 0) {
+      // This looks like it might be in paisa - convert to rupees
+      console.log(`Converting amount from paisa to rupees: ${amount} paisa -> ${amount/100} INR`);
+      amount = amount / 100;
     }
-  }, [selectedPlan]);
-
-  // Function to handle payment using direct URL
-  const openDirectCheckout = (fallbackUrl: string) => {
-    const paymentWindow = window.open(fallbackUrl, '_blank', 'width=800,height=600');
     
-    // Set a timer to poll for payment completion by checking if window closed
-    const checkInterval = setInterval(() => {
-      if (paymentWindow && paymentWindow.closed) {
-        clearInterval(checkInterval);
-        // Window closed, check payment status
-        console.log("Payment window closed, checking payment status...");
-        
-        // After window closes, check subscription status
-        setTimeout(() => {
-          // Check payment status by redirecting to dashboard page
-          // The user will need to refresh or we need server polling
-          toast({
-            title: 'Payment Processing',
-            description: 'Your payment is being processed. You will be redirected to the dashboard shortly.',
-            variant: 'default',
-          });
-          setTimeout(() => navigate('/dashboard'), 3000);
-        }, 1000);
-      }
-    }, 1000);
+    // For USD, check if we need to convert from cents
+    if (currencyCode === 'USD' && amount > 1000 && amount % 1 === 0) {
+      // This looks like it might be in cents - convert to dollars
+      console.log(`Converting amount from cents to dollars: ${amount} cents -> ${amount/100} USD`);
+      amount = amount / 100;
+    }
+    
+    // Use appropriate locale based on currency
+    const locale = currencyCode === 'INR' ? 'en-IN' : 'en-US';
+    
+    try {
+      const formatter = new Intl.NumberFormat(locale, {
+        style: 'currency',
+        currency: currencyCode,
+        minimumFractionDigits: currencyCode === 'INR' ? 0 : 2,
+        maximumFractionDigits: 2
+      });
+      return formatter.format(amount);
+    } catch (error) {
+      console.error(`Error formatting currency ${amount} ${currencyCode}:`, error);
+      return `${amount} ${currencyCode}`;
+    }
   };
 
-  // Load Razorpay script when component mounts or step changes to payment
+  // Load Razorpay script when needed
   useEffect(() => {
-    if (currentStep === 'payment') {
+    if (currentStep === 'payment' && paymentIntent && !useAlternativePayment) {
       const loadScript = async () => {
-        try {
-          console.log('Loading Razorpay script...');
-          const scriptLoaded = await loadRazorpayScript();
-          if (!scriptLoaded) {
-            throw new Error('Payment gateway script not loaded. Please try again in a moment.');
-          }
-          console.log('Razorpay script loaded successfully.');
-          setPaymentReady(true);
-
-          // Also fetch gateway key if not already fetched
-          if (!gatewayKey) {
-            console.log('Getting payment gateway key...');
-            const keyResponse = await PaymentService.getGatewayKey();
-            if (!keyResponse || !keyResponse.publicKey) {
-              throw new Error('Could not retrieve payment gateway key');
+        const scriptLoaded = await loadRazorpayScript();
+        if (!scriptLoaded) {
+          console.log('Razorpay script failed to load, trying alternative payment method');
+          try {
+            if (!planId) return;
+            const { paymentUrl } = await PaymentService.getAlternativePaymentUrl(planId);
+            if (paymentUrl) {
+              setAlternativePaymentUrl(paymentUrl);
+              setUseAlternativePayment(true);
+            } else {
+              setPaymentError('Payment processing is currently unavailable. Please try again later.');
             }
-            setGatewayKey(keyResponse);
+          } catch (altError) {
+            console.error('Failed to get alternative payment URL:', altError);
+            setPaymentError('Payment processing is currently unavailable. Please try again later.');
           }
-        } catch (error) {
-          console.error('Error loading Razorpay script or gateway key:', error);
-          toast({
-            title: 'Payment Setup Error',
-            description: 'Could not load payment gateway. Please refresh the page or contact support.',
-            variant: 'destructive',
-          });
         }
       };
+      
       loadScript();
     }
-  }, [currentStep, toast, gatewayKey]);
+  }, [currentStep, paymentIntent, planId]);
 
   const processPayment = async () => {
+    if (!paymentIntent || isProcessing) return;
+    
+    setIsProcessing(true);
+    
     try {
-      setIsProcessing(true);
-      setPaymentError('');
-
-      if (!paymentIntent) {
-        throw new Error('Payment intent not initialized');
+      if (useAlternativePayment && alternativePaymentUrl) {
+        // Redirect to Razorpay hosted payment page
+        window.location.href = alternativePaymentUrl;
+        return;
       }
-
-      if (!window.Razorpay) {
-        console.error('Razorpay script not loaded');
-        throw new Error('Razorpay script failed to load. Please try again.');
+      
+      if (!razorpayLoaded || !(window as any).Razorpay) {
+        throw new Error('Payment processor not loaded properly');
       }
-
-      if (!gatewayKey || !gatewayKey.publicKey) {
-        console.error('Payment gateway key not loaded');
-        throw new Error('Payment gateway key not loaded. Please try again.');
+      
+      if (!gatewayKey?.publicKey) {
+        throw new Error('Payment gateway configuration is missing');
       }
-
-      // Ensure subscriptionId is valid and starts with 'sub_'
-      const subscriptionId = paymentIntent.subscriptionId && paymentIntent.subscriptionId.startsWith('sub_') 
-        ? paymentIntent.subscriptionId 
-        : undefined;
-      if (!subscriptionId) {
-        console.error('Invalid or missing subscription ID:', paymentIntent.subscriptionId);
-        throw new Error('Invalid subscription ID. Please try again.');
-      }
-
+      
+      // IMPORTANT: For Razorpay subscriptions, always use the provided amount from the server
+      // Razorpay might show a smaller authentication amount ($0.50/₹1) but will later charge the full amount
+      // This is standard Razorpay behavior for all subscription flows
+      const paymentAmount = 
+        // Use the amount provided by the server
+        paymentIntent.amount;
+      
+      console.log('Payment amount being sent to Razorpay:', paymentAmount);
+      console.log('Actual plan amount that will be charged after authentication:', 
+                 paymentIntent.actualPlanAmount ? paymentIntent.actualPlanAmount : 'Not provided');
+      
+      // Set up Razorpay options
       const options: RazorpayOptions = {
         key: gatewayKey.publicKey,
-        subscription_id: subscriptionId,
-        amount: paymentIntent.amount,
+        amount: paymentAmount,
         currency: paymentIntent.currency,
         name: 'ATScribe',
-        description: `Subscription for ${paymentIntent.planName}`,
-        image: 'https://ATScribe.com/logo.png', // Use absolute HTTPS URL to avoid mixed content issues
+        description: upgradeFlow 
+          ? `New ${paymentIntent.planName} Plan Subscription` 
+          : `${paymentIntent.planName} Plan Subscription`,
+        subscription_id: paymentIntent.subscriptionId,
+        image: '/logo.png',
+        handler: verifyPayment,
         prefill: {
-          name: billingInfo?.fullName || '',
-          email: user?.email || '',
-          contact: billingInfo?.phoneNumber || ''
+          name: user?.fullName || billingInfo?.fullName,
+          email: user?.email,
+          contact: billingInfo?.phoneNumber
         },
         notes: {
-          plan_id: planId?.toString() || '',
-          user_id: user?.id?.toString() || ''
+          start_immediately: 'true',
+          actual_plan_amount: paymentIntent.actualPlanAmount?.toString() || '',
+          plan_name: paymentIntent.planName
         },
         theme: {
-          color: '#3B82F6'
+          color: '#4f46e5' // Match your primary color
         },
         modal: {
-          ondismiss: () => {
-            console.log('Razorpay modal dismissed');
+          ondismiss: function() {
             setIsProcessing(false);
           }
-        },
-        handler: (response: RazorpayResponse) => {
-          console.log('Payment response received:', response);
-          verifyPayment(response);
-        }
-      };
-
-      console.log('Opening Razorpay checkout with detailed options:', JSON.stringify(options, null, 2));
-      const razorpayInstance = new (window.Razorpay as any)(options);
-      razorpayInstance.on('payment.failed', function (response: any) {
-        console.error('Payment failed:', response);
-        setPaymentError(response.error.description || 'Payment failed. Please try again.');
-        setIsProcessing(false);
-      });
-
-      razorpayInstance.open();
-    } catch (err: any) {
-      console.error('Error processing payment:', err);
-      setPaymentError(err.message || 'Failed to process payment. Please try again.');
-      setIsProcessing(false);
-    }
-  };
-
-  // Add a global handler for Razorpay callbacks
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      // Define a global callback function that Razorpay can call
-      (window as any).handleRazorpayCallback = function(response: any) {
-        console.log('Global Razorpay callback triggered:', response);
-        if (response.razorpay_payment_id && response.razorpay_subscription_id && response.razorpay_signature) {
-          verifyPayment(response);
         }
       };
       
-      return () => {
-        // Clean up when component unmounts
-        delete (window as any).handleRazorpayCallback;
-      };
+      // Initialize Razorpay
+      // @ts-ignore - Razorpay types require explicit constructor signature
+      const razorpayInstance = new (window as any).Razorpay(options);
+      
+      // Open payment modal
+      razorpayInstance.open();
+    } catch (error) {
+      console.error('Error processing payment:', error);
+      setPaymentError(error instanceof Error ? error.message : 'Payment processing failed');
+      setIsProcessing(false);
+      
+      toast({
+        title: "Payment processing failed",
+        description: error instanceof Error ? error.message : "Please try again or contact support",
+        variant: "destructive"
+      });
     }
-  }, []);
+  };
 
-  // Render checkout step progress
+  // Progress indicator for steps
   const renderStepProgress = () => {
-    const steps = ['billing', 'payment', 'confirmation'];
-    const currentIndex = steps.indexOf(currentStep);
+    const steps = [
+      { id: 'billing', label: 'Billing Details', icon: <Lock className="h-4 w-4" /> },
+      { id: 'payment', label: 'Payment', icon: <CreditCard className="h-4 w-4" /> },
+      { id: 'confirmation', label: 'Confirmation', icon: <CheckCircle className="h-4 w-4" /> }
+    ];
     
     return (
-      <div className="mb-8">
-        <div className="flex justify-between mb-2">
-          {steps.map((step, index) => (
-            <div 
-              key={step} 
-              className={`flex items-center ${index <= currentIndex ? 'text-primary' : 'text-muted-foreground'}`}
-            >
-              <div className={`flex items-center justify-center w-8 h-8 rounded-full mr-2 
-                ${index < currentIndex ? 'bg-primary text-white' : 
-                  index === currentIndex ? 'border-2 border-primary' : 
-                  'border-2 border-muted'}`}
-              >
-                {index < currentIndex ? (
-                  <CheckCircle className="h-5 w-5" />
-                ) : (
-                  <span>{index + 1}</span>
-                )}
+      <div className="flex items-center justify-between w-full mb-6">
+        {steps.map((step, index) => {
+          const isActive = step.id === currentStep;
+          const isCompleted = steps.findIndex(s => s.id === currentStep) > index;
+          
+          return (
+            <React.Fragment key={step.id}>
+              {index > 0 && (
+                <div className={`flex-1 h-1 mx-2 ${isCompleted ? 'bg-primary' : 'bg-gray-200'}`} />
+              )}
+              <div className="flex flex-col items-center">
+                <div className={`flex items-center justify-center h-8 w-8 rounded-full ${
+                  isCompleted ? 'bg-green-500' : isActive ? 'bg-primary' : 'bg-gray-200'
+                } text-white mb-1`}>
+                  {isCompleted ? <CheckCircle className="h-4 w-4" /> : step.icon}
+                </div>
+                <span className={`text-xs ${isActive ? 'font-medium text-primary' : 'text-gray-500'}`}>
+                  {step.label}
+                </span>
               </div>
-              <span className="hidden md:inline">{step.charAt(0).toUpperCase() + step.slice(1)}</span>
-            </div>
-          ))}
-        </div>
-        <Progress value={(currentIndex / (steps.length - 1)) * 100} className="h-2" />
+            </React.Fragment>
+          );
+        })}
       </div>
     );
   };
 
-  // Loading state - when plan data is being fetched
-  if (!selectedPlan) {
+  // For regular new subscriptions
+  const displayRegularSubscription = () => {
+    if (!paymentIntent) return null;
+
+    // Get authentication amount (shown by Razorpay)
+    const authAmount = paymentIntent.currency === 'INR' 
+      ? paymentIntent.amount / 100 
+      : paymentIntent.amount;
+    
+    // Get actual plan amount (charged after authentication)
+    const fullPlanAmount = paymentIntent.actualPlanAmount 
+      ? (paymentIntent.currency === 'INR' ? paymentIntent.actualPlanAmount / 100 : paymentIntent.actualPlanAmount / 100)
+      : authAmount;
+    
     return (
-      <DefaultLayout pageTitle="Checkout" pageDescription="Process your subscription payment">
-        <div className="flex flex-col items-center justify-center h-64 max-w-md mx-auto">
-          <Progress value={loadingProgress} className="w-full mb-4" />
-          <Loader2 className="h-8 w-8 animate-spin text-primary mb-2" />
-          <h3 className="text-xl font-medium mb-2">Setting up your checkout...</h3>
-          <p className="text-sm text-muted-foreground text-center">
-            We're preparing your payment details. This will only take a moment.
-          </p>
+      <div className="space-y-4">
+        <div className="flex justify-between items-center bg-gray-50 p-3 rounded-lg">
+          <div>
+            <span className="font-medium text-gray-800">{selectedPlan?.name} Plan</span>
+            <p className="text-xs text-gray-500">{selectedPlan?.description || `${paymentIntent.billingCycle.toLowerCase()} billing`}</p>
+          </div>
+          <span className="font-semibold text-lg">{formatCurrency(fullPlanAmount, paymentIntent.currency)}</span>
         </div>
-      </DefaultLayout>
+        
+        <Separator />
+        
+        <div className="flex justify-between font-semibold text-lg">
+          <span>Total</span>
+          <span>{formatCurrency(fullPlanAmount, paymentIntent.currency)}</span>
+        </div>
+        
+        <div className="flex items-center justify-center space-x-2 text-sm text-gray-500 mt-2">
+          <CreditCard className="h-4 w-4" />
+          <span>{`You'll be charged ${paymentIntent.billingCycle === 'YEARLY' ? 'annually' : 'monthly'}`}</span>
+        </div>
+      </div>
     );
-  }
+  };
+
+  // Add this function to correctly display prorated amounts
+  const displayProrationDetails = () => {
+    if (!paymentIntent) {
+      return null;
+    }
+
+    console.log('Payment Intent in displayProrationDetails:', paymentIntent);
+    console.log('Proration Amount from URL:', prorationAmount);
+
+    // For future subscriptions, show both the token amount and the future amount
+    if (paymentIntent.isFutureSubscription) {
+      // Format the actual plan amount
+      const actualPlanAmount = paymentIntent.actualPlanAmount ? 
+        (paymentIntent.currency === 'INR' ? paymentIntent.actualPlanAmount / 100 : paymentIntent.actualPlanAmount / 100) : 0;
+      
+      // Format the token amount (authentication amount)
+      const tokenAmount = paymentIntent.currency === 'INR' ? paymentIntent.amount / 100 : paymentIntent.amount;
+      
+      // Format the future date
+      const futureDate = paymentIntent.futurePaymentDate ? 
+        new Date(paymentIntent.futurePaymentDate).toLocaleDateString() : 'a future date';
+      
+      return (
+        <div className="space-y-4">
+          <div className="flex justify-between items-center bg-gray-50 p-3 rounded-lg">
+            <div>
+              <span className="font-medium text-gray-800">{selectedPlan?.name} Plan</span>
+              <p className="text-xs text-gray-500">Starting on {futureDate}</p>
+            </div>
+            <span className="font-semibold text-lg">{formatCurrency(actualPlanAmount, paymentIntent.currency)}</span>
+          </div>
+          
+          <div className="flex justify-between items-center p-3 rounded-lg border border-amber-200 bg-amber-50">
+            <div>
+              <span className="font-medium text-amber-800">Verification Charge</span>
+              <p className="text-xs text-amber-700">For future subscription</p>
+            </div>
+            <span className="font-medium text-amber-800">{formatCurrency(tokenAmount, paymentIntent.currency)}</span>
+          </div>
+          
+          <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
+            <div className="flex items-start space-x-2">
+              <AlertCircle className="h-5 w-5 text-blue-600 mt-0.5" />
+              <div>
+                <p className="font-medium text-blue-800">Future Subscription Information</p>
+                <p className="text-sm text-blue-700 mt-1">
+                  A small verification charge of {formatCurrency(tokenAmount, paymentIntent.currency)} will be made to verify your payment method. 
+                  Your subscription for {formatCurrency(actualPlanAmount, paymentIntent.currency)} will 
+                  begin on {futureDate}.
+                </p>
+              </div>
+            </div>
+          </div>
+          
+          <Separator />
+          
+          <div className="flex justify-between font-semibold text-lg">
+            <span>Today's Charge</span>
+            <span>{formatCurrency(tokenAmount, paymentIntent.currency)}</span>
+          </div>
+          
+          <div className="flex items-center justify-center space-x-2 text-sm text-gray-500">
+            <Calendar className="h-4 w-4" />
+            <span>Future recurring payment: {formatCurrency(actualPlanAmount, paymentIntent.currency)} {paymentIntent.billingCycle === 'YEARLY' ? 'per year' : 'per month'}</span>
+          </div>
+        </div>
+      );
+    }
+
+    // For upgrade flow, use our updated display without proration credits
+    if (actuallyIsUpgrade || (actuallyIsUpgrade === undefined && upgradeFlow)) {
+      // For INR, Razorpay amounts are in paisa (1/100 of a rupee)
+      // The paymentIntent.amount is always in the smallest currency unit (paisa for INR)
+      const fullPlanAmount = paymentIntent.actualPlanAmount
+        ? (paymentIntent.currency === 'INR' 
+            ? paymentIntent.actualPlanAmount / 100 
+            : paymentIntent.actualPlanAmount / 100)
+        : (paymentIntent.currency === 'INR' 
+            ? paymentIntent.amount / 100
+            : paymentIntent.amount);
+      
+      // The amount to pay is now always the full plan price (no proration credits)
+      const amountToPay = fullPlanAmount;
+      
+      return (
+        <div className="space-y-4">
+          <div className="flex justify-between items-center bg-gray-50 p-3 rounded-lg">
+            <div>
+              <span className="font-medium text-gray-800">{selectedPlan?.name} Plan</span>
+              <p className="text-xs text-gray-500">New subscription</p>
+            </div>
+            <span className="font-semibold text-lg">{formatCurrency(fullPlanAmount, paymentIntent.currency)}</span>
+          </div>
+          
+          <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
+            <div className="flex items-start space-x-2">
+              <AlertCircle className="h-5 w-5 text-blue-600 mt-0.5" />
+              <div>
+                <p className="font-medium text-blue-800">About your plan change</p>
+                <p className="text-sm text-blue-700 mt-1">
+                  Your current subscription will be cancelled and a new subscription will begin immediately.
+                  You will be charged the full price of the new plan.
+                </p>
+              </div>
+            </div>
+          </div>
+          
+          <Separator />
+          
+          <div className="flex justify-between font-semibold text-lg">
+            <span>Total</span>
+            <span>{formatCurrency(amountToPay, paymentIntent.currency)}</span>
+          </div>
+          
+          <div className="flex items-center justify-center space-x-2 text-sm text-gray-500">
+            <CreditCard className="h-4 w-4" />
+            <span>
+              {`You'll be charged ${paymentIntent.billingCycle === 'YEARLY' ? 'annually' : 'monthly'} for your new subscription`}
+            </span>
+          </div>
+        </div>
+      );
+    }
+
+    // For new subscriptions, use our specialized display
+    return displayRegularSubscription();
+  };
+
+  // Add a component to display pending downgrade information
+  const PendingDowngradeInfo = ({ subscription, effectiveDate }: { subscription: any; effectiveDate: string }) => {
+    if (!subscription?.pendingPlanChangeTo || subscription?.pendingPlanChangeType !== 'DOWNGRADE') {
+      return null;
+    }
+    
+    const formattedDate = new Date(effectiveDate).toLocaleDateString(undefined, {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+    
+    return (
+      <Alert className="mb-6 bg-blue-50 border-blue-200">
+        <AlertCircle className="h-5 w-5 text-blue-600" />
+        <AlertTitle className="text-blue-700">Pending Plan Change</AlertTitle>
+        <AlertDescription className="text-blue-600">
+          Your subscription will be downgraded at the end of your current billing period ({formattedDate}).
+          Until then, you'll continue to have access to all features of your current plan.
+        </AlertDescription>
+      </Alert>
+    );
+  };
+  
+  // Check for pending downgrade when component mounts
+  useEffect(() => {
+    const checkPendingChanges = async () => {
+      if (!user) return;
+      
+      try {
+        const response = await axios.get('/api/user/subscription/pending-change');
+        if (response.data?.hasPendingChange && response.data?.subscription?.pendingPlanChangeType === 'DOWNGRADE') {
+          // Show some UI for the pending downgrade if needed
+          console.log('User has a pending downgrade scheduled:', response.data);
+        }
+      } catch (error) {
+        console.error('Error checking for pending subscription changes:', error);
+      }
+    };
+    
+    checkPendingChanges();
+  }, [user]);
 
   return (
-    <DefaultLayout pageTitle="Checkout" pageDescription="Complete your subscription payment">
-      <div className="max-w-5xl mx-auto px-4 py-8">
-        {/* Heading */}
-        <h1 className="text-3xl font-bold mb-1">Checkout</h1>
-        <p className="text-muted-foreground mb-8">Complete your subscription payment</p>
+    <DefaultLayout pageTitle="Checkout">
+      <div className="container py-8 max-w-7xl">
+        <Progress value={loadingProgress} className="mb-6" />
         
-        {/* Step Indicator */}
+        {/* Step Progress Indicator */}
         {renderStepProgress()}
         
-        {/* Step content */}
-        {currentStep === 'billing' && (
-          <BillingDetailsForm 
-            existingDetails={billingInfo} 
-            onDetailsSubmitted={handleBillingDetailsSubmitted} 
-            onCancel={handleBillingCancel}
-          />
-        )}
-        
-        {currentStep === 'payment' && (
-          <div className="grid md:grid-cols-2 gap-8">
-            {/* Order Details */}
-            <Card className="border-2 border-primary/10">
-              <CardHeader className="bg-primary/5">
-                <CardTitle>Order Summary</CardTitle>
-                <CardDescription>Review your subscription details</CardDescription>
-              </CardHeader>
-              <CardContent className="pt-6">
-                <div className="space-y-6">
-                  {/* Plan Info */}
-                  <div>
-                    <div className="flex items-start gap-3">
-                      <DollarSign className="h-6 w-6 text-primary" />
-                      <div>
-                        <h3 className="font-medium">
-                          {selectedPlan?.name || 'Subscription Plan'}
-                        </h3>
-                        <p className="text-sm text-muted-foreground">
-                          {selectedPlan?.description || 'Complete subscription plan details'}
-                        </p>
+        {/* Modern Two-Column Layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mt-6">
+          {/* Left Column - Billing Info */}
+          <div className="lg:col-span-2">
+            <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
+              <div className="bg-gray-50 p-4 border-b">
+                <h2 className="text-lg font-medium">Billing Information</h2>
+                <p className="text-sm text-gray-500 mt-1">
+                  {currentStep === 'billing' ? 'Please enter your billing details' : 'Your billing details'}
+                </p>
+              </div>
+              
+              <div className="p-4">
+                {currentStep === 'billing' ? (
+                  <>
+                    {showBillingReview && billingInfo ? (
+                      <div className="space-y-6">
+                        <div className="space-y-4">
+                          <div>
+                            <p className="text-gray-500 text-sm mb-1">Name</p>
+                            <p className="font-medium">{billingInfo.fullName}</p>
+                          </div>
+                          <div>
+                            <p className="text-gray-500 text-sm mb-1">Email</p>
+                            <p className="font-medium">{user?.email || billingInfo.email}</p>
+                          </div>
+                          <div>
+                            <p className="text-gray-500 text-sm mb-1">Phone</p>
+                            <p className="font-medium">{billingInfo.phoneNumber || "Not provided"}</p>
+                          </div>
+                          <div>
+                            <p className="text-gray-500 text-sm mb-1">Country</p>
+                            <p className="font-medium">{billingInfo.country}</p>
+                          </div>
+                          {billingInfo.addressLine1 && (
+                            <div>
+                              <p className="text-gray-500 text-sm mb-1">Address</p>
+                              <p className="font-medium">{billingInfo.addressLine1}</p>
+                              {billingInfo.addressLine2 && (
+                                <p className="font-medium">{billingInfo.addressLine2}</p>
+                              )}
+                              <p className="font-medium">
+                                {[billingInfo.city, billingInfo.state, billingInfo.postalCode].filter(Boolean).join(", ")}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                        
+                        <div className="flex gap-3 pt-4">
+                          <Button onClick={handleReviewBillingAndContinue} className="flex-1">
+                            Continue
+                          </Button>
+                          <Button variant="outline" onClick={handleEditBillingDetails}>
+                            Edit Details
+                          </Button>
+                        </div>
                       </div>
-                    </div>
-                  </div>
-                  
-                  {/* Billing Address Summary */}
-                  <div className="space-y-3 border-t pt-3">
-                    <h4 className="font-medium text-sm">Billing Information</h4>
+                    ) : (
+                      <BillingDetailsForm
+                        existingDetails={billingInfo}
+                        onDetailsSubmitted={handleBillingDetailsSubmitted}
+                        onCancel={handleBillingCancel}
+                      />
+                    )}
+                  </>
+                ) : (
+                  <>
                     {billingInfo && (
-                      <div className="text-sm text-muted-foreground">
-                        <p>{billingInfo.fullName}</p>
-                        <p>{billingInfo.addressLine1}</p>
-                        {billingInfo.addressLine2 && <p>{billingInfo.addressLine2}</p>}
-                        <p>{billingInfo.city}, {billingInfo.state} {billingInfo.postalCode}</p>
-                        <p>{countries.find(c => c.value === billingInfo.country)?.label || billingInfo.country}</p>
-                        {billingInfo.phoneNumber && <p>Phone: {billingInfo.phoneNumber}</p>}
+                      <div className="space-y-4">
+                        <div>
+                          <p className="text-gray-500 text-sm mb-1">Name</p>
+                          <p className="font-medium">{billingInfo.fullName}</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-500 text-sm mb-1">Email</p>
+                          <p className="font-medium">{user?.email || billingInfo.email}</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-500 text-sm mb-1">Phone</p>
+                          <p className="font-medium">{billingInfo.phoneNumber || "Not provided"}</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-500 text-sm mb-1">Country</p>
+                          <p className="font-medium">{billingInfo.country}</p>
+                        </div>
+                        {billingInfo.addressLine1 && (
+                          <div>
+                            <p className="text-gray-500 text-sm mb-1">Address</p>
+                            <p className="font-medium">{billingInfo.addressLine1}</p>
+                            {billingInfo.addressLine2 && (
+                              <p className="font-medium">{billingInfo.addressLine2}</p>
+                            )}
+                            <p className="font-medium">
+                              {[billingInfo.city, billingInfo.state, billingInfo.postalCode].filter(Boolean).join(", ")}
+                            </p>
+                          </div>
+                        )}
+                        <div className="pt-2">
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={() => setCurrentStep('billing')}
+                            className="text-primary text-xs flex items-center"
+                          >
+                            <span className="mr-1">Edit Details</span>
+                            <svg width="12" height="12" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg">
+                              <path d="M11.4669 3.72684C11.7558 3.91574 11.8369 4.30308 11.648 4.59198L7.39799 11.092C7.29783 11.2452 7.13556 11.3467 6.95402 11.3699C6.77247 11.3931 6.58989 11.3355 6.45446 11.2124L3.70446 8.71241C3.44905 8.48022 3.43023 8.08494 3.66242 7.82953C3.89461 7.57412 4.28989 7.55529 4.5453 7.78749L6.75292 9.79441L10.6018 3.90792C10.7907 3.61902 11.178 3.53795 11.4669 3.72684Z" fill="currentColor" fillRule="evenodd" clipRule="evenodd"></path>
+                            </svg>
+                          </Button>
+                        </div>
                       </div>
                     )}
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={() => setCurrentStep('billing')} 
-                      className="mt-2"
-                    >
-                      Edit Billing Details
-                    </Button>
-                  </div>
-                  
-                  {/* Order Details */}
-                  <div className="space-y-3 border-t pt-3">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Subscription:</span>
-                      <span>
-                        {isProcessing && !paymentIntent ? (
-                          <div className="h-4 w-20 bg-muted animate-pulse rounded"></div>
-                        ) : paymentIntent ? (
-                          formatCurrency(paymentIntent.amount / 100, paymentIntent.currency)
-                        ) : planPricing ? (
-                          formatCurrency(planPricing.amount, planPricing.currency)
-                        ) : (
-                          <div className="h-4 w-20 bg-muted animate-pulse rounded"></div>
-                        )}
-                      </span>
-                    </div>
-                    
-                    {/* If proration credit exists, show it */}
-                    {prorationAmount && Number(prorationAmount) > 0 && (
-                      <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">Proration Credit:</span>
-                        <span className="text-green-600">
-                          -{formatCurrency(Number(prorationAmount), paymentIntent?.currency || planPricing?.currency || 'USD')}
-                        </span>
-                      </div>
-                    )}
-                    
-                    <Separator className="my-2" />
-                    
-                    <div className="flex justify-between font-medium">
-                      <span>Total today:</span>
-                      <span>
-                        {isProcessing && !paymentIntent ? (
-                          <div className="h-5 w-24 bg-muted animate-pulse rounded"></div>
-                        ) : paymentIntent ? (
-                          formatCurrency(paymentIntent.amount / 100 - (Number(prorationAmount) || 0), paymentIntent.currency)
-                        ) : planPricing ? (
-                          formatCurrency(planPricing.amount - (Number(prorationAmount) || 0), planPricing.currency)
-                        ) : (
-                          <div className="h-5 w-24 bg-muted animate-pulse rounded"></div>
-                        )}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                  </>
+                )}
+              </div>
+            </div>
             
-            {/* Payment Method */}
-            <Card>
-              <CardHeader>
-                <div className="flex justify-between items-center">
-                  <div>
-                    <CardTitle>Payment Method</CardTitle>
-                    <CardDescription>
-                      Secure payment processing via Razorpay
-                    </CardDescription>
+            {/* Security & Trust Indicators */}
+            {currentStep === 'payment' && (
+              <div className="mt-6 bg-white rounded-lg p-4 border shadow-sm">
+                <div className="flex flex-col items-center text-center space-y-4">
+                  <div className="flex items-center space-x-2">
+                    <Lock className="h-5 w-5 text-green-600" />
+                    <span className="text-sm font-medium">Secure Checkout</span>
                   </div>
-                  <Lock className="h-5 w-5 text-muted-foreground" />
+                  <p className="text-xs text-gray-500">
+                    Your information is securely processed and encrypted.
+                    We do not store your credit card details.
+                  </p>
+                  <div className="flex flex-wrap justify-center items-center gap-4 pt-2">
+                    <ShieldCheck className="h-5 w-5 text-green-600" />
+                    <span className="text-xs">256-bit SSL</span>
+                    <Lock className="h-4 w-4 text-green-600" />
+                    <span className="text-xs">PCI Compliant</span>
+                  </div>
                 </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-6">
-                  {/* Payment Option */}
-                  <div className="border rounded-lg p-4 flex items-center gap-4">
-                    <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                      <img src="/razorpay-logo.svg" alt="Razorpay Logo" className="h-6 w-6" />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="font-medium">
-                        Razorpay Secure Checkout
-                      </h3>
-                      <p className="text-sm text-muted-foreground">
-                        Pay securely with Razorpay using credit/debit cards, UPI, or bank transfer
-                      </p>
-                    </div>
-                  </div>
-                  
-                  {/* Environment note for testing */}
-                  {gatewayKey?.isTestMode && (
-                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-amber-800">
-                      <h4 className="font-medium flex items-center gap-2 mb-1">
-                        <AlertCircle className="h-4 w-4" />
-                        Test Environment
-                      </h4>
-                      <p className="text-sm">
-                        This is a test environment. Use the following test credentials:
-                      </p>
-                      <ul className="text-sm mt-2">
-                        <li>Card: 4111 1111 1111 1111, Expiry: Any future date, CVV: Any 3 digits</li>
-                        <li>UPI: success@razorpay</li>
-                      </ul>
+              </div>
+            )}
+          </div>
+          
+          {/* Right Column - Payment Info */}
+          <div className="lg:col-span-3">
+            {currentStep === 'billing' ? (
+              <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
+                <div className="bg-gray-50 p-4 border-b">
+                  <h2 className="text-lg font-medium">Order Summary</h2>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Review your subscription details
+                  </p>
+                </div>
+                
+                <div className="p-4">
+                  {selectedPlan && (
+                    <div className="space-y-4">
+                      <div className="flex justify-between items-center p-3 rounded-md bg-gray-50">
+                        <div>
+                          <h3 className="font-medium">{selectedPlan.name} Plan</h3>
+                          <p className="text-sm text-gray-600">{selectedPlan.description || 'Monthly subscription'}</p>
+                        </div>
+                        <div className="text-lg font-semibold">
+                          {selectedPlan.price !== undefined && selectedPlan.price > 0 ? 
+                            formatCurrency(selectedPlan.price, selectedPlan.currency || 'USD') : 
+                            getPriceDisplay(selectedPlan)}
+                        </div>
+                      </div>
+                      
+                      <div className="pt-4">
+                        <h4 className="text-sm font-medium mb-2">Plan Features:</h4>
+                        {selectedPlan.features && selectedPlan.features.length > 0 ? (
+                          <ul className="space-y-2">
+                            {selectedPlan.features.map((feature: string, index: number) => (
+                              <li key={index} className="flex items-start">
+                                <svg width="20" height="20" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg" className="mr-2 text-green-600 flex-shrink-0 mt-0.5">
+                                  <path d="M7.49991 0.877045C3.84222 0.877045 0.877075 3.84219 0.877075 7.49988C0.877075 11.1575 3.84222 14.1227 7.49991 14.1227C11.1576 14.1227 14.1227 11.1575 14.1227 7.49988C14.1227 3.84219 11.1576 0.877045 7.49991 0.877045ZM1.82708 7.49988C1.82708 4.36686 4.36689 1.82704 7.49991 1.82704C10.6329 1.82704 13.1727 4.36686 13.1727 7.49988C13.1727 10.6329 10.6329 13.1727 7.49991 13.1727C4.36689 13.1727 1.82708 10.6329 1.82708 7.49988ZM10.1589 5.53774C10.3178 5.31191 10.2636 5.00001 10.0378 4.84109C9.81194 4.68217 9.50004 4.73642 9.34113 4.96225L6.51977 8.97154L5.35681 7.78706C5.16334 7.59002 4.84677 7.58711 4.64973 7.78058C4.45268 7.97404 4.44978 8.29061 4.64325 8.48765L6.22658 10.1003C6.33054 10.2062 6.47617 10.2604 6.62407 10.2483C6.77197 10.2363 6.90686 10.1591 6.99226 10.0377L10.1589 5.53774Z" fill="currentColor" fillRule="evenodd" clipRule="evenodd"></path>
+                                </svg>
+                                <span className="text-sm">{feature}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <div className="text-sm text-gray-500 p-2 border border-gray-200 rounded-md bg-gray-50">
+                            <div className="flex justify-center mb-2">
+                              <svg className="animate-spin h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                              </svg>
+                            </div>
+                            Loading features information...
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
+                </div>
+              </div>
+            ) : currentStep === 'payment' ? (
+              <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
+                <div className="bg-gray-50 p-4 border-b">
+                  <h2 className="text-lg font-medium">Payment Details</h2>
+                  <p className="text-sm text-gray-500 mt-1">
+                    {actuallyIsUpgrade !== undefined ? 
+                      (actuallyIsUpgrade ? 
+                        `Upgrade to ${selectedPlan?.name} plan subscription` :
+                        `Subscribe to ${selectedPlan?.name} plan`) :
+                      (upgradeFlow ? 
+                        `Upgrade to ${selectedPlan?.name} plan subscription` :
+                        `Subscribe to ${selectedPlan?.name} plan`)
+                    }
+                  </p>
+                </div>
+                
+                <div className="p-4">
+                  {paymentError && (
+                    <Alert variant="destructive" className="mb-4">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertTitle>Payment Error</AlertTitle>
+                      <AlertDescription>
+                        {paymentError}
+                      </AlertDescription>
+                    </Alert>
+                  )}
                   
-                  {/* Process Payment Button */}
-                  <Button 
-                    className="w-full font-medium" 
-                    size="lg"
-                    onClick={processPayment}
-                    disabled={isProcessing || !paymentIntent || !gatewayKey || !paymentReady}
-                  >
-                    {isProcessing ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Processing...
-                      </>
-                    ) : (
-                      <>
-                        <CreditCard className="mr-2 h-4 w-4" />
-                        Proceed to Payment
-                      </>
-                    )}
-                  </Button>
-                  
-                  {/* Display any payment errors */}
-                  {paymentStatus === 'failed' && (
-                    <div className="mt-3 p-3 border border-red-200 bg-red-50 rounded-lg text-red-700 text-sm">
-                      <div className="flex items-start gap-2">
-                        <AlertCircle className="h-5 w-5 text-red-500 mt-0.5 flex-shrink-0" />
-                        <div>
-                          <p className="font-medium">Payment Failed</p>
-                          <p className="mt-1">{paymentError || 'There was an error processing your payment. Please try again or contact support.'}</p>
+                  {paymentIntent && (
+                    <div className="space-y-6">
+                      {/* Order Summary */}
+                      <div className="rounded-md">
+                        <h3 className="font-medium text-base mb-3">Order Summary</h3>
+                        {displayProrationDetails()}
+                      </div>
+                      
+                      <div className="pt-2">
+                        {/* Payment Button */}
+                        <Button 
+                          className="w-full h-12 text-base" 
+                          onClick={processPayment}
+                          disabled={isProcessing}
+                        >
+                          {isProcessing ? (
+                            <>
+                              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                              Processing...
+                            </>
+                          ) : (
+                            <>
+                              <DollarSign className="mr-2 h-5 w-5" />
+                              {actuallyIsUpgrade !== undefined && !actuallyIsUpgrade
+                                ? `Subscribe for ${formatCurrency(
+                                  paymentIntent.actualPlanAmount 
+                                    ? paymentIntent.actualPlanAmount / 100
+                                    : paymentIntent.amount, 
+                                  paymentIntent.currency
+                                )}`
+                                : `Pay Now ${formatCurrency(
+                                  prorationAmount !== undefined 
+                                    ? prorationAmount // Already in full currency units from URL
+                                    : (paymentIntent.actualPlanAmount
+                                      ? paymentIntent.actualPlanAmount / 100 // Convert from smallest unit to full unit
+                                      : (paymentIntent.currency === 'INR'
+                                        ? paymentIntent.amount / 100 // Convert paisa to rupees
+                                        : paymentIntent.amount)), // Keep as is for other currencies
+                                  paymentIntent.currency
+                                )}`
+                              }
+                            </>
+                          )}
+                        </Button>
+                        
+                        {!actuallyIsUpgrade && paymentIntent.actualPlanAmount && (
+                          <div className="text-center text-xs text-gray-500 mt-2">
+                            <p>You will be charged {formatCurrency(paymentIntent.actualPlanAmount / 100, paymentIntent.currency)} for your subscription.</p>
+                          </div>
+                        )}
+                        
+                        <Button 
+                          variant="outline"
+                          className="w-full mt-3" 
+                          onClick={() => user ? navigate('/dashboard') : navigate('/pricing')}
+                          disabled={isProcessing}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                      
+                      <div className="flex items-center justify-center pt-4">
+                        <div className="flex items-center space-x-2 text-sm text-gray-500">
+                          <ShieldCheck className="h-5 w-5 text-green-500" />
+                          <span>Secure payment powered by Razorpay</span>
                         </div>
                       </div>
                     </div>
                   )}
-                  
-                  <div className="text-center">
-                    <p className="text-xs text-muted-foreground flex items-center justify-center gap-1">
-                      <ShieldCheck className="h-3 w-3" />
-                      Your payment details are protected with industry-standard encryption
+                </div>
+              </div>
+            ) : (
+              <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
+                <div className="bg-gray-50 p-4 border-b">
+                  <h2 className="text-lg font-medium">Subscription Confirmation</h2>
+                </div>
+                
+                <div className="p-8">
+                  <div className="flex flex-col items-center justify-center py-6 space-y-6">
+                    <div className="rounded-full p-5 bg-green-100">
+                      <CheckCircle className="h-10 w-10 text-green-600" />
+                    </div>
+                    <h3 className="text-2xl font-semibold text-center">Thank You For Your Purchase!</h3>
+                    <p className="text-center text-gray-600 max-w-md">
+                      Your subscription has been successfully activated.
+                      You now have full access to all the features of your plan.
                     </p>
+                    <Button 
+                      className="mt-6" 
+                      onClick={() => navigate('/dashboard')}
+                    >
+                      Go to Dashboard
+                    </Button>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            )}
           </div>
-        )}
-        
-        {currentStep === 'confirmation' && (
-          <Card className="max-w-md mx-auto">
-            <CardHeader className="text-center">
-              <div className="flex items-center justify-center mb-4">
-                <div className="h-16 w-16 rounded-full bg-green-100 flex items-center justify-center">
-                  <CheckCircle className="h-10 w-10 text-green-500" />
-                </div>
-              </div>
-              <CardTitle className="text-2xl">Payment Successful</CardTitle>
-              <CardDescription className="text-base mt-2">
-                Your subscription to {selectedPlan.name} has been activated successfully.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="rounded-lg bg-green-50 border border-green-100 p-4 mb-4">
-                <p className="text-center text-sm text-green-800">
-                  You will be redirected to your dashboard shortly.
-                </p>
-              </div>
-              <div className="space-y-3">
-                <div className="flex items-center">
-                  <CheckCircle className="h-5 w-5 text-green-500 mr-2" />
-                  <span className="text-sm">Payment processed successfully</span>
-                </div>
-                <div className="flex items-center">
-                  <CheckCircle className="h-5 w-5 text-green-500 mr-2" />
-                  <span className="text-sm">Account upgraded to {selectedPlan.name}</span>
-                </div>
-                <div className="flex items-center">
-                  <CheckCircle className="h-5 w-5 text-green-500 mr-2" />
-                  <span className="text-sm">
-                    Billing cycle: {selectedPlan.billingCycle?.toLowerCase()}
-                  </span>
-                </div>
-              </div>
-            </CardContent>
-            <CardFooter>
-              <Button onClick={() => navigate('/dashboard')} className="w-full">
-                Go to Dashboard
-              </Button>
-            </CardFooter>
-          </Card>
-        )}
-        
-        <div className="text-center mt-8">
-          <p className="text-sm text-muted-foreground">
-            Need help? <a href="/contact" className="text-primary hover:underline">Contact support</a>
-          </p>
         </div>
       </div>
     </DefaultLayout>
   );
 }
-
-// List of countries for dropdown
-const countries = [
-  { value: 'US', label: 'United States' },
-  { value: 'IN', label: 'India' },
-  { value: 'GB', label: 'United Kingdom' },
-  { value: 'CA', label: 'Canada' },
-  { value: 'AU', label: 'Australia' },
-  { value: 'DE', label: 'Germany' },
-  { value: 'FR', label: 'France' },
-  { value: 'JP', label: 'Japan' },
-  { value: 'SG', label: 'Singapore' },
-  { value: 'AE', label: 'United Arab Emirates' },
-];

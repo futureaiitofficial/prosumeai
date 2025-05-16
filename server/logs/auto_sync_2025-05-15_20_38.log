@@ -1,0 +1,138 @@
+[2025-05-15T20:38:17.491Z] === Razorpay Invoice Auto-Sync Started ===
+[2025-05-15T20:38:17.491Z] Process ID: 44035
+[2025-05-15T20:38:17.492Z] Current directory: /Users/raja/Development/ProsumeAI/server
+[2025-05-15T20:38:17.492Z] Log file: /Users/raja/Development/ProsumeAI/server/logs/auto_sync_2025-05-15_20_38.log
+[2025-05-15T20:38:17.492Z] Sync interval: 5 seconds
+[2025-05-15T20:38:17.492Z] Starting invoice synchronization...
+[2025-05-15T20:38:17.492Z] Running sync script: /Users/raja/Development/ProsumeAI/server/scripts/sync-subscription-invoices.ts
+[2025-05-15T20:38:17.803Z] [ERROR] TypeError: Unknown file extension ".ts" for /Users/raja/Development/ProsumeAI/server/scripts/sync-subscription-invoices.ts
+    at Object.getFileProtocolModuleFormat [as file:] (node:internal/modules/esm/get_format:189:9)
+    at defaultGetFormat (node:internal/modules/esm/get_format:232:36)
+    at defaultLoad (node:internal/modules/esm/load:145:22)
+    at async ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:477:45)
+    at async ModuleJob._link (node:internal/modules/esm/module_job:110:19) {
+  code: 'ERR_UNKNOWN_FILE_EXTENSION'
+}
+[2025-05-15T20:38:17.810Z] Synchronization process finished with code 1
+[2025-05-15T20:38:17.810Z] Next sync scheduled in 5 seconds
+[2025-05-15T20:38:22.495Z] Starting invoice synchronization...
+[2025-05-15T20:38:22.496Z] Running sync script: /Users/raja/Development/ProsumeAI/server/scripts/sync-subscription-invoices.ts
+[2025-05-15T20:38:22.780Z] [ERROR] TypeError: Unknown file extension ".ts" for /Users/raja/Development/ProsumeAI/server/scripts/sync-subscription-invoices.ts
+    at Object.getFileProtocolModuleFormat [as file:] (node:internal/modules/esm/get_format:189:9)
+    at defaultGetFormat (node:internal/modules/esm/get_format:232:36)
+    at defaultLoad (node:internal/modules/esm/load:145:22)
+    at async ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:477:45)
+    at async ModuleJob._link (node:internal/modules/esm/module_job:110:19) {
+  code: 'ERR_UNKNOWN_FILE_EXTENSION'
+}
+[2025-05-15T20:38:22.785Z] Synchronization process finished with code 1
+[2025-05-15T20:38:22.785Z] Next sync scheduled in 5 seconds
+[2025-05-15T20:38:27.496Z] Starting invoice synchronization...
+[2025-05-15T20:38:27.497Z] Running sync script: /Users/raja/Development/ProsumeAI/server/scripts/sync-subscription-invoices.ts
+[2025-05-15T20:38:27.779Z] [ERROR] TypeError: Unknown file extension ".ts" for /Users/raja/Development/ProsumeAI/server/scripts/sync-subscription-invoices.ts
+    at Object.getFileProtocolModuleFormat [as file:] (node:internal/modules/esm/get_format:189:9)
+    at defaultGetFormat (node:internal/modules/esm/get_format:232:36)
+    at defaultLoad (node:internal/modules/esm/load:145:22)
+    at async ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:477:45)
+    at async ModuleJob._link (node:internal/modules/esm/module_job:110:19) {
+  code: 'ERR_UNKNOWN_FILE_EXTENSION'
+}
+[2025-05-15T20:38:27.785Z] Synchronization process finished with code 1
+[2025-05-15T20:38:27.785Z] Next sync scheduled in 5 seconds
+[2025-05-15T20:38:32.497Z] Starting invoice synchronization...
+[2025-05-15T20:38:32.498Z] Running sync script: /Users/raja/Development/ProsumeAI/server/scripts/sync-subscription-invoices.ts
+[2025-05-15T20:38:32.782Z] [ERROR] TypeError: Unknown file extension ".ts" for /Users/raja/Development/ProsumeAI/server/scripts/sync-subscription-invoices.ts
+    at Object.getFileProtocolModuleFormat [as file:] (node:internal/modules/esm/get_format:189:9)
+    at defaultGetFormat (node:internal/modules/esm/get_format:232:36)
+    at defaultLoad (node:internal/modules/esm/load:145:22)
+    at async ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:477:45)
+    at async ModuleJob._link (node:internal/modules/esm/module_job:110:19) {
+  code: 'ERR_UNKNOWN_FILE_EXTENSION'
+}
+[2025-05-15T20:38:32.788Z] Synchronization process finished with code 1
+[2025-05-15T20:38:32.788Z] Next sync scheduled in 5 seconds
+[2025-05-15T20:38:37.498Z] Starting invoice synchronization...
+[2025-05-15T20:38:37.499Z] Running sync script: /Users/raja/Development/ProsumeAI/server/scripts/sync-subscription-invoices.ts
+[2025-05-15T20:38:37.780Z] [ERROR] TypeError: Unknown file extension ".ts" for /Users/raja/Development/ProsumeAI/server/scripts/sync-subscription-invoices.ts
+    at Object.getFileProtocolModuleFormat [as file:] (node:internal/modules/esm/get_format:189:9)
+    at defaultGetFormat (node:internal/modules/esm/get_format:232:36)
+    at defaultLoad (node:internal/modules/esm/load:145:22)
+    at async ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:477:45)
+    at async ModuleJob._link (node:internal/modules/esm/module_job:110:19) {
+  code: 'ERR_UNKNOWN_FILE_EXTENSION'
+}
+[2025-05-15T20:38:37.786Z] Synchronization process finished with code 1
+[2025-05-15T20:38:37.786Z] Next sync scheduled in 5 seconds
+[2025-05-15T20:38:42.499Z] Starting invoice synchronization...
+[2025-05-15T20:38:42.500Z] Running sync script: /Users/raja/Development/ProsumeAI/server/scripts/sync-subscription-invoices.ts
+[2025-05-15T20:38:42.789Z] [ERROR] TypeError: Unknown file extension ".ts" for /Users/raja/Development/ProsumeAI/server/scripts/sync-subscription-invoices.ts
+    at Object.getFileProtocolModuleFormat [as file:] (node:internal/modules/esm/get_format:189:9)
+    at defaultGetFormat (node:internal/modules/esm/get_format:232:36)
+    at defaultLoad (node:internal/modules/esm/load:145:22)
+    at async ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:477:45)
+    at async ModuleJob._link (node:internal/modules/esm/module_job:110:19) {
+  code: 'ERR_UNKNOWN_FILE_EXTENSION'
+}
+[2025-05-15T20:38:42.797Z] Synchronization process finished with code 1
+[2025-05-15T20:38:42.797Z] Next sync scheduled in 5 seconds
+[2025-05-15T20:38:47.500Z] Starting invoice synchronization...
+[2025-05-15T20:38:47.500Z] Running sync script: /Users/raja/Development/ProsumeAI/server/scripts/sync-subscription-invoices.ts
+[2025-05-15T20:38:47.794Z] [ERROR] TypeError: Unknown file extension ".ts" for /Users/raja/Development/ProsumeAI/server/scripts/sync-subscription-invoices.ts
+    at Object.getFileProtocolModuleFormat [as file:] (node:internal/modules/esm/get_format:189:9)
+    at defaultGetFormat (node:internal/modules/esm/get_format:232:36)
+    at defaultLoad (node:internal/modules/esm/load:145:22)
+    at async ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:477:45)
+    at async ModuleJob._link (node:internal/modules/esm/module_job:110:19) {
+  code: 'ERR_UNKNOWN_FILE_EXTENSION'
+}
+[2025-05-15T20:38:47.801Z] Synchronization process finished with code 1
+[2025-05-15T20:38:47.801Z] Next sync scheduled in 5 seconds
+[2025-05-15T20:38:52.501Z] Starting invoice synchronization...
+[2025-05-15T20:38:52.501Z] Running sync script: /Users/raja/Development/ProsumeAI/server/scripts/sync-subscription-invoices.ts
+[2025-05-15T20:38:52.798Z] [ERROR] TypeError: Unknown file extension ".ts" for /Users/raja/Development/ProsumeAI/server/scripts/sync-subscription-invoices.ts
+    at Object.getFileProtocolModuleFormat [as file:] (node:internal/modules/esm/get_format:189:9)
+    at defaultGetFormat (node:internal/modules/esm/get_format:232:36)
+    at defaultLoad (node:internal/modules/esm/load:145:22)
+    at async ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:477:45)
+    at async ModuleJob._link (node:internal/modules/esm/module_job:110:19) {
+  code: 'ERR_UNKNOWN_FILE_EXTENSION'
+}
+[2025-05-15T20:38:52.805Z] Synchronization process finished with code 1
+[2025-05-15T20:38:52.805Z] Next sync scheduled in 5 seconds
+[2025-05-15T20:38:57.502Z] Starting invoice synchronization...
+[2025-05-15T20:38:57.503Z] Running sync script: /Users/raja/Development/ProsumeAI/server/scripts/sync-subscription-invoices.ts
+[2025-05-15T20:38:57.791Z] [ERROR] TypeError: Unknown file extension ".ts" for /Users/raja/Development/ProsumeAI/server/scripts/sync-subscription-invoices.ts
+    at Object.getFileProtocolModuleFormat [as file:] (node:internal/modules/esm/get_format:189:9)
+    at defaultGetFormat (node:internal/modules/esm/get_format:232:36)
+    at defaultLoad (node:internal/modules/esm/load:145:22)
+    at async ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:477:45)
+    at async ModuleJob._link (node:internal/modules/esm/module_job:110:19) {
+  code: 'ERR_UNKNOWN_FILE_EXTENSION'
+}
+[2025-05-15T20:38:57.798Z] Synchronization process finished with code 1
+[2025-05-15T20:38:57.798Z] Next sync scheduled in 5 seconds
+[2025-05-15T20:39:02.503Z] Starting invoice synchronization...
+[2025-05-15T20:39:02.503Z] Running sync script: /Users/raja/Development/ProsumeAI/server/scripts/sync-subscription-invoices.ts
+[2025-05-15T20:39:02.794Z] [ERROR] TypeError: Unknown file extension ".ts" for /Users/raja/Development/ProsumeAI/server/scripts/sync-subscription-invoices.ts
+    at Object.getFileProtocolModuleFormat [as file:] (node:internal/modules/esm/get_format:189:9)
+    at defaultGetFormat (node:internal/modules/esm/get_format:232:36)
+    at defaultLoad (node:internal/modules/esm/load:145:22)
+    at async ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:477:45)
+    at async ModuleJob._link (node:internal/modules/esm/module_job:110:19) {
+  code: 'ERR_UNKNOWN_FILE_EXTENSION'
+}
+[2025-05-15T20:39:02.800Z] Synchronization process finished with code 1
+[2025-05-15T20:39:02.800Z] Next sync scheduled in 5 seconds
+[2025-05-15T20:39:07.504Z] Starting invoice synchronization...
+[2025-05-15T20:39:07.504Z] Running sync script: /Users/raja/Development/ProsumeAI/server/scripts/sync-subscription-invoices.ts
+[2025-05-15T20:39:07.797Z] [ERROR] TypeError: Unknown file extension ".ts" for /Users/raja/Development/ProsumeAI/server/scripts/sync-subscription-invoices.ts
+    at Object.getFileProtocolModuleFormat [as file:] (node:internal/modules/esm/get_format:189:9)
+    at defaultGetFormat (node:internal/modules/esm/get_format:232:36)
+    at defaultLoad (node:internal/modules/esm/load:145:22)
+    at async ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:477:45)
+    at async ModuleJob._link (node:internal/modules/esm/module_job:110:19) {
+  code: 'ERR_UNKNOWN_FILE_EXTENSION'
+}
+[2025-05-15T20:39:07.803Z] Synchronization process finished with code 1
+[2025-05-15T20:39:07.804Z] Next sync scheduled in 5 seconds
+[2025-05-15T20:39:08.001Z] Received SIGTERM, shutting down...

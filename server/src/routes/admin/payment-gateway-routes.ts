@@ -247,14 +247,14 @@ export function registerPaymentGatewayAdminRoutes(app: express.Express) {
     }
   });
 
-  // Set plan mappings for a payment gateway (especially for Razorpay)
+  // Set plan mappings for a payment gateway
   app.post('/api/admin/payment-gateways/plan-mappings', requireAdmin, async (req, res) => {
     try {
       const { service, mappings } = req.body;
       
-      if (!service || !mappings || typeof mappings !== 'object') {
+      if (!service || !mappings) {
         return res.status(400).json({ 
-          message: 'Service and mappings object are required' 
+          message: 'Service and mappings are required fields' 
         });
       }
       
@@ -286,26 +286,49 @@ export function registerPaymentGatewayAdminRoutes(app: express.Express) {
         });
       }
       
-      // Update the config options
+      // Ensure the mappings are in the correct format
+      const normalizedMappings: Record<string, any> = {};
+      
+      // Process each mapping, ensuring it's in the right format
+      for (const [planId, value] of Object.entries(mappings)) {
+        if (typeof value === 'string') {
+          // Legacy format - convert to new format
+          normalizedMappings[planId] = { INR: value };
+        } else if (typeof value === 'object' && value !== null) {
+          // New format - validate that values are strings
+          const currencyMappings: Record<string, string> = {};
+          
+          for (const [currency, planId] of Object.entries(value)) {
+            if (typeof planId === 'string') {
+              currencyMappings[currency] = planId;
+            }
+          }
+          
+          normalizedMappings[planId] = currencyMappings;
+        }
+      }
+      
+      // Extract the current configOptions
       const currentOptions = gatewayConfig[0].configOptions || {};
+      
+      // Update the configOptions with new mappings
       const updatedOptions = {
         ...currentOptions,
-        plan_mappings: mappings
+        plan_mappings: normalizedMappings
       };
       
-      // Save the updated config
-      const result = await db.update(paymentGatewayConfigs)
+      // Save to the database
+      await db.update(paymentGatewayConfigs)
         .set({ 
           configOptions: updatedOptions,
           updatedAt: new Date()
         })
-        .where(eq(paymentGatewayConfigs.id, gatewayConfig[0].id))
-        .returning();
+        .where(eq(paymentGatewayConfigs.id, gatewayConfig[0].id));
       
       res.json({
-        message: `Plan mappings updated successfully for ${service}`,
+        message: 'Plan mappings updated successfully',
         service: gatewayService,
-        mappings: (result[0].configOptions as any).plan_mappings
+        mappings: normalizedMappings
       });
     } catch (error: any) {
       console.error('Error setting plan mappings:', error);
@@ -412,6 +435,116 @@ export function registerPaymentGatewayAdminRoutes(app: express.Express) {
     }
   });
 
+  // New endpoint to create a plan with specific currency in Razorpay
+  app.post('/api/admin/payment-gateways/create-plan', requireAdmin, async (req, res) => {
+    try {
+      const { gatewayId, planId, currency, amount, interval, name, description } = req.body;
+      
+      if (!gatewayId || !planId || !currency || !amount || !interval || !name) {
+        return res.status(400).json({ 
+          message: 'Missing required fields for plan creation',
+          success: false
+        });
+      }
+      
+      // Get the gateway config by ID
+      const gatewayConfig = await db.select()
+        .from(paymentGatewayConfigs)
+        .where(eq(paymentGatewayConfigs.id, gatewayId))
+        .limit(1);
+      
+      if (!gatewayConfig.length) {
+        return res.status(404).json({ 
+          message: 'Payment gateway not found',
+          success: false
+        });
+      }
+      
+      // Check if the gateway is Razorpay
+      if (gatewayConfig[0].service !== 'RAZORPAY') {
+        return res.status(400).json({ 
+          message: 'This endpoint only supports Razorpay gateways',
+          success: false
+        });
+      }
+      
+      // Decrypt the API key
+      const decryptedKey = decryptApiKey(gatewayConfig[0].key);
+      const [keyId, keySecret] = decryptedKey.split(':');
+      
+      if (!keyId || !keySecret) {
+        return res.status(400).json({ 
+          message: 'Invalid Razorpay API key format',
+          success: false
+        });
+      }
+      
+      // Initialize Razorpay with the API key
+      const razorpay = new Razorpay({
+        key_id: keyId,
+        key_secret: keySecret
+      });
+      
+      // Create the plan in Razorpay
+      const razorpayPlan = await razorpay.plans.create({
+        period: interval.toLowerCase(), // 'monthly' or 'yearly'
+        interval: 1,
+        item: {
+          name,
+          amount,
+          currency,
+          description: description || `${name} subscription plan`
+        },
+        notes: {
+          internal_plan_id: planId.toString(),
+          currency: currency
+        }
+      });
+      
+      // Update the plan mappings
+      const currentOptions = gatewayConfig[0].configOptions || {};
+      let planMappings = ((currentOptions as any).plan_mappings || {}) as Record<string, any>;
+      
+      // Create nested structure to support multiple currencies per plan
+      if (!planMappings[planId]) {
+        planMappings[planId] = {};
+      }
+      
+      // Store the plan ID mapped by currency
+      planMappings[planId][currency] = razorpayPlan.id;
+      
+      const updatedOptions = {
+        ...currentOptions,
+        plan_mappings: planMappings
+      };
+      
+      // Save the updated mappings
+      await db.update(paymentGatewayConfigs)
+        .set({ 
+          configOptions: updatedOptions,
+          updatedAt: new Date()
+        })
+        .where(eq(paymentGatewayConfigs.id, gatewayConfig[0].id));
+      
+      res.json({
+        success: true,
+        message: 'Razorpay plan created successfully',
+        planId: razorpayPlan.id,
+        name: razorpayPlan.item.name,
+        period: razorpayPlan.period,
+        amount: razorpayPlan.item.amount,
+        currency: razorpayPlan.item.currency
+      });
+    } catch (error: any) {
+      console.error('Error creating plan:', error);
+      res.status(500).json({ 
+        success: false,
+        message: 'Failed to create plan', 
+        error: error.message 
+      });
+    }
+  });
+
   // Get plan mappings for a payment gateway
   app.get('/api/admin/payment-gateways/plan-mappings', requireAdmin, async (req, res) => {
     try {
@@ -453,11 +586,24 @@ export function registerPaymentGatewayAdminRoutes(app: express.Express) {
       
       // Extract the plan mappings from the config
       const currentOptions = gatewayConfig[0].configOptions || {};
-      const planMappings = ((currentOptions as any).plan_mappings || {}) as Record<string, string>;
+      const planMappings = ((currentOptions as any).plan_mappings || {}) as Record<string, any>;
+      
+      // Convert any legacy format mappings to new structure
+      const formattedMappings: Record<string, any> = {};
+      
+      for (const [planId, mapping] of Object.entries(planMappings)) {
+        // If it's a string, it's a legacy format (direct plan ID)
+        if (typeof mapping === 'string') {
+          formattedMappings[planId] = { INR: mapping };
+        } else {
+          // It's already in the new format with currency keys
+          formattedMappings[planId] = mapping;
+        }
+      }
       
       res.json({
         service: gatewayService,
-        mappings: planMappings
+        mappings: formattedMappings
       });
     } catch (error: any) {
       console.error('Error getting plan mappings:', error);

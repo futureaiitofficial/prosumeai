@@ -7,6 +7,7 @@ import { Router } from 'express';
 
 // Add the import for feature access middleware
 import { requireFeatureAccess, trackFeatureUsage } from '../../middleware/feature-access';
+import { withEncryption } from '../../middleware/index';
 
 const router = Router();
 
@@ -26,7 +27,10 @@ export enum JobApplicationStatus {
  */
 export function registerJobApplicationRoutes(app: express.Express) {
   // Get all job applications for the current user
-  app.get('/api/job-applications', requireUser, async (req, res) => {
+  app.get('/api/job-applications', 
+    requireUser, 
+    ...withEncryption('jobApplications'),
+    async (req, res) => {
     try {
       if (!req.user) {
         return res.status(401).json({ message: "Unauthorized" });
@@ -44,7 +48,10 @@ export function registerJobApplicationRoutes(app: express.Express) {
   });
   
   // Get a specific job application
-  app.get('/api/job-applications/:id', requireUser, async (req, res) => {
+  app.get('/api/job-applications/:id', 
+    requireUser, 
+    ...withEncryption('jobApplications'),
+    async (req, res) => {
     try {
       if (!req.user) {
         return res.status(401).json({ message: "Unauthorized" });
@@ -82,6 +89,7 @@ export function registerJobApplicationRoutes(app: express.Express) {
     requireUser, 
     requireFeatureAccess('job_application'), // Check if user has access to this feature
     trackFeatureUsage('job_application'),    // Track usage for this feature
+    ...withEncryption('jobApplications'),    // Apply encryption to sensitive fields
     async (req, res) => {
     try {
       if (!req.user) {
@@ -142,7 +150,10 @@ export function registerJobApplicationRoutes(app: express.Express) {
   });
   
   // Update a job application
-  app.put('/api/job-applications/:id', requireUser, async (req, res) => {
+  app.put('/api/job-applications/:id', 
+    requireUser, 
+    ...withEncryption('jobApplications'),
+    async (req, res) => {
     try {
       if (!req.user) {
         return res.status(401).json({ message: "Unauthorized" });

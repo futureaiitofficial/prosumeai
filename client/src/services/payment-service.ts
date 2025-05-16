@@ -16,12 +16,28 @@ export interface PaymentIntent {
   formattedPrice?: string;
   gateway: string;
   short_url?: string;
+  isUpgrade?: boolean;
+  // New fields for future-dated subscriptions
+  actualPlanAmount?: number;
+  isTokenPayment?: boolean;
+  futurePaymentDate?: string;
+  isFutureSubscription?: boolean;
+  startImmediately?: boolean;
+  startAt?: number;
+}
+
+export interface PaymentDetails {
+  planId: number;
+  amount?: number;
+  currency?: string;
+  isUpgrade?: boolean;
 }
 
 export interface BillingDetails {
   id?: number;
   userId?: number;
   fullName: string;
+  email?: string;
   country: string;
   addressLine1: string;
   addressLine2?: string;
@@ -31,6 +47,8 @@ export interface BillingDetails {
   phoneNumber?: string;
   taxId?: string;
   companyName?: string;
+  // Alias for addressLine1 for easier access
+  address?: string;
 }
 
 export interface PaymentVerificationResult {
@@ -40,6 +58,7 @@ export interface PaymentVerificationResult {
   subscriptionId?: number;
   transactionId?: number;
   error?: string;
+  isUpgrade?: boolean;
 }
 
 export interface GatewayKeyResponse {
@@ -54,11 +73,22 @@ export interface GatewayKeyResponse {
 export const PaymentService = {
   /**
    * Create a payment intent for a subscription plan
+   * @param paymentDetails - Can be either a plan ID or a payment details object
    */
-  createPaymentIntent: async (planId: number): Promise<PaymentIntent> => {
+  createPaymentIntent: async (paymentDetailsOrPlanId: number | PaymentDetails): Promise<PaymentIntent> => {
     try {
-      console.log(`Creating payment intent for plan ID: ${planId}`);
-      const response = await axios.post('/api/payments/create-intent', { planId });
+      let paymentDetails: PaymentDetails;
+      
+      // Handle backwards compatibility with the old API that accepted just a planId
+      if (typeof paymentDetailsOrPlanId === 'number') {
+        paymentDetails = { planId: paymentDetailsOrPlanId };
+        console.log(`Creating payment intent for plan ID: ${paymentDetailsOrPlanId}`);
+      } else {
+        paymentDetails = paymentDetailsOrPlanId;
+        console.log(`Creating payment intent with details:`, paymentDetails);
+      }
+      
+      const response = await axios.post('/api/payments/create-intent', paymentDetails);
       console.log('Payment intent created successfully:', response.data);
       return response.data;
     } catch (error: any) {
@@ -115,6 +145,7 @@ export const PaymentService = {
     planId: number;
     signature?: string;
     subscriptionId?: string;
+    isUpgrade?: boolean;
   }): Promise<PaymentVerificationResult> => {
     try {
       console.log('Sending payment verification request with data:', JSON.stringify(paymentData));

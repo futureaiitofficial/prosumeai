@@ -14,6 +14,8 @@ import {
   Settings,
   Database,
   ListIcon,
+  Wrench,
+  Shield,
 } from "lucide-react";
 
 export default function AdminPage() {
@@ -93,6 +95,13 @@ export function AdminDashboardPage() {
       color: "bg-purple-500"
     },
     {
+      title: "Security",
+      description: "Manage encryption and security settings",
+      icon: <Shield className="h-5 w-5" />,
+      href: "/admin/security",
+      color: "bg-red-500"
+    },
+    {
       title: "Backups",
       description: "Manage database backups",
       icon: <Database className="h-5 w-5" />,
@@ -112,6 +121,13 @@ export function AdminDashboardPage() {
       icon: <ListIcon className="h-5 w-5" />,
       href: "/admin/subscriptions",
       color: "bg-cyan-500"
+    },
+    {
+      title: "Tools",
+      description: "Manage system maintenance and background tasks",
+      icon: <Wrench className="h-5 w-5" />,
+      href: "/admin/tools",
+      color: "bg-pink-500"
     },
   ];
   

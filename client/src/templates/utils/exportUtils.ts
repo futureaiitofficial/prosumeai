@@ -234,18 +234,9 @@ export async function generatePDFFromReactElement(
       throw new Error('Invalid PDF generated');
     }
     
-    // Create a temporary URL to verify the PDF
-    const url = URL.createObjectURL(pdfBlob);
-    try {
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error('Invalid PDF content');
-      }
-    } finally {
-      URL.revokeObjectURL(url);
-    }
-    
-    console.log('PDF successfully generated and verified');
+    // Skip URL verification that's causing CSP issues
+    // Just return the blob directly
+    console.log('PDF successfully generated');
     return pdfBlob;
     
   } catch (error) {

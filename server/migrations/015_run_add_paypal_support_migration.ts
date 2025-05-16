@@ -2,6 +2,11 @@ import postgres from 'postgres';
 import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
+
+// Get current file directory with ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 dotenv.config();
 
@@ -30,7 +35,7 @@ export async function runMigration(): Promise<void> {
 }
 
 // Run the migration if this script is executed directly
-if (require.main === module) {
+if (import.meta.url === `file://${process.argv[1]}`) {
   runMigration()
     .then(() => {
       console.log('Migration completed successfully');

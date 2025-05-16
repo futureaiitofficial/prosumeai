@@ -234,7 +234,7 @@ const PricingPage: React.FC = () => {
           ) : (
             <>
               {/* Pricing Card Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-24">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-24">
                 {filteredPlans.map((plan: SubscriptionPlan) => {
                   const priceDisplay = getPriceDisplay(plan);
                   
@@ -360,11 +360,11 @@ const PricingPage: React.FC = () => {
                   <table className="min-w-full divide-y divide-gray-200 border">
                     <thead className="bg-gray-50">
                       <tr>
-                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r">
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r w-1/5">
                           Feature
                         </th>
                         {filteredPlans.map((plan: SubscriptionPlan) => (
-                          <th key={plan.id} scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r last:border-r-0">
+                          <th key={plan.id} scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r last:border-r-0 w-1/5">
                             {plan.name}
                           </th>
                         ))}
@@ -373,7 +373,7 @@ const PricingPage: React.FC = () => {
                     <tbody className="bg-white divide-y divide-gray-200">
                       {uniqueFeatures.map((feature: PlanFeature) => (
                         <tr key={feature.featureId}>
-                          <td className="px-6 py-4 whitespace-normal text-sm text-gray-900 border-r">
+                                                      <td className="px-6 py-4 whitespace-normal text-sm text-gray-900 border-r w-1/5">
                             {feature.featureName}
                           </td>
                           {filteredPlans.map((plan: SubscriptionPlan) => {
@@ -382,7 +382,7 @@ const PricingPage: React.FC = () => {
                             );
                             
                             return (
-                              <td key={`${plan.id}-${feature.featureId}`} className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center border-r last:border-r-0">
+                              <td key={`${plan.id}-${feature.featureId}`} className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center border-r last:border-r-0 w-1/5">
                                 {planFeature ? (
                                   planFeature.limitType === 'BOOLEAN' ? (
                                     planFeature.isEnabled ? (

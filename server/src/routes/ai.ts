@@ -12,6 +12,26 @@ import { requireFeatureAccess, trackFeatureUsage } from '../../middleware/featur
 const MODEL = "gpt-4o"; // Using same model as in ai-resume-utils.ts
 
 /**
+ * Helper function to clean and format bullet points
+ */
+function formatBulletPoint(text: string): string {
+  // Remove quotes, trim whitespace, remove existing bullet points
+  let cleaned = text.replace(/^["']|["']$/g, '').trim().replace(/^[-•*]\s+/, '');
+  
+  // Ensure proper ending punctuation
+  if (!/[.!?]$/.test(cleaned)) {
+    if (cleaned.endsWith(',')) {
+      cleaned = cleaned.slice(0, -1) + '.';
+    } else {
+      cleaned = cleaned + '.';
+    }
+  }
+  
+  // Add consistent bullet point format
+  return `• ${cleaned}`;
+}
+
+/**
  * Extracts important keywords and skills from a job description
  */
 export async function extractKeywordsFromJobDescription(
@@ -24,10 +44,22 @@ export async function extractKeywordsFromJobDescription(
     }
 
     const prompt = `
-Extract the most important keywords and skills from this job description. 
-Focus on hard skills, technical requirements, and industry-specific terminology.
-Return ONLY a list of 15-20 keywords/phrases, with each on a new line.
-No numbering, bullet points, or explanations.
+As an expert resume skills analyst, extract ONLY legitimate professional skills from this job description that would be appropriate to list in a resume's skills section.
+
+IMPORTANT GUIDELINES:
+1. Extract ONLY actual professional skills, competencies, and abilities
+2. EXCLUDE company names, job titles, locations, and non-skill requirements
+3. EXCLUDE generic phrases like "ability to" - extract just the skill itself
+4. EXCLUDE vague descriptions that aren't specific skills
+5. FOCUS on hard skills, technical abilities, and concrete soft skills
+6. Ensure each skill is expressed in standard resume format (1-3 words typically)
+7. Format skills consistently (e.g., "JavaScript" not "javascript", "Python" not "python coding")
+8. Prioritize specific skills over general ones (e.g., "React" is better than "frontend development")
+9. Include only skills that could legitimately appear in a skills section of a resume
+10. Differentiate between tools/technologies and skills when appropriate
+
+Return ONLY a list of 15-20 legitimate skills, with each on a new line.
+No numbering, bullet points, categories, or explanations.
 
 Job Description:
 ${truncateText(jobDescription, 2000)}
@@ -49,10 +81,47 @@ ${truncateText(jobDescription, 2000)}
       const content = response.choices[0]?.message?.content?.trim() || "";
       
       // Split by newlines and clean up each keyword
-      const keywords = content
+      let keywords = content
         .split('\n')
         .map((line: string) => line.trim())
         .filter((line: string) => line.length > 0);
+
+      // Additional post-processing to exclude common non-skills
+      keywords = keywords.filter(skill => {
+        const lowerSkill = skill.toLowerCase();
+        
+        // Filter out common non-skills markers
+        if (
+          // Employment terms and logistical items
+          lowerSkill.includes(' years of experience') ||
+          lowerSkill.includes('degree in') ||
+          lowerSkill.includes('salary') ||
+          lowerSkill.includes('full-time') ||
+          lowerSkill.includes('part-time') ||
+          lowerSkill.includes('remote') ||
+          lowerSkill.includes('hybrid') ||
+          lowerSkill.includes('location') ||
+          
+          // Generic phrases
+          lowerSkill.includes('ability to') ||
+          lowerSkill.includes('experience with') ||
+          lowerSkill.includes('knowledge of') ||
+          lowerSkill.includes('understanding of') ||
+          
+          // Overly general terms
+          lowerSkill === 'experience' ||
+          lowerSkill === 'skills' ||
+          lowerSkill === 'qualifications' ||
+          lowerSkill === 'requirements' ||
+          
+          // Too long to be a standard skill
+          lowerSkill.split(' ').length > 4
+        ) {
+          return false;
+        }
+        
+        return true;
+      });
 
       return keywords;
     } catch (apiError: any) {
@@ -104,42 +173,41 @@ export async function analyzeJobDescription(
     }
 
     const prompt = `
-Analyze this job description and extract keywords into the following categories:
+As a professional resume analyst, categorize skills and qualifications from this job description specifically for resume use.
 
-1. technicalSkills: Technical abilities, programming languages, hard skills relevant to the job
-   Examples: JavaScript, Python, DevOps, API development, software architecture, data analysis
+Extract keywords into these categories:
 
-2. softSkills: Interpersonal abilities, character traits, and professional attributes
-   Examples: communication, leadership, teamwork, problem-solving, critical thinking, attention to detail
+1. technicalSkills: Concrete technical abilities, programming languages, methodologies, and hard skills
+   Examples: JavaScript, Python, Data Analysis, SEO, Machine Learning, DevOps, REST APIs, Accounting
 
-3. education: Required degrees, educational qualifications, or academic background
-   Examples: Bachelor's degree, MBA, Computer Science, Engineering, certifications
+2. softSkills: Specific interpersonal abilities, character traits, and professional attributes 
+   Examples: Leadership, Communication, Problem Solving, Conflict Resolution, Time Management
 
-4. responsibilities: Key duties, tasks, and job functions for the role
-   Examples: develop software, manage projects, create reports, conduct research, lead teams
+3. tools: Specific software, platforms, frameworks, and technologies used in the role
+   Examples: Adobe Photoshop, React, AWS, Docker, Kubernetes, Excel, Salesforce, JIRA
 
-5. industryTerms: Industry-specific jargon, terminology, and domain knowledge
-   Examples: agile methodology, software development lifecycle, financial regulations, healthcare compliance
+4. certifications: Professional certifications, licenses, and formal qualifications
+   Examples: AWS Certified Solutions Architect, PMP, CISSP, CPA, Scrum Master
 
-6. tools: Software, technologies, platforms, frameworks, or specific tools mentioned
-   Examples: React, AWS, Docker, Kubernetes, Tableau, SAP, Office 365, Jira, Git
+5. education: Required degrees and academic qualifications (not for listing as skills)
+   Examples: Bachelor's in Computer Science, MBA, Associate's Degree
 
-7. certifications: Professional certifications, licenses, or qualifications
-   Examples: AWS Certified, PMP, CISSP, CPA, Scrum Master, Google Cloud Professional
+6. industryTerms: Industry-specific knowledge areas (NOT company names or job titles)
+   Examples: Supply Chain Management, Product Lifecycle, UX Design, Financial Analysis
 
-For each category, extract 5-15 relevant keywords or phrases that appear DIRECTLY in the job description.
-Format your response as a valid JSON object with array properties for each category.
-If a category has no relevant terms, return an empty array.
+7. responsibilities: Key duties and functions (not for listing as skills, for context only)
+   Examples: Project Management, Team Leadership, Content Creation, Customer Support
 
-IMPORTANT:
-- Keep keywords and phrases CONCISE (1-4 words each is ideal for ATS systems)
-- Break down longer sentences into shorter, more focused keywords
-- Ensure accurate categorization - do not put technical skills in soft skills category and vice versa
-- Focus on extracting the EXACT wording used in the job description
-- Avoid long phrases or complete sentences - ATS systems work better with concise keywords
-- For responsibilities, prefer action verb + object format (e.g., "develop applications" rather than "responsible for developing applications")
-- Prioritize specific, technical, and industry-specific terms over generic ones
-- Make sure industry terms are truly industry-specific, not general business terms
+CRITICAL CRITERIA FOR RESUME-APPROPRIATE SKILLS:
+- Include ONLY items that could legitimately appear in a resume skills section
+- Extract items as they would appear in a resume (short, 1-3 words typically)
+- Format consistently and professionally (e.g., "JavaScript" not "javascript")
+- EXCLUDE generic phrases like "ability to" - extract just the skill itself
+- EXCLUDE company names, job titles, locations, and descriptions
+- EXCLUDE subjective qualities or personality traits that cannot be objectively demonstrated
+- PRIORITIZE specific skills over general skill areas
+
+Format response as a valid JSON object with array properties for each category.
 
 Job Description:
 ${truncateText(jobDescription, 2000)}
@@ -151,6 +219,7 @@ ${truncateText(jobDescription, 2000)}
         messages: [{ role: 'user', content: prompt }],
         max_tokens: 1000,
         temperature: 0.2,
+        response_format: { type: "json_object" }
       });
 
       if (!response.choices || response.choices.length === 0) {
@@ -181,14 +250,56 @@ ${truncateText(jobDescription, 2000)}
         console.log("Cleaned content before parsing:", cleanedContent);
         const parsedResult = JSON.parse(cleanedContent);
         
-        // Ensure all categories exist
+        // Post-process the extracted skills for additional filtering
+        // Function to filter skills based on common criteria
+        const filterSkills = (skills: string[]): string[] => {
+          if (!Array.isArray(skills)) return [];
+          
+          return skills.filter(skill => {
+            const lowerSkill = skill.toLowerCase();
+            
+            // Filter out common non-skills markers 
+            if (
+              // Employment terms and logistical items
+              lowerSkill.includes(' years of experience') ||
+              lowerSkill.includes('degree in') ||
+              lowerSkill.includes('salary') ||
+              lowerSkill.includes('full-time') ||
+              lowerSkill.includes('part-time') ||
+              lowerSkill.includes('remote') ||
+              lowerSkill.includes('hybrid') ||
+              lowerSkill.includes('location') ||
+              
+              // Generic phrases
+              lowerSkill.includes('ability to') ||
+              lowerSkill.includes('experience with') ||
+              lowerSkill.includes('knowledge of') ||
+              lowerSkill.includes('understanding of') ||
+              
+              // Overly general terms
+              lowerSkill === 'experience' ||
+              lowerSkill === 'skills' ||
+              lowerSkill === 'qualifications' ||
+              lowerSkill === 'requirements' ||
+              
+              // Too long to be a standard skill
+              lowerSkill.split(' ').length > 4
+            ) {
+              return false;
+            }
+            
+            return true;
+          });
+        };
+        
+        // Ensure all categories exist and apply filtering
         const result = {
-          technicalSkills: Array.isArray(parsedResult.technicalSkills) ? parsedResult.technicalSkills : [],
-          softSkills: Array.isArray(parsedResult.softSkills) ? parsedResult.softSkills : [],
+          technicalSkills: filterSkills(parsedResult.technicalSkills || []),
+          softSkills: filterSkills(parsedResult.softSkills || []),
           education: Array.isArray(parsedResult.education) ? parsedResult.education : [],
           responsibilities: Array.isArray(parsedResult.responsibilities) ? parsedResult.responsibilities : [],
-          industryTerms: Array.isArray(parsedResult.industryTerms) ? parsedResult.industryTerms : [],
-          tools: Array.isArray(parsedResult.tools) ? parsedResult.tools : [],
+          industryTerms: filterSkills(parsedResult.industryTerms || []),
+          tools: filterSkills(parsedResult.tools || []),
           certifications: Array.isArray(parsedResult.certifications) ? parsedResult.certifications : []
         };
         
@@ -199,14 +310,34 @@ ${truncateText(jobDescription, 2000)}
         // Fall back to basic keyword extraction
         const keywords = await extractKeywordsFromJobDescription(jobDescription);
         
-        // Simple categorization logic
+        // Simple categorization logic - this is just a fallback
+        const technicalKeywords = ['javascript', 'python', 'java', 'html', 'css', 'api', 'sql', 'nosql', 
+          'react', 'angular', 'vue', 'node', 'aws', 'azure', 'cloud', 'data', 'analytics', 'machine learning'];
+        
+        const softKeywords = ['communication', 'leadership', 'teamwork', 'collaboration', 'problem solving', 
+          'time management', 'critical thinking', 'creativity', 'project management'];
+          
+        const toolKeywords = ['excel', 'powerpoint', 'word', 'photoshop', 'illustrator', 'figma', 'jira', 
+          'confluence', 'git', 'docker', 'kubernetes', 'terraform', 'jenkins'];
+        
+        // Simple categorization based on keyword matches
         const result = {
-          technicalSkills: keywords.filter(k => /^(programming|coding|development|software|web|api|database)/.test(k.toLowerCase())).slice(0, 10),
-          softSkills: keywords.filter(k => /^(communication|leadership|teamwork|collaboration)/.test(k.toLowerCase())).slice(0, 10),
+          technicalSkills: keywords.filter(k => 
+            technicalKeywords.some(tk => k.toLowerCase().includes(tk))
+          ),
+          softSkills: keywords.filter(k => 
+            softKeywords.some(sk => k.toLowerCase().includes(sk))
+          ),
+          tools: keywords.filter(k => 
+            toolKeywords.some(tk => k.toLowerCase().includes(tk))
+          ),
           education: [],
           responsibilities: [],
-          industryTerms: keywords.filter(k => !/^(programming|coding|development|software|web|api|database|communication|leadership|teamwork|collaboration)/.test(k.toLowerCase())).slice(0, 10),
-          tools: [],
+          industryTerms: keywords.filter(k => 
+            !technicalKeywords.some(tk => k.toLowerCase().includes(tk)) &&
+            !softKeywords.some(sk => k.toLowerCase().includes(sk)) &&
+            !toolKeywords.some(tk => k.toLowerCase().includes(tk))
+          ),
           certifications: []
         };
         
@@ -528,6 +659,256 @@ Your response should ONLY contain the body paragraphs that would go between the 
       }
     } catch (error: any) {
       console.error('Error in generate route:', error);
+      return res.status(500).json({ 
+        message: 'Internal server error processing your request',
+        error: 'SERVER_ERROR'
+      });
+    }
+});
+
+// Add route to enhance experience bullets
+router.post('/enhance-experience', 
+  requireUser,
+  requireFeatureAccess('ai_generation'),
+  trackFeatureUsage('ai_generation'),
+  async (req, res) => {
+    try {
+      const { 
+        jobTitle, 
+        jobDescription, 
+        experienceItem,
+        existingSkills,
+        missingKeywords,
+        optimizationTarget 
+      } = req.body;
+      
+      if (!jobTitle || !jobDescription || !experienceItem) {
+        return res.status(400).json({ 
+          message: 'Job title, description, and experience information are required',
+          error: 'MISSING_REQUIRED_DATA'
+        });
+      }
+      
+      try {
+        const { position, company, description, achievements } = experienceItem;
+        
+        // Prepare the experience context
+        const experienceContext = {
+          position,
+          company,
+          description
+        };
+        
+        // Extract existing content from achievements
+        const existingContent = Array.isArray(achievements) && achievements.length > 0
+          ? achievements.join('\n')
+          : description || '';
+          
+        // Extract keywords from job description for better matching
+        const keywordsResult = await analyzeJobDescription(jobDescription);
+        const jobKeywords = [
+          ...keywordsResult.technicalSkills,
+          ...keywordsResult.softSkills,
+          ...keywordsResult.tools
+        ];
+        
+        // If we have missing keywords from ATS analysis, prioritize those
+        const priorityKeywords = Array.isArray(missingKeywords) && missingKeywords.length > 0
+          ? missingKeywords
+          : jobKeywords;
+        
+        // Determine how closely the positions align
+        const positionLower = position?.toLowerCase() || '';
+        const jobTitleLower = jobTitle?.toLowerCase() || '';
+        
+        // Calculate overlap between position and target job title
+        const positionWords = positionLower.split(/\s+/).filter((word: string) => word.length > 3);
+        const jobTitleWords = jobTitleLower.split(/\s+/).filter((word: string) => word.length > 3);
+        
+        let overlapCount = 0;
+        for (const word of positionWords) {
+          if (jobTitleWords.includes(word)) {
+            overlapCount++;
+          }
+        }
+        
+        // Calculate percentage of matching significant words
+        const positionWordCount = Math.max(1, positionWords.length);
+        const jobTitleWordCount = Math.max(1, jobTitleWords.length);
+        const overlapPercentage = Math.min(
+          (overlapCount / positionWordCount) * 100,
+          (overlapCount / jobTitleWordCount) * 100
+        );
+        
+        // Based on overlap percentage, determine if it's a career change
+        const isCareerChange = overlapPercentage < 30;
+        
+        // Generate appropriate prompt
+        let prompt = '';
+        if (isCareerChange) {
+          prompt = `
+As an expert resume writer, create 3-5 authentic bullet points for a career transition.
+
+CURRENT ROLE: ${position} at ${company}
+TARGET POSITION: ${jobTitle}
+
+PRIORITY KEYWORDS TO INCORPORATE (where authentic and applicable):
+${priorityKeywords.join(', ')}
+
+OPTIMIZATION STRATEGY: ${optimizationTarget || "balance keywords naturally"}
+
+⚠️ CRITICAL INSTRUCTIONS ⚠️
+These positions are in different career fields. You must:
+1. Write bullet points that HONESTLY reflect work done as a ${position} at ${company} ONLY
+2. Focus on REAL achievements and responsibilities from the ${position} role
+3. DO NOT fabricate skills or experience that wouldn't be part of a ${position} role
+4. DO NOT write as if the person has worked in the target role or target company
+5. Mention skills that naturally transfer to ${jobTitle} ONLY if authentic
+6. Strategically incorporate 1-2 priority keywords per bullet point, but ONLY if they genuinely apply
+7. Quantify achievements with numbers/percentages where appropriate
+8. Balance keyword optimization with authentic experience description
+9. Each bullet point should be CONCISE (15-25 words) and follow this format:
+   "[Action verb] [what you did] by [how you did it], resulting in [measurable outcome with metrics]"
+10. DO NOT use quotation marks around bullet points
+11. Ensure each bullet point is a COMPLETE SENTENCE that ends with proper punctuation
+
+For example:
+• Spearheaded research projects by implementing agile methodologies, reducing development cycles by 25% and increasing stakeholder satisfaction.
+• Overhauled customer service protocols through data-driven analysis, resulting in 42% improvement in resolution rates.
+
+Keep each bullet point concise, specific, achievement-focused, and starting with a strong action verb.
+Return ONLY the bullet points with no explanations.
+
+Current Content:
+${truncateText(existingContent, 300)}
+`;
+        } else {
+          const alignmentLevel = overlapPercentage > 70 ? "highly similar" : 
+                                overlapPercentage > 50 ? "related" : 
+                                "somewhat related";
+          
+          prompt = `
+You are an expert resume writer enhancing work experience for a ${alignmentLevel} position.
+
+CURRENT ROLE: ${position} at ${company}
+TARGET POSITION: ${jobTitle}
+
+Job Description:
+${truncateText(jobDescription, 800)}
+
+PRIORITY ATS KEYWORDS TO INCORPORATE:
+${priorityKeywords.join(', ')}
+
+OPTIMIZATION STRATEGY: ${optimizationTarget || "balance keywords naturally"}
+
+⚠️ CRITICAL INSTRUCTIONS ⚠️
+1. Write authentic bullet points that accurately represent responsibilities as a ${position} at ${company} ONLY
+2. Emphasize aspects of ${position} that naturally relate to ${jobTitle}
+3. NEVER suggest the person already worked at the target company or in the target role
+4. Strategically incorporate 1-2 relevant keywords per bullet point
+5. Include metrics and quantifiable achievements where possible (percentages, numbers)
+6. Begin each bullet with a strong action verb (achieved, delivered, implemented, etc.)
+7. DO NOT fabricate experiences that wouldn't be part of the ${position} role
+8. Balance ATS keyword optimization with natural, readable language
+9. Each bullet point should be CONCISE (15-25 words) and follow this format:
+   "[Action verb] [what you did] by [how you did it], resulting in [measurable outcome with metrics]"
+10. DO NOT use quotation marks around bullet points
+11. Ensure each bullet point is a COMPLETE SENTENCE that ends with proper punctuation
+
+For example:
+• Spearheaded research projects by implementing agile methodologies, reducing development cycles by 25% and increasing stakeholder satisfaction.
+• Overhauled customer service protocols through data-driven analysis, resulting in 42% improvement in resolution rates.
+
+Create 3-5 powerful bullet points that are concise, specific, and achievement-focused.
+Format your response as a list of bullet points only, with no additional text.
+
+Current Content:
+${truncateText(existingContent, 300)}
+`;
+        }
+        
+        // Call OpenAI to generate the enhanced bullets
+        const response = await OpenAIApi.chat({
+          model: MODEL,
+          messages: [{ role: 'user', content: prompt }],
+          max_tokens: 500,
+          temperature: 0.7,
+        });
+        
+        if (!response.choices || response.choices.length === 0) {
+          throw new Error('API Error: No response choices returned');
+        }
+        
+        // Process the response to extract bullet points
+        const content = response.choices[0]?.message?.content?.trim() || "";
+        
+        // Split by newlines and clean up each bullet point
+        const bullets = content
+          .split('\n')
+          .map(line => line.trim())
+          .filter(line => line.length > 0)
+          .map(line => formatBulletPoint(line))
+          // Enforce maximum bullet point length (truncate to last complete word)
+          .map(bullet => {
+            const MAX_BULLET_LENGTH = 160; // Reduced from 200 for more concise bullets
+            if (bullet.length <= MAX_BULLET_LENGTH) return bullet;
+            
+            // Try to find the last sentence boundary
+            const truncated = bullet.substring(0, MAX_BULLET_LENGTH);
+            const lastSentenceEnd = Math.max(
+              truncated.lastIndexOf('. '),
+              truncated.lastIndexOf('? '),
+              truncated.lastIndexOf('! ')
+            );
+            
+            if (lastSentenceEnd > MAX_BULLET_LENGTH * 0.7) {
+              // If we found a sentence boundary that's at least 70% into the text
+              return formatBulletPoint(bullet.substring(0, lastSentenceEnd + 1));
+            }
+            
+            // Truncate at the last word boundary
+            const lastSpaceIndex = truncated.lastIndexOf(' ');
+            if (lastSpaceIndex > 0) {
+              return formatBulletPoint(bullet.substring(0, lastSpaceIndex));
+            }
+            
+            return bullet.substring(0, MAX_BULLET_LENGTH);
+          });
+        
+        // Track token usage for AI-specific metrics
+        if ((req.isAuthenticated && req.isAuthenticated()) && req.user) {
+          const tokensUsed = response.usage?.total_tokens || 500;
+          try {
+            await trackTokenUsage(req.user.id, 'ai_generation', tokensUsed);
+          } catch (tokenError) {
+            console.error('Error tracking token usage:', tokenError);
+          }
+        }
+        
+        return res.json({ enhancedBullets: bullets });
+      } catch (error: any) {
+        console.error('Error enhancing experience bullets:', error);
+        
+        // Provide more specific error response based on error type
+        if (error.message.includes('API key')) {
+          return res.status(500).json({ 
+            message: 'OpenAI API key configuration error. Please contact support.',
+            error: 'API_KEY_ERROR'
+          });
+        } else if (error.message.includes('Rate limit')) {
+          return res.status(429).json({ 
+            message: 'OpenAI API rate limit exceeded. Please try again later.',
+            error: 'RATE_LIMIT'
+          });
+        }
+        
+        return res.status(500).json({ 
+          message: 'Failed to enhance experience bullets. Please try again.',
+          error: 'ENHANCEMENT_ERROR'
+        });
+      }
+    } catch (error: any) {
+      console.error('Error in enhance-experience route:', error);
       return res.status(500).json({ 
         message: 'Internal server error processing your request',
         error: 'SERVER_ERROR'

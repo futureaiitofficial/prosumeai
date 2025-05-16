@@ -6,10 +6,11 @@ import { eq, and, sql } from 'drizzle-orm';
 import { features, featureUsage } from '@shared/schema';
 import { 
   generateSummary,
-  enhanceExperiencePoints,
+  enhanceExperienceBullets,
   extractSkills,
   enhanceProject,
-  calculateATSScore
+  calculateATSScore,
+  generateSkillsForPosition
 } from '../utils/ai-resume-utils-new';
 
 // Constants for tokens used per request - these are estimates
@@ -153,7 +154,7 @@ export function registerAIResumeRoutes(app: express.Express) {
           optimizationTarget: missingKeywords.length > 0 ? "focus on incorporating missing keywords" : "balance keywords naturally"
         };
         
-        const enhancedBullets = await enhanceExperiencePoints(
+        const enhancedBullets = await enhanceExperienceBullets(
           jobTitle,
           jobDescription,
           experienceItem,
@@ -292,6 +293,44 @@ export function registerAIResumeRoutes(app: express.Express) {
         console.error('Error in resume-ai/ats-score route:', error);
         res.status(500).json({ 
           message: "Failed to calculate ATS score", 
+          error: error.message 
+        });
+      }
+    }
+  );
+
+  // Generate skills based on just the target job position
+  app.post('/api/resume-ai/generate-position-skills',
+    requireUser,
+    requireFeatureAccess('ai_generation'),
+    trackFeatureUsage('ai_generation'),
+    async (req, res) => {
+      if (!req.isAuthenticated() || !req.user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      try {
+        const { jobTitle } = req.body;
+        
+        if (!jobTitle) {
+          return res.status(400).json({ 
+            message: "Missing required field: jobTitle" 
+          });
+        }
+        
+        // Call AI function to generate skills based on job title
+        const skills = await generateSkillsForPosition(jobTitle);
+        
+        // Track token usage for AI-specific metrics
+        if (req.isAuthenticated() && req.user) {
+          await trackTokenUsage(req.user.id, 'ai_generation', TOKENS_PER_REQUEST.EXTRACT_SKILLS);
+        }
+        
+        res.json(skills);
+      } catch (error: any) {
+        console.error('Error in resume-ai/generate-position-skills route:', error);
+        res.status(500).json({ 
+          message: "Failed to generate skills for position", 
           error: error.message 
         });
       }

@@ -1,6 +1,7 @@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useState } from 'react';
+import { Info } from "lucide-react";
 
 interface PersonalInfoFormProps {
   data: any;
@@ -24,8 +25,24 @@ export default function PersonalInfoForm({ data, updateData }: PersonalInfoFormP
   };
 
   const validatePhone = (phone: string) => {
-    const re = /^[0-9+\-\s]*$/;
-    return re.test(phone);
+    // More comprehensive phone validation that allows international formats
+    const re = /^[+]?[(]?[0-9]{1,4}[)]?[-\s.]?[0-9]{1,3}[-\s.]?[0-9]{1,4}[-\s.]?[0-9]{1,4}$/;
+    return phone === '' || re.test(phone);
+  };
+
+  const formatPhoneNumber = (phone: string) => {
+    // If it's already well-formatted, don't change it
+    if (phone.includes('-') || phone.includes('(') || phone.includes(')') || phone.includes('+')) {
+      return phone;
+    }
+    
+    // Basic US phone formatting if it's 10 digits
+    if (phone.replace(/\D/g, '').length === 10) {
+      const digits = phone.replace(/\D/g, '');
+      return `(${digits.substring(0, 3)}) ${digits.substring(3, 6)}-${digits.substring(6, 10)}`;
+    }
+    
+    return phone;
   };
 
   const validateURL = (url: string) => {
@@ -41,9 +58,73 @@ export default function PersonalInfoForm({ data, updateData }: PersonalInfoFormP
     }
   };
 
+  const formatURL = (url: string) => {
+    // Return empty string if URL is empty
+    if (!url) return '';
+    
+    // Add https:// if missing
+    if (!url.startsWith('http')) {
+      url = `https://${url}`;
+    }
+    
+    try {
+      const urlObj = new URL(url);
+      
+      // Remove www. prefix for cleaner display
+      let host = urlObj.hostname;
+      if (host.startsWith('www.')) {
+        host = host.substring(4);
+      }
+      
+      // Truncate paths that are too long
+      const path = urlObj.pathname;
+      let displayPath = path;
+      if (path.length > 15 && path !== '/') {
+        displayPath = path.substring(0, 12) + '...';
+      }
+      
+      // Format the final URL
+      return `${host}${displayPath === '/' ? '' : displayPath}`;
+    } catch (_) {
+      return url;
+    }
+  };
+
   const validateName = (name: string) => {
-    const re = /^[A-Za-z\s]*$/;
-    return re.test(name);
+    // Allow letters, spaces, hyphens, and apostrophes for names
+    const re = /^[A-Za-z\s'-]*$/;
+    return name === '' || re.test(name);
+  };
+
+  const sanitizeInput = (input: string, fieldType: string) => {
+    let sanitized = input.trim();
+    
+    switch (fieldType) {
+      case 'fullName':
+        // Capitalize each word in the name
+        sanitized = sanitized
+          .split(' ')
+          .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+          .join(' ');
+        break;
+      
+      case 'email':
+        // Convert email to lowercase
+        sanitized = sanitized.toLowerCase();
+        break;
+      
+      case 'city':
+      case 'state':
+        // Capitalize first letter of city/state names
+        sanitized = sanitized.charAt(0).toUpperCase() + sanitized.slice(1);
+        break;
+      
+      case 'phone':
+        sanitized = formatPhoneNumber(sanitized);
+        break;
+    }
+    
+    return sanitized;
   };
 
   const updateField = (field: string, value: any) => {
@@ -51,27 +132,30 @@ export default function PersonalInfoForm({ data, updateData }: PersonalInfoFormP
     let errorMsg = '';
     let updatedValue = value;
 
+    // Sanitize input first
+    updatedValue = sanitizeInput(updatedValue, field);
+
     switch (field) {
       case 'email':
-        isValid = value === '' || validateEmail(value);
+        isValid = updatedValue === '' || validateEmail(updatedValue);
         errorMsg = isValid ? '' : 'Invalid email format';
         break;
       case 'phone':
-        isValid = value === '' || validatePhone(value);
+        isValid = validatePhone(updatedValue);
         errorMsg = isValid ? '' : 'Invalid phone number';
         break;
       case 'linkedinUrl':
       case 'portfolioUrl':
-        isValid = value === '' || validateURL(value);
+        isValid = updatedValue === '' || validateURL(updatedValue);
         errorMsg = isValid ? '' : 'Invalid URL';
         // Ensure URL has http/https prefix for proper linking
-        if (isValid && value && !value.startsWith('http')) {
-          updatedValue = `https://${value}`;
+        if (isValid && updatedValue && !updatedValue.startsWith('http')) {
+          updatedValue = `https://${updatedValue}`;
         }
         break;
       case 'fullName':
-        isValid = value === '' || validateName(value);
-        errorMsg = isValid ? '' : 'Name can only contain letters and spaces';
+        isValid = validateName(updatedValue);
+        errorMsg = isValid ? '' : 'Name can only contain letters, spaces, hyphens, and apostrophes';
         break;
       default:
         break;
@@ -95,6 +179,12 @@ export default function PersonalInfoForm({ data, updateData }: PersonalInfoFormP
 
   const { firstName, lastName } = getFullNameParts();
 
+  // Format URLs for display in inputs
+  const formatDisplayUrl = (url: string) => {
+    if (!url) return '';
+    return url.replace(/^https?:\/\//, '');
+  };
+
   return (
     <div className="space-y-4">
       <h2 className="text-xl font-semibold mb-4">Personal Details</h2>
@@ -107,6 +197,7 @@ export default function PersonalInfoForm({ data, updateData }: PersonalInfoFormP
           value={data?.targetJobTitle || ""}
           onChange={(e) => updateField("targetJobTitle", e.target.value)}
         />
+        <p className="text-xs text-muted-foreground">This will appear at the top of your resume</p>
       </div>
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -131,6 +222,7 @@ export default function PersonalInfoForm({ data, updateData }: PersonalInfoFormP
               updateField("fullName", `${firstName} ${e.target.value}`.trim());
             }}
           />
+          {errors.fullName && <p className="text-red-500 text-xs">{errors.fullName}</p>}
         </div>
       </div>
       
@@ -143,18 +235,19 @@ export default function PersonalInfoForm({ data, updateData }: PersonalInfoFormP
           value={data?.email || ""}
           onChange={(e) => updateField("email", e.target.value)}
         />
-        {errors.email && <p className="text-red-500">{errors.email}</p>}
+        {errors.email && <p className="text-red-500 text-xs">{errors.email}</p>}
       </div>
       
       <div className="grid gap-2">
         <Label htmlFor="phone">Phone</Label>
         <Input
           id="phone"
-          placeholder="Your phone number"
+          placeholder="(123) 456-7890"
           value={data?.phone || ""}
           onChange={(e) => updateField("phone", e.target.value)}
         />
-        {errors.phone && <p className="text-red-500">{errors.phone}</p>}
+        {errors.phone && <p className="text-red-500 text-xs">{errors.phone}</p>}
+        <p className="text-xs text-muted-foreground">Use format: (123) 456-7890 or +1 123-456-7890</p>
       </div>
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -183,7 +276,7 @@ export default function PersonalInfoForm({ data, updateData }: PersonalInfoFormP
         <Input
           id="linkedinUrl"
           placeholder="linkedin.com/in/username"
-          value={data?.linkedinUrl ? data.linkedinUrl.replace(/^https?:\/\//, '') : ""}
+          value={formatDisplayUrl(data?.linkedinUrl || "")}
           onChange={(e) => {
             const value = e.target.value;
             // Only add prefix when saving to data, not in the input display
@@ -191,7 +284,8 @@ export default function PersonalInfoForm({ data, updateData }: PersonalInfoFormP
             updateField("linkedinUrl", urlToSave);
           }}
         />
-        {errors.linkedinUrl && <p className="text-red-500">{errors.linkedinUrl}</p>}
+        {errors.linkedinUrl && <p className="text-red-500 text-xs">{errors.linkedinUrl}</p>}
+        <p className="text-xs text-muted-foreground">Format shown on resume: {data?.linkedinUrl ? formatURL(data.linkedinUrl) : 'linkedin.com/in/username'}</p>
       </div>
       
       <div className="grid gap-2">
@@ -199,7 +293,7 @@ export default function PersonalInfoForm({ data, updateData }: PersonalInfoFormP
         <Input
           id="portfolioUrl"
           placeholder="yourwebsite.com"
-          value={data?.portfolioUrl ? data.portfolioUrl.replace(/^https?:\/\//, '') : ""}
+          value={formatDisplayUrl(data?.portfolioUrl || "")}
           onChange={(e) => {
             const value = e.target.value;
             // Only add prefix when saving to data, not in the input display
@@ -207,7 +301,15 @@ export default function PersonalInfoForm({ data, updateData }: PersonalInfoFormP
             updateField("portfolioUrl", urlToSave);
           }}
         />
-        {errors.portfolioUrl && <p className="text-red-500">{errors.portfolioUrl}</p>}
+        {errors.portfolioUrl && <p className="text-red-500 text-xs">{errors.portfolioUrl}</p>}
+        <p className="text-xs text-muted-foreground">Format shown on resume: {data?.portfolioUrl ? formatURL(data.portfolioUrl) : 'yourwebsite.com'}</p>
+      </div>
+      
+      <div className="mt-4 p-3 border rounded-md bg-blue-50 dark:bg-blue-900/20 flex gap-2">
+        <Info className="h-5 w-5 text-blue-500 flex-shrink-0 mt-0.5" />
+        <p className="text-sm text-blue-600 dark:text-blue-400">
+          Make sure your contact information is up-to-date and professional. Recruiters will use this information to contact you.
+        </p>
       </div>
     </div>
   );

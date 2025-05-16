@@ -351,16 +351,11 @@ export function PaymentGatewayManager() {
   };
   
   const fetchPlanMappings = async () => {
+    setIsLoadingPlans(true);
     try {
-      // Get the Razorpay gateway first
-      const razorpayGateways = gateways.filter(g => g.service.toLowerCase() === 'razorpay' && g.isActive);
-      
-      if (razorpayGateways.length === 0) {
-        // No active Razorpay gateway
-        return;
-      }
-      
-      const response = await axios.get('/api/admin/payment-gateways/plan-mappings?service=razorpay');
+      const response = await axios.get('/api/admin/payment-gateways/plan-mappings', {
+        params: { service: 'razorpay' }
+      });
       
       if (response.data && response.data.mappings) {
         setPlanMappings(response.data.mappings);
@@ -369,41 +364,31 @@ export function PaymentGatewayManager() {
       console.error('Failed to fetch plan mappings:', error);
       toast({
         title: 'Error',
-        description: 'Failed to fetch Razorpay plan mappings',
+        description: 'Failed to fetch plan mappings',
         variant: 'destructive',
       });
+    } finally {
+      setIsLoadingPlans(false);
     }
   };
   
-  const formatPlanId = (planId: string) => {
-    if (planId.startsWith('plan_')) {
-      // For Razorpay plan IDs, highlight and truncate if too long
-      return (
-        <div className="flex items-center">
-          <code className="font-mono bg-muted px-1.5 py-0.5 rounded text-xs">
-            {planId.length > 15 ? `${planId.substring(0, 12)}...` : planId}
-          </code>
-          <button 
-            className="ml-1.5 text-muted-foreground hover:text-foreground"
-            onClick={() => {
-              navigator.clipboard.writeText(planId);
-              toast({
-                title: "Copied to clipboard",
-                description: `${planId} copied to clipboard`,
-                duration: 2000,
-              });
-            }}
-            title="Copy to clipboard"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-            </svg>
-          </button>
-        </div>
-      );
+  // Format plan ID for display
+  const formatPlanId = (planId: string | Record<string, string>) => {
+    if (!planId) return 'Not configured';
+    
+    if (typeof planId === 'object') {
+      // Handle new format with currency-specific plan IDs
+      const currencies = Object.keys(planId);
+      if (currencies.length === 0) return 'Not configured';
+      
+      // Create a condensed display of all available currencies
+      return currencies.map(currency => 
+        `${currency}: ${planId[currency].substring(0, 8)}...`
+      ).join(', ');
     }
-    return planId;
+    
+    // Handle legacy format (direct plan ID string)
+    return planId.substring(0, 8) + '...';
   };
   
   const savePlanMapping = async () => {
@@ -486,13 +471,27 @@ export function PaymentGatewayManager() {
   };
   
   const removePlanMapping = async (planId: string) => {
+    if (!planId) return;
+    
     setIsSavingMappings(true);
     try {
-      // Create a copy of mappings without the removed plan
+      // Get the gateway for the service
+      const razorpayGateway = gateways.find(g => g.service.toLowerCase() === 'razorpay' && g.isActive);
+      
+      if (!razorpayGateway) {
+        toast({
+          title: 'Error',
+          description: 'No active Razorpay gateway configured',
+          variant: 'destructive',
+        });
+        return;
+      }
+      
+      // Remove the mapping from our state
       const updatedMappings = { ...planMappings };
       delete updatedMappings[planId];
       
-      // Save to server
+      // Update on the server
       await axios.post('/api/admin/payment-gateways/plan-mappings', {
         service: 'razorpay',
         mappings: updatedMappings
@@ -520,69 +519,107 @@ export function PaymentGatewayManager() {
   };
   
   const createRazorpayPlan = async (plan: SubscriptionPlan) => {
-    // Find the INR pricing for this plan
-    const inrPricing = plan.pricing.find(p => p.targetRegion === 'INDIA' && p.currency === 'INR');
+    // Get the gateway for Razorpay
+    const razorpayGateway = gateways.find(g => g.service.toLowerCase() === 'razorpay' && g.isActive);
     
-    if (!inrPricing) {
+    if (!razorpayGateway) {
       toast({
         title: 'Error',
-        description: 'This plan does not have INR pricing for Indian customers',
+        description: 'No active Razorpay gateway configured',
         variant: 'destructive',
       });
       return;
     }
-    
-    setIsSavingMappings(true);
-    try {
-      // Convert to paise
-      const amountInPaise = Math.round(parseFloat(inrPricing.price) * 100);
-      
-      // Determine the period based on billing cycle
-      const period = plan.billingCycle === 'YEARLY' ? 'yearly' : 'monthly';
-      
-      // Create the plan through our API
-      const response = await axios.post('/api/admin/payment-gateways/create-razorpay-plan', {
-        internalPlanId: plan.id,
-        name: plan.name,
-        description: plan.description,
-        amount: amountInPaise,
-        currency: 'INR',
-        period: period,
-        interval: 1
-      });
-      
-      if (response.data && response.data.id) {
-        // Update the mappings
-        const updatedMappings = {
-          ...planMappings,
-          [plan.id]: response.data.id
-        };
-        
-        // Save to server
-        await axios.post('/api/admin/payment-gateways/plan-mappings', {
-          service: 'razorpay',
-          mappings: updatedMappings
-        });
-        
-        setPlanMappings(updatedMappings);
-        
-        toast({
-          title: 'Success',
-          description: `Razorpay plan created and mapped to ${plan.name}`,
-          variant: 'default',
-        });
-      }
-    } catch (error: any) {
-      console.error('Failed to create Razorpay plan:', error);
-      const errorMessage = error.response?.data?.error || error.response?.data?.message || error.message || 'Failed to create Razorpay plan';
-      
+
+    // Get pricing for both regions
+    const globalPricing = plan.pricing.find(p => p.targetRegion === 'GLOBAL' && p.currency === 'USD');
+    const indiaPricing = plan.pricing.find(p => p.targetRegion === 'INDIA' && p.currency === 'INR');
+
+    if (!globalPricing && !indiaPricing) {
       toast({
         title: 'Error',
-        description: errorMessage,
+        description: 'Plan has no pricing configured for either region',
         variant: 'destructive',
       });
-    } finally {
-      setIsSavingMappings(false);
+      return;
+    }
+
+    // Create plans for both available currencies
+    if (globalPricing) {
+      try {
+        // Create USD plan
+        const response = await axios.post('/api/admin/payment-gateways/create-plan', {
+          gatewayId: razorpayGateway.id,
+          planId: plan.id,
+          currency: 'USD',
+          amount: parseFloat(globalPricing.price) * 100, // Convert to cents
+          interval: plan.billingCycle === 'MONTHLY' ? 'monthly' : 'yearly',
+          name: plan.name,
+          description: plan.description || `${plan.name} subscription plan`
+        });
+
+        if (response.data.success) {
+          toast({
+            title: 'Success',
+            description: `USD plan created in Razorpay: ${response.data.planId}`,
+          });
+
+          // Refresh plan mappings
+          fetchPlanMappings();
+        } else {
+          toast({
+            title: 'Error',
+            description: `Failed to create USD plan: ${response.data.error || 'Unknown error'}`,
+            variant: 'destructive',
+          });
+        }
+      } catch (error: any) {
+        console.error('Error creating USD Razorpay plan:', error);
+        toast({
+          title: 'Error',
+          description: `Failed to create USD plan: ${error.response?.data?.message || error.message}`,
+          variant: 'destructive',
+        });
+      }
+    }
+
+    // Create INR plan separately
+    if (indiaPricing) {
+      try {
+        // Create INR plan
+        const response = await axios.post('/api/admin/payment-gateways/create-plan', {
+          gatewayId: razorpayGateway.id,
+          planId: plan.id,
+          currency: 'INR',
+          amount: parseFloat(indiaPricing.price) * 100, // Convert to paisa
+          interval: plan.billingCycle === 'MONTHLY' ? 'monthly' : 'yearly',
+          name: plan.name,
+          description: plan.description || `${plan.name} subscription plan`
+        });
+
+        if (response.data.success) {
+          toast({
+            title: 'Success',
+            description: `INR plan created in Razorpay: ${response.data.planId}`,
+          });
+
+          // Refresh plan mappings
+          fetchPlanMappings();
+        } else {
+          toast({
+            title: 'Error',
+            description: `Failed to create INR plan: ${response.data.error || 'Unknown error'}`,
+            variant: 'destructive',
+          });
+        }
+      } catch (error: any) {
+        console.error('Error creating INR Razorpay plan:', error);
+        toast({
+          title: 'Error',
+          description: `Failed to create INR plan: ${error.response?.data?.message || error.message}`,
+          variant: 'destructive',
+        });
+      }
     }
   };
   
@@ -593,6 +630,114 @@ export function PaymentGatewayManager() {
       fetchPlanMappings();
     }
   }, [activeTab, isLoading, gateways]);
+
+  // Update the component that renders the plan mappings table
+  const renderPlanMappings = () => {
+    if (isLoadingPlans) {
+      return (
+        <div className="flex items-center justify-center py-6">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          <span className="ml-2 text-muted-foreground">Loading plan mappings...</span>
+        </div>
+      );
+    }
+    
+    if (!plans || plans.length === 0) {
+      return (
+        <div className="text-center py-6 text-muted-foreground">
+          No subscription plans available. Create plans in the Subscription Management section.
+        </div>
+      );
+    }
+    
+    return (
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Internal Plan</TableHead>
+            <TableHead>Price</TableHead>
+            <TableHead>Razorpay Plan ID</TableHead>
+            <TableHead>Actions</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {plans.map(plan => {
+            const mappedPlanId = planMappings[plan.id];
+            const hasMappings = mappedPlanId && (
+              typeof mappedPlanId === 'string' || 
+              (typeof mappedPlanId === 'object' && Object.keys(mappedPlanId).length > 0)
+            );
+            
+            // Get pricing for different regions
+            const inrPricing = plan.pricing.find(p => p.currency === 'INR');
+            const usdPricing = plan.pricing.find(p => p.currency === 'USD');
+            
+            return (
+              <TableRow key={plan.id}>
+                <TableCell className="font-medium">{plan.name}</TableCell>
+                <TableCell>
+                  {usdPricing && <div>USD: ${parseFloat(usdPricing.price).toFixed(2)}</div>}
+                  {inrPricing && <div>INR: ₹{parseFloat(inrPricing.price).toFixed(2)}</div>}
+                </TableCell>
+                <TableCell>
+                  {hasMappings ? (
+                    <div className="space-y-1">
+                      {typeof mappedPlanId === 'object' ? (
+                        Object.entries(mappedPlanId as Record<string, string>).map(([currency, planId]) => (
+                          <div key={currency} className="flex items-center">
+                            <Badge className="mr-2" variant="outline">{currency}</Badge>
+                            <span className="text-xs font-mono">{String(planId).substring(0, 12)}...</span>
+                          </div>
+                        ))
+                      ) : (
+                        <span className="text-xs font-mono">{mappedPlanId}</span>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="text-muted-foreground">Not configured</span>
+                  )}
+                </TableCell>
+                <TableCell>
+                  <div className="flex gap-2">
+                    {!hasMappings && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => createRazorpayPlan(plan)}
+                        disabled={isSavingMappings || !plan.pricing || plan.pricing.length === 0}
+                      >
+                        {isSavingMappings ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Creating...
+                          </>
+                        ) : (
+                          <>
+                            <Plus className="mr-2 h-4 w-4" />
+                            Create Plan
+                          </>
+                        )}
+                      </Button>
+                    )}
+                    {hasMappings && (
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => removePlanMapping(plan.id.toString())}
+                        disabled={isSavingMappings}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+    );
+  };
 
   return (
     <div className="space-y-6">
@@ -663,62 +808,7 @@ export function PaymentGatewayManager() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {/* Plan Mappings Table */}
-                  <div className="rounded-md border">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Internal Plan</TableHead>
-                          <TableHead>Razorpay Plan ID</TableHead>
-                          <TableHead>Actions</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {Object.keys(planMappings).length === 0 ? (
-                          <TableRow>
-                            <TableCell colSpan={3} className="text-center text-muted-foreground">
-                              No plan mappings configured yet
-                            </TableCell>
-                          </TableRow>
-                        ) : (
-                          Object.entries(planMappings).map(([planId, razorpayPlanId]) => {
-                            const plan = plans.find(p => p.id.toString() === planId);
-                            return (
-                              <TableRow key={planId}>
-                                <TableCell>
-                                  {plan ? (
-                                    <div>
-                                      <div className="font-medium">{plan.name}</div>
-                                      <div className="text-xs text-muted-foreground">
-                                        ID: {planId} | {plan.billingCycle.toLowerCase()}
-                                      </div>
-                                    </div>
-                                  ) : (
-                                    <div>
-                                      <div className="font-medium text-muted-foreground">Unknown Plan</div>
-                                      <div className="text-xs text-muted-foreground">ID: {planId}</div>
-                                    </div>
-                                  )}
-                                </TableCell>
-                                <TableCell>{formatPlanId(razorpayPlanId)}</TableCell>
-                                <TableCell>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => removePlanMapping(planId)}
-                                    disabled={isSavingMappings}
-                                  >
-                                    <Trash2 className="h-4 w-4 mr-1" />
-                                    Remove
-                                  </Button>
-                                </TableCell>
-                              </TableRow>
-                            );
-                          })
-                        )}
-                      </TableBody>
-                    </Table>
-                  </div>
+                  {renderPlanMappings()}
                   
                   {/* Subscription Plans Table */}
                   <h3 className="text-lg font-medium mt-6">Available Subscription Plans</h3>

@@ -2,15 +2,20 @@ import express from 'express';
 import { requireUser } from '../../middleware/auth';
 import { db } from '../../config/db';
 import { getPaymentGatewayByName, decryptApiKey } from '../../services/payment-gateways';
-import { userSubscriptions, subscriptionPlans, paymentTransactions, userBillingDetails, planPricing, paymentGatewayConfigs } from '@shared/schema';
+import { userSubscriptions, subscriptionPlans, paymentTransactions, userBillingDetails, planPricing, paymentGatewayConfigs, users } from '@shared/schema';
 import { eq, and, desc } from 'drizzle-orm';
 import { SubscriptionService } from '../../services/subscription-service';
 import { appSettings } from '@shared/schema';
 import crypto from 'crypto';
+import { requireAdmin } from '../../middleware/admin';
+import { withEncryption } from '../../middleware/index';
 
 export function registerPaymentRoutes(app: express.Express) {
   // Get user's billing details
-  app.get('/api/user/billing-details', requireUser, async (req, res) => {
+  app.get('/api/user/billing-details', 
+    requireUser, 
+    ...withEncryption('userBillingDetails'),
+    async (req, res) => {
     try {
       if (!req.user) {
         return res.status(401).json({ message: 'Unauthorized' });
@@ -47,7 +52,10 @@ export function registerPaymentRoutes(app: express.Express) {
   });
 
   // Create or update user's billing details
-  app.post('/api/user/billing-details', requireUser, async (req, res) => {
+  app.post('/api/user/billing-details', 
+    requireUser, 
+    ...withEncryption('userBillingDetails'),
+    async (req, res) => {
     try {
       if (!req.user) {
         return res.status(401).json({ message: 'Unauthorized' });
@@ -116,13 +124,19 @@ export function registerPaymentRoutes(app: express.Express) {
       }
       
       const userId = req.user.id;
-      const { planId } = req.body;
+      const planId = req.body.planId ? parseInt(req.body.planId) : null;
+      const customAmount = req.body.amount ? parseFloat(req.body.amount) : null;
+      const customCurrency = req.body.currency;
+      let isUpgrade = req.body.isUpgrade === true;
+      
+      console.log('Creating payment intent - User:', userId, 'Plan ID:', planId, 'Is Upgrade:', isUpgrade ? 'Yes' : 'No');
+      console.log('Request body for payment intent:', JSON.stringify(req.body, null, 2));
       
       if (!planId) {
         return res.status(400).json({ message: 'Bad Request: Plan ID is required for payment intent' });
       }
       
-      console.log(`Creating payment intent - User: ${userId}, Plan ID: ${planId}`);
+      console.log(`Creating payment intent - User: ${userId}, Plan ID: ${planId}, Is Upgrade: ${isUpgrade ? 'Yes' : 'No'}`);
       
       // Get the plan details
       const plan = await db.select().from(subscriptionPlans).where(eq(subscriptionPlans.id, planId)).limit(1);
@@ -132,9 +146,49 @@ export function registerPaymentRoutes(app: express.Express) {
       
       console.log(`Found plan: ${plan[0].name}`);
       
+      // Get current subscription details if this is an upgrade
+      let currentSubscription = null;
+      let prorationDetails = null;
+      
+      if (isUpgrade) {
+        // Check if user has an active subscription to upgrade
+        const userSub = await db.select()
+          .from(userSubscriptions)
+          .where(and(
+            eq(userSubscriptions.userId, userId),
+            eq(userSubscriptions.status, 'ACTIVE')
+          ))
+          .limit(1);
+          
+        if (!userSub.length) {
+          console.log(`Upgrade requested for user ${userId} but no active subscription found. Treating as a new subscription.`);
+          isUpgrade = false;
+          console.log(`Setting isUpgrade to false for user ${userId} since no active subscription exists`);
+        } else {
+          // Store the current subscription for reference
+          currentSubscription = userSub[0];
+          
+          // Get proration calculation
+          try {
+            const subscriptionService = SubscriptionService;
+            prorationDetails = await subscriptionService.calculateProration(userId, planId);
+            console.log('Proration calculation result:', JSON.stringify(prorationDetails, null, 2));
+            
+            // If the result says it's not an upgrade, respect that determination
+            if (!prorationDetails.isUpgrade) {
+              console.log(`Proration calculation determined this is not an upgrade. Setting isUpgrade=false.`);
+              isUpgrade = false;
+            }
+          } catch (prorationError) {
+            console.error('Error calculating proration:', prorationError);
+            // Continue with the upgrade, but without proration information
+          }
+        }
+      }
+      
       // Get user's region
       let userRegion = 'GLOBAL';
-      let currency = 'USD';
+      let currency = customCurrency || 'USD';
       
       // First try to get region from billing details
       const billingDetails = await db.select()
@@ -145,7 +199,7 @@ export function registerPaymentRoutes(app: express.Express) {
       if (billingDetails.length) {
         if (billingDetails[0].country === 'IN') {
           userRegion = 'INDIA';
-          currency = 'INR';
+          if (!customCurrency) currency = 'INR';
         }
       }
       
@@ -158,36 +212,69 @@ export function registerPaymentRoutes(app: express.Express) {
         ))
         .limit(1);
       
-      let amount = 0;
+      let amount = customAmount || 0;
       
+      // If no region-specific pricing is found, fall back to global pricing
       if (!pricing.length) {
-        console.log(`No specific pricing found for region ${userRegion}, falling back to GLOBAL`);
-        const globalPricing = await db.select()
+        console.log(`No pricing found for region ${userRegion}, falling back to GLOBAL pricing`);
+        pricing = await db.select()
           .from(planPricing)
           .where(and(
             eq(planPricing.planId, planId),
             eq(planPricing.targetRegion, 'GLOBAL')
           ))
           .limit(1);
-        
-        if (!globalPricing.length) {
-          return res.status(404).json({ message: 'No pricing information found for this plan' });
-        }
-        
-        amount = parseFloat(globalPricing[0].price);
-        currency = globalPricing[0].currency;
-        console.log(`[Intent] Using GLOBAL pricing: amount=${amount}, currency=${currency}`);
-      } else {
-        amount = parseFloat(pricing[0].price);
-        currency = pricing[0].currency;
-        console.log(`[Intent] Using region pricing: region=${userRegion}, amount=${amount}, currency=${currency}`);
       }
       
-      console.log(`[Intent] Final values: planId=${planId}, userRegion=${userRegion}, amount=${amount}, currency=${currency}`);
+      if (!pricing.length) {
+        return res.status(404).json({ message: 'Not Found: No pricing available for the selected plan' });
+      }
       
-      // Create subscription using Razorpay
+      // If using custom amount for upgrade proration
+      if (isUpgrade && customAmount !== null) {
+        console.log(`[Intent] Using custom amount: ${customAmount}, currency=${currency}`);
+        amount = customAmount;
+      } else {
+        // Otherwise use the plan price
+        amount = parseFloat(pricing[0].price);
+        currency = pricing[0].currency;
+      }
+      
+      // For upgrade with proration but no custom amount
+      if (isUpgrade && prorationDetails && prorationDetails.prorationAmount !== undefined && customAmount === null) {
+        console.log(`Using calculated proration amount: ${prorationDetails.prorationAmount}`);
+        amount = prorationDetails.prorationAmount;
+        
+        // Ensure we're using the currency from the proration calculation
+        if (prorationDetails.currency) {
+          console.log(`Using currency from proration calculation: ${prorationDetails.currency}`);
+          currency = prorationDetails.currency;
+        }
+      }
+      
+      console.log(`[Intent] Final values: planId=${planId}, userRegion=${userRegion}, amount=${amount}, currency=${currency}, isUpgrade=${isUpgrade}`);
+      
+      const paymentGatewayName = 'razorpay'; // Default to Razorpay, can be made configurable later
+      const paymentGateway = getPaymentGatewayByName(paymentGatewayName);
+      
+      if (!paymentGateway) {
+        console.error(`Payment gateway ${paymentGatewayName} not found or not configured properly`);
+        return res.status(500).json({ message: 'Internal Server Error: Payment gateway not available' });
+      }
+      
+      // Get user's account information
+      const user = await db.select()
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
+      
+      if (!user.length) {
+        return res.status(404).json({ message: 'Not Found: User account not found' });
+      }
+      
+      // Create the subscription
       console.log(`Creating Razorpay subscription for plan ${planId} with currency ${currency}`);
-      const paymentGateway = getPaymentGatewayByName('razorpay');
+      
       const paymentData = await paymentGateway.createSubscription(
         planId,
         userId,
@@ -195,7 +282,10 @@ export function registerPaymentRoutes(app: express.Express) {
           planName: plan[0].name,
           billingCycle: plan[0].billingCycle,
           currency: currency,
-          amount: amount // Pass the original amount without multiplication
+          amount: amount,
+          isUpgrade: isUpgrade,
+          startImmediately: true,
+          startDate: new Date()
         }
       ).catch((razorpayError) => {
         console.error('Error in Razorpay subscription creation:', razorpayError);
@@ -217,18 +307,38 @@ export function registerPaymentRoutes(app: express.Express) {
         });
       }
       
-      // Return the payment intent information - with necessary fields for authorized subscriptions
+      // Build comprehensive response for client
       const responsePayload = {
         ...paymentData,
         planName: plan[0].name,
-        amount: paymentData.amount, // Use the amount directly from payment data
+        billingCycle: plan[0].billingCycle,
         currency: currency,
         gateway: 'RAZORPAY',
-        short_url: null, // No short URL for direct subscription integration
-        billingCycle: plan[0].billingCycle // Add billing cycle for UI display
+        short_url: null,
+        isUpgrade: isUpgrade
       };
       
-      console.log('[Intent] Response to client:', responsePayload);
+      // Add proration details for upgrades
+      if (isUpgrade && prorationDetails) {
+        const prorationInfo = {
+          originalPlanPrice: prorationDetails.originalPlanPrice,
+          newPlanPrice: prorationDetails.newPlanPrice,
+          remainingValue: prorationDetails.remainingValue,
+          prorationAmount: prorationDetails.prorationAmount,
+          prorationCredit: prorationDetails.prorationCredit,
+          isUpgrade: prorationDetails.isUpgrade
+        };
+        
+        Object.assign(responsePayload, { 
+          prorationInfo,
+          // Include the full plan price for reference (in currency units, not smallest units)
+          fullPlanPrice: parseFloat(pricing[0].price)
+        });
+      }
+      
+      // For debugging
+      console.log('[Intent] Response to client:', JSON.stringify(responsePayload, null, 2));
+      
       res.json(responsePayload);
     } catch (error: any) {
       console.error('Error creating payment/subscription:', error);
@@ -250,13 +360,14 @@ export function registerPaymentRoutes(app: express.Express) {
       }
       
       const userId = req.user.id;
-      const { paymentId, planId, signature, subscriptionId } = req.body;
+      const { paymentId, planId, signature, subscriptionId, isUpgrade } = req.body;
       
       console.log('Payment verification request body:', JSON.stringify({
         userId,
         paymentId,
         planId,
         subscriptionId,
+        isUpgrade: isUpgrade || false,
         signatureLength: signature?.length
       }, null, 2));
       
@@ -264,7 +375,7 @@ export function registerPaymentRoutes(app: express.Express) {
         return res.status(400).json({ message: 'Payment ID and signature are required for verification' });
       }
       
-      console.log(`Verifying payment - User: ${userId}, Payment: ${paymentId}, Plan: ${planId || 'N/A'}`);
+      console.log(`Verifying payment - User: ${userId}, Payment: ${paymentId}, Plan: ${planId || 'N/A'}, Upgrade: ${isUpgrade ? 'Yes' : 'No'}`);
       
       // Log subscription ID if present
       if (subscriptionId) {
@@ -372,29 +483,260 @@ export function registerPaymentRoutes(app: express.Express) {
         return res.status(400).json({ message: 'Plan ID is required and could not be determined from subscription' });
       }
       
+      // Get user's billing details to check for region and expected currency
+      const userBillingInfo = await db.select()
+        .from(userBillingDetails)
+        .where(eq(userBillingDetails.userId, userId))
+        .limit(1);
+      
+      const userCountry = userBillingInfo.length > 0 ? userBillingInfo[0].country : 'US';
+      const expectedRegion = userCountry === 'IN' ? 'INDIA' : 'GLOBAL';
+      const expectedCurrency = userCountry === 'IN' ? 'INR' : 'USD';
+      
+      console.log(`User ${userId} region: ${expectedRegion}, expected currency: ${expectedCurrency}`);
+      
+      // Verify that the payment was made in the correct currency by checking with Razorpay
+      let paymentCurrency = '';
+      let hasCurrencyMismatch = false;
+      try {
+        // Get payment details from Razorpay
+        const razorpayGateway = getPaymentGatewayByName('RAZORPAY') as any;
+        const paymentDetails = await razorpayGateway.razorpay.payments.fetch(paymentId);
+        
+        if (paymentDetails) {
+          paymentCurrency = paymentDetails.currency;
+          console.log(`Payment details from Razorpay:`, {
+            id: paymentDetails.id,
+            amount: paymentDetails.amount / 100,
+            currency: paymentDetails.currency,
+            status: paymentDetails.status
+          });
+          
+          // Check for currency mismatch
+          if (paymentCurrency !== expectedCurrency) {
+            console.error(`CURRENCY MISMATCH DETECTED! User charged in ${paymentCurrency}, but should be ${expectedCurrency}`);
+            hasCurrencyMismatch = true;
+          }
+        }
+      } catch (paymentFetchError) {
+        console.error('Error fetching payment details from Razorpay:', paymentFetchError);
+        // Continue even if we can't get payment details
+      }
+      
       // Create/update subscription record in the database
       try {
-        console.log(`Upgrading user ${userId} to plan ${actualPlanId} with payment ${paymentId}`);
-        const result = await SubscriptionService.upgradeToPaidPlan(
-          userId,
-          actualPlanId,
-          paymentId,
-          'RAZORPAY',
-          signature,
-          subscriptionId
-        );
+        let result;
+        
+        if (isUpgrade) {
+          console.log(`Upgrading user ${userId} to plan ${actualPlanId} with payment ${paymentId}`);
+          result = await SubscriptionService.upgradeToPaidPlan(
+            userId,
+            actualPlanId,
+            paymentId,
+            'RAZORPAY',
+            signature,
+            subscriptionId,
+            { isUpgrade: true }
+          );
+        } else {
+          console.log(`Creating new subscription for user ${userId} to plan ${actualPlanId} with payment ${paymentId}`);
+          result = await SubscriptionService.upgradeToPaidPlan(
+            userId,
+            actualPlanId,
+            paymentId,
+            'RAZORPAY',
+            signature,
+            subscriptionId
+          );
+        }
         
         console.log(`Subscription created/updated: ${result.subscription.id}`);
         
+        // Record the transaction
+        console.log(`Recording payment transaction for user: ${userId}, payment: ${paymentId}, planId: ${planId}`);
+        
+        // Get plan pricing for the correct region
+        const planPricingData = await db.select()
+          .from(planPricing)
+          .where(
+            and(
+              eq(planPricing.planId, planId),
+              eq(planPricing.targetRegion, expectedRegion as any)
+            )
+          )
+          .limit(1);
+        
+        // Fall back to global pricing if regional pricing not found
+        let correctPlanPrice = '0.00';
+        let correctPlanCurrency = 'USD';
+        
+        if (planPricingData.length > 0) {
+          correctPlanPrice = planPricingData[0].price;
+          correctPlanCurrency = planPricingData[0].currency;
+        } else {
+          const globalPricing = await db.select()
+            .from(planPricing)
+            .where(
+              and(
+                eq(planPricing.planId, planId),
+                eq(planPricing.targetRegion, 'GLOBAL')
+              )
+            )
+            .limit(1);
+            
+          if (globalPricing.length) {
+            console.log(`No pricing found for region ${expectedRegion}, using GLOBAL pricing instead`);
+            correctPlanPrice = globalPricing[0].price;
+            correctPlanCurrency = globalPricing[0].currency;
+          }
+        }
+        
+        // Get payment details from Razorpay to get the correct amount
+        const razorpayGateway = getPaymentGatewayByName('RAZORPAY') as any;
+        let paymentDetails;
+        
+        try {
+          paymentDetails = await razorpayGateway.razorpay.payments.fetch(paymentId);
+          console.log(`Retrieved payment details from Razorpay:`, {
+            id: paymentDetails.id,
+            amount: paymentDetails.amount,
+            currency: paymentDetails.currency
+          });
+        } catch (fetchError) {
+          console.error('Error fetching payment details from Razorpay:', fetchError);
+          // Continue with default values if we can't fetch
+        }
+        
+        // Determine transaction amount and currency information
+        const amount = paymentDetails ? paymentDetails.amount / 100 : 0;
+        
+        // Get the currency from payment details, but prioritize the currency from subscription metadata if available
+        // This ensures we record the transaction with the currency that was intended and shown to the user
+        let currency = paymentDetails ? paymentDetails.currency : 'USD';
+        
+        // Check if the subscription has notes with currency information
+        if (subscriptionId) {
+          try {
+            // Get subscription details to extract the correct currency
+            const subscriptionDetails = await razorpayGateway.getSubscriptionDetails(subscriptionId);
+            
+            // If subscription has notes with currency information, use that instead
+            if (subscriptionDetails && subscriptionDetails.notes && subscriptionDetails.notes.currency) {
+              const subscriptionCurrency = subscriptionDetails.notes.currency;
+              console.log(`Using currency from subscription notes: ${subscriptionCurrency} (payment API reported: ${currency})`);
+              currency = subscriptionCurrency;
+            }
+          } catch (subscriptionFetchError) {
+            console.error('Error fetching subscription details for currency check:', subscriptionFetchError);
+            // Continue with the currency from payment details
+          }
+        }
+        
+        // Determine if there's a currency mismatch
+        hasCurrencyMismatch = currency !== expectedCurrency;
+        
+        // Get the correct plan price in the user's regional currency
+        console.log(`For user ${userId}, correct plan pricing: ${correctPlanPrice} ${correctPlanCurrency}`);
+        console.log(`Actual payment: ${amount} ${currency}`);
+        
+        if (hasCurrencyMismatch) {
+          console.error(`IMPORTANT: Currency mismatch detected for user ${userId}: Charged ${amount} ${currency} instead of ${correctPlanPrice} ${correctPlanCurrency}`);
+        }
+        
+        const planData = await db.select()
+          .from(subscriptionPlans)
+          .where(eq(subscriptionPlans.id, planId))
+          .limit(1);
+          
+        const planName = planData.length > 0 ? planData[0].name : '';
+        const planCycle = planData.length > 0 ? planData[0].billingCycle : 'MONTHLY';
+        
+        const transactionNote = `SUBSCRIPTION_PAYMENT: plan_name: ${planName}, plan_cycle: ${planCycle}, payment_type: subscription, actual_plan_amount: ${correctPlanPrice}, plan_currency: ${correctPlanCurrency}, transaction_currency: ${currency}, expected_currency: ${expectedCurrency}`;
+        
+        // Record transaction with metadata - only if it doesn't exist already
+        // First check if a transaction already exists with this payment ID
+        const existingTransaction = await db.select()
+          .from(paymentTransactions)
+          .where(eq(paymentTransactions.gatewayTransactionId, paymentId))
+          .execute();
+          
+        if (existingTransaction.length > 0) {
+          console.log(`Transaction for payment ${paymentId} already exists (${existingTransaction.length} records), skipping creation`);
+        } else {
+          await db.insert(paymentTransactions)
+            .values({
+              userId: parseInt(userId.toString()),
+              subscriptionId: result.subscription.id,
+              amount: amount.toString(),
+              currency: currency,
+              gateway: 'RAZORPAY',
+              gatewayTransactionId: paymentId,
+              status: 'COMPLETED',
+              refundReason: transactionNote,
+              metadata: {
+                // Store rich metadata for better admin UI display
+                planDetails: {
+                  id: planId,
+                  name: result.subscription.planName || 'Unknown Plan',
+                  cycle: planData.length > 0 ? planData[0].billingCycle : 'MONTHLY'
+                },
+                paymentDetails: {
+                  expectedCurrency: expectedCurrency,
+                  actualCurrency: currency,
+                  hasCurrencyMismatch: hasCurrencyMismatch,
+                  correctPlanPrice: correctPlanPrice,
+                  correctPlanCurrency: correctPlanCurrency
+                },
+                userRegion: expectedRegion,
+                userCountry: userCountry,
+                isUpgrade: isUpgrade === true
+              }
+            })
+            .onConflictDoNothing(); // Extra safeguard against duplicates
+            
+          console.log(`Payment transaction recorded with metadata to handle currency display issues.`);
+        }
+        
+        // If there's a currency mismatch, inform user but don't fail the transaction
+        // The system can handle the mismatch with proper display in admin panel
+        
+        // If currency mismatch detected, try to fix the plan mappings for future subscriptions
+        if (hasCurrencyMismatch && expectedCurrency) {
+          try {
+            console.log(`Attempting to fix plan mappings due to currency mismatch for user ${userId}, plan ${planId}`);
+            const razorpayGateway = getPaymentGatewayByName('RAZORPAY') as any;
+            
+            // This will create a new plan with the correct currency and update mappings
+            // Cast expectedCurrency to the correct type 'USD' | 'INR'
+            const validCurrency = expectedCurrency === 'INR' ? 'INR' : 'USD';
+            const fixResult = await razorpayGateway.fixPlanMappingsForCurrency(userId, planId, validCurrency);
+            
+            if (fixResult) {
+              console.log(`Successfully fixed plan mappings for user ${userId} to use ${expectedCurrency} in the future`);
+            } else {
+              console.warn(`Failed to fix plan mappings for user ${userId}`);
+            }
+          } catch (fixError) {
+            console.error(`Error fixing plan mappings:`, fixError);
+            // Non-critical, continue with the subscription
+          }
+        }
+        
         return res.json({
           success: true,
-          message: 'Payment verified and subscription activated',
+          message: isUpgrade ? 'Payment verified and subscription upgraded' : 'Payment verified and subscription activated',
           planName: (result.subscription as any).planName || 'Subscription',
           subscriptionId: result.subscription.id,
-          transactionId: result.transaction.id
+          transactionId: result.transaction.id,
+          isUpgrade: isUpgrade,
+          hasCurrencyMismatch: hasCurrencyMismatch,
+          // Include warning if currency mismatch was detected
+          warningMessage: hasCurrencyMismatch 
+            ? `Note: Your payment processed in ${currency} instead of your local currency ${expectedCurrency}. This won't affect your subscription.` 
+            : undefined
         });
       } catch (subError) {
-        console.error('Error creating subscription:', subError);
+        console.error('Error creating/upgrading subscription:', subError);
         return res.status(500).json({
           success: false,
           message: subError instanceof Error ? subError.message : 'Failed to create subscription',
@@ -607,5 +949,113 @@ export function registerPaymentRoutes(app: express.Express) {
       amount: parseFloat(pricing[0].price),
       currency: pricing[0].currency
     });
+  });
+
+  // Add fetchSubscriptionInvoices endpoint
+  app.get('/api/admin/subscription-invoices/:subscriptionId', requireUser, requireAdmin, async (req, res) => {
+    try {
+      const { subscriptionId } = req.params;
+      
+      if (!subscriptionId) {
+        return res.status(400).json({ message: 'Subscription ID is required' });
+      }
+      
+      console.log(`Admin requesting invoices for subscription: ${subscriptionId}`);
+      
+      // Check if the subscription exists in our database
+      const subscription = await db.select()
+        .from(userSubscriptions)
+        .where(eq(userSubscriptions.paymentReference, subscriptionId))
+        .limit(1);
+      
+      if (!subscription.length) {
+        return res.status(404).json({ message: 'Subscription not found' });
+      }
+      
+      // Fetch invoices from the payment gateway
+      const gateway = getPaymentGatewayByName('razorpay');
+      const invoices = await gateway.fetchInvoicesForSubscription(subscriptionId);
+      
+      // Get the transactions associated with this subscription from our database
+      const transactions = await db.select()
+        .from(paymentTransactions)
+        .where(eq(paymentTransactions.subscriptionId, subscription[0].id))
+        .orderBy(desc(paymentTransactions.createdAt));
+      
+      // Return combined data
+      res.json({
+        subscriptionId,
+        internalSubscriptionId: subscription[0].id,
+        userId: subscription[0].userId,
+        invoices: invoices.items || [],
+        transactions: transactions,
+        invoiceCount: invoices.count || 0,
+        transactionCount: transactions.length
+      });
+    } catch (error: any) {
+      console.error(`Error fetching subscription invoices: ${error.message}`, error);
+      res.status(500).json({
+        message: 'Failed to fetch subscription invoices',
+        error: error.message
+      });
+    }
+  });
+
+  // Regular user fetch their own subscription's invoices
+  app.get('/api/subscription/invoices/:subscriptionId', requireUser, async (req, res) => {
+    try {
+      const { subscriptionId } = req.params;
+      const userId = req.user?.id;
+      
+      if (!subscriptionId) {
+        return res.status(400).json({ message: 'Subscription ID is required' });
+      }
+      
+      if (!userId) {
+        return res.status(401).json({ message: 'Unauthorized' });
+      }
+      
+      console.log(`User ${userId} requesting invoices for subscription: ${subscriptionId}`);
+      
+      // Check if the subscription exists and belongs to the user
+      const subscription = await db.select()
+        .from(userSubscriptions)
+        .where(
+          and(
+            eq(userSubscriptions.paymentReference, subscriptionId),
+            eq(userSubscriptions.userId, userId)
+          )
+        )
+        .limit(1);
+      
+      if (!subscription.length) {
+        return res.status(404).json({ message: 'Subscription not found or does not belong to you' });
+      }
+      
+      // Fetch invoices from the payment gateway
+      const gateway = getPaymentGatewayByName('razorpay');
+      const invoices = await gateway.fetchInvoicesForSubscription(subscriptionId);
+      
+      // Get the transactions associated with this subscription from our database
+      const transactions = await db.select()
+        .from(paymentTransactions)
+        .where(eq(paymentTransactions.subscriptionId, subscription[0].id))
+        .orderBy(desc(paymentTransactions.createdAt));
+      
+      // Return combined data
+      res.json({
+        subscriptionId,
+        invoices: invoices.items || [],
+        transactions: transactions,
+        invoiceCount: invoices.count || 0,
+        transactionCount: transactions.length
+      });
+    } catch (error: any) {
+      console.error(`Error fetching subscription invoices: ${error.message}`, error);
+      res.status(500).json({
+        message: 'Failed to fetch subscription invoices',
+        error: error.message
+      });
+    }
   });
 } 

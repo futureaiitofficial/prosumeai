@@ -59,13 +59,9 @@ export default function SharedHeader({ isLandingPage = false }: SharedHeaderProp
             <a className="text-white hover:text-blue-400 transition-colors">About Us</a>
           </Link>
           
-          {isLandingPage ? (
-            <a href="#testimonials" className="text-white hover:text-blue-400 transition-colors">Testimonials</a>
-          ) : (
-            <Link href="/#testimonials">
-              <a className="text-white hover:text-blue-400 transition-colors">Testimonials</a>
-            </Link>
-          )}
+          <Link href="/contact">
+            <a className="text-white hover:text-blue-400 transition-colors">Contact Us</a>
+          </Link>
         </nav>
         
         {/* Desktop Auth/Dashboard Buttons */}
@@ -154,24 +150,14 @@ export default function SharedHeader({ isLandingPage = false }: SharedHeaderProp
                 </a>
               </Link>
               
-              {isLandingPage ? (
+              <Link href="/contact">
                 <a 
-                  href="#testimonials" 
                   className="text-white hover:text-blue-400 transition-colors py-2 px-2 border-b border-indigo-800/50 w-full text-left"
                   onClick={handleNavLinkClick}
                 >
-                  Testimonials
+                  Contact Us
                 </a>
-              ) : (
-                <Link href="/#testimonials">
-                  <a 
-                    className="text-white hover:text-blue-400 transition-colors py-2 px-2 border-b border-indigo-800/50 w-full text-left"
-                    onClick={handleNavLinkClick}
-                  >
-                    Testimonials
-                  </a>
-                </Link>
-              )}
+              </Link>
               
               {/* Mobile Auth/Dashboard Buttons */}
               {isLoggedIn ? (

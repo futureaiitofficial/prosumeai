@@ -98,9 +98,14 @@ export default function AdminUsersPage() {
   const [isDemoteDialogOpen, setIsDemoteDialogOpen] = useState(false);
   const [isCreateUserDialogOpen, setIsCreateUserDialogOpen] = useState(false);
   const [isAssignPlanDialogOpen, setIsAssignPlanDialogOpen] = useState(false);
+  const [isResetPasswordDialogOpen, setIsResetPasswordDialogOpen] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [resetPasswordError, setResetPasswordError] = useState("");
   const [subscriptionPlans, setSubscriptionPlans] = useState<any[]>([]);
   const [selectedPlan, setSelectedPlan] = useState<number | null>(null);
   const [isLoadingPlans, setIsLoadingPlans] = useState(false);
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
   
   const { toast } = useToast();
   
@@ -411,6 +416,56 @@ export default function AdminUsersPage() {
     }
   };
   
+  // Handle reset password
+  const handleResetPassword = async () => {
+    if (!selectedUser) return;
+    
+    // Reset error state
+    setResetPasswordError("");
+    
+    // Validate passwords match
+    if (newPassword !== confirmPassword) {
+      setResetPasswordError("Passwords do not match");
+      return;
+    }
+    
+    // Validate password is not empty
+    if (!newPassword) {
+      setResetPasswordError("Password cannot be empty");
+      return;
+    }
+    
+    setIsResettingPassword(true);
+    
+    try {
+      const response = await apiRequest('POST', '/api/admin/reset-password', { 
+        userId: selectedUser.id, 
+        newPassword 
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to reset password');
+      }
+      
+      toast({
+        title: "Success",
+        description: `Password for ${selectedUser.username} has been reset`,
+      });
+      
+      // Close dialog and clear form
+      setIsResetPasswordDialogOpen(false);
+      setNewPassword("");
+      setConfirmPassword("");
+      setSelectedUser(null);
+    } catch (error) {
+      console.error('Error resetting password:', error);
+      setResetPasswordError(error instanceof Error ? error.message : "Failed to reset password");
+    } finally {
+      setIsResettingPassword(false);
+    }
+  };
+  
   // Effects
   useEffect(() => {
     if (user && isAdmin) {
@@ -598,6 +653,16 @@ export default function AdminUsersPage() {
                               </DropdownMenuItem>
                               
                               <DropdownMenuSeparator />
+                              
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  setSelectedUser(user);
+                                  setIsResetPasswordDialogOpen(true);
+                                }}
+                              >
+                                <Edit className="h-4 w-4 mr-2" />
+                                Reset Password
+                              </DropdownMenuItem>
                               
                               <DropdownMenuItem
                                 onClick={() => {
@@ -963,6 +1028,90 @@ export default function AdminUsersPage() {
                 </Button>
               </DialogFooter>
             </div>
+          )}
+        </DialogContent>
+      </Dialog>
+      
+      {/* Reset Password Dialog */}
+      <Dialog open={isResetPasswordDialogOpen} onOpenChange={setIsResetPasswordDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Reset User Password</DialogTitle>
+            <DialogDescription>
+              Enter a new password for this user. They will need to use this password for their next login.
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedUser && (
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              handleResetPassword();
+            }} className="py-4 space-y-4">
+              <div className="flex flex-col space-y-2 mb-4">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium">Username:</span>
+                  <span>@{selectedUser.username}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="font-medium">Full Name:</span>
+                  <span>{selectedUser.fullName}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="font-medium">Email:</span>
+                  <span>{selectedUser.email}</span>
+                </div>
+              </div>
+              
+              {resetPasswordError && (
+                <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-md text-sm mb-4">
+                  {resetPasswordError}
+                </div>
+              )}
+              
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="new-password">New Password</Label>
+                  <Input
+                    id="new-password"
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="Enter new password"
+                    required
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="confirm-password">Confirm Password</Label>
+                  <Input
+                    id="confirm-password"
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Confirm new password"
+                    required
+                  />
+                </div>
+              </div>
+              
+              <DialogFooter>
+                <Button 
+                  type="button"
+                  variant="outline" 
+                  onClick={() => setIsResetPasswordDialogOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  type="submit"
+                  disabled={isResettingPassword}
+                  className="gap-2"
+                >
+                  {isResettingPassword && <Loader2 className="h-4 w-4 animate-spin" />}
+                  Reset Password
+                </Button>
+              </DialogFooter>
+            </form>
           )}
         </DialogContent>
       </Dialog>

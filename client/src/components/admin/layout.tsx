@@ -27,7 +27,8 @@ import {
   Mail,
   Plug2,
   Shield,
-  LucideIcon
+  LucideIcon,
+  Wrench
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
@@ -90,6 +91,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
     { name: "Security", href: "/admin/security", icon: Shield },
     { name: "System Status", href: "/admin/system-status", icon: Server },
     { name: "Subscriptions", href: "/admin/subscriptions", icon: CreditCard },
+    { name: "Tools", href: "/admin/tools", icon: Wrench },
   ];
 
   return (

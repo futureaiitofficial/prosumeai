@@ -10,7 +10,11 @@ import {
   appSettings,
   apiKeys,
   subscriptionPlans,
-  userSubscriptions
+  userSubscriptions,
+  paymentTransactions,
+  paymentWebhookEvents,
+  userBillingDetails,
+  planPricing
 } from "@shared/schema";
 import { eq, count, and, or, desc, asc, gt, lt, gte, lte, like, ilike, inArray, isNull, notInArray, isNotNull, between, sql, sum } from "drizzle-orm";
 import { hashPassword } from "../../config/auth";
@@ -24,6 +28,13 @@ import { z } from "zod";
 import { exec } from "child_process";
 import { promisify } from "util";
 import { registerPaymentGatewayAdminRoutes } from './admin/payment-gateway-routes';
+import { SubscriptionService } from "../../services/subscription-service";
+import { fileURLToPath } from "url";
+
+// Get server root path for ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const serverRoot = path.resolve(__dirname, '..', '..');
 
 // Configure multer for file uploads
 const templateStorage = multer.diskStorage({
@@ -207,6 +218,50 @@ export function registerAdminRoutes(app: Express) {
     } catch (error) {
       console.error("Error fetching user:", error);
       res.status(500).json({ message: "Failed to fetch user" });
+    }
+  });
+  
+  // Reset user password (admin only)
+  app.post("/api/admin/reset-password", requireAdmin, async (req, res) => {
+    try {
+      const { userId, newPassword } = req.body;
+      
+      if (!userId || !newPassword) {
+        return res.status(400).json({ message: "User ID and new password are required" });
+      }
+      
+      // First check if the user exists
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      // Hash the new password
+      const hashedPassword = await hashPassword(newPassword);
+      
+      // Update the user's password and set last password change date
+      const updatedUser = await storage.updateUser(userId, { 
+        password: hashedPassword,
+        lastPasswordChange: new Date(),
+        // Clear any failed login attempts or lockouts
+        failedLoginAttempts: 0,
+        lockoutUntil: null
+      });
+      
+      if (!updatedUser) {
+        return res.status(500).json({ message: "Failed to update user password" });
+      }
+      
+      // Log the action but don't include the password
+      console.log(`Admin ${req.user?.username} (ID: ${req.user?.id}) reset password for user ${user.username} (ID: ${userId})`);
+      
+      res.json({ 
+        message: "Password reset successful",
+        username: user.username
+      });
+    } catch (error) {
+      console.error("Error resetting user password:", error);
+      res.status(500).json({ message: "Failed to reset user password" });
     }
   });
   
@@ -973,19 +1028,19 @@ export function registerAdminRoutes(app: Express) {
         
         console.log(`Creating new active subscription for user ${userId} with plan ${planId}`);
         
-        // Insert new active subscription
-        const newSubscription = await tx.insert(userSubscriptions).values({
-          userId,
-          planId,
-          startDate,
-          endDate,
-          status: "ACTIVE",
-          paymentGateway: "MANUAL",
+        // Insert new active subscription with explicit type
+        const newSubscription = await tx.insert(userSubscriptions).values([{
+          userId: userId as number,
+          planId: planId as number,
+          startDate: startDate,
+          endDate: endDate,
+          status: "ACTIVE" as const,
+          paymentGateway: "NONE" as const,
           paymentReference: "ADMIN_ASSIGNED",
           autoRenew: false,
           createdAt: new Date(),
           updatedAt: new Date()
-        }).returning();
+        }]).returning();
         
         console.log(`Created new subscription with ID ${newSubscription[0]?.id}`);
       });
@@ -1031,6 +1086,1058 @@ export function registerAdminRoutes(app: Express) {
     } catch (error) {
       console.error("Error fetching user subscriptions:", error);
       return res.status(500).json({ message: "Failed to fetch user subscriptions" });
+    }
+  });
+
+  // Get transactions for a specific user
+  app.get('/api/admin/user-transactions/:userId', requireAdmin, async (req, res) => {
+    try {
+      const userId = parseInt(req.params.userId);
+      if (isNaN(userId)) {
+        return res.status(400).json({ message: 'Invalid user ID' });
+      }
+
+      console.log(`Fetching transactions for user ${userId}`);
+      
+      // First verify the user exists
+      const user = await db.select({ id: users.id, email: users.email, username: users.username, razorpayCustomerId: users.razorpayCustomerId })
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
+        
+      if (!user.length) {
+        console.log(`User ${userId} not found`);
+        return res.status(404).json({ message: 'User not found' });
+      }
+      
+      console.log(`Found user: ${user[0].username} (${user[0].email}), RazorpayID: ${user[0].razorpayCustomerId || 'Not set'}`);
+      
+      // Get user billing info to determine correct currency
+      const userBillingInfo = await db.select()
+        .from(userBillingDetails)
+        .where(eq(userBillingDetails.userId, userId))
+        .limit(1);
+      
+      const userRegion = userBillingInfo.length && userBillingInfo[0].country === 'IN' ? 'INDIA' : 'GLOBAL';
+      const userCurrency = userRegion === 'INDIA' ? 'INR' : 'USD';
+      
+      console.log(`User region detected as: ${userRegion}, preferred currency: ${userCurrency}`);
+      
+      // Get active subscription for context
+      const activeSubscriptions = await db.select()
+        .from(userSubscriptions)
+        .where(
+          and(
+            eq(userSubscriptions.userId, userId),
+            eq(userSubscriptions.status, 'ACTIVE' as any)
+          )
+        )
+        .orderBy(desc(userSubscriptions.createdAt))
+        .limit(1);
+        
+      if (activeSubscriptions.length) {
+        const activeSub = activeSubscriptions[0];
+        console.log(`User has active subscription ID: ${activeSub.id}, Plan ID: ${activeSub.planId}`);
+        console.log(`Payment reference: ${activeSub.paymentReference || 'No reference'}`);
+        console.log(`Gateway: ${activeSub.paymentGateway || 'None'}`);
+        
+        // Get correct pricing for this plan and user's region
+        const planPricingInfo = await db.select()
+          .from(planPricing)
+          .where(
+            and(
+              eq(planPricing.planId, activeSub.planId),
+              eq(planPricing.currency, userCurrency)
+            )
+          )
+          .limit(1);
+          
+        if (planPricingInfo.length) {
+          console.log(`Plan pricing for user's region: ${planPricingInfo[0].price} ${planPricingInfo[0].currency}`);
+        }
+      } else {
+        console.log(`User has no active subscription`);
+      }
+
+      // Get all transactions for the user
+      const transactions = await db.select({
+        id: paymentTransactions.id,
+        amount: paymentTransactions.amount,
+        currency: paymentTransactions.currency,
+        status: paymentTransactions.status,
+        gateway: paymentTransactions.gateway,
+        subscriptionId: paymentTransactions.subscriptionId,
+        gatewayTransactionId: paymentTransactions.gatewayTransactionId,
+        createdAt: paymentTransactions.createdAt,
+        refundReason: paymentTransactions.refundReason,
+        metadata: paymentTransactions.metadata,
+        // Join with subscription to get plan details
+        planId: userSubscriptions.planId,
+        planName: subscriptionPlans.name,
+        userId: paymentTransactions.userId
+      })
+      .from(paymentTransactions)
+      .leftJoin(userSubscriptions, eq(paymentTransactions.subscriptionId, userSubscriptions.id))
+      .leftJoin(subscriptionPlans, eq(userSubscriptions.planId, subscriptionPlans.id))
+      .where(eq(paymentTransactions.userId, userId))
+      .orderBy(desc(paymentTransactions.createdAt));
+
+      console.log(`Found ${transactions.length} transactions for user ${userId}`);
+      
+      // Define enhanced transaction type
+      interface EnhancedTransaction {
+        id: number;
+        amount: string;
+        currency: "INR" | "USD";
+        status: "PENDING" | "COMPLETED" | "FAILED" | "REFUNDED";
+        gateway: "RAZORPAY" | "NONE";
+        subscriptionId: number;
+        gatewayTransactionId: string | null;
+        createdAt: Date | null;
+        refundReason: string | null;
+        planId: number | null;
+        planName: string | null;
+        correctPlanPrice?: string;
+        correctPlanCurrency?: string;
+      }
+      
+      // Enhance transaction data with proper plan pricing information
+      const enhancedTransactions = await Promise.all(transactions.map(async (tx) => {
+        let enhancedTx: EnhancedTransaction = { ...tx as any };
+        
+        if (tx.planId) {
+          // Get the correct pricing for this plan for the user's region
+          const pricing = await db.select()
+            .from(planPricing)
+            .where(
+              and(
+                eq(planPricing.planId, tx.planId),
+                eq(planPricing.currency, userCurrency)
+              )
+            )
+            .limit(1);
+            
+          if (pricing.length) {
+            enhancedTx.correctPlanPrice = pricing[0].price;
+            enhancedTx.correctPlanCurrency = pricing[0].currency;
+          }
+        }
+        
+        return enhancedTx;
+      }));
+      
+      if (transactions.length === 0) {
+        // Check if there might be webhook processing issues
+        const pendingWebhooks = await db.select({ count: sql<number>`count(*)` })
+          .from(paymentWebhookEvents)
+          .where(
+            and(
+              eq(paymentWebhookEvents.processed, false),
+              sql`${paymentWebhookEvents.rawData}::text LIKE ${'%' + (user[0].razorpayCustomerId || user[0].email) + '%'}`
+            )
+          );
+          
+        if (pendingWebhooks.length && pendingWebhooks[0].count > 0) {
+          console.log(`Found ${pendingWebhooks[0].count} unprocessed webhooks that might be related to this user`);
+        }
+      }
+      
+      res.json({
+        transactions: enhancedTransactions,
+        userDetails: {
+          region: userRegion,
+          preferredCurrency: userCurrency
+        }
+      });
+    } catch (error: any) {
+      console.error('Error in GET /api/admin/user-transactions/:userId:', error);
+      res.status(500).json({ 
+        message: 'Failed to get user transactions', 
+        error: error.message 
+      });
+    }
+  });
+
+  // Cancel a specific user subscription
+  app.post('/api/admin/cancel-subscription/:subscriptionId', requireAdmin, async (req, res) => {
+    try {
+      const subscriptionId = parseInt(req.params.subscriptionId);
+      if (isNaN(subscriptionId)) {
+        return res.status(400).json({ message: 'Invalid subscription ID' });
+      }
+
+      console.log(`Cancelling subscription ${subscriptionId}`);
+      const subscription = await db.select()
+        .from(userSubscriptions)
+        .where(eq(userSubscriptions.id, subscriptionId))
+        .limit(1);
+
+      if (!subscription.length) {
+        return res.status(404).json({ message: 'Subscription not found' });
+      }
+
+      await SubscriptionService.cancelSubscription(subscription[0].userId);
+      res.json({ message: 'Subscription cancelled successfully' });
+    } catch (error: any) {
+      console.error(`Error in POST /api/admin/cancel-subscription/${req.params.subscriptionId}:`, error);
+      res.status(500).json({ 
+        message: 'Failed to cancel subscription', 
+        error: error.message 
+      });
+    }
+  });
+
+  // Get user details for admin
+  app.get('/api/admin/users/:userId', requireAdmin, async (req, res) => {
+    try {
+      const userId = parseInt(req.params.userId);
+      
+      if (isNaN(userId)) {
+        return res.status(400).json({ message: 'Invalid user ID' });
+      }
+      
+      // Get user details
+      const user = await db.select({
+        id: users.id, 
+        email: users.email,
+        username: users.username,
+        fullName: users.fullName,
+        isAdmin: users.isAdmin,
+        razorpayCustomerId: users.razorpayCustomerId,
+        createdAt: users.createdAt
+      })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+      
+      if (!user.length) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+      
+      // Also get billing details
+      const billingDetails = await db.select()
+        .from(userBillingDetails)
+        .where(eq(userBillingDetails.userId, userId))
+        .limit(1);
+      
+      // Create combined response
+      const userDetails = {
+        ...user[0],
+        billingDetails: billingDetails.length ? billingDetails[0] : null
+      };
+      
+      res.json(userDetails);
+    } catch (error: any) {
+      console.error(`Error in GET /api/admin/users/${req.params.userId}:`, error);
+      res.status(500).json({ message: 'Error fetching user details', error: error.message });
+    }
+  });
+
+  // Change subscription status (admin only)
+  app.post('/api/admin/change-subscription-status/:subscriptionId', requireAdmin, async (req, res) => {
+    try {
+      const subscriptionId = parseInt(req.params.subscriptionId);
+      if (isNaN(subscriptionId)) {
+        return res.status(400).json({ success: false, message: 'Invalid subscription ID' });
+      }
+
+      const { status } = req.body;
+      if (!status) {
+        return res.status(400).json({ success: false, message: 'Status is required' });
+      }
+
+      // Validate the status value
+      const validStatuses = ['ACTIVE', 'CANCELLED', 'GRACE_PERIOD', 'EXPIRED'];
+      if (!validStatuses.includes(status)) {
+        return res.status(400).json({ 
+          success: false, 
+          message: `Invalid status. Must be one of: ${validStatuses.join(', ')}` 
+        });
+      }
+
+      // Find the subscription
+      const subscription = await db.select()
+        .from(userSubscriptions)
+        .where(eq(userSubscriptions.id, subscriptionId))
+        .limit(1);
+
+      if (!subscription.length) {
+        return res.status(404).json({ success: false, message: 'Subscription not found' });
+      }
+
+      const updateData: Record<string, any> = {
+        status: status,
+        updatedAt: new Date()
+      };
+
+      // Add status-specific data
+      if (status === 'GRACE_PERIOD') {
+        // Set grace period for 7 days
+        const gracePeriodEnd = new Date();
+        gracePeriodEnd.setDate(gracePeriodEnd.getDate() + 7);
+        updateData.gracePeriodEnd = gracePeriodEnd;
+      } else if (status === 'CANCELLED') {
+        // Set autoRenew to false
+        updateData.autoRenew = false;
+      } else if (status === 'ACTIVE') {
+        // If moving from grace period to active, clear grace period end date
+        updateData.gracePeriodEnd = null;
+      }
+
+      // Update the subscription
+      await db.update(userSubscriptions)
+        .set(updateData)
+        .where(eq(userSubscriptions.id, subscriptionId));
+
+      console.log(`Subscription ${subscriptionId} status changed to ${status} by admin`);
+
+      res.json({ 
+        success: true, 
+        message: `Subscription status changed to ${status} successfully` 
+      });
+    } catch (error: any) {
+      console.error(`Error changing subscription status:`, error);
+      res.status(500).json({ 
+        success: false, 
+        message: 'Failed to change subscription status', 
+        error: error.message 
+      });
+    }
+  });
+
+  // Sync subscription with Razorpay (admin only)
+  app.post('/api/admin/sync-subscription/:subscriptionId', requireAdmin, async (req, res) => {
+    try {
+      const subscriptionId = parseInt(req.params.subscriptionId);
+      if (isNaN(subscriptionId)) {
+        return res.status(400).json({ success: false, message: 'Invalid subscription ID' });
+      }
+
+      // Find the subscription
+      const subscription = await db.select()
+        .from(userSubscriptions)
+        .where(eq(userSubscriptions.id, subscriptionId))
+        .limit(1);
+
+      if (!subscription.length) {
+        return res.status(404).json({ success: false, message: 'Subscription not found' });
+      }
+
+      // Check if we have a Razorpay subscription ID
+      if (!subscription[0].paymentReference || !subscription[0].paymentReference.startsWith('sub_')) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'This subscription does not have a valid Razorpay subscription ID' 
+        });
+      }
+
+      // Import and use the payment gateway
+      const { getPaymentGatewayByName } = await import('../../services/payment-gateways');
+      const razorpayGateway = getPaymentGatewayByName('RAZORPAY');
+
+      // Get current status from Razorpay
+      const razorpaySubscription = await razorpayGateway.getSubscriptionDetails(subscription[0].paymentReference);
+
+      if (!razorpaySubscription) {
+        return res.status(404).json({ 
+          success: false, 
+          message: 'Subscription not found in Razorpay' 
+        });
+      }
+
+      // Map Razorpay status to our status
+      let mappedStatus = subscription[0].status;
+      const razorpayStatus = razorpaySubscription.status;
+
+      if (razorpayStatus === 'active') {
+        mappedStatus = 'ACTIVE';
+      } else if (razorpayStatus === 'authenticated') {
+        // Razorpay "authenticated" status means the initial payment succeeded but service hasn't started
+        mappedStatus = 'ACTIVE'; // We don't have an "authenticated" status, so map to active
+      } else if (razorpayStatus === 'pending') {
+        mappedStatus = 'GRACE_PERIOD';
+      } else if (razorpayStatus === 'halted') {
+        mappedStatus = 'GRACE_PERIOD';
+      } else if (razorpayStatus === 'cancelled') {
+        mappedStatus = 'CANCELLED';
+      } else if (razorpayStatus === 'completed') {
+        mappedStatus = 'EXPIRED';
+      } else if (razorpayStatus === 'expired') {
+        mappedStatus = 'EXPIRED';
+      }
+
+      // Update our record if statuses don't match
+      if (mappedStatus !== subscription[0].status) {
+        const updateData: Record<string, any> = {
+          status: mappedStatus,
+          updatedAt: new Date()
+        };
+
+        // Add status-specific data
+        if (mappedStatus === 'GRACE_PERIOD') {
+          // Set grace period for 14 days for pending/halted Razorpay subscriptions
+          const gracePeriodEnd = new Date();
+          gracePeriodEnd.setDate(gracePeriodEnd.getDate() + 14);
+          updateData.gracePeriodEnd = gracePeriodEnd;
+        } else if (mappedStatus === 'CANCELLED') {
+          updateData.autoRenew = false;
+        } else if (mappedStatus === 'ACTIVE') {
+          updateData.gracePeriodEnd = null;
+        }
+
+        // Update the subscription
+        await db.update(userSubscriptions)
+          .set(updateData)
+          .where(eq(userSubscriptions.id, subscriptionId));
+
+        console.log(`Sync: Subscription ${subscriptionId} status changed from ${subscription[0].status} to ${mappedStatus} based on Razorpay status: ${razorpayStatus}`);
+
+        // Fetch the updated subscription record
+        const updatedSubscription = await db.select()
+          .from(userSubscriptions)
+          .where(eq(userSubscriptions.id, subscriptionId))
+          .limit(1);
+
+        return res.json({
+          success: true,
+          message: `Subscription status synced with Razorpay (${razorpayStatus} → ${mappedStatus})`,
+          razorpayStatus: razorpayStatus,
+          subscription: updatedSubscription[0]
+        });
+      } else {
+        console.log(`Sync: Subscription ${subscriptionId} status already matches Razorpay status: ${razorpayStatus}`);
+        return res.json({
+          success: true,
+          message: 'Subscription status is already in sync with Razorpay',
+          razorpayStatus: razorpayStatus,
+          subscription: subscription[0]
+        });
+      }
+    } catch (error: any) {
+      console.error(`Error syncing subscription with Razorpay:`, error);
+      res.status(500).json({ 
+        success: false, 
+        message: 'Failed to sync subscription with Razorpay', 
+        error: error.message 
+      });
+    }
+  });
+
+  // Get all user subscriptions with enhanced details for admin UI
+  app.get('/api/admin/user-subscriptions', requireAdmin, async (req, res) => {
+    try {
+      // Get all user subscriptions with user details and plan info
+      const subscriptionsWithDetails = await db.select({
+        id: userSubscriptions.id,
+        userId: userSubscriptions.userId,
+        planId: userSubscriptions.planId,
+        startDate: userSubscriptions.startDate,
+        endDate: userSubscriptions.endDate,
+        status: userSubscriptions.status,
+        autoRenew: userSubscriptions.autoRenew,
+        paymentReference: userSubscriptions.paymentReference,
+        paymentGateway: userSubscriptions.paymentGateway,
+        createdAt: userSubscriptions.createdAt,
+        updatedAt: userSubscriptions.updatedAt,
+        gracePeriodEnd: userSubscriptions.gracePeriodEnd,
+        userEmail: users.email,
+        username: users.username,
+        razorpayCustomerId: users.razorpayCustomerId,
+        planName: subscriptionPlans.name,
+        planDescription: subscriptionPlans.description,
+        billingCycle: subscriptionPlans.billingCycle
+      })
+      .from(userSubscriptions)
+      .leftJoin(users, eq(userSubscriptions.userId, users.id))
+      .leftJoin(subscriptionPlans, eq(userSubscriptions.planId, subscriptionPlans.id))
+      .orderBy(desc(userSubscriptions.updatedAt));
+
+      // For each subscription in GRACE_PERIOD, get the failed payment count
+      const enhancedSubscriptions = await Promise.all(subscriptionsWithDetails.map(async (sub) => {
+        if (sub.status === 'GRACE_PERIOD') {
+          // Count failed payments since grace period began (or in last 30 days if no grace period end date)
+          const sinceDate = sub.gracePeriodEnd 
+            ? new Date(new Date(sub.gracePeriodEnd).getTime() - (14 * 24 * 60 * 60 * 1000)) // 14 days before grace period end
+            : new Date(new Date().getTime() - (30 * 24 * 60 * 60 * 1000)); // Last 30 days
+            
+          const failedPayments = await db.select({ count: count() })
+            .from(paymentTransactions)
+            .where(
+              and(
+                eq(paymentTransactions.userId, sub.userId),
+                eq(paymentTransactions.status, 'FAILED'),
+                gte(paymentTransactions.createdAt, sinceDate)
+              )
+            );
+            
+          return {
+            ...sub,
+            paymentFailureCount: failedPayments[0].count
+          };
+        }
+        
+        return sub;
+      }));
+
+      res.json(enhancedSubscriptions);
+    } catch (error: any) {
+      console.error(`Error fetching user subscriptions:`, error);
+      res.status(500).json({ 
+        message: 'Failed to fetch user subscriptions', 
+        error: error.message 
+      });
+    }
+  });
+
+  // Correct transaction currency for administrative purposes
+  app.post('/api/admin/correct-transaction-currency/:transactionId', requireAdmin, async (req, res) => {
+    try {
+      const transactionId = parseInt(req.params.transactionId);
+      if (isNaN(transactionId)) {
+        return res.status(400).json({ message: 'Invalid transaction ID' });
+      }
+
+      const { correctCurrency } = req.body;
+      if (!correctCurrency || !['USD', 'INR'].includes(correctCurrency)) {
+        return res.status(400).json({ message: 'Valid currency (USD or INR) is required' });
+      }
+
+      console.log(`Correcting currency for transaction ${transactionId} to ${correctCurrency}`);
+      
+      // Get the transaction to check it exists
+      const transaction = await db.select()
+        .from(paymentTransactions)
+        .where(eq(paymentTransactions.id, transactionId))
+        .limit(1);
+
+      if (!transaction.length) {
+        return res.status(404).json({ message: 'Transaction not found' });
+      }
+      
+      // Get subscription associated with this transaction
+      const subscription = await db.select()
+        .from(userSubscriptions)
+        .where(eq(userSubscriptions.id, transaction[0].subscriptionId))
+        .limit(1);
+        
+      if (!subscription.length) {
+        return res.status(404).json({ message: 'Associated subscription not found' });
+      }
+      
+      // Get plan pricing for the transaction's currency to ensure we record the correct amount
+      const pricing = await db.select()
+        .from(planPricing)
+        .where(
+          and(
+            eq(planPricing.planId, subscription[0].planId),
+            eq(planPricing.currency, correctCurrency)
+          )
+        )
+        .limit(1);
+        
+      // Get the correct amount based on pricing, fallback to existing amount
+      const correctAmount = pricing.length > 0 
+        ? pricing[0].price 
+        : transaction[0].amount;
+      
+      // Update the transaction
+      await db.update(paymentTransactions)
+        .set({ 
+          currency: correctCurrency, 
+          amount: correctAmount.toString(),
+          updatedAt: new Date()
+        })
+        .where(eq(paymentTransactions.id, transactionId));
+        
+      res.json({
+        success: true,
+        message: `Transaction ${transactionId} currency corrected to ${correctCurrency}`,
+        transaction: {
+          id: transactionId,
+          amount: correctAmount,
+          currency: correctCurrency,
+        }
+      });
+    } catch (error: any) {
+      console.error(`Error correcting transaction currency:`, error);
+      res.status(500).json({ 
+        message: 'Failed to correct transaction currency', 
+        error: error.message 
+      });
+    }
+  });
+
+  // Cron job management
+  app.get('/api/admin/cron/status', requireAdmin, async (req, res) => {
+    try {
+      // Check if PID file exists
+      const pidFile = path.join(serverRoot, 'auto_sync.pid');
+      let isRunning = false;
+      let pid = null;
+      let logFile = null;
+      let lastRunTimestamp = null;
+      
+      console.log(`Status - Server root path: ${serverRoot}`);
+      console.log(`Status - PID file path: ${pidFile}`);
+      
+      if (fs.existsSync(pidFile)) {
+        pid = fs.readFileSync(pidFile, 'utf8').trim();
+        
+        // Check if process is actually running
+        try {
+          const execAsync = promisify(exec);
+          const { stdout } = await execAsync(`ps -p ${pid} -o comm=`);
+          isRunning = stdout.trim().length > 0;
+        } catch (err) {
+          isRunning = false;
+        }
+      }
+      
+      // Get the most recent log file
+      const logsDir = path.join(serverRoot, 'logs');
+      console.log(`Status - Logs directory: ${logsDir}`);
+      
+      if (fs.existsSync(logsDir)) {
+        try {
+          const logFiles = fs.readdirSync(logsDir)
+            // Update filter to handle both log name formats
+            .filter(file => /^auto_sync_(\d{8}_\d{6}|\d{4}-\d{2}-\d{2}_\d{2}_\d{2})\.log$/.test(file))
+            .sort()
+            .reverse();
+          
+          if (logFiles.length > 0) {
+            logFile = logFiles[0];
+            
+            // Extract timestamp from filename
+            const timestampMatch = logFile.match(/auto_sync_(\d{8}_\d{6}|\d{4}-\d{2}-\d{2}_\d{2}_\d{2})\.log/);
+            if (timestampMatch && timestampMatch[1]) {
+              // Handle different timestamp formats
+              let parts;
+              let year, month, day, hour, minute, second;
+              
+              if (timestampMatch[1].includes('-')) {
+                // Format: 2025-05-15_20_48
+                const [datePart, timePart1, timePart2] = timestampMatch[1].split('_');
+                [year, month, day] = datePart.split('-');
+                hour = timePart1;
+                minute = timePart2;
+                second = '00'; // Assume 00 seconds if not present
+              } else {
+                // Format: 20250515_133910
+                parts = timestampMatch[1].split('_');
+                const date = parts[0];
+                const time = parts[1];
+                year = date.substring(0, 4);
+                month = date.substring(4, 6);
+                day = date.substring(6, 8);
+                hour = time.substring(0, 2);
+                minute = time.substring(2, 4);
+                second = time.substring(4, 6);
+              }
+              
+              lastRunTimestamp = `${year}-${month}-${day} ${hour}:${minute}:${second}`;
+            }
+            
+            // Get the last few lines of the log file for preview
+            const logPreview = fs.readFileSync(`${logsDir}/${logFile}`, 'utf8')
+              .split('\n')
+              .slice(-20) // Last 20 lines
+              .join('\n');
+              
+            return res.json({
+              isRunning,
+              pid,
+              logFile,
+              lastRunTimestamp,
+              logPreview,
+              interval: 900 // 15 minutes between sync operations
+            });
+          }
+        } catch (err) {
+          console.error('Error reading logs directory:', err);
+        }
+      }
+      
+      return res.json({
+        isRunning,
+        pid,
+        logFile,
+        lastRunTimestamp,
+        logPreview: null,
+        interval: 900 // 15 minutes between sync operations
+      });
+    } catch (error) {
+      console.error('Error checking cron status:', error);
+      res.status(500).json({ error: 'Failed to check cron status' });
+    }
+  });
+  
+  app.post('/api/admin/cron/start', requireAdmin, async (req, res) => {
+    try {
+      // Check if already running
+      const pidFilePath = path.join(serverRoot, 'auto_sync.pid');
+      
+      console.log(`Server root path: ${serverRoot}`);
+      console.log(`PID file path: ${pidFilePath}`);
+      
+      if (fs.existsSync(pidFilePath)) {
+        const pid = fs.readFileSync(pidFilePath, 'utf8').trim();
+        try {
+          const execAsync = promisify(exec);
+          const { stdout } = await execAsync(`ps -p ${pid} -o comm=`);
+          if (stdout.trim().length > 0) {
+            return res.status(400).json({ error: 'Cron job is already running' });
+          } else {
+            // PID file exists but process is not running
+            fs.unlinkSync(pidFilePath);
+          }
+        } catch (err) {
+          // If error checking process, assume not running and remove PID file
+          fs.unlinkSync(pidFilePath);
+        }
+      }
+      
+      // Start the cron job using absolute path
+      const execAsync = promisify(exec);
+      const startScriptPath = path.join(serverRoot, 'start-auto-sync.sh');
+      
+      console.log(`Starting cron job using script at: ${startScriptPath}`);
+      
+      // Execute with bash directly to ensure permissions
+      const cmd = `bash ${startScriptPath}`;
+      const result = await execAsync(cmd);
+      
+      res.json({ message: 'Cron job started successfully', output: result.stdout });
+    } catch (error) {
+      console.error('Error starting cron job:', error);
+      res.status(500).json({ error: 'Failed to start cron job' });
+    }
+  });
+  
+  app.post('/api/admin/cron/stop', requireAdmin, async (req, res) => {
+    try {
+      // Stop the cron job using absolute path
+      const stopScriptPath = path.join(serverRoot, 'stop-auto-sync.sh');
+      
+      console.log(`Stopping cron job using script at: ${stopScriptPath}`);
+      const execAsync = promisify(exec);
+      
+      // Execute with bash directly to ensure permissions
+      const cmd = `bash ${stopScriptPath}`;
+      const result = await execAsync(cmd);
+      
+      res.json({ message: 'Cron job stopped successfully', output: result.stdout });
+    } catch (error) {
+      console.error('Error stopping cron job:', error);
+      res.status(500).json({ error: 'Failed to stop cron job' });
+    }
+  });
+  
+  app.get('/api/admin/cron/logs/:filename', requireAdmin, async (req, res) => {
+    try {
+      const filename = req.params.filename;
+      
+      // Security check - ensure only log files are accessed
+      if (!filename.match(/^auto_sync_(\d{8}_\d{6}|\d{4}-\d{2}-\d{2}_\d{2}_\d{2})\.log$/)) {
+        console.log(`Invalid log filename format: ${filename}`);
+        return res.status(400).json({ error: 'Invalid log filename' });
+      }
+      
+      const logPath = path.join(serverRoot, 'logs', filename);
+      
+      console.log(`Log file path: ${logPath}`);
+      
+      if (!fs.existsSync(logPath)) {
+        console.log(`Log file not found: ${logPath}`);
+        return res.status(404).json({ error: 'Log file not found' });
+      }
+      
+      try {
+        const logContent = fs.readFileSync(logPath, 'utf8');
+        res.json({ filename, content: logContent });
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        console.error(`Error reading log file ${logPath}:`, error);
+        res.status(500).json({ error: 'Failed to read log file content', details: errorMessage });
+      }
+    } catch (error) {
+      console.error('Error reading log file:', error);
+      res.status(500).json({ error: 'Failed to read log file' });
+    }
+  });
+  
+  app.get('/api/admin/cron/logs', requireAdmin, async (req, res) => {
+    try {
+      const logsDir = path.join(serverRoot, 'logs');
+      
+      console.log(`Logs directory: ${logsDir}`);
+      
+      if (!fs.existsSync(logsDir)) {
+        return res.json({ logs: [] });
+      }
+      
+      const logFiles = fs.readdirSync(logsDir)
+        // Update the filter to include both log formats
+        .filter(file => /^auto_sync_(\d{8}_\d{6}|\d{4}-\d{2}-\d{2}_\d{2}_\d{2})\.log$/.test(file))
+        .sort()
+        .reverse()
+        .map(filename => {
+          const stats = fs.statSync(path.join(logsDir, filename));
+          return {
+            filename,
+            size: stats.size,
+            created: stats.birthtime
+          };
+        });
+      
+      res.json({ logs: logFiles });
+    } catch (error) {
+      console.error('Error listing log files:', error);
+      res.status(500).json({ error: 'Failed to list log files' });
+    }
+  });
+
+  // Get device tracking data for a user
+  app.get('/api/admin/users/:userId/device-tracking', requireAdmin, async (req, res) => {
+    try {
+      const userId = parseInt(req.params.userId);
+      if (isNaN(userId)) {
+        return res.status(400).json({ message: 'Invalid user ID' });
+      }
+
+      // Get user device records
+      const userDeviceKey = `user_device_${userId}`;
+      const [userDeviceRecord] = await db
+        .select()
+        .from(appSettings)
+        .where(eq(appSettings.key, userDeviceKey))
+        .limit(1);
+      
+      // Initialize the results
+      const result: any = {
+        ipAddresses: [],
+        devices: []
+      };
+      
+      // Get IP address data
+      if (userDeviceRecord?.value) {
+        const deviceData = userDeviceRecord.value as any;
+        
+        // Add current IP data
+        if (deviceData.ipAddress) {
+          result.ipAddresses.push({
+            ipAddress: deviceData.ipAddress,
+            lastSeen: deviceData.lastSeen
+          });
+        }
+        
+        // Add device data
+        if (deviceData.deviceId) {
+          result.devices.push({
+            deviceId: deviceData.deviceId,
+            userAgent: deviceData.userAgent,
+            lastSeen: deviceData.lastSeen
+          });
+        }
+      }
+      
+      // Check for IP sharing
+      const sharedAccounts = [];
+      
+      // Only check if we have IP addresses to check
+      if (result.ipAddresses.length > 0) {
+        for (const ip of result.ipAddresses) {
+          // Get all users for this IP
+          const ipKey = `ip_users_${ip.ipAddress.replace(/\./g, '_')}`;
+          const [ipRecord] = await db
+            .select()
+            .from(appSettings)
+            .where(eq(appSettings.key, ipKey))
+            .limit(1);
+            
+          if (ipRecord?.value) {
+            const userIds = ipRecord.value as number[];
+            
+            // For each user sharing the IP (excluding the current user)
+            for (const sharedUserId of userIds) {
+              if (sharedUserId !== userId) {
+                // Get the user's name
+                const [userData] = await db
+                  .select({
+                    id: users.id,
+                    username: users.username,
+                    email: users.email
+                  })
+                  .from(users)
+                  .where(eq(users.id, sharedUserId))
+                  .limit(1);
+                  
+                if (userData) {
+                  sharedAccounts.push({
+                    userId: userData.id,
+                    username: userData.username,
+                    email: userData.email,
+                    shareType: 'Shared IP Address'
+                  });
+                }
+              }
+            }
+          }
+        }
+      }
+      
+      // Check for device sharing
+      if (result.devices.length > 0) {
+        for (const device of result.devices) {
+          // Get all users for this device
+          const deviceKey = `device_users_${device.deviceId}`;
+          const [deviceRecord] = await db
+            .select()
+            .from(appSettings)
+            .where(eq(appSettings.key, deviceKey))
+            .limit(1);
+            
+          if (deviceRecord?.value) {
+            const userIds = deviceRecord.value as number[];
+            
+            // For each user sharing the device (excluding the current user)
+            for (const sharedUserId of userIds) {
+              if (sharedUserId !== userId) {
+                // Get the user's name
+                const [userData] = await db
+                  .select({
+                    id: users.id,
+                    username: users.username,
+                    email: users.email
+                  })
+                  .from(users)
+                  .where(eq(users.id, sharedUserId))
+                  .limit(1);
+                  
+                if (userData) {
+                  // Check if this user is already in the shared accounts list
+                  const existingAccount = sharedAccounts.find(acc => acc.userId === userData.id);
+                  if (existingAccount) {
+                    existingAccount.shareType += ', Shared Device';
+                  } else {
+                    sharedAccounts.push({
+                      userId: userData.id,
+                      username: userData.username,
+                      email: userData.email,
+                      shareType: 'Shared Device'
+                    });
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+      
+      // Add the shared accounts to the result
+      if (sharedAccounts.length > 0) {
+        result.sharedAccounts = sharedAccounts;
+      }
+      
+      res.json(result);
+    } catch (error: any) {
+      console.error(`Error fetching device tracking data for user ${req.params.userId}:`, error);
+      res.status(500).json({ 
+        message: 'Failed to fetch device tracking data', 
+        error: error.message 
+      });
+    }
+  });
+
+  // Reset device tracking data for a user
+  app.post('/api/admin/users/:userId/reset-device-tracking', requireAdmin, async (req, res) => {
+    try {
+      const userId = parseInt(req.params.userId);
+      if (isNaN(userId)) {
+        return res.status(400).json({ message: 'Invalid user ID' });
+      }
+
+      // Get user device record key
+      const userDeviceKey = `user_device_${userId}`;
+      
+      // Delete the user device record
+      await db.delete(appSettings)
+        .where(eq(appSettings.key, userDeviceKey));
+      
+      // Also remove this user from any IP address mappings
+      const allIpRecords = await db
+        .select()
+        .from(appSettings)
+        .where(like(appSettings.key, 'ip_users_%'));
+        
+      for (const ipRecord of allIpRecords) {
+        const userIds = ipRecord.value as number[];
+        if (userIds.includes(userId)) {
+          // Filter out this user
+          const updatedUserIds = userIds.filter(id => id !== userId);
+          
+          if (updatedUserIds.length === 0) {
+            // Delete the record if no users left
+            await db.delete(appSettings)
+              .where(eq(appSettings.key, ipRecord.key));
+          } else {
+            // Update the record with the user removed
+            await db.update(appSettings)
+              .set({ value: updatedUserIds })
+              .where(eq(appSettings.key, ipRecord.key));
+          }
+        }
+      }
+      
+      // Also remove this user from any device mappings
+      const allDeviceRecords = await db
+        .select()
+        .from(appSettings)
+        .where(like(appSettings.key, 'device_users_%'));
+        
+      for (const deviceRecord of allDeviceRecords) {
+        const userIds = deviceRecord.value as number[];
+        if (userIds.includes(userId)) {
+          // Filter out this user
+          const updatedUserIds = userIds.filter(id => id !== userId);
+          
+          if (updatedUserIds.length === 0) {
+            // Delete the record if no users left
+            await db.delete(appSettings)
+              .where(eq(appSettings.key, deviceRecord.key));
+          } else {
+            // Update the record with the user removed
+            await db.update(appSettings)
+              .set({ value: updatedUserIds })
+              .where(eq(appSettings.key, deviceRecord.key));
+          }
+        }
+      }
+      
+      // Get the user details for logging
+      const [user] = await db
+        .select({
+          username: users.username,
+          email: users.email
+        })
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
+      
+      // Log using admin username if available
+      const adminUsername = req.user?.username || 'Unknown admin';
+      console.log(`Device tracking data reset for user ${userId} (${user?.username}, ${user?.email}) by admin ${adminUsername}`);
+      
+      res.json({
+        success: true,
+        message: 'Device tracking data reset successfully'
+      });
+    } catch (error: any) {
+      console.error(`Error resetting device tracking data for user ${req.params.userId}:`, error);
+      res.status(500).json({ 
+        message: 'Failed to reset device tracking data', 
+        error: error.message 
+      });
     }
   });
 }
