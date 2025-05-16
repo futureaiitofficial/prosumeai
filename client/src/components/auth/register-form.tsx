@@ -512,7 +512,7 @@ export default function RegisterForm({ selectedPlanId }: RegisterFormProps) {
               required
             />
             <label htmlFor="terms" className="text-xs text-gray-600">
-              I agree to the <a href="/terms" className="text-indigo-600 hover:text-indigo-500">Terms of Service</a> and <a href="/privacy" className="text-indigo-600 hover:text-indigo-500">Privacy Policy</a>
+              I agree to the <a href="/terms" className="text-indigo-600 hover:text-indigo-500" target="_blank" rel="noopener noreferrer">Terms of Service</a> and <a href="/privacy" className="text-indigo-600 hover:text-indigo-500" target="_blank" rel="noopener noreferrer">Privacy Policy</a>
             </label>
           </div>
 

@@ -26,7 +26,7 @@ import { ProtectedRoute } from "./lib/protected-route";
 import { AdminRoute } from "./lib/admin-route";
 import { AuthProvider } from "./hooks/use-auth";
 import { SidebarProvider } from "./hooks/use-sidebar";
-import { useEffect } from "react";
+import React, { useEffect, lazy, Suspense } from "react";
 import AdminDashboard from "./pages/admin/dashboard";
 import AdminUsersPage from "@/pages/admin/users";
 import AdminTemplatesPage from "@/pages/admin/templates";
@@ -47,6 +47,8 @@ import AdminToolsPage from '@/pages/admin/tools';
 import AdminSecurityPage from '@/pages/admin/security';
 import ForgotPasswordPage from '@/pages/forgot-password';
 import ResetPasswordPage from '@/pages/reset-password';
+import TermsOfServicePage from '@/pages/terms';
+import PrivacyPolicyPage from '@/pages/privacy';
 
 function Router() {
   return (
@@ -58,6 +60,8 @@ function Router() {
       <Route path="/auth" component={AuthPage} />
       <Route path="/forgot-password" component={ForgotPasswordPage} />
       <Route path="/reset-password" component={ResetPasswordPage} />
+      <Route path="/terms" component={TermsOfServicePage} />
+      <Route path="/privacy" component={PrivacyPolicyPage} />
       <ProtectedRoute path="/dashboard" component={Dashboard} />
       <ProtectedRoute path="/resumes" component={Resumes} />
       <ProtectedRoute path="/resume-builder" component={ResumeBuilder} />

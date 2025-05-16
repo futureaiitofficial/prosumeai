@@ -7009,3 +7009,15 @@ ts=6826e1d8; t=2025-05-16T06:57:28; ll=1b5f; FE=139.162.5.63:443; http_ping_ms=4
 ts=6826e1d8; t=2025-05-16T06:57:28; ll=1b60; FE=172.104.131.125:443; http_ping_ms=413; win=3; uuid=c205849424e35b9493fc566b99c0769cb9c231c3; unbiased_ms=363
 ts=6826e1d8; t=2025-05-16T06:57:28; ll=1b61; FE=185.112.146.199:443; http_ping_ms=464; win=3; uuid=602604a8157e044fbbfaae39716d4553e2d05747; unbiased_ms=414
 ts=6826e1d8; t=2025-05-16T06:57:28; ll=1b62; FE=172.105.59.232:443; http_ping_ms=552; win=3; uuid=4c068c3d0ffe6aef4d47c30f5d58282600bb9b5a; unbiased_ms=502
+ts=6826efdf; t=2025-05-16T07:57:19; ll=1b63; FE=173.255.248.133:443; http_ping_ms=73; win=3; uuid=74dda7d4a0208237f8f5a3208d894d964b435e10; wanted_by=DNS
+ts=6826efe0; t=2025-05-16T07:57:20; ll=1b64; FE=45.33.40.85:443; http_ping_ms=111; win=3; uuid=3adf382dcd72eb009828bf60c02110ab38a7a80d; unbiased_ms=61
+ts=6826efe0; t=2025-05-16T07:57:20; ll=1b65; FE=45.79.218.26:443; http_ping_ms=200; win=3; uuid=04240ff7b2ba5a978954e53989b2586e542ee9d3; unbiased_ms=150
+ts=6826efe0; t=2025-05-16T07:57:20; ll=1b66; FE=45.79.135.57:443; http_ping_ms=222; win=3; uuid=1cc4a24fcfc778a737f5ad751cecfae2d2dc4405; unbiased_ms=172
+ts=6826efe0; t=2025-05-16T07:57:20; ll=1b67; FE=139.162.73.59:443; http_ping_ms=312; win=3; uuid=2cb025d8a5bc3e64be82652bbded1b02e30b8a54; unbiased_ms=262
+ts=6826efe0; t=2025-05-16T07:57:20; ll=1b68; FE=139.162.210.121:443; http_ping_ms=371; win=3; uuid=14fb15e4603c96861f9f5f4936818d01de385109; unbiased_ms=321
+ts=6826efe0; t=2025-05-16T07:57:20; ll=1b69; FE=172.105.176.167:443; http_ping_ms=383; win=3; uuid=13004119e05cff9a228194b7393af9341b586873; unbiased_ms=333
+ts=6826efe0; t=2025-05-16T07:57:20; ll=1b6a; FE=95.216.158.189:443; http_ping_ms=428; win=3; uuid=d51d0f2d70f3b25e5ea19624f57169e84bf66d6d; unbiased_ms=378
+ts=6826efe0; t=2025-05-16T07:57:20; ll=1b6b; FE=139.162.5.63:443; http_ping_ms=438; win=3; uuid=dc436985a3117f05b9b9e460a0867897458f168a; unbiased_ms=388
+ts=6826efe0; t=2025-05-16T07:57:20; ll=1b6c; FE=185.112.146.199:443; http_ping_ms=463; win=3; uuid=602604a8157e044fbbfaae39716d4553e2d05747; unbiased_ms=413
+ts=6826efe0; t=2025-05-16T07:57:20; ll=1b6d; FE=116.203.53.85:443; http_ping_ms=540; win=3; uuid=c525b5e4c74396581080094d7427bd699501ebd0; unbiased_ms=490
+ts=6826efe0; t=2025-05-16T07:57:20; ll=1b6e; FE=172.105.59.232:443; http_ping_ms=564; win=3; uuid=4c068c3d0ffe6aef4d47c30f5d58282600bb9b5a; unbiased_ms=514
