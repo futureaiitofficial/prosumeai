@@ -113,7 +113,7 @@ export function registerAIResumeRoutes(app: express.Express) {
         );
         
         // Track token usage for AI-specific metrics
-        if (req.isAuthenticated() && req.isAuthenticated() && req.user) {
+        if (req.isAuthenticated() && req.user) {
           await trackTokenUsage(req.user.id, 'ai_generation', TOKENS_PER_REQUEST.SUMMARY);
         }
         
@@ -162,7 +162,7 @@ export function registerAIResumeRoutes(app: express.Express) {
         );
         
         // Track token usage for AI-specific metrics
-        if (req.isAuthenticated() && req.isAuthenticated() && req.user) {
+        if (req.isAuthenticated() && req.user) {
           await trackTokenUsage(req.user.id, 'ai_generation', TOKENS_PER_REQUEST.ENHANCE_EXPERIENCE);
         }
         
@@ -202,7 +202,7 @@ export function registerAIResumeRoutes(app: express.Express) {
         );
         
         // Track token usage for AI-specific metrics
-        if (req.isAuthenticated() && req.isAuthenticated() && req.user) {
+        if (req.isAuthenticated() && req.user) {
           await trackTokenUsage(req.user.id, 'ai_generation', TOKENS_PER_REQUEST.EXTRACT_SKILLS);
         }
         
@@ -243,7 +243,7 @@ export function registerAIResumeRoutes(app: express.Express) {
         );
         
         // Track token usage for AI-specific metrics
-        if (req.isAuthenticated() && req.isAuthenticated() && req.user) {
+        if (req.isAuthenticated() && req.user) {
           await trackTokenUsage(req.user.id, 'ai_generation', TOKENS_PER_REQUEST.ENHANCE_PROJECT);
         }
         
@@ -284,7 +284,7 @@ export function registerAIResumeRoutes(app: express.Express) {
         );
         
         // Track token usage for AI-specific metrics
-        if (req.isAuthenticated() && req.isAuthenticated() && req.user) {
+        if (req.isAuthenticated() && req.user) {
           await trackTokenUsage(req.user.id, 'ai_generation', TOKENS_PER_REQUEST.ATS_SCORE);
         }
         

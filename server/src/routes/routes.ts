@@ -95,5 +95,49 @@ export function registerRoutes(app: express.Express): Server {
   registerPaymentRoutes(app);
   registerUserRoutes(app);
 
+  // Add debug cookie endpoint (available in all environments)
+  app.get('/api/debug/cookies', (req, res) => {
+    // Log all incoming cookies
+    console.log('[COOKIE DEBUG] Incoming cookies:', req.headers.cookie);
+    
+      // Set a test cookie with various settings
+  const isProduction = process.env.NODE_ENV === 'production';
+  const disableSecure = process.env.DISABLE_SECURE_COOKIE === 'true';
+  const sameSiteSetting = process.env.COOKIE_SAMESITE || 'lax';
+  
+  // Convert string to valid sameSite type
+  const sameSite = (sameSiteSetting === 'none' || sameSiteSetting === 'strict' || sameSiteSetting === 'lax') 
+    ? sameSiteSetting as 'none' | 'strict' | 'lax'
+    : 'lax';
+  
+  // Set a test cookie
+  res.cookie('debug_cookie', 'test-value', {
+    httpOnly: true,
+    secure: isProduction && !disableSecure,
+    sameSite: sameSite,
+    maxAge: 3600000, // 1 hour
+    path: '/',
+    domain: process.env.COOKIE_DOMAIN || undefined
+  });
+    
+    // Return debug information
+    res.json({
+      receivedCookies: req.cookies,
+      sessionID: req.sessionID,
+      isAuthenticated: req.isAuthenticated(),
+      newCookieSet: {
+        name: 'debug_cookie',
+        value: 'test-value',
+              settings: {
+        secure: isProduction && !disableSecure,
+        sameSite: sameSite,
+        domain: process.env.COOKIE_DOMAIN || undefined
+      }
+      },
+      userAgent: req.headers['user-agent'],
+      clientIP: req.ip
+    });
+  });
+
   return server;
 }

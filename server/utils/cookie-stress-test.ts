@@ -8,7 +8,7 @@
  */
 
 import { CookieManager } from './cookie-manager';
-import { Request, Response } from 'express';
+import { Request, Response, CookieOptions } from 'express';
 
 // Mock express objects
 const createMockRequest = (cookies = {}): Partial<Request> => {
@@ -17,8 +17,14 @@ const createMockRequest = (cookies = {}): Partial<Request> => {
 
 const createMockResponse = (): Partial<Response> => {
   return {
-    cookie: () => {},
-    clearCookie: () => {}
+    cookie: function(name: string, val: string, options?: CookieOptions): any {
+      // Mock implementation
+      return this;
+    },
+    clearCookie: function(name: string, options?: CookieOptions): any {
+      // Mock implementation
+      return this;
+    }
   };
 };
 

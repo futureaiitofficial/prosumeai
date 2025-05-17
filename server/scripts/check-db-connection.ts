@@ -26,9 +26,9 @@ async function checkDbConnection() {
   }
   
   // Display any other database-related env vars (sanitized)
-  const dbEnvVars = Object.keys(process.env)
+  const dbEnvVars: Record<string, string | undefined> = Object.keys(process.env)
     .filter(key => key.includes('DB_') || key.includes('DATABASE'))
-    .reduce((obj, key) => {
+    .reduce((obj: Record<string, string | undefined>, key) => {
       // Mask potential passwords
       let value = process.env[key];
       if (key.includes('PASS') || key.includes('SECRET')) {

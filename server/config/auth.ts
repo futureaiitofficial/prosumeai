@@ -11,6 +11,11 @@ import { isDisposableEmail } from 'disposable-email-domains-js';
 import { validatePassword, initializePasswordPolicy, getPasswordPolicy } from "../utils/password-policy";
 import { Request, Response, NextFunction } from "express";
 import { enforceSingleSession } from "../middleware/session-security";
+import { EventEmitter } from 'events';
+import { loadSessionConfig } from '../middleware/session-security';
+
+// Increase max listeners to prevent warnings
+EventEmitter.defaultMaxListeners = 20;
 
 // Extend User type to include our runtime properties
 declare global {
@@ -40,6 +45,27 @@ interface PasswordHistoryEntry {
 }
 
 const scryptAsync = promisify(scrypt);
+
+// Implement synchronous access to the session configuration
+// This caches the latest configuration for synchronous access
+let currentSessionConfig: any = null;
+
+/**
+ * Get the current session configuration synchronously
+ * @returns The current session configuration or null if not initialized
+ */
+export function getCurrentSessionConfig() {
+  return currentSessionConfig;
+}
+
+/**
+ * Set the current session configuration - called during initialization
+ * @param config The session configuration
+ */
+export function setCurrentSessionConfig(config: any) {
+  currentSessionConfig = config;
+  console.log('Current session configuration updated');
+}
 
 export async function hashPassword(password: string) {
   try {
@@ -104,62 +130,135 @@ export async function comparePasswords(
 
 // Enhanced cookie configuration with security best practices
 export function getCookieConfig(env: string): session.CookieOptions {
-  // We'd normally use loadSessionConfig here, but it's async and this function
-  // needs to be synchronous. We'll rely on the cached value through middleware.
+  // Try to get settings from the loaded database configuration
+  const sessionConfig = getCurrentSessionConfig();
   
-  // Load session configurations from environment or use defaults
-  const maxAge = parseInt(process.env.SESSION_MAX_AGE || '604800000'); // 7 days in ms
+  // Use configured maxAge or fall back to default
+  const maxAge = sessionConfig?.maxAge || parseInt(process.env.SESSION_MAX_AGE || '604800000'); // Default: 7 days
+  
+  // For production, determine if we should disable secure cookies
+  // This is needed when testing production mode without HTTPS
+  const disableSecure = process.env.DISABLE_SECURE_COOKIE === 'true';
+  
+  // Always use secure cookies in production unless explicitly disabled
+  const useSecure = env === "production" && !disableSecure;
+  
+  // Get SameSite setting from environment variable
+  const sameSiteValue = process.env.COOKIE_SAMESITE || 'lax';
+  
+  // SameSite=none requires Secure=true, so enforce that
+  let finalSecure = useSecure;
+  if (sameSiteValue === 'none') {
+    finalSecure = true;
+    if (!useSecure) {
+      console.warn('WARNING: SameSite=none requires Secure=true. Enforcing Secure=true for session cookies.');
+    }
+  }
+  
+  console.log(`Cookie config: env=${env}, secure=${finalSecure}, sameSite=${sameSiteValue}, domain=${process.env.COOKIE_DOMAIN || 'undefined'}`);
   
   return {
     maxAge: maxAge,
     httpOnly: true, // Prevent client-side JS from reading the cookie
-    secure: env === "production", // Only use secure in production, not in dev
-    sameSite: 'lax', // Use lax for development to avoid issues with redirects
+    secure: finalSecure, // Use secure in production with special case for SameSite=none
+    sameSite: sameSiteValue as 'none' | 'lax' | 'strict', // Use appropriate sameSite setting
     path: '/', // Cookie available across the entire site
-    // Domain restriction for production environments
-    domain: env === "production" ? process.env.COOKIE_DOMAIN || undefined : undefined,
+    // Domain restriction - only use in production if specified
+    domain: (env === "production" && process.env.COOKIE_DOMAIN) ? process.env.COOKIE_DOMAIN : undefined,
   };
 }
 
-export function setupAuth(app: Express) {
-  // Initialize password policy
-  initializePasswordPolicy().catch(err => {
-    console.error('Failed to initialize password policy:', err);
-  });
+export async function setupAuth(app: Express) {
+  try {
+    // Initialize password policy
+    await initializePasswordPolicy().catch(err => {
+      console.error('Failed to initialize password policy:', err);
+    });
+    
+    const env = process.env.NODE_ENV || 'development';
+    console.log(`Setting up auth in ${env} environment`);
+    
+    const sessionSecret = process.env.SESSION_SECRET || randomBytes(32).toString('hex');
+    
+    if (env === 'production' && (!process.env.SESSION_SECRET || process.env.SESSION_SECRET === 'ATScribe-secret-key')) {
+      console.warn('WARNING: Using default session secret in production is a security risk!');
+    }
   
-  const env = process.env.NODE_ENV || 'development';
-  const sessionSecret = process.env.SESSION_SECRET || randomBytes(32).toString('hex');
+    // Load session configuration from database
+    const sessionConfig = await loadSessionConfig();
+    
+    // Cache the config for synchronous access
+    setCurrentSessionConfig(sessionConfig);
+    
+    // Enhanced session settings with database config
+    const sessionSettings: session.SessionOptions = {
+      secret: sessionSecret,
+      resave: true, // Keep true to ensure session is saved on each request
+      saveUninitialized: false,
+      store: storage.sessionStore,
+      name: 'ATScribe.sid', // Custom cookie name for better security
+      cookie: getCookieConfig(env),
+      rolling: true, // Refresh the cookie expiration on every response
+    };
   
-  if (env === 'production' && (!process.env.SESSION_SECRET || process.env.SESSION_SECRET === 'ATScribe-secret-key')) {
-    console.warn('WARNING: Using default session secret in production is a security risk!');
+    // Set trust proxy for production behind load balancers
+    if (env === 'production') {
+      console.log('Setting trust proxy for production environment');
+      app.set("trust proxy", 1);
+      
+      // Load rate limiter middleware
+      try {
+        const rateLimit = await import('../middleware/rate-limit');
+        const { authRateLimiter } = rateLimit;
+        app.use('/api/login', authRateLimiter);
+        app.use('/api/register', authRateLimiter);
+      } catch (err) {
+        console.error('Failed to load rate limiter:', err);
+      }
+    }
+    
+    // Initialize sessions and authentication
+    app.use(session(sessionSettings));
+    app.use(passport.initialize());
+    app.use(passport.session());
+    
+    console.log('Session setup complete using database configuration');
+  } catch (err) {
+    console.error('Error in auth setup:', err);
+    
+    // Ensure basic auth still works even if database config failed
+    const env = process.env.NODE_ENV || 'development';
+    const sessionSecret = process.env.SESSION_SECRET || randomBytes(32).toString('hex');
+    
+    // Fallback to default session settings
+    const sessionSettings: session.SessionOptions = {
+      secret: sessionSecret,
+      resave: true,
+      saveUninitialized: false,
+      store: storage.sessionStore,
+      name: 'ATScribe.sid',
+      cookie: getCookieConfig(env),
+      rolling: true,
+    };
+    
+    if (env === 'production') {
+      app.set("trust proxy", 1);
+    }
+    
+    app.use(session(sessionSettings));
+    app.use(passport.initialize());
+    app.use(passport.session());
+    
+    console.log('Session setup complete using default configuration (fallback)');
   }
-  
-  // Enhanced session settings with better configuration
-  const sessionSettings: session.SessionOptions = {
-    secret: sessionSecret,
-    resave: false,
-    saveUninitialized: false,
-    store: storage.sessionStore,
-    name: 'ATScribe.sid', // Custom cookie name for better security
-    cookie: getCookieConfig(env),
-  };
 
-  // Set trust proxy for production behind load balancers
-  if (env === 'production') {
-    app.set("trust proxy", 1);
-  }
-  
-  app.use(session(sessionSettings));
-  app.use(passport.initialize());
-  app.use(passport.session());
+  // Set up authentication strategies and routes - this should happen after session setup
+  setupPassportStrategies();
+  setupAuthRoutes(app);
+}
 
-  // Rate limiting for authentication attempts (implementation in middleware/rate-limit.ts)
-  if (env === 'production') {
-    const { authRateLimiter } = require('../middleware/rate-limit');
-    app.use('/api/login', authRateLimiter);
-    app.use('/api/register', authRateLimiter);
-  }
-
+// Extract Passport strategy setup to a separate function
+function setupPassportStrategies() {
   passport.use(
     new LocalStrategy(async (username, password, done) => {
       try {
@@ -293,7 +392,10 @@ export function setupAuth(app: Express) {
       done(error);
     }
   });
+}
 
+// Extract auth routes setup to a separate function 
+function setupAuthRoutes(app: Express) {
   app.post("/api/register", async (req, res, next) => {
     try {
       const existingUsername = await storage.getUserByUsername(req.body.username);
@@ -329,18 +431,42 @@ export function setupAuth(app: Express) {
         changedAt: new Date()
       }];
 
+      // Extract selectedPlanId if it exists in the request body
+      const { selectedPlanId, ...userData } = req.body;
+
       const user = await storage.createUser({
-        ...req.body,
+        ...userData,
         password: hashedPassword,
         lastPasswordChange: new Date(),
         passwordHistory: passwordHistory,
       });
 
+      // If there's a selectedPlanId and we're coming from a payment context,
+      // associate the user with the subscription plan
+      if (selectedPlanId) {
+        try {
+          console.log(`Associating user ${user.id} with plan ${selectedPlanId}`);
+          
+          // Import the subscription service to handle plan association
+          const subscriptionService = require('../services/subscription-service');
+          
+          // Associate the user with the plan
+          // Note: The actual payment record should already be created by the payment verification process
+          await subscriptionService.associateUserWithPlan(user.id, parseInt(selectedPlanId, 10));
+          
+          console.log(`Successfully associated user ${user.id} with plan ${selectedPlanId}`);
+        } catch (subscriptionError) {
+          console.error(`Error associating user with subscription plan:`, subscriptionError);
+          // Don't fail registration if subscription association fails
+          // We'll need a separate process to reconcile this later
+        }
+      }
+
       req.login(user, (err) => {
         if (err) return next(err);
-        const { password, passwordHistory, ...userData } = user;
+        const { password, passwordHistory, ...userDataToReturn } = user;
         console.log(`New user registered and logged in: ${user.username} (ID: ${user.id})`);
-        res.status(201).json(userData);
+        res.status(201).json(userDataToReturn);
       });
     } catch (error) {
       console.error("Registration error:", error);
@@ -350,6 +476,10 @@ export function setupAuth(app: Express) {
 
   app.post("/api/login", (req, res, next) => {
     console.log(`[DEBUG] Login attempt for username: ${req.body.username}`);
+    console.log(`[DEBUG] Headers: ${JSON.stringify(req.headers)}`);
+    console.log(`[DEBUG] Client IP: ${req.ip}`);
+    console.log(`[DEBUG] Session ID before auth: ${req.sessionID}`);
+    console.log(`[DEBUG] Cookie header: ${req.headers.cookie}`);
     
     passport.authenticate("local", (err: Error | null, user: SelectUser | false, info: { message: string } | undefined) => {
       if (err) {
@@ -381,6 +511,7 @@ export function setupAuth(app: Express) {
         const { password, passwordHistory, ...userData } = user;
         console.log(`[DEBUG] User logged in: ${user.username} (ID: ${user.id})`);
         console.log(`[DEBUG] User data at login: isAdmin=${user.isAdmin}, passwordExpired=${(user as Express.User).passwordExpired}`);
+        console.log(`[DEBUG] Session ID after login: ${req.sessionID}`);
         
         // Save session to ensure cookie is set
         req.session.save((err) => {
@@ -388,6 +519,9 @@ export function setupAuth(app: Express) {
             console.error("[DEBUG] Error saving session:", err);
             return next(err);
           }
+          
+          console.log(`[DEBUG] Session saved successfully. Session ID: ${req.sessionID}`);
+          console.log(`[DEBUG] Session cookie:`, req.session.cookie);
           
           // Set last login time
           storage.updateUser(user.id, { lastLogin: new Date() })
@@ -403,6 +537,10 @@ export function setupAuth(app: Express) {
             (userData as any).passwordExpired = true;
           }
           
+          // Let Express and our cookie patches handle the session cookie
+          // Remove the explicit cookie setting which conflicts with Express session
+          // setSessionCookie(req, res, req.sessionID);
+          
           console.log(`[DEBUG] Final user data sent to client: ${JSON.stringify(userData)}`);
           res.status(200).json(userData);
         });
@@ -413,6 +551,10 @@ export function setupAuth(app: Express) {
   app.post("/api/logout", (req, res, next) => {
     const userId = req.user?.id;
     const username = req.user?.username;
+    
+    console.log(`[DEBUG] Logging out user: ${username} (ID: ${userId})`);
+    console.log(`[DEBUG] Session ID before logout: ${req.sessionID}`);
+    console.log(`[DEBUG] Cookie header: ${req.headers.cookie}`);
     
     req.logout((err) => {
       if (err) {
@@ -435,31 +577,66 @@ export function setupAuth(app: Express) {
           
           console.log(`User logged out: ${username} (ID: ${userId})`);
           
-          // Clear the cookie on the client side - use the original clearCookie method
-          // since the session cookie isn't managed by our cookieManager
-          const originalClearCookie = (res as any)._clearCookie || res.clearCookie.bind(res);
-          const clearCookieOptions: {
-            path?: string;
-            domain?: string;
-            secure?: boolean;
-            httpOnly?: boolean;
-            sameSite?: 'strict' | 'lax' | false;
-          } = {
+          // Try multiple approaches to clear the cookie for maximum browser compatibility
+          
+          // Approach 1: Clear with same settings as when cookie was set
+          const disableSecure = process.env.DISABLE_SECURE_COOKIE === 'true';
+          const useSecure = !disableSecure;
+          const useSameSiteNone = useSecure;
+          
+          const clearCookieOptions = {
             path: '/',
             httpOnly: true,
-            secure: env === 'production',
-            sameSite: env === 'production' ? 'strict' : 'lax',
-            domain: env === 'production' ? process.env.COOKIE_DOMAIN : undefined
+            secure: useSecure,
+            sameSite: useSameSiteNone ? 'none' : 'lax',
+            domain: process.env.COOKIE_DOMAIN || undefined,
+            expires: new Date(0) // Set to epoch time for immediate expiration
           };
           
-          originalClearCookie.call(res, 'ATScribe.sid', clearCookieOptions);
+          console.log(`[DEBUG] Clearing cookie with options:`, clearCookieOptions);
           
+          // Approach 1: Use Express's clearCookie
+          res.clearCookie('ATScribe.sid', clearCookieOptions as any);
+          
+          // Approach 2: Set empty value with expired date
+          res.cookie('ATScribe.sid', '', {
+            ...clearCookieOptions,
+            maxAge: -1
+          } as any);
+          
+          // Approach 3: Try clearing with different domain settings
+          if (process.env.COOKIE_DOMAIN) {
+            // Also try clearing with no domain specified
+            res.clearCookie('ATScribe.sid', {
+              ...clearCookieOptions,
+              domain: undefined
+            } as any);
+            
+            // Also try clearing with just domain (no subdomain)
+            const domainParts = process.env.COOKIE_DOMAIN.split('.');
+            if (domainParts.length > 1) {
+              const mainDomain = domainParts.slice(-2).join('.');
+              res.clearCookie('ATScribe.sid', {
+                ...clearCookieOptions,
+                domain: mainDomain
+              } as any);
+            }
+          }
+          
+          console.log(`[DEBUG] Cookies should be cleared now`);
           res.sendStatus(200);
         });
       });
     });
   });
 
+  // Add remaining auth routes...
+  setupPasswordRoutes(app);
+  setupUserRoutes(app);
+}
+
+// Extract password-related routes to a separate function
+function setupPasswordRoutes(app: Express) {
   // Add endpoint to change password
   app.post("/api/change-password", async (req, res, next) => {
     if (!req.isAuthenticated() || !req.user) {
@@ -556,106 +733,6 @@ export function setupAuth(app: Express) {
     } catch (error) {
       console.error("Error fetching password requirements:", error);
       next(error);
-    }
-  });
-
-  app.get("/api/user", async (req, res) => {
-    if (!req.isAuthenticated()) {
-      console.log("[DEBUG] Unauthenticated request to /api/user");
-      return res.sendStatus(401);
-    }
-    
-    console.log(`[DEBUG] Current authenticated user: ${req.user.username} (ID: ${req.user.id})`);
-    console.log(`[DEBUG] Original user object passwordExpired flag: ${req.user.passwordExpired}`);
-    console.log(`[DEBUG] Full user properties: ${Object.keys(req.user).join(', ')}`);
-    
-    const { password, passwordHistory, ...userData } = req.user;
-    
-    // Check if password has expired
-    if (req.user.lastPasswordChange) {
-      // Use our local isPasswordExpired function
-      const lastPasswordChangeDate = req.user.lastPasswordChange as Date;
-      console.log(`[DEBUG] Checking password expiration for ${req.user.username} in /api/user endpoint`);
-      console.log(`[DEBUG] Last password change date: ${lastPasswordChangeDate}`);
-      
-      try {
-        const expired = await isPasswordExpired(lastPasswordChangeDate, req.user.username);
-        console.log(`[DEBUG] Password expired result in /api/user: ${expired}`);
-        
-        if (expired) {
-          console.log(`[DEBUG] Setting passwordExpired flag to true for ${req.user.username} in /api/user response`);
-          (userData as any).passwordExpired = true;
-        } else {
-          console.log(`[DEBUG] Password is NOT expired for ${req.user.username}`);
-          // Explicitly ensure passwordExpired is false/undefined
-          (userData as any).passwordExpired = false;
-        }
-      } catch (error) {
-        console.error(`[DEBUG] Error checking password expiration: ${error}`);
-        // Default to not expired if there's an error
-        (userData as any).passwordExpired = false;
-      }
-      
-      console.log(`[DEBUG] Final userData for ${req.user.username}:`, JSON.stringify({...userData, passwordExpired: (userData as any).passwordExpired }));
-      res.json(userData);
-    } else {
-      console.log(`[DEBUG] User ${req.user.username} has no lastPasswordChange date recorded in /api/user endpoint`);
-      console.log(`[DEBUG] Final userData for ${req.user.username}:`, JSON.stringify(userData));
-      (userData as any).passwordExpired = false; // Explicitly set to false if no last change date
-      res.json(userData);
-    }
-  });
-  
-  // Add a debug endpoint to check session status (disable in production)
-  if (env !== 'production') {
-    app.get("/api/debug/session", (req, res) => {
-      res.json({
-        isAuthenticated: req.isAuthenticated(),
-        user: req.user ? { 
-          id: req.user.id, 
-          username: req.user.username,
-          email: req.user.email 
-        } : null,
-        sessionID: req.sessionID,
-        // Don't expose the full session for security reasons
-        sessionExists: !!req.session
-      });
-    });
-  }
-
-  app.get("/api/check-username", async (req, res) => {
-    const username = (req.query.username as string)?.toLowerCase();
-    if (!username) {
-      return res.status(400).json({ available: false, message: "Username parameter is required" });
-    }
-    
-    try {
-      const existingUser = await storage.getUserByUsername(username);
-      if (existingUser) {
-        return res.json({ available: false, message: "Username is already taken" });
-      }
-      return res.json({ available: true, message: "Username is available" });
-    } catch (error) {
-      console.error("Error checking username availability:", error);
-      return res.status(500).json({ available: false, message: "Error checking username availability" });
-    }
-  });
-
-  app.get("/api/check-email", async (req, res) => {
-    const email = req.query.email as string;
-    if (!email) {
-      return res.status(400).json({ disposable: true, message: "Email parameter is required" });
-    }
-    
-    try {
-      const isDisposable = isDisposableEmail(email);
-      if (isDisposable) {
-        return res.json({ disposable: true, message: "Temporary or disposable email addresses are not allowed" });
-      }
-      return res.json({ disposable: false, message: "Email is valid" });
-    } catch (error) {
-      console.error("Error checking email disposability:", error);
-      return res.status(500).json({ disposable: true, message: "Error checking email validity" });
     }
   });
 
@@ -785,63 +862,107 @@ export function setupAuth(app: Express) {
       next(error);
     }
   });
+}
 
-  // Add a debug endpoint to verify user credentials directly (only in development mode)
-  if (process.env.NODE_ENV !== 'production') {
-    app.post("/api/debug/test-auth", async (req, res) => {
-      try {
-        const { username, password } = req.body;
-        
-        if (!username || !password) {
-          return res.status(400).json({ success: false, message: "Username and password are required" });
-        }
-        
-        console.log(`[DEBUG] Testing auth for username: ${username}`);
-        
-        // Get user
-        const user = await storage.getUserByUsername(username);
-        if (!user) {
-          console.log(`[DEBUG] Test auth failed: User ${username} not found`);
-          return res.json({ success: false, message: "User not found" });
-        }
-        
-        console.log(`[DEBUG] User found. ID: ${user.id}, Admin: ${user.isAdmin}`);
-        console.log(`[DEBUG] Last password change: ${user.lastPasswordChange}`);
-        
-        // Test password
-        const passwordMatch = await comparePasswords(password, user.password);
-        console.log(`[DEBUG] Password match result: ${passwordMatch}`);
-        
-        // Check password expiration
-        let passwordExpired = false;
-        if (user.lastPasswordChange) {
-          try {
-            passwordExpired = await isPasswordExpired(user.lastPasswordChange, user.username);
-            console.log(`[DEBUG] Password expiration check: ${passwordExpired}`);
-          } catch (error) {
-            console.error(`[DEBUG] Error in password expiration check:`, error);
-          }
-        } else {
-          console.log(`[DEBUG] No lastPasswordChange date found`);
-        }
-        
-        // Return debug info
-        return res.json({
-          success: true,
-          authenticated: passwordMatch,
-          user: {
-            id: user.id,
-            username: user.username,
-            isAdmin: user.isAdmin,
-            createdAt: user.createdAt,
-            lastPasswordChange: user.lastPasswordChange,
-            passwordExpired
-          }
-        });
-      } catch (error) {
-        console.error(`[DEBUG] Error in test-auth endpoint:`, error);
-        return res.status(500).json({ success: false, message: "Server error" });
+// Extract user-related routes to a separate function
+function setupUserRoutes(app: Express) {
+  app.get("/api/check-username", async (req, res) => {
+    const username = (req.query.username as string)?.toLowerCase();
+    if (!username) {
+      return res.status(400).json({ available: false, message: "Username parameter is required" });
+    }
+    
+    try {
+      const existingUser = await storage.getUserByUsername(username);
+      if (existingUser) {
+        return res.json({ available: false, message: "Username is already taken" });
       }
+      return res.json({ available: true, message: "Username is available" });
+    } catch (error) {
+      console.error("Error checking username availability:", error);
+      return res.status(500).json({ available: false, message: "Error checking username availability" });
+    }
+  });
+
+  app.get("/api/check-email", async (req, res) => {
+    const email = req.query.email as string;
+    if (!email) {
+      return res.status(400).json({ disposable: true, message: "Email parameter is required" });
+    }
+    
+    try {
+      const isDisposable = isDisposableEmail(email);
+      if (isDisposable) {
+        return res.json({ disposable: true, message: "Temporary or disposable email addresses are not allowed" });
+      }
+      return res.json({ disposable: false, message: "Email is valid" });
+    } catch (error) {
+      console.error("Error checking email disposability:", error);
+      return res.status(500).json({ disposable: true, message: "Error checking email validity" });
+    }
+  });
+
+  app.get("/api/user", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      console.log("[DEBUG] Unauthenticated request to /api/user");
+      return res.sendStatus(401);
+    }
+    
+    console.log(`[DEBUG] Current authenticated user: ${req.user.username} (ID: ${req.user.id})`);
+    console.log(`[DEBUG] Original user object passwordExpired flag: ${req.user.passwordExpired}`);
+    console.log(`[DEBUG] Full user properties: ${Object.keys(req.user).join(', ')}`);
+    
+    const { password, passwordHistory, ...userData } = req.user;
+    
+    // Check if password has expired
+    if (req.user.lastPasswordChange) {
+      // Use our local isPasswordExpired function
+      const lastPasswordChangeDate = req.user.lastPasswordChange as Date;
+      console.log(`[DEBUG] Checking password expiration for ${req.user.username} in /api/user endpoint`);
+      console.log(`[DEBUG] Last password change date: ${lastPasswordChangeDate}`);
+      
+      try {
+        const expired = await isPasswordExpired(lastPasswordChangeDate, req.user.username);
+        console.log(`[DEBUG] Password expired result in /api/user: ${expired}`);
+        
+        if (expired) {
+          console.log(`[DEBUG] Setting passwordExpired flag to true for ${req.user.username} in /api/user response`);
+          (userData as any).passwordExpired = true;
+        } else {
+          console.log(`[DEBUG] Password is NOT expired for ${req.user.username}`);
+          // Explicitly ensure passwordExpired is false/undefined
+          (userData as any).passwordExpired = false;
+        }
+      } catch (error) {
+        console.error(`[DEBUG] Error checking password expiration: ${error}`);
+        // Default to not expired if there's an error
+        (userData as any).passwordExpired = false;
+      }
+      
+      console.log(`[DEBUG] Final userData for ${req.user.username}:`, JSON.stringify({...userData, passwordExpired: (userData as any).passwordExpired }));
+      res.json(userData);
+    } else {
+      console.log(`[DEBUG] User ${req.user.username} has no lastPasswordChange date recorded in /api/user endpoint`);
+      console.log(`[DEBUG] Final userData for ${req.user.username}:`, JSON.stringify(userData));
+      (userData as any).passwordExpired = false; // Explicitly set to false if no last change date
+      res.json(userData);
+    }
+  });
+  
+  // Add a debug endpoint to check session status (disable in production)
+  if (process.env.NODE_ENV !== 'production') {
+    app.get("/api/debug/session", (req, res) => {
+      res.json({
+        isAuthenticated: req.isAuthenticated(),
+        user: req.user ? { 
+          id: req.user.id, 
+          username: req.user.username,
+          email: req.user.email 
+        } : null,
+        sessionID: req.sessionID,
+        // Don't expose the full session for security reasons
+        sessionExists: !!req.session
+      });
     });
   }
 }

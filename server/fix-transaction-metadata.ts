@@ -1,8 +1,8 @@
 import { PgDatabase } from 'drizzle-orm/pg-core';
-import { db } from '../config/db';
+import { db } from './config/db';
 import { paymentTransactions, userSubscriptions, subscriptionPlans, planPricing } from '@shared/schema';
 import { eq, and, isNull, desc } from 'drizzle-orm';
-import { getPaymentGatewayByName } from '../services/payment-gateways';
+import { getPaymentGatewayByName } from './services/payment-gateways';
 
 /**
  * Script to fix transaction metadata for existing Razorpay transactions.

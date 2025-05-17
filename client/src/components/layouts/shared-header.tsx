@@ -5,9 +5,10 @@ import { useAuth } from '@/hooks/use-auth';
 
 type SharedHeaderProps = {
   isLandingPage?: boolean;
+  forceBackground?: boolean;
 };
 
-export default function SharedHeader({ isLandingPage = false }: SharedHeaderProps) {
+export default function SharedHeader({ isLandingPage = false, forceBackground = false }: SharedHeaderProps) {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { user } = useAuth();
@@ -36,9 +37,9 @@ export default function SharedHeader({ isLandingPage = false }: SharedHeaderProp
   return (
     <>
       {/* Header */}
-      <header className={`fixed top-0 left-0 right-0 z-50 flex justify-between items-center p-4 md:p-6 transition-all duration-300 ${isScrolled ? 'bg-indigo-950/95 shadow-md backdrop-blur-sm' : 'bg-transparent'}`}>
-        <Link href="/">
-          <a className="text-xl md:text-2xl font-bold text-white">ATScribe</a>
+      <header className={`fixed top-0 left-0 right-0 z-50 flex justify-between items-center p-4 md:p-6 transition-all duration-300 ${isScrolled || forceBackground ? 'bg-indigo-950/95 shadow-md backdrop-blur-sm' : 'bg-transparent'}`}>
+        <Link href="/" className="text-xl md:text-2xl font-bold text-white">
+          ATScribe
         </Link>
         
         {/* Desktop Navigation */}
@@ -46,39 +47,37 @@ export default function SharedHeader({ isLandingPage = false }: SharedHeaderProp
           {isLandingPage ? (
             <a href="#features" className="text-white hover:text-blue-400 transition-colors">Features</a>
           ) : (
-            <Link href="/#features">
-              <a className="text-white hover:text-blue-400 transition-colors">Features</a>
+            <Link href="/#features" className="text-white hover:text-blue-400 transition-colors">
+              Features
             </Link>
           )}
           
-          <Link href="/pricing">
-            <a className="text-white hover:text-blue-400 transition-colors">Pricing</a>
+          <Link href="/pricing" className="text-white hover:text-blue-400 transition-colors">
+            Pricing
           </Link>
           
-          <Link href="/about">
-            <a className="text-white hover:text-blue-400 transition-colors">About Us</a>
+          <Link href="/about" className="text-white hover:text-blue-400 transition-colors">
+            About Us
           </Link>
           
-          <Link href="/contact">
-            <a className="text-white hover:text-blue-400 transition-colors">Contact Us</a>
+          <Link href="/contact" className="text-white hover:text-blue-400 transition-colors">
+            Contact Us
           </Link>
         </nav>
         
         {/* Desktop Auth/Dashboard Buttons */}
         <div className="hidden md:flex space-x-4">
           {isLoggedIn ? (
-            <Link href="/dashboard">
-              <a className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md transition-colors">
-                Dashboard
-              </a>
+            <Link href="/dashboard" className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md transition-colors">
+              Dashboard
             </Link>
           ) : (
             <>
-              <Link href="/auth">
-                <a className="px-4 py-2 text-white hover:text-blue-200 transition-colors">Login</a>
+              <Link href="/auth" className="px-4 py-2 text-white hover:text-blue-200 transition-colors">
+                Login
               </Link>
-              <Link href="/auth?signup=true">
-                <a className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md transition-colors">Sign Up</a>
+              <Link href="/pricing" className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md transition-colors">
+                Sign Up
               </Link>
             </>
           )}
@@ -122,66 +121,37 @@ export default function SharedHeader({ isLandingPage = false }: SharedHeaderProp
                   Features
                 </a>
               ) : (
-                <Link href="/#features">
-                  <a 
-                    className="text-white hover:text-blue-400 transition-colors py-2 px-2 border-b border-indigo-800/50 w-full text-left"
-                    onClick={handleNavLinkClick}
-                  >
-                    Features
-                  </a>
+                <Link href="/#features" className="text-white hover:text-blue-400 transition-colors py-2 px-2 border-b border-indigo-800/50 w-full text-left" onClick={handleNavLinkClick}>
+                  Features
                 </Link>
               )}
               
-              <Link href="/pricing">
-                <a 
-                  className="text-white hover:text-blue-400 transition-colors py-2 px-2 border-b border-indigo-800/50 w-full text-left"
-                  onClick={handleNavLinkClick}
-                >
-                  Pricing
-                </a>
+              <Link href="/pricing" className="text-white hover:text-blue-400 transition-colors py-2 px-2 border-b border-indigo-800/50 w-full text-left" onClick={handleNavLinkClick}>
+                Pricing
               </Link>
               
-              <Link href="/about">
-                <a 
-                  className="text-white hover:text-blue-400 transition-colors py-2 px-2 border-b border-indigo-800/50 w-full text-left"
-                  onClick={handleNavLinkClick}
-                >
-                  About Us
-                </a>
+              <Link href="/about" className="text-white hover:text-blue-400 transition-colors py-2 px-2 border-b border-indigo-800/50 w-full text-left" onClick={handleNavLinkClick}>
+                About Us
               </Link>
               
-              <Link href="/contact">
-                <a 
-                  className="text-white hover:text-blue-400 transition-colors py-2 px-2 border-b border-indigo-800/50 w-full text-left"
-                  onClick={handleNavLinkClick}
-                >
-                  Contact Us
-                </a>
+              <Link href="/contact" className="text-white hover:text-blue-400 transition-colors py-2 px-2 border-b border-indigo-800/50 w-full text-left" onClick={handleNavLinkClick}>
+                Contact Us
               </Link>
               
               {/* Mobile Auth/Dashboard Buttons */}
               {isLoggedIn ? (
                 <div className="w-full pt-3">
-                  <Link href="/dashboard">
-                    <a className="w-full px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md transition-colors text-center block"
-                       onClick={handleNavLinkClick}>
-                      Dashboard
-                    </a>
+                  <Link href="/dashboard" className="w-full px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md transition-colors text-center block" onClick={handleNavLinkClick}>
+                    Dashboard
                   </Link>
                 </div>
               ) : (
                 <div className="flex flex-row space-x-2 pt-3 w-full">
-                  <Link href="/auth">
-                    <a className="flex-1 px-4 py-2 text-white hover:text-blue-200 transition-colors border border-indigo-700 rounded-md text-center"
-                       onClick={handleNavLinkClick}>
-                      Login
-                    </a>
+                  <Link href="/auth" className="flex-1 px-4 py-2 text-white hover:text-blue-200 transition-colors border border-indigo-700 rounded-md text-center" onClick={handleNavLinkClick}>
+                    Login
                   </Link>
-                  <Link href="/auth?signup=true">
-                    <a className="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md transition-colors text-center"
-                       onClick={handleNavLinkClick}>
-                      Sign Up
-                    </a>
+                  <Link href="/pricing" className="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md transition-colors text-center" onClick={handleNavLinkClick}>
+                    Sign Up
                   </Link>
                 </div>
               )}

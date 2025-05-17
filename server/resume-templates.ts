@@ -168,20 +168,20 @@ ${certifications.map((cert: any) =>
   return `\\documentclass[letterpaper,10pt]{article}
 
 \\usepackage{latexsym}
-\\\usepackage[empty]{fullpage}
-\\\usepackage{titlesec}
+\\usepackage[empty]{fullpage}
+\\usepackage{titlesec}
 \\usepackage{marvosym}
-\\\usepackage[usenames,dvipsnames]{color}
-\\\usepackage{verbatim}
+\\usepackage[usenames,dvipsnames]{color}
+\\usepackage{verbatim}
 \\usepackage{enumitem}
 \\usepackage[hidelinks]{hyperref}
-\\\usepackage{fancyhdr}
+\\usepackage{fancyhdr}
 \\usepackage[english]{babel}
-\\\usepackage{tabularx}
+\\usepackage{tabularx}
 \\input{glyphtounicode}
 
 % Font options
-\\\usepackage{times}
+\\usepackage{times}
 
 \\pagestyle{fancy}
 \\fancyhf{}
@@ -195,7 +195,7 @@ ${certifications.map((cert: any) =>
 \\addtolength{\\topmargin}{-.5in}
 \\addtolength{\\textheight}{1.0in}
 
-\\\urlstyle{same}
+\\urlstyle{same}
 \\raggedbottom
 \\raggedright
 \\setlength{\\tabcolsep}{0in}
@@ -389,20 +389,20 @@ ${certifications.map((cert: any) =>
 \\usepackage{latexsym}
 \\usepackage{xcolor}
 \\usepackage{float}
-\\\usepackage{ragged2e}
+\\usepackage{ragged2e}
 \\usepackage[empty]{fullpage}
 \\usepackage{wrapfig}
 \\usepackage{lipsum}
 \\usepackage{tabularx}
 \\usepackage{titlesec}
 \\usepackage{geometry}
-\\\usepackage{marvosym}
-\\\usepackage{verbatim}
+\\usepackage{marvosym}
+\\usepackage{verbatim}
 \\usepackage{enumitem}
 \\usepackage[hidelinks]{hyperref}
 \\usepackage{fancyhdr}
 \\usepackage{multicol}
-\\\usepackage{graphicx}
+\\usepackage{graphicx}
 \\setlength{\\multicolsep}{0pt} 
 \\pagestyle{fancy}
 \\fancyhf{} % clear all header and footer fields
@@ -411,7 +411,7 @@ ${certifications.map((cert: any) =>
 \\renewcommand{\\footrulewidth}{0pt}
 \\geometry{left=1.4cm, top=0.8cm, right=1.2cm, bottom=1cm}
 
-\\\usepackage[most]{tcolorbox}
+\\usepackage[most]{tcolorbox}
 \\tcbset{
         frame code={}
         center title,

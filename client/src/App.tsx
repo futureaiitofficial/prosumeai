@@ -49,6 +49,77 @@ import ForgotPasswordPage from '@/pages/forgot-password';
 import ResetPasswordPage from '@/pages/reset-password';
 import TermsOfServicePage from '@/pages/terms';
 import PrivacyPolicyPage from '@/pages/privacy';
+import RegisterPage from '@/pages/register';
+
+// Session Recovery component to handle network disconnections
+function SessionRecovery() {
+  const [lastOnline, setLastOnline] = React.useState<number | null>(null);
+  
+  useEffect(() => {
+    // Function to handle going offline
+    const handleOffline = () => {
+      console.log('Network disconnected');
+      setLastOnline(Date.now());
+    };
+    
+    // Function to handle coming back online
+    const handleOnline = async () => {
+      console.log('Network reconnected');
+      
+      // If we were offline for more than 1 minute, verify session
+      if (lastOnline && (Date.now() - lastOnline > 60000)) {
+        console.log('Checking session after network reconnection');
+        
+        try {
+          // Make a request to verify the session is still valid
+          const response = await fetch('/api/user', {
+            method: 'GET',
+            credentials: 'include',
+            headers: {
+              'Cache-Control': 'no-cache',
+              'Pragma': 'no-cache'
+            }
+          });
+          
+          if (response.ok) {
+            // Session is valid, refresh user data
+            const userData = await response.json();
+            queryClient.setQueryData(["/api/user"], userData);
+            console.log('Session recovered after network reconnection');
+            
+            // Refresh other essential data
+            queryClient.invalidateQueries();
+          } else {
+            console.log('Session expired during network disconnection');
+            queryClient.setQueryData(["/api/user"], null);
+            // Don't redirect here, let the protected routes handle it
+          }
+        } catch (error) {
+          console.error('Error verifying session after reconnection:', error);
+        }
+      }
+      
+      setLastOnline(null);
+    };
+    
+    // Listen for online/offline events
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    
+    // Initial connection check
+    if (!navigator.onLine) {
+      setLastOnline(Date.now());
+    }
+    
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [lastOnline]);
+  
+  // This component doesn't render anything
+  return null;
+}
 
 function Router() {
   return (
@@ -58,6 +129,7 @@ function Router() {
       <Route path="/pricing" component={PricingPage} />
       <Route path="/contact" component={ContactPage} />
       <Route path="/auth" component={AuthPage} />
+      <Route path="/register" component={RegisterPage} />
       <Route path="/forgot-password" component={ForgotPasswordPage} />
       <Route path="/reset-password" component={ResetPasswordPage} />
       <Route path="/terms" component={TermsOfServicePage} />
@@ -72,7 +144,7 @@ function Router() {
       <ProtectedRoute path="/preview-generator" component={PreviewGenerator} />
       <ProtectedRoute path="/keyword-generator" component={KeywordGenerator} />
       <ProtectedRoute path="/user/subscription" component={() => <UserSubscriptionPage />} />
-      <ProtectedRoute path="/checkout" component={() => <CheckoutPage />} />
+      <Route path="/checkout" component={() => <CheckoutPage />} />
       
       {/* Admin Routes */}
       <AdminRoute path="/admin" component={AdminPage} />
@@ -102,6 +174,7 @@ export default function App() {
       <AuthProvider>
         <LocationProvider>
             <SidebarProvider>
+              <SessionRecovery />
               <Router />
               <Toaster />
             </SidebarProvider>

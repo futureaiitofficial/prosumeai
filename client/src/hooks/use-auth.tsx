@@ -87,6 +87,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       window.removeEventListener('storage', handleStorageEvent);
     };
   }, [toast, setLocation]);
+  
+  // Add session ping to keep session alive
+  useEffect(() => {
+    // Create a ping function that makes a lightweight request to the server
+    const pingSession = async () => {
+      try {
+        // Use a simple API endpoint that doesn't return much data
+        await fetch('/api/health', {
+          method: 'GET',
+          credentials: 'include',
+          headers: {
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache'
+          }
+        });
+        console.log('[AUTH DEBUG] Session ping successful');
+      } catch (error) {
+        console.error('[AUTH DEBUG] Session ping failed:', error);
+      }
+    };
+    
+    // Set up a timer to ping every 5 minutes (300000ms)
+    const pingInterval = setInterval(pingSession, 300000);
+    
+    // Ping immediately on mount
+    pingSession();
+    
+    // Clean up interval on unmount
+    return () => clearInterval(pingInterval);
+  }, []);
 
   const {
     data: rawUser,
@@ -95,6 +125,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   } = useQuery<SelectUser | null, Error>({
     queryKey: ["/api/user"],
     queryFn: getQueryFn({ on401: "returnNull" }),
+    staleTime: 1000 * 60 * 5, // 5 minutes
+    gcTime: 1000 * 60 * 30, // 30 minutes (formerly cacheTime)
+    refetchOnMount: true,
+    refetchOnReconnect: true,
+    refetchOnWindowFocus: true, // Refetch on window focus to maintain session
+    refetchInterval: 1000 * 60 * 10, // Refresh every 10 minutes to keep session alive
   });
 
   // Preserve user data as is, including passwordExpired flag
@@ -119,12 +155,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache'
           },
           body: requestBody,
           credentials: 'include', // Important for cookies
+          cache: 'no-store', // Prevent caching
+          mode: 'cors', // Ensure CORS mode is set
         });
         
         console.log("[AUTH DEBUG] Login response status:", res.status);
+        console.log("[AUTH DEBUG] Login response headers:", 
+          Array.from(res.headers.entries())
+            .map(([key, value]) => `${key}: ${value}`)
+            .join(', ')
+        );
+        
+        // Log document cookie
+        console.log("[AUTH DEBUG] Document cookies:", document.cookie);
         
         if (!res.ok) {
           const errorText = await res.text();

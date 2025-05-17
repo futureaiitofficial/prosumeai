@@ -105,6 +105,57 @@ export const SubscriptionService = {
   },
 
   /**
+   * Associate a user with a subscription plan
+   * This is used during registration when a user selects a plan
+   */
+  async associateUserWithPlan(userId: number, planId: number) {
+    try {
+      console.log(`Associating user ${userId} with plan ${planId}`);
+      
+      // Get plan details to determine if it's a free or paid plan
+      const plan = await db.select().from(subscriptionPlans).where(eq(subscriptionPlans.id, planId)).limit(1);
+      
+      if (plan.length === 0) {
+        throw new Error('Plan not found');
+      }
+      
+      // Check if it's a free plan
+      const isFreePlan = plan[0].isFreemium;
+      
+      if (isFreePlan) {
+        // For free plans, activate immediately
+        return await this.activateFreePlan(userId, planId);
+      } else {
+        // For paid plans, we'll just record that the user selected this plan
+        // The actual payment and subscription creation will happen in the payment flow
+        try {
+          await db.insert(appSettings)
+            .values({
+              key: `user_plan_selection_${userId}`,
+              value: {
+                userId,
+                planId,
+                timestamp: new Date().toISOString(),
+                status: 'pending_payment'
+              },
+              category: 'subscription_onboarding'
+            })
+            .onConflictDoNothing();
+          
+          console.log(`Recorded plan selection ${planId} for user ${userId}. Payment required.`);
+          return { userId, planId, status: 'pending_payment' };
+        } catch (error) {
+          console.error('Error recording user plan selection:', error);
+          throw error;
+        }
+      }
+    } catch (error) {
+      console.error(`Error associating user ${userId} with plan ${planId}:`, error);
+      throw error;
+    }
+  },
+
+  /**
    * Activate a free plan subscription for a user
    */
   async activateFreePlan(userId: number, planId: number) {

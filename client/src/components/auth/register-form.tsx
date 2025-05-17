@@ -114,6 +114,7 @@ export default function RegisterForm({ selectedPlanId }: RegisterFormProps) {
   const [passwordRequirementsText, setPasswordRequirementsText] = useState("");
   const [passwordStrength, setPasswordStrength] = useState(0);
   const [currentRequirements, setCurrentRequirements] = useState(passwordRequirements);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Fetch password requirements on component mount
   useEffect(() => {
@@ -159,6 +160,8 @@ export default function RegisterForm({ selectedPlanId }: RegisterFormProps) {
   }, [form.watch, currentRequirements]);
 
   const onSubmit = (data: RegisterFormValues) => {
+    setIsSubmitting(true);
+    
     // Make sure fullName is always a string, even if it's optional in the schema
     const processedData = {
       ...data,
@@ -169,7 +172,16 @@ export default function RegisterForm({ selectedPlanId }: RegisterFormProps) {
       ? { ...processedData, selectedPlanId } 
       : processedData;
     
-    registerMutation.mutate(registerData);
+    // Store registration data in session storage to be used during checkout
+    sessionStorage.setItem('registrationData', JSON.stringify(registerData));
+    
+    // Redirect to checkout page with plan ID
+    if (selectedPlanId) {
+      window.location.href = `/checkout?planId=${selectedPlanId}`;
+    } else {
+      // Fallback to free plan or direct registration
+      registerMutation.mutate(registerData);
+    }
   };
 
   // Track focus on password field to coordinate with mascot animation
@@ -299,7 +311,7 @@ export default function RegisterForm({ selectedPlanId }: RegisterFormProps) {
                     placeholder="Your full name" 
                     {...field}
                     className="h-9 rounded-lg border-gray-300 bg-white/50 focus:border-indigo-500 focus:ring-indigo-500"
-                    disabled={registerMutation.isPending}
+                    disabled={isSubmitting}
                     onChange={(e) => {
                       field.onChange(e);
                       // Trigger keydown event to make mascot react to typing
@@ -333,7 +345,7 @@ export default function RegisterForm({ selectedPlanId }: RegisterFormProps) {
                       {...field}
                       value={field.value.toLowerCase()}
                       className="h-9 rounded-lg border-gray-300 bg-white/50 focus:border-indigo-500 focus:ring-indigo-500"
-                      disabled={registerMutation.isPending}
+                      disabled={isSubmitting}
                       onChange={(e) => {
                         const lowercaseValue = e.target.value.toLowerCase();
                         field.onChange(lowercaseValue);
@@ -387,7 +399,7 @@ export default function RegisterForm({ selectedPlanId }: RegisterFormProps) {
                       placeholder="your.email@example.com" 
                       {...field}
                       className="h-9 rounded-lg border-gray-300 bg-white/50 focus:border-indigo-500 focus:ring-indigo-500"
-                      disabled={registerMutation.isPending}
+                      disabled={isSubmitting}
                       onChange={(e) => {
                         field.onChange(e);
                         debouncedCheckEmail(e.target.value);
@@ -442,7 +454,7 @@ export default function RegisterForm({ selectedPlanId }: RegisterFormProps) {
                       placeholder="Create a password" 
                       {...field}
                       className="h-9 rounded-lg border-gray-300 bg-white/50 focus:border-indigo-500 focus:ring-indigo-500 pr-10"
-                      disabled={registerMutation.isPending}
+                      disabled={isSubmitting}
                       onFocus={(e) => {
                         handlePasswordFocus(true);
                         // Force cursor tracking to update immediately on focus
@@ -519,15 +531,15 @@ export default function RegisterForm({ selectedPlanId }: RegisterFormProps) {
           <Button 
             type="submit" 
             className="w-full bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white h-10 rounded-lg font-medium"
-            disabled={registerMutation.isPending}
+            disabled={isSubmitting}
           >
-            {registerMutation.isPending ? (
+            {isSubmitting ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Creating account...
+                Continue to payment...
               </>
             ) : (
-              "Create account"
+              "Continue to payment"
             )}
           </Button>
         </form>

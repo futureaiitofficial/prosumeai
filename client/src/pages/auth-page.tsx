@@ -5,6 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import LoginForm from "@/components/auth/login-form";
 import RegisterForm from "@/components/auth/register-form";
 import { motion, AnimatePresence } from "framer-motion";
+import { Button } from "@/components/ui/button";
 
 // New advanced mascot component with eye animations
 const AuthMascot = () => {
@@ -381,143 +382,138 @@ const Prevent_ScrollingEffect = () => {
 };
 
 export default function AuthPage() {
-  const { user, isLoading } = useAuth();
-  const [, setLocation] = useLocation();
+  const [location, navigate] = useLocation();
   const search = useSearch();
-  const params = new URLSearchParams(search);
-  const isSignup = params.get("signup") === "true";
-  const selectedPlanId = params.get("planId");
+  const { user, isLoading } = useAuth();
+  const [activeTab, setActiveTab] = useState<string>("login");
+  const [showSignupCTA, setShowSignupCTA] = useState<boolean>(false);
   
-  // State for logout message
-  const [logoutMessage, setLogoutMessage] = useState<string | null>(null);
-  
-  // Check for logout message in sessionStorage on mount
+  // Check if URL has signup=true parameter
   useEffect(() => {
-    const storedMessage = sessionStorage.getItem('logout_reason');
-    const logoutTime = sessionStorage.getItem('logout_time');
-    
-    // Only show message if it was stored in the last 5 seconds
-    if (storedMessage && logoutTime) {
-      const now = Date.now();
-      const messageTime = parseInt(logoutTime, 10);
-      
-      // Message is recent (within 5 seconds)
-      if (now - messageTime < 5000) {
-        setLogoutMessage(storedMessage);
-        
-        // Clear after showing to prevent it from appearing again
-        setTimeout(() => {
-          sessionStorage.removeItem('logout_reason');
-          sessionStorage.removeItem('logout_time');
-        }, 500);
-      } else {
-        // Clear old messages
-        sessionStorage.removeItem('logout_reason');
-        sessionStorage.removeItem('logout_time');
-      }
+    const params = new URLSearchParams(search);
+    const signup = params.get("signup");
+    if (signup === "true") {
+      // Direct users to pricing page instead of showing signup form
+      navigate("/pricing");
     }
-  }, []);
-  
-  // Prevent scrolling on the body
+  }, [search, navigate]);
+
+  // Redirect if user is already authenticated
   useEffect(() => {
-    // Save original overflow value
-    const originalOverflow = document.body.style.overflow;
-    
-    // Apply overflow hidden to body
-    document.body.style.overflow = 'hidden';
-    
-    // Restore original overflow on unmount
-    return () => {
-      document.body.style.overflow = originalOverflow;
-    };
-  }, []);
-  
-  // Redirect if already logged in based on role
-  useEffect(() => {
-    if (user && !isLoading) {
-      if (user.isAdmin) {
-        setLocation("/admin/dashboard");
-      } else {
-        setLocation("/dashboard");
-      }
+    if (!isLoading && user) {
+      navigate("/dashboard");
     }
-  }, [user, isLoading, setLocation]);
-  
+  }, [user, isLoading, navigate]);
+
+  useEffect(() => {
+    // Show signup CTA after a delay
+    const timer = setTimeout(() => {
+      setShowSignupCTA(true);
+    }, 3000);
+    
+    return () => clearTimeout(timer);
+  }, []);
+
+  const handleTabChange = (value: string) => {
+    setActiveTab(value);
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-slate-100">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
   return (
-    <div className="auth-container min-h-screen flex items-center justify-center bg-gradient-to-b from-indigo-950 via-indigo-900 to-purple-900 px-2 py-4 md:py-8">
+    <div className="min-h-screen bg-slate-100 flex">
       <Prevent_ScrollingEffect />
       
-      {/* Background elements */}
-      <div className="absolute inset-0 bg-grid-pattern opacity-10"></div>
-      
-      <div className="absolute w-64 md:w-96 h-64 md:h-96 rounded-full bg-indigo-500/20 blur-3xl -top-20 -right-20"></div>
-      <div className="absolute w-64 md:w-96 h-64 md:h-96 rounded-full bg-purple-500/20 blur-3xl -bottom-20 -left-20"></div>
-      
-      <div className="auth-card relative w-full max-w-md bg-white rounded-xl shadow-2xl p-4 md:p-6 my-4">
-        {logoutMessage && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md mb-4 shadow-sm">
-            <div className="flex">
-              <div className="flex-shrink-0">
-                <svg className="h-5 w-5 text-red-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                </svg>
-              </div>
-              <div className="ml-3">
-                <p className="text-sm font-medium">
-                  {logoutMessage}
-                </p>
+      <div className="flex flex-col md:flex-row w-full">
+        {/* Illustration column - hidden on mobile */}
+        <div className="hidden md:flex md:w-1/2 bg-primary items-center justify-center relative overflow-hidden">
+          <div className="absolute inset-0 bg-primary-pattern opacity-10"></div>
+          
+          <div className="relative z-10 p-8 md:p-12 lg:p-16 max-w-lg">
+            <h1 className="text-white text-3xl md:text-4xl lg:text-5xl font-bold mb-6">
+              Welcome to ATScribe
+            </h1>
+            <p className="text-primary-foreground/80 text-lg mb-8">
+              The AI-powered resume builder that helps you land your dream job. Craft standout resumes tailored to each job application in minutes.
+            </p>
+            
+            <div className="flex flex-col space-y-8 items-center">
+              <AuthMascot />
+              
+              <div className="bg-white/10 rounded-lg p-6 backdrop-blur-sm">
+                <h3 className="text-white text-xl font-medium mb-3">Why choose ATScribe?</h3>
+                <ul className="space-y-2 text-primary-foreground/80">
+                  <li className="flex items-start">
+                    <svg className="h-5 w-5 text-green-400 mr-2 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span>AI-powered resume tailoring for specific job listings</span>
+                  </li>
+                  <li className="flex items-start">
+                    <svg className="h-5 w-5 text-green-400 mr-2 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span>ATS-friendly templates that pass screening systems</span>
+                  </li>
+                  <li className="flex items-start">
+                    <svg className="h-5 w-5 text-green-400 mr-2 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span>AI cover letter generation that highlights your strengths</span>
+                  </li>
+                </ul>
               </div>
             </div>
           </div>
-        )}
+        </div>
         
-        <div className="flex flex-col items-center">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="h-8 w-8 text-primary-600 mb-2"
-          >
-            <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
-            <path d="M2 17l10 5 10-5"></path>
-            <path d="M2 12l10 5 10-5"></path>
-          </svg>
-          
-          <h2 className="text-xl md:text-2xl font-bold tracking-tight text-gray-900">
-            {isSignup ? "Create your account" : "Welcome back"}
-          </h2>
-          <p className="mt-1 text-sm md:text-base text-gray-600 mb-2">
-            {isSignup ? "Sign up to manage your job applications" : "Sign in to continue your job search"}
-          </p>
-        </div>
-
-        {/* Mascot component - reduced size for more compact layout */}
-        <div className="flex justify-center">
-          <div className="w-full max-w-[180px] md:max-w-[220px] h-[180px] md:h-[220px] mx-auto relative mb-2">
-            <AuthMascot />
+        {/* Form column */}
+        <div className="w-full md:w-1/2 flex items-center justify-center p-6 md:p-12">
+          <div className="w-full max-w-md">
+            <div className="text-center mb-8">
+              <h2 className="text-2xl font-bold">Log in to your account</h2>
+              <p className="text-slate-600 mt-2">
+                Enter your credentials to access your account
+              </p>
+            </div>
+            
+            <Tabs defaultValue="login" className="w-full" onValueChange={handleTabChange}>
+              <TabsList className="grid w-full grid-cols-1">
+                <TabsTrigger value="login">Login</TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="login" className="mt-6">
+                <LoginForm />
+              </TabsContent>
+            </Tabs>
+            
+            <AnimatePresence>
+              {showSignupCTA && (
+                <motion.div 
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 20 }}
+                  className="mt-8 p-4 bg-blue-50 border border-blue-100 rounded-lg"
+                >
+                  <h3 className="text-lg font-medium text-blue-900 mb-2">Don't have an account yet?</h3>
+                  <p className="text-blue-700 mb-4">Create a free account and start building ATS-friendly resumes today!</p>
+                  <Button 
+                    onClick={() => navigate('/pricing')} 
+                    className="w-full bg-blue-600 hover:bg-blue-700"
+                  >
+                    Create Free Account
+                  </Button>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </div>
-
-        <Tabs defaultValue={isSignup ? "register" : "login"} className="w-full">
-          <TabsList className="grid w-full grid-cols-2 mb-4">
-            <TabsTrigger value="login">Login</TabsTrigger>
-            <TabsTrigger value="register">Register</TabsTrigger>
-          </TabsList>
-          <div className="overflow-y-auto overflow-x-hidden max-h-[calc(100vh-17rem)] md:max-h-none">
-            <TabsContent value="login" className="mt-0">
-              <LoginForm selectedPlanId={selectedPlanId} />
-            </TabsContent>
-            <TabsContent value="register" className="mt-0">
-              <RegisterForm selectedPlanId={selectedPlanId} />
-            </TabsContent>
-          </div>
-        </Tabs>
       </div>
     </div>
   );

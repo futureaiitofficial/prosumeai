@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from "express";
-import { RateLimiterMemory, RateLimiterPostgres, RateLimiterRes } from 'rate-limiter-flexible';
-import { pool } from '../config/db'; // Assuming you have a pool export in db.ts
+import { RateLimiterMemory, RateLimiterRes } from 'rate-limiter-flexible';
+import { pool } from '../config/db';
 
 // Options for memory-based rate limiting
 const authRateLimiterMemoryOptions = {
@@ -8,33 +8,11 @@ const authRateLimiterMemoryOptions = {
   duration: parseInt(process.env.AUTH_RATE_LIMIT_DURATION || '900'), // Default: 15 minutes (in seconds)
 };
 
-// Options for postgres-based rate limiting 
-const authRateLimiterPostgresOptions = {
-  storeClient: pool,
-  tableName: 'login_rate_limits',
-  points: parseInt(process.env.AUTH_RATE_LIMIT_ATTEMPTS || '5'), // Default: 5 attempts
-  duration: parseInt(process.env.AUTH_RATE_LIMIT_DURATION || '900'), // Default: 15 minutes (in seconds)
-  blockDuration: parseInt(process.env.AUTH_RATE_LIMIT_BLOCK || '3600'), // Default: 1 hour (in seconds)
-};
+// Create a memory-based rate limiter
+const rateLimiter = new RateLimiterMemory(authRateLimiterMemoryOptions);
 
-// Create a memory-based rate limiter as a fallback
-const memoryRateLimiter = new RateLimiterMemory(authRateLimiterMemoryOptions);
-
-// Try to create a PostgreSQL rate limiter, fall back to memory if it fails
-let rateLimiter: RateLimiterMemory | RateLimiterPostgres = memoryRateLimiter;
-
-// Attempt to initialize PostgreSQL rate limiter
-try {
-  // Use PostgreSQL rate limiter in production for persistence across app instances
-  if (process.env.NODE_ENV === 'production') {
-    rateLimiter = new RateLimiterPostgres(authRateLimiterPostgresOptions);
-    console.log('Using PostgreSQL rate limiter for authentication');
-  } else {
-    console.log('Using memory rate limiter for authentication in development');
-  }
-} catch (err) {
-  console.error('Failed to initialize PostgreSQL rate limiter, using memory-based fallback', err);
-}
+// Log configuration on startup
+console.log(`Memory-based rate limiter configured with ${authRateLimiterMemoryOptions.points} points per ${authRateLimiterMemoryOptions.duration} seconds`);
 
 // Middleware for rate limiting authentication attempts
 export const authRateLimiter = async (req: Request, res: Response, next: NextFunction) => {

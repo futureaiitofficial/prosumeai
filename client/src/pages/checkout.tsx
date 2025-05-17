@@ -5,7 +5,7 @@ import DefaultLayout from '@/components/layouts/default-layout';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { CheckCircle, AlertCircle, Loader2, ShieldCheck, DollarSign, Lock, CreditCard, Calendar } from 'lucide-react';
+import { CheckCircle, AlertCircle, Loader2, ShieldCheck, DollarSign, Lock, CreditCard, Calendar, Check } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { useAuth } from '@/hooks/use-auth';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -90,9 +90,23 @@ export default function CheckoutPage() {
   const [useAlternativePayment, setUseAlternativePayment] = useState(false);
   const [alternativePaymentUrl, setAlternativePaymentUrl] = useState('');
   const [actuallyIsUpgrade, setActuallyIsUpgrade] = useState<boolean | undefined>(undefined);
-  const { user } = useAuth();
+  const [registrationData, setRegistrationData] = useState<any>(null);
+  const { user, registerMutation } = useAuth();
   const { toast } = useToast();
   const [showBillingReview, setShowBillingReview] = useState(false);
+  const [progress, setProgress] = useState(60); // Start at 60% since we're at step 3 of the registration flow
+
+  // Check if we have registration data in sessionStorage
+  useEffect(() => {
+    const regData = sessionStorage.getItem('registrationData');
+    if (regData) {
+      try {
+        setRegistrationData(JSON.parse(regData));
+      } catch (error) {
+        console.error('Error parsing registration data:', error);
+      }
+    }
+  }, []);
 
   // Effect to check if plan ID is provided
   useEffect(() => {
@@ -106,7 +120,7 @@ export default function CheckoutPage() {
       return;
     }
 
-    // Initialize loading sequence
+    // Initialize loading sequence with higher starting point if we're in registration flow
     const interval = setInterval(() => {
       setLoadingProgress(prev => {
         const newProgress = prev + 5;
@@ -371,6 +385,43 @@ export default function CheckoutPage() {
     });
   };
 
+  // Handle payment success with registration if needed
+  const handlePaymentSuccess = (result: any) => {
+    if (registrationData) {
+      // Complete the registration process using the stored data
+      registerMutation.mutate(registrationData, {
+        onSuccess: () => {
+          // Clear registration data from session storage
+          sessionStorage.removeItem('registrationData');
+          
+          // Show success message and redirect to dashboard
+          setCurrentStep('confirmation');
+          toast({
+            title: "Account created successfully",
+            description: "Your subscription has been activated",
+            variant: "default"
+          });
+        },
+        onError: (error) => {
+          console.error('Error creating account:', error);
+          toast({
+            title: "Account creation failed",
+            description: "Your payment was processed, but we couldn't create your account. Please contact support.",
+            variant: "destructive"
+          });
+        }
+      });
+    } else {
+      // Regular payment success for existing users
+      setCurrentStep('confirmation');
+      toast({
+        title: "Payment successful",
+        description: "Your subscription has been activated",
+        variant: "default"
+      });
+    }
+  };
+
   const verifyPayment = (response: RazorpayResponse) => {
     setIsProcessing(true);
     
@@ -393,12 +444,7 @@ export default function CheckoutPage() {
     PaymentService.verifyPayment(verificationData)
       .then(result => {
         if (result.success) {
-          setCurrentStep('confirmation');
-          toast({
-            title: "Payment successful",
-            description: "Your subscription has been activated",
-            variant: "default"
-          });
+          handlePaymentSuccess(result);
         } else {
           setPaymentError(result.message || 'Payment verification failed');
           toast({
@@ -812,15 +858,74 @@ export default function CheckoutPage() {
   return (
     <DefaultLayout pageTitle="Checkout">
       <div className="container py-8 max-w-7xl">
-        <Progress value={loadingProgress} className="mb-6" />
+        {/* Registration Progress Bar - Show only if we have registration data */}
+        {registrationData && (
+          <div className="mb-6">
+            <div className="flex justify-between items-center mb-2">
+              <div className="flex items-center space-x-4">
+                <div className="flex items-center justify-center w-8 h-8 rounded-full bg-green-500 text-white font-medium">
+                  <Check className="h-4 w-4" />
+                </div>
+                <span className="font-medium text-gray-900">Select Plan</span>
+              </div>
+              <div className="flex-grow mx-4 h-px bg-gray-200"></div>
+              <div className="flex items-center space-x-4">
+                <div className="flex items-center justify-center w-8 h-8 rounded-full bg-green-500 text-white font-medium">
+                  <Check className="h-4 w-4" />
+                </div>
+                <span className="font-medium text-gray-900">Create Account</span>
+              </div>
+              <div className="flex-grow mx-4 h-px bg-gray-200"></div>
+              <div className="flex items-center space-x-4">
+                <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary text-white font-medium">3</div>
+                <span className="font-medium text-gray-900">Payment</span>
+              </div>
+            </div>
+            <Progress value={progress} className="h-2" />
+          </div>
+        )}
         
-        {/* Step Progress Indicator */}
-        {renderStepProgress()}
+        {/* Regular checkout progress */}
+        {!registrationData && (
+          <Progress value={loadingProgress} className="mb-6" />
+        )}
+        
+        {/* Step Progress Indicator - Show only for existing users */}
+        {!registrationData && renderStepProgress()}
         
         {/* Modern Two-Column Layout */}
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mt-6">
           {/* Left Column - Billing Info */}
           <div className="lg:col-span-2">
+            {/* Registration Info Preview - Show if we have registration data */}
+            {registrationData && (
+              <div className="bg-white rounded-lg shadow-sm border overflow-hidden mb-6">
+                <div className="bg-gray-50 p-4 border-b">
+                  <h2 className="text-lg font-medium">Account Information</h2>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Your account will be created after payment
+                  </p>
+                </div>
+                
+                <div className="p-4">
+                  <div className="space-y-4">
+                    <div>
+                      <p className="text-gray-500 text-sm mb-1">Name</p>
+                      <p className="font-medium">{registrationData.fullName}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500 text-sm mb-1">Username</p>
+                      <p className="font-medium">{registrationData.username}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500 text-sm mb-1">Email</p>
+                      <p className="font-medium">{registrationData.email}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+            
             <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
               <div className="bg-gray-50 p-4 border-b">
                 <h2 className="text-lg font-medium">Billing Information</h2>
@@ -841,7 +946,7 @@ export default function CheckoutPage() {
                           </div>
                           <div>
                             <p className="text-gray-500 text-sm mb-1">Email</p>
-                            <p className="font-medium">{user?.email || billingInfo.email}</p>
+                            <p className="font-medium">{user?.email || registrationData?.email || billingInfo.email}</p>
                           </div>
                           <div>
                             <p className="text-gray-500 text-sm mb-1">Phone</p>
@@ -892,7 +997,7 @@ export default function CheckoutPage() {
                         </div>
                         <div>
                           <p className="text-gray-500 text-sm mb-1">Email</p>
-                          <p className="font-medium">{user?.email || billingInfo.email}</p>
+                          <p className="font-medium">{user?.email || registrationData?.email || billingInfo.email}</p>
                         </div>
                         <div>
                           <p className="text-gray-500 text-sm mb-1">Phone</p>
@@ -1017,13 +1122,16 @@ export default function CheckoutPage() {
                 <div className="bg-gray-50 p-4 border-b">
                   <h2 className="text-lg font-medium">Payment Details</h2>
                   <p className="text-sm text-gray-500 mt-1">
-                    {actuallyIsUpgrade !== undefined ? 
-                      (actuallyIsUpgrade ? 
-                        `Upgrade to ${selectedPlan?.name} plan subscription` :
-                        `Subscribe to ${selectedPlan?.name} plan`) :
-                      (upgradeFlow ? 
-                        `Upgrade to ${selectedPlan?.name} plan subscription` :
-                        `Subscribe to ${selectedPlan?.name} plan`)
+                    {registrationData 
+                      ? `Complete your registration and subscribe to ${selectedPlan?.name} plan`
+                      : (actuallyIsUpgrade !== undefined 
+                        ? (actuallyIsUpgrade 
+                          ? `Upgrade to ${selectedPlan?.name} plan subscription` 
+                          : `Subscribe to ${selectedPlan?.name} plan`) 
+                        : (upgradeFlow 
+                          ? `Upgrade to ${selectedPlan?.name} plan subscription` 
+                          : `Subscribe to ${selectedPlan?.name} plan`)
+                      )
                     }
                   </p>
                 </div>
@@ -1046,6 +1154,21 @@ export default function CheckoutPage() {
                         <h3 className="font-medium text-base mb-3">Order Summary</h3>
                         {displayProrationDetails()}
                       </div>
+
+                      {/* Registration info summary (for new users) */}
+                      {registrationData && (
+                        <div className="bg-blue-50 p-4 rounded-lg border border-blue-100 mb-4">
+                          <div className="flex items-start">
+                            <AlertCircle className="h-5 w-5 text-blue-600 mt-0.5 mr-2" />
+                            <div>
+                              <p className="font-medium text-blue-800">Complete Your Registration</p>
+                              <p className="text-sm text-blue-700 mt-1">
+                                Your account will be created and activated immediately after successful payment.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                       
                       <div className="pt-2">
                         {/* Payment Button */}
@@ -1062,23 +1185,25 @@ export default function CheckoutPage() {
                           ) : (
                             <>
                               <DollarSign className="mr-2 h-5 w-5" />
-                              {actuallyIsUpgrade !== undefined && !actuallyIsUpgrade
-                                ? `Subscribe for ${formatCurrency(
-                                  paymentIntent.actualPlanAmount 
-                                    ? paymentIntent.actualPlanAmount / 100
-                                    : paymentIntent.amount, 
-                                  paymentIntent.currency
-                                )}`
-                                : `Pay Now ${formatCurrency(
-                                  prorationAmount !== undefined 
-                                    ? prorationAmount // Already in full currency units from URL
-                                    : (paymentIntent.actualPlanAmount
-                                      ? paymentIntent.actualPlanAmount / 100 // Convert from smallest unit to full unit
-                                      : (paymentIntent.currency === 'INR'
-                                        ? paymentIntent.amount / 100 // Convert paisa to rupees
-                                        : paymentIntent.amount)), // Keep as is for other currencies
-                                  paymentIntent.currency
-                                )}`
+                              {registrationData 
+                                ? `Complete Registration and Payment` 
+                                : (actuallyIsUpgrade !== undefined && !actuallyIsUpgrade
+                                  ? `Subscribe for ${formatCurrency(
+                                    paymentIntent.actualPlanAmount 
+                                      ? paymentIntent.actualPlanAmount / 100
+                                      : paymentIntent.amount, 
+                                    paymentIntent.currency
+                                  )}`
+                                  : `Pay Now ${formatCurrency(
+                                    prorationAmount !== undefined 
+                                      ? prorationAmount // Already in full currency units from URL
+                                      : (paymentIntent.actualPlanAmount
+                                        ? paymentIntent.actualPlanAmount / 100 // Convert from smallest unit to full unit
+                                        : (paymentIntent.currency === 'INR'
+                                          ? paymentIntent.amount / 100 // Convert paisa to rupees
+                                          : paymentIntent.amount)), // Keep as is for other currencies
+                                    paymentIntent.currency
+                                  )}`)
                               }
                             </>
                           )}
@@ -1093,7 +1218,15 @@ export default function CheckoutPage() {
                         <Button 
                           variant="outline"
                           className="w-full mt-3" 
-                          onClick={() => user ? navigate('/dashboard') : navigate('/pricing')}
+                          onClick={() => {
+                            if (registrationData) {
+                              // If we're in the registration flow, go back to plan selection
+                              navigate('/pricing');
+                            } else {
+                              // Otherwise go to dashboard or pricing based on login status
+                              user ? navigate('/dashboard') : navigate('/pricing');
+                            }
+                          }}
                           disabled={isProcessing}
                         >
                           Cancel
@@ -1113,7 +1246,9 @@ export default function CheckoutPage() {
             ) : (
               <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
                 <div className="bg-gray-50 p-4 border-b">
-                  <h2 className="text-lg font-medium">Subscription Confirmation</h2>
+                  <h2 className="text-lg font-medium">
+                    {registrationData ? "Registration Complete" : "Subscription Confirmation"}
+                  </h2>
                 </div>
                 
                 <div className="p-8">
@@ -1121,10 +1256,15 @@ export default function CheckoutPage() {
                     <div className="rounded-full p-5 bg-green-100">
                       <CheckCircle className="h-10 w-10 text-green-600" />
                     </div>
-                    <h3 className="text-2xl font-semibold text-center">Thank You For Your Purchase!</h3>
+                    <h3 className="text-2xl font-semibold text-center">
+                      {registrationData 
+                        ? "Welcome to ATScribe!" 
+                        : "Thank You For Your Purchase!"}
+                    </h3>
                     <p className="text-center text-gray-600 max-w-md">
-                      Your subscription has been successfully activated.
-                      You now have full access to all the features of your plan.
+                      {registrationData 
+                        ? "Your account has been created and your subscription has been activated. You now have full access to all the features of your plan."
+                        : "Your subscription has been successfully activated. You now have full access to all the features of your plan."}
                     </p>
                     <Button 
                       className="mt-6" 

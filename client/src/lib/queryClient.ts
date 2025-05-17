@@ -65,6 +65,9 @@ async function throwIfResNotOk(res: Response) {
   }
 }
 
+/**
+ * Enhanced API request function with better error handling and logging
+ */
 export async function apiRequest(
   method: string, 
   endpoint: string, 
@@ -90,38 +93,52 @@ export async function apiRequest(
     fetchOptions.body = JSON.stringify(data);
   }
   
-  const response = await fetch(url, fetchOptions);
-  
-  if (!response.ok) {
-    try {
-      // Try to get error data as JSON
-      const errorData = await response.json().catch(() => ({}));
+  try {
+    const response = await fetch(url, fetchOptions);
+    
+    // Log failed requests for debugging
+    if (!response.ok) {
+      console.error(`API request failed: ${method} ${endpoint}`, {
+        status: response.status,
+        statusText: response.statusText,
+        url: url
+      });
       
-      // Special handling for single session enforcement
-      if (response.status === 401 && errorData.message?.includes('logged in elsewhere')) {
-        // Emit session invalidated event - this handles all the cleanup and redirect
-        emitSessionInvalidated(errorData.message || "Your account has been logged in elsewhere. Please log in again.");
+      try {
+        // Try to get error data as JSON
+        const errorData = await response.clone().json().catch(() => ({}));
+        console.error('Error response data:', errorData);
         
-        // Throw an error that makes it clear what happened
-        const error: any = new Error(errorData.message || 'Session invalidated due to login elsewhere');
+        // Special handling for single session enforcement
+        if (response.status === 401 && errorData.message?.includes('logged in elsewhere')) {
+          // Emit session invalidated event - this handles all the cleanup and redirect
+          emitSessionInvalidated(errorData.message || "Your account has been logged in elsewhere. Please log in again.");
+          
+          // Throw an error that makes it clear what happened
+          const error: any = new Error(errorData.message || 'Session invalidated due to login elsewhere');
+          error.statusCode = response.status;
+          error.sessionInvalidated = true;
+          throw error;
+        }
+        
+        const error: any = new Error(errorData.message || 'An error occurred');
         error.statusCode = response.status;
-        error.sessionInvalidated = true;
+        error.data = errorData;
+        throw error;
+      } catch (jsonError) {
+        console.error('Could not parse error response:', jsonError);
+        // If JSON parsing fails, throw a standard error with status code
+        const error: any = new Error(`Request failed with status ${response.status}`);
+        error.statusCode = response.status;
         throw error;
       }
-      
-      const error: any = new Error(errorData.message || 'An error occurred');
-      error.statusCode = response.status;
-      error.data = errorData;
-      throw error;
-    } catch (jsonError) {
-      // If JSON parsing fails, throw a standard error with status code
-      const error: any = new Error(`Request failed with status ${response.status}`);
-      error.statusCode = response.status;
-      throw error;
     }
+    
+    return response;
+  } catch (error) {
+    console.error(`API request exception: ${method} ${endpoint}`, error);
+    throw error;
   }
-  
-  return response;
 }
 
 type UnauthorizedBehavior = "returnNull" | "throw";
@@ -136,8 +153,17 @@ export const getQueryFn: <T>(options: {
       return null;
     }
 
+    console.log('Making API request to:', queryKey[0]);
+
     const res = await fetch(queryKey[0] as string, {
       credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+        "Cache-Control": "no-cache",
+        "Pragma": "no-cache"
+      },
+      mode: "cors",
+      cache: "no-store"
     });
 
     // Check for 401 responses

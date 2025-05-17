@@ -29,12 +29,8 @@ const loginSchema = z.object({
 
 type LoginFormValues = z.infer<typeof loginSchema>;
 
-interface LoginFormProps {
-  selectedPlanId?: string | null;
-}
-
-export default function LoginForm({ selectedPlanId }: LoginFormProps) {
-  const { loginMutation, user } = useAuth();
+export default function LoginForm() {
+  const { loginMutation } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [isPasswordField, setIsPasswordField] = useState(false);
   
@@ -50,12 +46,8 @@ export default function LoginForm({ selectedPlanId }: LoginFormProps) {
     console.log(`[LOGIN DEBUG] Submitting login form for username: ${data.username}`);
     console.log(`[LOGIN DEBUG] Password length: ${data.password.length}`);
     
-    const loginData = selectedPlanId 
-      ? { ...data, selectedPlanId } 
-      : data;
-    
     try {
-      loginMutation.mutate(loginData);
+      loginMutation.mutate(data);
       console.log('[LOGIN DEBUG] Login mutation triggered');
     } catch (error) {
       console.error('[LOGIN DEBUG] Error triggering login mutation:', error);

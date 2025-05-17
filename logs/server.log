@@ -1,0 +1,69 @@
+[2025-05-16T21:19:37.873Z] Services initialized
+[2025-05-16T21:19:37.912Z] Server started in development mode
+[2025-05-16T21:19:37.912Z] Serving on port 3000
+[2025-05-16T21:29:24.075Z] Received SIGINT. Starting graceful shutdown...
+[2025-05-16T21:30:42.960Z] Services initialized
+[2025-05-16T21:30:42.987Z] Server started in development mode
+[2025-05-16T21:30:42.987Z] Serving on port 3000
+[2025-05-16T21:30:53.073Z] Received SIGINT. Starting graceful shutdown...
+[2025-05-16T21:46:43.085Z] Services initialized
+[2025-05-16T21:46:43.111Z] Server started in development mode
+[2025-05-16T21:46:43.111Z] Serving on port 3000
+[2025-05-16T21:46:47.954Z] Received SIGINT. Starting graceful shutdown...
+[2025-05-16T21:48:59.313Z] Services initialized
+[2025-05-16T21:48:59.318Z] Server started in production mode
+[2025-05-16T21:48:59.318Z] Serving on port 3000
+[2025-05-16T21:49:45.422Z] Received SIGINT. Starting graceful shutdown...
+[2025-05-16T21:49:45.424Z] HTTP server closed
+[2025-05-16T21:49:45.424Z] Shutting down database connections...
+[2025-05-16T21:49:45.424Z] Database connections closed
+[2025-05-16T21:49:49.147Z] Services initialized
+[2025-05-16T21:49:49.152Z] Server started in production mode
+[2025-05-16T21:49:49.152Z] Serving on port 3000
+[2025-05-16T21:52:46.426Z] Received SIGINT. Starting graceful shutdown...
+[2025-05-16T21:52:46.428Z] HTTP server closed
+[2025-05-16T21:52:46.428Z] Shutting down database connections...
+[2025-05-16T21:52:46.428Z] Database connections closed
+[2025-05-16T21:52:50.602Z] Services initialized
+[2025-05-16T21:52:50.607Z] Server started in production mode
+[2025-05-16T21:52:50.607Z] Serving on port 3000
+[2025-05-16T21:55:30.046Z] Received SIGINT. Starting graceful shutdown...
+[2025-05-16T21:55:30.049Z] HTTP server closed, cleaning up resources...
+[2025-05-16T21:55:30.049Z] Database connection closed
+[2025-05-16T21:55:30.050Z] Shutdown complete, exiting process
+[2025-05-16T21:56:04.356Z] Services initialized
+[2025-05-16T21:56:04.361Z] Server started in production mode
+[2025-05-16T21:56:04.361Z] Serving on port 3000
+[2025-05-16T22:02:37.224Z] Received SIGINT. Starting graceful shutdown...
+[2025-05-16T22:02:37.224Z] HTTP server closed, cleaning up resources...
+[2025-05-16T22:02:37.224Z] Database connection closed
+[2025-05-16T22:02:37.224Z] Shutdown complete, exiting process
+[2025-05-16T22:11:01.519Z] Database connection closed
+[2025-05-16T22:11:20.272Z] Database connection closed
+[2025-05-16T22:11:20.273Z] Closing 5 active connections
+[2025-05-16T22:17:28.273Z] Database connection closed
+[2025-05-16T22:19:40.674Z] Database connection closed
+[2025-05-16T22:19:40.675Z] Closing 4 active connections
+[2025-05-16T22:21:17.429Z] Database connection closed
+[2025-05-17T17:02:36.194Z] Database connection closed
+[2025-05-17T17:04:04.118Z] Database connection closed
+[2025-05-17T17:04:23.075Z] Database connection closed
+[2025-05-17T17:04:23.075Z] Closing 4 active connections
+[2025-05-17T17:06:47.423Z] Database connection closed
+[2025-05-17T17:08:46.924Z] Database connection closed
+[2025-05-17T17:28:19.032Z] Database connection closed
+[2025-05-17T17:47:46.960Z] Database connection closed
+[2025-05-17T17:49:55.223Z] Database connection closed
+[2025-05-17T17:56:46.367Z] Database connection closed
+[2025-05-17T18:00:24.925Z] Database connection closed
+[2025-05-17T18:02:26.395Z] Database connection closed
+[2025-05-17T18:07:05.668Z] Database connection closed
+[2025-05-17T18:09:59.244Z] Database connection closed
+[2025-05-17T18:12:05.434Z] Database connection closed
+[2025-05-17T18:17:36.416Z] Uncaught exception: Cannot read properties of undefined (reading 'req')
+[2025-05-17T18:17:40.131Z] Uncaught exception: Cannot read properties of undefined (reading 'req')
+[2025-05-17T18:23:53.168Z] Database connection closed
+[2025-05-17T19:19:59.251Z] Database connection closed
+[2025-05-17T19:20:37.490Z] Database connection closed
+[2025-05-17T19:20:37.491Z] Closing 3 active connections
+[2025-05-17T19:21:22.408Z] Database connection closed

@@ -67,14 +67,38 @@ const categoryDescriptions = {
 
 export default function KeywordGenerator() {
   const { toast } = useToast();
+  const svgRef = useRef<SVGSVGElement>(null);
   const [jobDescription, setJobDescription] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const [keywords, setKeywords] = useState<string[]>([]);
   const [keywordData, setKeywordData] = useState<KeywordAnalysisResult | null>(null);
-  const [activeTab, setActiveTab] = useState("wordCloud");
+  const [words, setWords] = useState<WordCloudWord[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState("word-cloud");
+  const [resumeData, setResumeData] = useState<ResumeData | null>(null);
+  const [atsScore, setAtsScore] = useState<number | null>(null);
   const [flattenedKeywords, setFlattenedKeywords] = useState<string[]>([]);
   const wordCloudRef = useRef<HTMLDivElement>(null);
-  const [words, setWords] = useState<WordCloudWord[]>([]);
   const [forceRedraw, setForceRedraw] = useState(0);
+
+  // Ensure authentication is maintained
+  useEffect(() => {
+    // Force refresh authentication status
+    fetch('/api/user', {
+      method: 'GET',
+      credentials: 'include',
+      headers: {
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache'
+      }
+    }).then(res => {
+      if (!res.ok) {
+        console.error('Authentication check failed in KeywordGenerator');
+        // Redirect will be handled by ProtectedRoute component
+      }
+    }).catch(err => {
+      console.error('Error checking authentication:', err);
+    });
+  }, []);
 
   // Extract keywords when "Extract Keywords" button is clicked
   const handleExtractKeywords = async () => {
@@ -87,7 +111,7 @@ export default function KeywordGenerator() {
       return;
     }
 
-    setIsLoading(true);
+    setLoading(true);
 
     try {
       // Call the AI endpoint using the relative path
@@ -154,7 +178,7 @@ export default function KeywordGenerator() {
         variant: "destructive",
       });
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
   
@@ -657,10 +681,10 @@ export default function KeywordGenerator() {
               
               <Button 
                 onClick={handleExtractKeywords} 
-                disabled={isLoading || !jobDescription.trim()}
+                disabled={loading || !jobDescription.trim()}
                 className="w-full"
               >
-                {isLoading ? (
+                {loading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Analyzing...

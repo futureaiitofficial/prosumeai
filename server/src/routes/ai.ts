@@ -465,7 +465,7 @@ router.post('/extract-keywords',
         const keywords = await extractKeywordsFromJobDescription(jobDescription);
         
         // Track token usage for AI-specific metrics
-        if ((req.isAuthenticated && req.isAuthenticated()) && req.user) {
+        if (req.isAuthenticated && req.isAuthenticated() && req.user) {
           const tokensUsed = 350; // Estimate tokens used
           try {
             await trackTokenUsage(req.user.id, 'ai_generation', tokensUsed);
@@ -526,7 +526,7 @@ router.post('/analyze-job-description',
         const result = await analyzeJobDescription(jobDescription);
         
         // Track token usage for AI-specific metrics
-        if ((req.isAuthenticated && req.isAuthenticated()) && req.user) {
+        if (req.isAuthenticated && req.isAuthenticated() && req.user) {
           const tokensUsed = 1000; // Estimate tokens used
           try {
             await trackTokenUsage(req.user.id, 'ai_generation', tokensUsed);
@@ -624,7 +624,7 @@ Your response should ONLY contain the body paragraphs that would go between the 
         const content = response.choices[0]?.message?.content?.trim() || "";
         
         // Track token usage for AI-specific metrics
-        if ((req.isAuthenticated && req.isAuthenticated()) && req.user) {
+        if (req.isAuthenticated && req.isAuthenticated() && req.user) {
           const tokensUsed = response.usage?.total_tokens || 0;
           // Always use ai_generation feature code for all AI operations
           try {
@@ -876,7 +876,7 @@ ${truncateText(existingContent, 300)}
           });
         
         // Track token usage for AI-specific metrics
-        if ((req.isAuthenticated && req.isAuthenticated()) && req.user) {
+        if (req.isAuthenticated && req.isAuthenticated() && req.user) {
           const tokensUsed = response.usage?.total_tokens || 500;
           try {
             await trackTokenUsage(req.user.id, 'ai_generation', tokensUsed);

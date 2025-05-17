@@ -6,6 +6,7 @@ import FloatingElement from '@/components/FloatingElement';
 import Testimonial from '@/components/Testimonial';
 import { useParallaxY, useParallaxOpacity, useParallaxRotate, useParallaxScale } from '@/utils/animation';
 import SharedHeader from '@/components/layouts/shared-header';
+import SharedFooter from '@/components/layouts/SharedFooter';
 
 export default function LandingPage() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -227,7 +228,7 @@ export default function LandingPage() {
                 whileTap="tap"
                 className="w-full sm:w-auto flex"
               >
-                <Link href="/auth?signup=true">
+                <Link href="/pricing">
                   <a className="inline-flex items-center justify-center px-8 py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-md transition-all duration-300 shadow-lg shadow-indigo-600/30 w-full h-[56px] sm:w-auto min-w-[180px]">
                     <span className="flex items-center">
                       <span>Get Started Free</span>
@@ -611,7 +612,7 @@ export default function LandingPage() {
                 whileTap="tap"
                 className="w-full sm:w-auto flex"
               >
-                <Link href="/auth?signup=true">
+                <Link href="/pricing">
                   <a className="inline-flex items-center justify-center px-8 py-4 bg-white hover:bg-indigo-50 text-indigo-600 font-medium text-lg rounded-md transition-all duration-300 shadow-lg shadow-indigo-600/30 w-full h-[56px] sm:w-auto min-w-[180px]">
                     <motion.span
                       initial={{ opacity: 0 }}
@@ -774,7 +775,7 @@ export default function LandingPage() {
                   <span className="text-slate-700 text-sm md:text-base">Multiple export formats with perfect formatting</span>
                 </li>
               </ul>
-              <Link href="/auth?signup=true">
+              <Link href="/pricing">
                 <a className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-md transition-colors inline-block">
                   Create Your Cover Letter
                 </a>
@@ -864,7 +865,7 @@ export default function LandingPage() {
                 <p className="text-indigo-200 mb-6">
                   Our intuitive Kanban board interface gives you a visual overview of all your applications at different stages, helping you stay organized and focused on your job search goals.
                 </p>
-                <Link href="/auth?signup=true">
+                <Link href="/pricing">
                   <a className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-md transition-colors inline-block text-sm">
                     Start Tracking Applications
                   </a>
@@ -1102,7 +1103,7 @@ export default function LandingPage() {
                   <span className="text-slate-700 text-sm md:text-base">Smart suggestions to incorporate keywords naturally</span>
                 </li>
               </ul>
-              <Link href="/auth?signup=true">
+              <Link href="/pricing">
                 <a className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-md transition-colors inline-block">
                   Try Keyword Extraction
                 </a>
@@ -1184,71 +1185,7 @@ export default function LandingPage() {
       </section>
 
       {/* Footer */}
-      <footer className="bg-slate-900 py-10 md:py-12 text-white">
-        <div className="container mx-auto px-4">
-          <div className="flex flex-col md:flex-row justify-between mb-6 md:mb-8">
-            <div className="mb-8 md:mb-0">
-              <div className="text-xl md:text-2xl font-bold mb-3 md:mb-4">ATScribe</div>
-              <p className="text-slate-400 max-w-xs text-sm md:text-base">
-                AI-powered resume builder, cover letter generator, and job application tracker designed specifically for students and early career professionals.
-              </p>
-              <p className="text-slate-500 mt-3 md:mt-4 text-xs md:text-sm">
-                A product of Futureaiit Consulting Private Limited
-              </p>
-            </div>
-            
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-6 md:gap-8">
-              <div>
-                <h4 className="text-base md:text-lg font-semibold mb-3 md:mb-4">Product</h4>
-                <ul className="space-y-2">
-                  <li><a href="#features" className="text-slate-400 hover:text-indigo-400 transition-colors text-sm md:text-base">Resume Builder</a></li>
-                  <li><Link href="/pricing"><a className="text-slate-400 hover:text-indigo-400 transition-colors text-sm md:text-base">Pricing</a></Link></li>
-                  <li><a href="#features" className="text-slate-400 hover:text-indigo-400 transition-colors text-sm md:text-base">Job Tracker</a></li>
-                </ul>
-              </div>
-              
-              <div>
-                <h4 className="text-base md:text-lg font-semibold mb-3 md:mb-4">Company</h4>
-                <ul className="space-y-2">
-                  <li><Link href="/about"><a className="text-slate-400 hover:text-indigo-400 transition-colors text-sm md:text-base">About Us</a></Link></li>
-                  <li><a href="#features" className="text-slate-400 hover:text-indigo-400 transition-colors text-sm md:text-base">Features</a></li>
-                  <li><a href="mailto:contact@ATScribe.com" className="text-slate-400 hover:text-indigo-400 transition-colors text-sm md:text-base">Contact</a></li>
-                </ul>
-              </div>
-              
-              <div className="col-span-2 sm:col-span-1 mt-6 sm:mt-0">
-                <h4 className="text-base md:text-lg font-semibold mb-3 md:mb-4">Legal</h4>
-                <ul className="space-y-2">
-                  <li><a href="/privacy" className="text-slate-400 hover:text-indigo-400 transition-colors text-sm md:text-base">Privacy Policy</a></li>
-                  <li><a href="/terms" className="text-slate-400 hover:text-indigo-400 transition-colors text-sm md:text-base">Terms of Service</a></li>
-                </ul>
-              </div>
-            </div>
-          </div>
-          
-          <div className="pt-6 md:pt-8 border-t border-slate-800 flex flex-col md:flex-row justify-between items-center">
-            <div className="text-slate-500 text-xs md:text-sm text-center md:text-left">
-              &copy; {new Date().getFullYear()} Futureaiit Consulting Private Limited. All rights reserved.
-            </div>
-            
-            <div className="mt-4 md:mt-0 flex space-x-6">
-              <a href="https://twitter.com/ATScribe" className="text-slate-500 hover:text-indigo-400 transition-colors">
-                <span className="sr-only">Twitter</span>
-                <svg className="h-5 w-5 md:h-6 md:w-6" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M8.29 20.251c7.547 0 11.675-6.253 11.675-11.675 0-.178 0-.355-.012-.53A8.348 8.348 0 0022 5.92a8.19 8.19 0 01-2.357.646 4.118 4.118 0 001.804-2.27 8.224 8.224 0 01-2.605.996 4.107 4.107 0 00-6.993 3.743 11.65 11.65 0 01-8.457-4.287 4.106 4.106 0 001.27 5.477A4.072 4.072 0 012.8 9.713v.052a4.105 4.105 0 003.292 4.022 4.095 4.095 0 01-1.853.07 4.108 4.108 0 003.834 2.85A8.233 8.233 0 012 18.407a11.616 11.616 0 006.29 1.84"></path>
-                </svg>
-              </a>
-              
-              <a href="https://linkedin.com/company/ATScribe" className="text-slate-500 hover:text-indigo-400 transition-colors">
-                <span className="sr-only">LinkedIn</span>
-                <svg className="h-5 w-5 md:h-6 md:w-6" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                  <path fillRule="evenodd" d="M4.98 3.5c0 1.381-1.11 2.5-2.48 2.5s-2.48-1.119-2.48-2.5c0-1.38 1.11-2.5 2.48-2.5s2.48 1.12 2.48 2.5zm.02 4.5h-5v16h5v-16zm7.982 0h-4.968v16h4.969v-8.399c0-4.67 6.029-5.052 6.029 0v8.399h4.988v-10.131c0-7.88-8.922-7.593-11.018-3.714v-2.155z" clipRule="evenodd"></path>
-                </svg>
-              </a>
-            </div>
-          </div>
-        </div>
-      </footer>
+      <SharedFooter />
     </div>
   );
 } 

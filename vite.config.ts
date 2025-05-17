@@ -32,6 +32,7 @@ export default defineConfig({
   build: {
     outDir: path.resolve(__dirname, "dist/public"),
     emptyOutDir: true,
+    sourcemap: process.env.NODE_ENV === 'production' ? false : true,
   },
   publicDir: path.resolve(__dirname, "public"),
   server: {
@@ -61,4 +62,9 @@ export default defineConfig({
     },
   },
   base: '/', // Ensure assets are served from the root path
+  optimizeDeps: {
+    esbuildOptions: {
+      jsx: 'automatic',
+    }
+  }
 });

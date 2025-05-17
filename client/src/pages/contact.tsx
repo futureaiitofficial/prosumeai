@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { motion } from 'framer-motion';
 import SharedHeader from '@/components/layouts/shared-header';
+import SharedFooter from '@/components/layouts/SharedFooter';
 
 export default function ContactPage() {
   const [formState, setFormState] = useState({
@@ -359,70 +360,7 @@ export default function ContactPage() {
       </section>
 
       {/* Footer */}
-      <footer className="bg-slate-900 py-12 text-white">
-        <div className="container mx-auto px-4">
-          <div className="flex flex-col md:flex-row justify-between mb-8">
-            <div className="mb-8 md:mb-0">
-              <div className="text-xl md:text-2xl font-bold mb-4">ATScribe</div>
-              <p className="text-slate-400 max-w-xs">
-                AI-powered resume builder, cover letter generator, and job application tracker designed specifically for students and early career professionals.
-              </p>
-              <p className="text-slate-500 text-sm mt-2">
-                A product of Futureaiit Consulting Pvt.Ltd
-              </p>
-            </div>
-            
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-8">
-              <div>
-                <h4 className="text-lg font-semibold mb-4">Product</h4>
-                <ul className="space-y-2">
-                  <li><a href="/#features" className="text-slate-400 hover:text-indigo-400 transition-colors">Features</a></li>
-                  <li><a href="/pricing" className="text-slate-400 hover:text-indigo-400 transition-colors">Pricing</a></li>
-                </ul>
-              </div>
-              
-              <div>
-                <h4 className="text-lg font-semibold mb-4">Company</h4>
-                <ul className="space-y-2">
-                  <li><a href="/about" className="text-slate-400 hover:text-indigo-400 transition-colors">About Us</a></li>
-                  <li><a href="/contact" className="text-slate-400 hover:text-indigo-400 transition-colors">Contact</a></li>
-                </ul>
-              </div>
-              
-              <div>
-                <h4 className="text-lg font-semibold mb-4">Legal</h4>
-                <ul className="space-y-2">
-                  <li><a href="/privacy" className="text-slate-400 hover:text-indigo-400 transition-colors">Privacy Policy</a></li>
-                  <li><a href="/terms" className="text-slate-400 hover:text-indigo-400 transition-colors">Terms of Service</a></li>
-                </ul>
-              </div>
-            </div>
-          </div>
-          
-          <div className="pt-8 border-t border-slate-800 flex flex-col md:flex-row justify-between items-center">
-            <div className="text-slate-500 text-sm">
-              &copy; {new Date().getFullYear()} Futureaiit Consulting Private Limited. All rights reserved. 
-              <span className="block md:inline md:ml-2">ATScribe is one of our premier products.</span>
-            </div>
-            
-            <div className="mt-4 md:mt-0 flex space-x-6">
-              <a href="https://twitter.com/ATScribe" className="text-slate-500 hover:text-indigo-400 transition-colors">
-                <span className="sr-only">Twitter</span>
-                <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M8.29 20.251c7.547 0 11.675-6.253 11.675-11.675 0-.178 0-.355-.012-.53A8.348 8.348 0 0022 5.92a8.19 8.19 0 01-2.357.646 4.118 4.118 0 001.804-2.27 8.224 8.224 0 01-2.605.996 4.107 4.107 0 00-6.993 3.743 11.65 11.65 0 01-8.457-4.287 4.106 4.106 0 001.27 5.477A4.072 4.072 0 012.8 9.713v.052a4.105 4.105 0 003.292 4.022 4.095 4.095 0 01-1.853.07 4.108 4.108 0 003.834 2.85A8.233 8.233 0 012 18.407a11.616 11.616 0 006.29 1.84"></path>
-                </svg>
-              </a>
-              
-              <a href="https://linkedin.com/company/ATScribe" className="text-slate-500 hover:text-indigo-400 transition-colors">
-                <span className="sr-only">LinkedIn</span>
-                <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
-                  <path fillRule="evenodd" d="M4.98 3.5c0 1.381-1.11 2.5-2.48 2.5s-2.48-1.119-2.48-2.5c0-1.38 1.11-2.5 2.48-2.5s2.48 1.12 2.48 2.5zm.02 4.5h-5v16h5v-16zm7.982 0h-4.968v16h4.969v-8.399c0-4.67 6.029-5.052 6.029 0v8.399h4.988v-10.131c0-7.88-8.922-7.593-11.018-3.714v-2.155z" clipRule="evenodd"></path>
-                </svg>
-              </a>
-            </div>
-          </div>
-        </div>
-      </footer>
+      <SharedFooter />
     </div>
   );
 } 

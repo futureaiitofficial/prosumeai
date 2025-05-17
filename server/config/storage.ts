@@ -12,9 +12,30 @@ import session from "express-session";
 import connectPg from "connect-pg-simple";
 import pg from "pg";
 
-// Create the connection pool
+// Get database connection string with proper database name
+let connectionString = process.env.DATABASE_URL;
+
+// Check if connection string exists
+if (!connectionString) {
+  console.error('DATABASE_URL environment variable is not set for session store');
+  connectionString = 'postgres://raja:raja@localhost:5432/prosumeai'; // Default fallback for development
+  console.log('Using default development database connection for session store');
+} else {
+  // Make sure we're connecting to the correct database
+  // If the connection string doesn't already specify prosumeai, ensure we use it
+  if (!connectionString.endsWith('/prosumeai')) {
+    // Extract the base connection without db name (if any)
+    const baseConnectionParts = connectionString.split('/');
+    baseConnectionParts.pop(); // Remove the last part (current db name)
+    const baseConnection = baseConnectionParts.join('/');
+    connectionString = `${baseConnection}/prosumeai`;
+    console.log('Corrected connection to use prosumeai database for session store');
+  }
+}
+
+// Create the connection pool with corrected connection string
 const pool = new pg.Pool({
-  connectionString: process.env.DATABASE_URL
+  connectionString: connectionString
 });
 
 const PostgresSessionStore = connectPg(session);
@@ -393,7 +414,7 @@ export class DatabaseStorage implements IStorage {
         workType: row.work_type ? String(row.work_type) : "",
         salary: row.salary ? String(row.salary) : "",
         jobUrl: row.job_url ? String(row.job_url) : "",
-        status: String(row.status),
+        status: String(row.status) as "applied" | "screening" | "interview" | "assessment" | "offer" | "rejected" | "accepted",
         statusHistory: row.status_history ? (typeof row.status_history === 'object' ? row.status_history : JSON.parse(String(row.status_history))) : [],
         appliedAt: row.applied_at ? new Date(String(row.applied_at)) : new Date(),
         resumeId: row.resume_id ? Number(row.resume_id) : null,
@@ -430,7 +451,7 @@ export class DatabaseStorage implements IStorage {
         workType: row.work_type ? String(row.work_type) : "",
         salary: row.salary ? String(row.salary) : "",
         jobUrl: row.job_url ? String(row.job_url) : "",
-        status: String(row.status),
+        status: String(row.status) as "applied" | "screening" | "interview" | "assessment" | "offer" | "rejected" | "accepted",
         statusHistory: row.status_history ? (typeof row.status_history === 'object' ? row.status_history : JSON.parse(String(row.status_history))) : [], 
         appliedAt: row.applied_at ? new Date(String(row.applied_at)) : new Date(),
         resumeId: row.resume_id ? Number(row.resume_id) : null,
@@ -509,7 +530,7 @@ export class DatabaseStorage implements IStorage {
         workType: row.work_type ? String(row.work_type) : "",
         salary: row.salary ? String(row.salary) : "",
         jobUrl: row.job_url ? String(row.job_url) : "",
-        status: String(row.status),
+        status: String(row.status) as "applied" | "screening" | "interview" | "assessment" | "offer" | "rejected" | "accepted",
         statusHistory: insertJobApplication.statusHistory || [],
         appliedAt: row.applied_at ? new Date(String(row.applied_at)) : new Date(),
         resumeId: row.resume_id ? Number(row.resume_id) : null,
@@ -585,7 +606,7 @@ export class DatabaseStorage implements IStorage {
         workType: row.work_type ? String(row.work_type) : "",
         salary: row.salary ? String(row.salary) : "",
         jobUrl: row.job_url ? String(row.job_url) : "",
-        status: String(row.status),
+        status: String(row.status) as "applied" | "screening" | "interview" | "assessment" | "offer" | "rejected" | "accepted",
         statusHistory: row.status_history ? (typeof row.status_history === 'object' ? row.status_history : JSON.parse(String(row.status_history))) : [],
         appliedAt: row.applied_at ? new Date(String(row.applied_at)) : new Date(),
         resumeId: row.resume_id ? Number(row.resume_id) : null,

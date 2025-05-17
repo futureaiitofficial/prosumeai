@@ -1,0 +1,22 @@
+{
+  "include": ["server/**/*", "shared/**/*"],
+  "exclude": ["node_modules", "build", "dist", "**/*.test.ts"],
+  "compilerOptions": {
+    "incremental": true,
+    "tsBuildInfoFile": "./node_modules/typescript/server-tsbuildinfo",
+    "module": "ESNext",
+    "target": "ES2022",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "moduleResolution": "bundler",
+    "allowSyntheticDefaultImports": true,
+    "baseUrl": ".",
+    "types": ["node"],
+    "outDir": "dist/server",
+    "noEmit": false,
+    "paths": {
+      "@shared/*": ["./shared/*"]
+    }
+  }
+} 
