@@ -91,12 +91,6 @@ export default function SummaryForm({
         skills
       );
       
-      // Check if the summary ends with a complete sentence
-      if (generatedSummary && !generatedSummary.trim().endsWith('.')) {
-        // If it doesn't end with a period, it might be cut off, so we'll append a placeholder ending
-        generatedSummary += " This summary is being completed to ensure it ends properly.";
-      }
-      
       if (generatedSummary) {
         updateData({ summary: generatedSummary });
         toast({

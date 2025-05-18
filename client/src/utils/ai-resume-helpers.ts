@@ -45,28 +45,54 @@ export async function generateProfessionalSummary(
       jobTitle,
       jobDescription,
       experience,
-      skills
+      skills,
+      maxLength: 250 // Request a slightly shorter summary to account for processing
     });
     
     const data = await response.json();
     let summary = data.summary || "";
     
+    // Clean up any placeholder or hash-like strings that might appear
+    if (summary.match(/[a-f0-9]{16}/) || // Check for hash-like patterns
+        (summary.includes(":") && summary.length < 100)) { // Check for potential placeholder tokens
+      console.log("Detected placeholder in summary, clearing field");
+      return "";
+    }
+    
+    // Ensure the summary is properly formatted and complete
+    // First, clean up any trailing spaces or incomplete sentences
+    summary = summary.trim();
+    
     // Ensure client-side enforcement of 300 character limit, but trim to last complete sentence
     if (summary.length > 300) {
-      summary = summary.substring(0, 300);
-      // Find the last period to trim to a complete sentence
-      const lastPeriodIndex = summary.lastIndexOf('.');
-      if (lastPeriodIndex > 0) {
-        summary = summary.substring(0, lastPeriodIndex + 1);
+      // Find the last period, question mark, or exclamation point to trim to a complete sentence
+      const lastSentenceEnd = Math.max(
+        summary.lastIndexOf('.'), 
+        summary.lastIndexOf('!'), 
+        summary.lastIndexOf('?')
+      );
+      
+      if (lastSentenceEnd > 0 && lastSentenceEnd < 290) {
+        // If we found a sentence end in a reasonable position, cut there
+        summary = summary.substring(0, lastSentenceEnd + 1);
       } else {
+        // If we can't find a good breakpoint, truncate and add period
         summary = summary.substring(0, 297) + "...";
       }
     }
     
+    // Ensure summary ends with proper punctuation
+    if (summary && !summary.endsWith('.') && !summary.endsWith('!') && !summary.endsWith('?')) {
+      summary = summary.trim() + '.';
+    }
+    
+    // Fix double periods that might occur from trimming or API response
+    summary = summary.replace(/\.+$/, '.').trim();
+    
     return summary;
   } catch (error) {
-    console.error('Failed to generate professional summary:', error);
-    throw new Error('Could not generate summary. Please try again later.');
+    console.error('Error generating summary:', error);
+    throw new Error('Failed to generate professional summary');
   }
 }
 

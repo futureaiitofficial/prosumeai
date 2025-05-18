@@ -1,0 +1,30 @@
+
+Test Resume Document
+-------------------
+
+John Doe
+john.doe@example.com
+(123) 456-7890
+
+SUMMARY
+-------
+Experienced software developer with over 5 years of experience in full-stack development.
+
+EXPERIENCE
+----------
+Senior Developer | ABC Tech Inc. | 2020-Present
+- Developed and maintained web applications using React and Node.js
+- Implemented CI/CD pipelines
+
+Junior Developer | XYZ Software | 2018-2020
+- Built responsive web interfaces
+- Collaborated with designers
+
+EDUCATION
+---------
+Bachelor of Science in Computer Science
+University of Technology | 2018
+
+SKILLS
+------
+JavaScript, TypeScript, React, Node.js, Python, SQL, MongoDB

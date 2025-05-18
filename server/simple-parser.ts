@@ -114,8 +114,18 @@ export async function extractDocumentText(filePath: string): Promise<string> {
  */
 export async function parseResume(filePath: string): Promise<any> {
   try {
+    // Verify that the file exists
+    if (!fs.existsSync(filePath)) {
+      throw new Error(`File does not exist: ${filePath}`);
+    }
+    
     // Extract text from the file
     const text = await extractDocumentText(filePath);
+    
+    // Check if we have meaningful text content
+    if (!text || text.length < 100) {
+      throw new Error('Insufficient text extracted from resume. The file may be empty or in an unsupported format.');
+    }
     
     // Basic parsing - identify sections by common headings
     const sections: Record<string, string> = {};

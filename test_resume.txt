@@ -1,0 +1,18 @@
+JOHN DOE
+john.doe@example.com
+(555) 123-4567
+123 Main St, New York, NY
+
+SUMMARY
+Experienced software developer with expertise in web technologies.
+
+WORK EXPERIENCE
+Senior Developer at TechCorp, 2018 - Present
+- Led development of enterprise applications
+- Mentored junior developers
+
+EDUCATION
+Computer Science, ABC University, 2014-2018
+
+SKILLS
+JavaScript, TypeScript, React, Node.js

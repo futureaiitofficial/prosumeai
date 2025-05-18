@@ -8,18 +8,35 @@ import { eq, and, desc } from 'drizzle-orm';
 // Use a different variable name to avoid collision
 const OpenAI = OpenAILib;
 
+// Cache for storing the API key to reduce DB calls
+let cachedApiKey: { key: string; expires: number } | null = null;
+const CACHE_TTL = 10 * 60 * 1000; // 10 minutes in milliseconds
+
 // Initialize with a placeholder, will be updated with actual key when needed
 const openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || 'placeholder' });
 
 // Function to update the API key
 export async function updateApiKey(): Promise<boolean> {
   try {
+    // Check if we have a valid cached key
+    if (cachedApiKey && cachedApiKey.expires > Date.now()) {
+      openaiClient.apiKey = cachedApiKey.key;
+      return true;
+    }
+    
     // First try to get the key from the manager
     const apiKey = await ApiKeyManager.getKeyWithFallback('openai', 'OPENAI_API_KEY');
     
     if (apiKey) {
       // Use the API key from the manager
       openaiClient.apiKey = apiKey;
+      
+      // Cache the key
+      cachedApiKey = {
+        key: apiKey,
+        expires: Date.now() + CACHE_TTL
+      };
+      
       return true;
     }
     
@@ -39,6 +56,12 @@ export async function updateApiKey(): Promise<boolean> {
       // Update the in-memory client with the database key
       openaiClient.apiKey = dbKey;
       
+      // Cache the key
+      cachedApiKey = {
+        key: dbKey,
+        expires: Date.now() + CACHE_TTL
+      };
+      
       // Update the last used timestamp
       await db.update(apiKeys)
         .set({ lastUsed: new Date() })
@@ -52,35 +75,87 @@ export async function updateApiKey(): Promise<boolean> {
     return false;
   } catch (error) {
     console.error('Error updating API key:', error);
+    
+    // Clear the cache on error to force a fresh attempt next time
+    cachedApiKey = null;
+    
     return false;
   }
 }
 
 // Wrapper for chat completions
 export async function createChatCompletion(params: any) {
-  const keyUpdated = await updateApiKey();
-  if (!keyUpdated) {
-    throw new Error('OpenAI API key is not configured. Please check your environment variables or database settings.');
+  try {
+    const keyUpdated = await updateApiKey();
+    if (!keyUpdated) {
+      throw new Error('OpenAI API key is not configured. Please check your environment variables or database settings.');
+    }
+    
+    return await openaiClient.chat.completions.create(params);
+  } catch (error: any) {
+    console.error('Error in OpenAI chat completion:', error);
+    
+    // Provide more specific error messages based on the error type
+    if (error.status === 401 || error.status === 403) {
+      throw new Error('API key authentication failed. Please check your OpenAI API key.');
+    } else if (error.status === 429) {
+      throw new Error('OpenAI rate limit exceeded. Please try again later.');
+    } else if (error.message && error.message.includes('API key')) {
+      throw new Error('OpenAI API key is not configured or is invalid.');
+    } else {
+      throw new Error(`OpenAI API error: ${error.message || 'Unknown error'}`);
+    }
   }
-  return openaiClient.chat.completions.create(params);
 }
 
 // Wrapper for completions
 export async function createCompletion(params: any) {
-  const keyUpdated = await updateApiKey();
-  if (!keyUpdated) {
-    throw new Error('OpenAI API key is not configured. Please check your environment variables or database settings.');
+  try {
+    const keyUpdated = await updateApiKey();
+    if (!keyUpdated) {
+      throw new Error('OpenAI API key is not configured. Please check your environment variables or database settings.');
+    }
+    
+    return await openaiClient.completions.create(params);
+  } catch (error: any) {
+    console.error('Error in OpenAI completion:', error);
+    
+    // Provide more specific error messages based on the error type
+    if (error.status === 401 || error.status === 403) {
+      throw new Error('API key authentication failed. Please check your OpenAI API key.');
+    } else if (error.status === 429) {
+      throw new Error('OpenAI rate limit exceeded. Please try again later.');
+    } else if (error.message && error.message.includes('API key')) {
+      throw new Error('OpenAI API key is not configured or is invalid.');
+    } else {
+      throw new Error(`OpenAI API error: ${error.message || 'Unknown error'}`);
+    }
   }
-  return openaiClient.completions.create(params);
 }
 
 // Wrapper for embeddings
 export async function createEmbedding(params: any) {
-  const keyUpdated = await updateApiKey();
-  if (!keyUpdated) {
-    throw new Error('OpenAI API key is not configured. Please check your environment variables or database settings.');
+  try {
+    const keyUpdated = await updateApiKey();
+    if (!keyUpdated) {
+      throw new Error('OpenAI API key is not configured. Please check your environment variables or database settings.');
+    }
+    
+    return await openaiClient.embeddings.create(params);
+  } catch (error: any) {
+    console.error('Error in OpenAI embedding:', error);
+    
+    // Provide more specific error messages based on the error type
+    if (error.status === 401 || error.status === 403) {
+      throw new Error('API key authentication failed. Please check your OpenAI API key.');
+    } else if (error.status === 429) {
+      throw new Error('OpenAI rate limit exceeded. Please try again later.');
+    } else if (error.message && error.message.includes('API key')) {
+      throw new Error('OpenAI API key is not configured or is invalid.');
+    } else {
+      throw new Error(`OpenAI API error: ${error.message || 'Unknown error'}`);
+    }
   }
-  return openaiClient.embeddings.create(params);
 }
 
 // Export a named export for better TypeScript imports
@@ -366,6 +441,15 @@ export async function parseResume(resumeText: string): Promise<any> {
       
       // Clean up summary to never say "Not found"
       if (!parsedData.summary || parsedData.summary.includes("not found") || parsedData.summary.includes("Not found")) {
+        parsedData.summary = "";
+      }
+      
+      // Fix for random hash-like strings that sometimes appear as placeholders
+      if (parsedData.summary && (
+          parsedData.summary.match(/[a-f0-9]{16}/) || // Check for hash-like patterns
+          parsedData.summary.includes(":") && parsedData.summary.length < 100 // Check for potential placeholder tokens
+      )) {
+        console.log('Detected potential placeholder in summary, clearing field');
         parsedData.summary = "";
       }
       

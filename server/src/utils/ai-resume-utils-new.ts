@@ -37,7 +37,7 @@ ${skills.join(', ')}
 Key ATS Keywords From Job Description:
 ${jobKeywords.join(', ')}
 
-Please write a VERY CONCISE professional summary with EXACTLY 300 characters or less (including spaces).
+Please write a VERY CONCISE professional summary with UPTO 250 characters or less (including spaces).
 The summary should:
 1. Highlight the applicant's relevant experience and skills that MATCH the job description
 2. Strategically incorporate 3-5 of the most important ATS keywords from the job description
@@ -46,7 +46,7 @@ The summary should:
 5. Showcase quantifiable achievements where possible
 
 Do not use first person pronouns (I, me, my). Use third person or implied first person.
-THE RETURNED TEXT MUST BE 300 CHARACTERS OR LESS (INCLUDING SPACES). This is critically important.
+THE RETURNED TEXT MUST BE 250 CHARACTERS OR LESS (INCLUDING SPACES) and MUST END WITH A COMPLETE SENTENCE and PROPER PUNCTUATION.
 `;
 
     const response = await OpenAIApi.chat({
@@ -58,9 +58,35 @@ THE RETURNED TEXT MUST BE 300 CHARACTERS OR LESS (INCLUDING SPACES). This is cri
 
     let summary = response.choices[0]?.message?.content?.trim() || "";
     
+    // Server-side safety checks to ensure the summary is well-formed
+    // First check for placeholder or hash-like strings that shouldn't be in summaries
+    if (summary.match(/[a-f0-9]{16}/) || // Check for hash-like patterns
+        (summary.includes(":") && summary.length < 100)) { // Check for potential placeholder tokens
+      console.log("Detected placeholder in summary, clearing field");
+      return "";
+    }
+    
+    // Check if summary ends with proper punctuation
+    if (summary && !summary.endsWith('.') && !summary.endsWith('!') && !summary.endsWith('?')) {
+      summary = summary.trim() + '.';
+    }
+    
+    // Fix double periods that might occur from trimming
+    summary = summary.replace(/\.+$/, '.').trim();
+    
     // Ensure the summary is not longer than 300 characters
     if (summary.length > 300) {
-      summary = summary.substring(0, 297) + "...";
+      const lastSentenceEnd = Math.max(
+        summary.lastIndexOf('.'), 
+        summary.lastIndexOf('!'), 
+        summary.lastIndexOf('?')
+      );
+      
+      if (lastSentenceEnd > 0 && lastSentenceEnd < 290) {
+        summary = summary.substring(0, lastSentenceEnd + 1);
+      } else {
+        summary = summary.substring(0, 297) + "...";
+      }
     }
     
     return summary;
