@@ -10,6 +10,7 @@ import { Check, X, Sparkles } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import SharedHeader from '@/components/layouts/shared-header';
 import SharedFooter from '@/components/layouts/SharedFooter';
+import { useBranding } from '@/components/branding/branding-provider';
 
 // Reuse the interfaces from the subscription page
 interface SubscriptionPlan {
@@ -49,6 +50,7 @@ interface PlanFeature {
 
 const PricingPage: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const branding = useBranding();
 
   // Fetch available plans
   const { data: plansData, isLoading: isPlansLoading } = useQuery({
@@ -206,26 +208,26 @@ const PricingPage: React.FC = () => {
   return (
     <div ref={containerRef} className="relative min-h-screen overflow-hidden">
       <Head>
-        <title>Pricing | ATScribe | AI-Powered Resume Builder for Students</title>
-        <meta name="description" content="Choose the perfect plan for your needs. ATScribe offers affordable pricing options for students and career professionals." />
+        <title>Pricing | {branding.appName} | AI-Powered Resume Builder for Students</title>
+        <meta name="description" content="Choose the perfect plan for your needs. {branding.appName} offers affordable pricing options for students and career professionals." />
         <meta name="keywords" content="resume pricing, affordable resume tools, resume builder plans, student pricing" />
         
         {/* Open Graph / Facebook */}
         <meta property="og:type" content="website" />
-        <meta property="og:url" content="https://ATScribe.com/pricing" />
-        <meta property="og:title" content="Pricing | ATScribe | AI-Powered Resume Builder" />
-        <meta property="og:description" content="Choose the perfect plan for your needs. ATScribe offers affordable pricing options for students and career professionals." />
-        <meta property="og:image" content="https://ATScribe.com/images/pricing-og-image.jpg" />
+        <meta property="og:url" content={`https://${branding.appName}.com/pricing`} />
+        <meta property="og:title" content={`Pricing | ${branding.appName} | AI-Powered Resume Builder`} />
+        <meta property="og:description" content={`Choose the perfect plan for your needs. ${branding.appName} offers affordable pricing options for students and career professionals.`} />
+        <meta property="og:image" content={`https://${branding.appName}.com/images/pricing-og-image.jpg`} />
         
         {/* Twitter */}
         <meta property="twitter:card" content="summary_large_image" />
-        <meta property="twitter:url" content="https://ATScribe.com/pricing" />
-        <meta property="twitter:title" content="Pricing | ATScribe | AI-Powered Resume Builder" />
-        <meta property="twitter:description" content="Choose the perfect plan for your needs. ATScribe offers affordable pricing options for students and career professionals." />
-        <meta property="twitter:image" content="https://ATScribe.com/images/pricing-og-image.jpg" />
+        <meta property="twitter:url" content={`https://${branding.appName}.com/pricing`} />
+        <meta property="twitter:title" content={`Pricing | ${branding.appName} | AI-Powered Resume Builder`} />
+        <meta property="twitter:description" content={`Choose the perfect plan for your needs. ${branding.appName} offers affordable pricing options for students and career professionals.`} />
+        <meta property="twitter:image" content={`https://${branding.appName}.com/images/pricing-og-image.jpg`} />
         
         {/* Canonical URL */}
-        <link rel="canonical" href="https://ATScribe.com/pricing" />
+        <link rel="canonical" href={`https://${branding.appName}.com/pricing`} />
       </Head>
       
       {/* Header */}
@@ -329,7 +331,7 @@ const PricingPage: React.FC = () => {
             
               {/* Key Benefits Section - Added to highlight value */}
               <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 mb-24">
-                <h2 className="text-3xl font-bold text-center mb-16">Why Choose ATScribe?</h2>
+                <h2 className="text-3xl font-bold text-center mb-16">Why Choose {branding.appName}?</h2>
                 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
                   <div className="bg-white p-6 rounded-lg shadow-sm hover:shadow-md transition-all text-center flex flex-col items-center group hover:-translate-y-1 duration-300">
@@ -490,9 +492,9 @@ const PricingPage: React.FC = () => {
           <div className="inline-block px-3 py-1 bg-indigo-500/30 rounded-full text-sm font-medium mb-6">
             🚀 New Launch
           </div>
-          <h2 className="text-3xl md:text-4xl font-bold mb-6">Be Among the First to Experience ATScribe</h2>
+          <h2 className="text-3xl md:text-4xl font-bold mb-6">Be Among the First to Experience {branding.appName}</h2>
           <p className="text-xl text-indigo-200 max-w-3xl mx-auto mb-8">
-            We're excited to introduce ATScribe - our AI-powered platform designed to help students and early career professionals land their dream jobs with ATS-optimized resumes and cover letters.
+            We're excited to introduce {branding.appName} - our AI-powered platform designed to help students and early career professionals land their dream jobs with ATS-optimized resumes and cover letters.
           </p>
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto mb-10">
@@ -579,7 +581,7 @@ const PricingPage: React.FC = () => {
           
           <div className="mt-10 text-center">
             <p className="text-gray-600 mb-4">Still have questions? We're here to help!</p>
-            <a href="mailto:support@ATScribe.com" className="text-indigo-600 hover:text-indigo-800 font-medium">
+            <a href={`mailto:support@${branding.appName}.com`} className="text-indigo-600 hover:text-indigo-800 font-medium">
               Contact our support team →
             </a>
           </div>
@@ -590,7 +592,7 @@ const PricingPage: React.FC = () => {
       <div className="bg-gradient-to-r from-indigo-950 via-indigo-900 to-purple-900 text-white py-16 md:py-20">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-3xl md:text-4xl font-bold mb-6">Ready to boost your career prospects?</h2>
-          <p className="text-xl text-indigo-200 mb-8">Join thousands of students and professionals who have transformed their job search with ATScribe.</p>
+          <p className="text-xl text-indigo-200 mb-8">Join thousands of students and professionals who have transformed their job search with {branding.appName}.</p>
           <div className="flex flex-col sm:flex-row justify-center gap-4">
             <Link href="/register?planId=1">
               <a className="px-8 py-4 bg-green-600 hover:bg-green-700 rounded-md font-medium transition-colors inline-block text-lg">
@@ -598,7 +600,7 @@ const PricingPage: React.FC = () => {
                 <p className="text-xs mt-1 font-normal">No Credit Card Required</p>
               </a>
             </Link>
-            <a href="mailto:contact@ATScribe.com" className="px-8 py-4 bg-transparent border border-white hover:bg-white/10 text-white font-medium rounded-md transition-colors inline-block">
+            <a href={`mailto:contact@${branding.appName}.com`} className="px-8 py-4 bg-transparent border border-white hover:bg-white/10 text-white font-medium rounded-md transition-colors inline-block">
               Contact Sales
             </a>
           </div>

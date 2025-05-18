@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'wouter';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useAuth } from '@/hooks/use-auth';
+import { useBranding } from '@/components/branding/branding-provider';
 
 type SharedHeaderProps = {
   isLandingPage?: boolean;
@@ -9,6 +10,7 @@ type SharedHeaderProps = {
 };
 
 export default function SharedHeader({ isLandingPage = false, forceBackground = false }: SharedHeaderProps) {
+  const branding = useBranding();
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { user } = useAuth();
@@ -39,7 +41,7 @@ export default function SharedHeader({ isLandingPage = false, forceBackground = 
       {/* Header */}
       <header className={`fixed top-0 left-0 right-0 z-50 flex justify-between items-center p-4 md:p-6 transition-all duration-300 ${isScrolled || forceBackground ? 'bg-indigo-950/95 shadow-md backdrop-blur-sm' : 'bg-transparent'}`}>
         <Link href="/" className="text-xl md:text-2xl font-bold text-white">
-          ATScribe
+          {branding.appName}
         </Link>
         
         {/* Desktop Navigation */}

@@ -43,6 +43,24 @@ export const appSettings = pgTable("app_settings", {
   updatedAt: timestamp("updated_at").defaultNow()
 });
 
+// Branding Settings Schema
+export const brandingSettings = pgTable("branding_settings", {
+  id: serial("id").primaryKey(),
+  appName: text("app_name").notNull().default("ProsumeAI"),
+  appTagline: text("app_tagline").default("AI-powered resume and career tools"),
+  logoUrl: text("logo_url").default("/logo.png"),
+  faviconUrl: text("favicon_url").default("/favicon.ico"),
+  enableDarkMode: boolean("enable_dark_mode").default(true).notNull(),
+  primaryColor: text("primary_color").default("#4f46e5").notNull(),
+  secondaryColor: text("secondary_color").default("#10b981").notNull(),
+  accentColor: text("accent_color").default("#f97316").notNull(),
+  footerText: text("footer_text").default("© 2023 ProsumeAI. All rights reserved."),
+  customCss: text("custom_css"),
+  customJs: text("custom_js"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow()
+});
+
 // Job Descriptions Schema
 export const jobDescriptions = pgTable("job_descriptions", {
   id: serial("id").primaryKey(),
@@ -507,6 +525,21 @@ export const paymentWebhookEvents = pgTable("payment_webhook_events", {
   createdAt: timestamp("created_at").defaultNow()
 });
 
+// SMTP Settings Schema
+export const smtpSettings = pgTable("smtp_settings", {
+  id: serial("id").primaryKey(),
+  host: text("host").notNull(),
+  port: text("port").notNull().default("587"),
+  username: text("username").notNull(),
+  password: text("password").notNull(),
+  encryption: text("encryption").notNull().default("tls"), // 'none', 'ssl', 'tls'
+  senderName: text("sender_name").notNull().default("atScribe"),
+  senderEmail: text("sender_email").notNull().default("no-reply@atscribe.com"),
+  enabled: boolean("enabled").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow()
+});
+
 // Insert Schemas
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -515,6 +548,12 @@ export const insertUserSchema = createInsertSchema(users).omit({
 });
 
 export const insertAppSettingsSchema = createInsertSchema(appSettings).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+
+export const insertBrandingSettingsSchema = createInsertSchema(brandingSettings).omit({
   id: true,
   createdAt: true,
   updatedAt: true
@@ -652,9 +691,16 @@ export const insertPaymentWebhookEventSchema = createInsertSchema(paymentWebhook
   createdAt: true
 });
 
+export const insertSmtpSettingsSchema = createInsertSchema(smtpSettings).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type AppSetting = typeof appSettings.$inferSelect;
+export type BrandingSetting = typeof brandingSettings.$inferSelect;
 export type JobDescription = typeof jobDescriptions.$inferSelect;
 export type Resume = typeof resumes.$inferSelect;
 export type CoverLetter = typeof coverLetters.$inferSelect;
@@ -665,6 +711,7 @@ export type ApiKey = typeof apiKeys.$inferSelect;
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type InsertAppSetting = z.infer<typeof insertAppSettingsSchema>;
+export type InsertBrandingSetting = z.infer<typeof insertBrandingSettingsSchema>;
 export type InsertJobDescription = z.infer<typeof insertJobDescriptionSchema>;
 export type InsertResume = z.infer<typeof insertResumeSchema>;
 export type InsertCoverLetter = z.infer<typeof insertCoverLetterSchema>;
@@ -702,6 +749,9 @@ export type PaymentWebhookEvent = typeof paymentWebhookEvents.$inferSelect;
 export type InsertPaymentGatewayConfig = z.infer<typeof insertPaymentGatewayConfigSchema>;
 export type InsertPaymentMethod = z.infer<typeof insertPaymentMethodSchema>;
 export type InsertPaymentWebhookEvent = z.infer<typeof insertPaymentWebhookEventSchema>;
+
+export type SmtpSettings = typeof smtpSettings.$inferSelect;
+export type InsertSmtpSettings = z.infer<typeof insertSmtpSettingsSchema>;
 
 // Resume-related type definitions for frontend
 export type WorkExperience = {

@@ -82,8 +82,6 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
     { name: "Templates", href: "/admin/templates", icon: FileText },
     { name: "Users", href: "/admin/users", icon: Users },
     { name: "Backups", href: "/admin/backups", icon: Database },
-    { name: "Settings", href: "/admin/settings", icon: Settings },
-    { name: "Logs", href: "/admin/logs", icon: ScrollText },
     { name: "API Keys", href: "/admin/api-keys", icon: Key },
     { name: "Email Templates", href: "/admin/email-templates", icon: Mail },
     { name: "Integrations", href: "/admin/integrations", icon: Plug2 },
@@ -92,6 +90,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
     { name: "System Status", href: "/admin/system-status", icon: Server },
     { name: "Subscriptions", href: "/admin/subscriptions", icon: CreditCard },
     { name: "Tools", href: "/admin/tools", icon: Wrench },
+    { name: "Settings", href: "/admin/settings", icon: Settings },
   ];
 
   return (

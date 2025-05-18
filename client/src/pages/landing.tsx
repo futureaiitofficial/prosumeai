@@ -7,8 +7,10 @@ import Testimonial from '@/components/Testimonial';
 import { useParallaxY, useParallaxOpacity, useParallaxRotate, useParallaxScale } from '@/utils/animation';
 import SharedHeader from '@/components/layouts/shared-header';
 import SharedFooter from '@/components/layouts/SharedFooter';
+import { useBranding } from '@/components/branding/branding-provider';
 
 export default function LandingPage() {
+  const branding = useBranding();
   const containerRef = useRef<HTMLDivElement>(null);
   const heroButtonsRef = useRef<HTMLDivElement>(null);
   const [scrollY, setScrollY] = useState(0);
@@ -21,88 +23,107 @@ export default function LandingPage() {
     offset: ["start start", "end end"]
   });
   
-  // Smooth spring animation for scroll progress
+  // Improved spring animation for scroll progress - reduced stiffness for smoother motion
   const smoothScrollYProgress = useSpring(scrollYProgress, {
-    stiffness: 100,
-    damping: 30,
-    restDelta: 0.001
+    stiffness: 50, // Reduced from 100
+    damping: 20, // Reduced from 30
+    restDelta: 0.0005 // Smaller value for more precision
   });
 
-  // Effect for tracking scroll position
+  // Effect for tracking scroll position and adding smooth scroll behavior to the document
   useEffect(() => {
+    // Add smooth scroll behavior to the entire document
+    document.documentElement.style.scrollBehavior = 'smooth';
+    
     const handleScroll = () => {
-      setScrollY(window.scrollY);
+      // Use requestAnimationFrame for better performance
+      requestAnimationFrame(() => {
+        setScrollY(window.scrollY);
+      });
     };
     
-    window.addEventListener('scroll', handleScroll);
+    window.addEventListener('scroll', handleScroll, { passive: true });
     setIsReady(true);
     
     return () => {
       window.removeEventListener('scroll', handleScroll);
+      // Reset scroll behavior when component unmounts
+      document.documentElement.style.scrollBehavior = 'auto';
     };
   }, []);
 
-  // Advanced parallax values
-  const y1 = useTransform(smoothScrollYProgress, [0, 1], [0, -300]);
-  const y2 = useTransform(smoothScrollYProgress, [0, 1], [0, -200]);
-  const y3 = useTransform(smoothScrollYProgress, [0, 1], [0, -100]);
-  const scale1 = useParallaxScale(smoothScrollYProgress, [0, 0.3], [1, 0.85]);
+  // Optimized parallax values with reduced computation
+  const y1 = useTransform(smoothScrollYProgress, [0, 1], [0, -200]); // Reduced distance
+  const y2 = useTransform(smoothScrollYProgress, [0, 1], [0, -150]); // Reduced distance
+  const y3 = useTransform(smoothScrollYProgress, [0, 1], [0, -80]); // Reduced distance
+  const scale1 = useParallaxScale(smoothScrollYProgress, [0, 0.3], [1, 0.9]); // Less scaling
   const opacity1 = useParallaxOpacity(smoothScrollYProgress, [0, 0.3], [1, 0]);
   const opacity2 = useParallaxOpacity(smoothScrollYProgress, [0.1, 0.4], [0, 1]);
   const heroOpacity = useParallaxOpacity(scrollYProgress, [0, 0.3], [1, 0]);
-  const rotate1 = useParallaxRotate(smoothScrollYProgress, 10);
-  const rotate2 = useParallaxRotate(smoothScrollYProgress, -5);
+  const rotate1 = useParallaxRotate(smoothScrollYProgress, 5); // Reduced rotation
+  const rotate2 = useParallaxRotate(smoothScrollYProgress, -3); // Reduced rotation
 
-  // Calculate dynamic hero size
+  // Calculate dynamic hero size with smaller range
   const heroMinHeight = useTransform(
     smoothScrollYProgress,
     [0, 0.2],
-    ['100vh', '80vh']
+    ['100vh', '85vh']
   );
 
-  // Section animations
+  // Section animations - reduced motion for better performance
   const sectionAnimationProps = {
-    initial: { opacity: 0, y: 50 },
+    initial: { opacity: 0, y: 30 }, // Less movement
     whileInView: { opacity: 1, y: 0 },
-    viewport: { once: true, margin: "-100px" },
-    transition: { duration: 0.8, ease: [0.25, 0.1, 0.25, 1.0] }
+    viewport: { once: true, margin: "-50px" }, // Smaller margin
+    transition: { duration: 0.6, ease: [0.25, 0.1, 0.25, 1.0] } // Shorter duration
   };
 
-  // Hero button animations
+  // Hero button animations - simplified for better performance
   const buttonVariants = {
-    hidden: { opacity: 0, y: 20 },
+    hidden: { opacity: 0, y: 15 }, // Less movement
     visible: (i: number) => ({
       opacity: 1,
       y: 0,
       transition: {
-        delay: i * 0.2 + 0.6,
-        duration: 0.8,
+        delay: i * 0.15 + 0.4, // Reduced delays
+        duration: 0.6, // Shorter duration
         ease: [0.25, 0.1, 0.25, 1.0]
       }
     }),
     hover: { 
-      scale: 1.05,
-      boxShadow: "0 10px 25px -5px rgba(79, 70, 229, 0.4)",
+      scale: 1.03, // Reduced scale
+      boxShadow: "0 8px 20px -5px rgba(79, 70, 229, 0.4)", // Smaller shadow
       transition: { 
         type: "spring", 
-        stiffness: 400, 
-        damping: 10
+        stiffness: 300, // Reduced stiffness
+        damping: 15
       }
     },
     tap: { 
       scale: 0.98,
-      boxShadow: "0 5px 15px -5px rgba(79, 70, 229, 0.4)",
+      boxShadow: "0 5px 10px -5px rgba(79, 70, 229, 0.4)", // Smaller shadow
     }
   };
 
-  // Floating blobs animation
+  // Floating blobs animation - simpler and smoother
   const floatingAnimation = {
-    y: [0, -20, 0],
+    y: [0, -15, 0], // Reduced movement range
     transition: {
-      duration: 6,
+      duration: 8, // Slower for smoother effect
       repeat: Infinity,
       repeatType: "reverse" as const,
       ease: "easeInOut"
+    }
+  };
+
+  // Helper function for smooth scrolling to elements
+  const scrollToElement = (elementId: string) => {
+    const element = document.getElementById(elementId);
+    if (element) {
+      element.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      });
     }
   };
 
@@ -124,36 +145,28 @@ export default function LandingPage() {
           }}
           animate={{ backgroundPosition: ["0px 0px", "100px 100px"] }}
           transition={{ 
-            duration: 20, 
+            duration: 30, // Slower for smoother effect
             ease: "linear", 
             repeat: Infinity, 
             repeatType: "reverse" 
           }}
         ></motion.div>
         
-        {/* Animated floating blobs with enhanced parallax */}
+        {/* Animated floating blobs with enhanced parallax - reduced number of animations */}
         <motion.div 
           className="absolute w-[600px] h-[600px] rounded-full bg-indigo-500/20 blur-3xl -left-64 -top-64"
-          style={{ y: useTransform(smoothScrollYProgress, [0, 1], [0, -150]) }}
+          style={{ y: useTransform(smoothScrollYProgress, [0, 1], [0, -100]) }}
           animate={floatingAnimation}
         ></motion.div>
         <motion.div 
           className="absolute w-[500px] h-[500px] rounded-full bg-purple-500/20 blur-3xl -right-32 top-64"
           style={{ 
-            y: useTransform(smoothScrollYProgress, [0, 1], [0, -200]),
+            y: useTransform(smoothScrollYProgress, [0, 1], [0, -120]),
             rotate: rotate2
           }}
           animate={{
             ...floatingAnimation,
             transition: { ...floatingAnimation.transition, delay: 1 }
-          }}
-        ></motion.div>
-        <motion.div 
-          className="absolute w-[700px] h-[700px] rounded-full bg-blue-500/20 blur-3xl left-1/2 -bottom-96"
-          style={{ y: useTransform(smoothScrollYProgress, [0, 1], [0, -250]) }}
-          animate={{
-            ...floatingAnimation,
-            transition: { ...floatingAnimation.transition, delay: 2 }
           }}
         ></motion.div>
 
@@ -253,7 +266,10 @@ export default function LandingPage() {
                 whileTap="tap"
                 className="w-full sm:w-auto flex"
               >
-                <a href="#features" className="inline-flex items-center justify-center px-8 py-4 border-2 border-indigo-400 text-indigo-200 hover:bg-indigo-800/30 hover:border-indigo-300 hover:text-indigo-100 font-medium rounded-md transition-all duration-300 w-full h-[56px] sm:w-auto min-w-[180px]">
+                <a 
+                  onClick={() => scrollToElement('features')} 
+                  className="inline-flex items-center justify-center px-8 py-4 border-2 border-indigo-400 text-indigo-200 hover:bg-indigo-800/30 hover:border-indigo-300 hover:text-indigo-100 font-medium rounded-md transition-all duration-300 w-full h-[56px] sm:w-auto min-w-[180px] cursor-pointer"
+                >
                   <span className="flex items-center">
                     <span>Explore Features</span>
                   </span>
@@ -267,9 +283,9 @@ export default function LandingPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.2 }}
             style={{ 
-              y: useTransform(smoothScrollYProgress, [0, 0.5], [0, 100]),
-              scale: useTransform(smoothScrollYProgress, [0, 0.5], [1, 0.9]),
-              rotate: useParallaxRotate(smoothScrollYProgress, 2)
+              y: useTransform(smoothScrollYProgress, [0, 0.5], [0, 60]), // Less movement for better performance
+              scale: useTransform(smoothScrollYProgress, [0, 0.5], [1, 0.95]),
+              rotate: useParallaxRotate(smoothScrollYProgress, 1) // Reduced rotation
             }}
             className="lg:w-1/2 w-full max-w-md lg:max-w-none mx-auto z-10"
           >
@@ -277,7 +293,7 @@ export default function LandingPage() {
               <motion.div 
                 className="absolute -inset-0.5 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-lg blur opacity-30"
                 animate={{ 
-                  opacity: [0.2, 0.4, 0.2],
+                  opacity: [0.2, 0.3, 0.2], // Reduced range for smoother animation
                   background: [
                     "linear-gradient(to right, #6366f1, #a855f7)",
                     "linear-gradient(to right, #8b5cf6, #ec4899)",
@@ -285,7 +301,7 @@ export default function LandingPage() {
                   ]
                 }}
                 transition={{ 
-                  duration: 8, 
+                  duration: 10, // Slower for smoother effect
                   repeat: Infinity,
                   repeatType: "reverse" 
                 }}
@@ -294,13 +310,13 @@ export default function LandingPage() {
                 className="relative bg-slate-900 rounded-lg border border-slate-800 shadow-xl overflow-hidden"
                 whileHover={{ 
                   scale: 1.01,
-                  boxShadow: "0 25px 50px -12px rgba(79, 70, 229, 0.4)"
+                  boxShadow: "0 20px 40px -10px rgba(79, 70, 229, 0.4)"
                 }}
-                transition={{ type: "spring", stiffness: 300, damping: 15 }}
+                transition={{ type: "spring", stiffness: 200, damping: 20 }}
               >
                 <img 
                   src="/images/dashboard-preview.svg" 
-                  alt="ATScribe Dashboard - AI-powered ATS resume builder and job application tracker" 
+                  alt={`${branding.appName} Dashboard - AI-powered ATS resume builder and job application tracker`} 
                   className="w-full h-auto" 
                 />
                 <motion.div 
@@ -343,12 +359,12 @@ export default function LandingPage() {
             viewport={{ once: true, margin: "-100px" }}
             transition={{ duration: 0.6 }}
           >
-            <span className="text-xs font-semibold uppercase tracking-wider text-indigo-600 mb-2 md:mb-4 inline-block">WHY CHOOSE ATSCRIBE</span>
+            <span className="text-xs font-semibold uppercase tracking-wider text-indigo-600 mb-2 md:mb-4 inline-block">WHY CHOOSE {branding.appName.toUpperCase()}</span>
             <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mb-6">
               The Complete Job Application Solution
             </h2>
             <p className="text-slate-600 max-w-3xl mx-auto">
-              ATScribe combines advanced AI technology with affordable pricing to give students and early career professionals the edge they need in today's competitive job market.
+              {branding.appName} combines advanced AI technology with affordable pricing to give students and early career professionals the edge they need in today's competitive job market.
             </p>
           </motion.div>
           
@@ -452,7 +468,7 @@ export default function LandingPage() {
         <motion.div 
           className="absolute -left-64 top-0 w-[500px] h-[500px] rounded-full bg-indigo-100 blur-3xl opacity-50"
           style={{ 
-            y: useTransform(smoothScrollYProgress, [0.2, 0.4], [100, -100])
+            y: useTransform(smoothScrollYProgress, [0.2, 0.4], [50, -50]) // Reduced range
           }}
         ></motion.div>
         
@@ -463,7 +479,7 @@ export default function LandingPage() {
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ duration: 0.6 }}
+                transition={{ duration: 0.5 }} // Faster animation
                 className="text-2xl md:text-3xl font-bold text-slate-900 mb-4 md:mb-6 text-center lg:text-left"
               >
                 ATS-Optimized<br/>
@@ -473,7 +489,7 @@ export default function LandingPage() {
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ duration: 0.6, delay: 0.2 }}
+                transition={{ duration: 0.5, delay: 0.1 }} // Faster with shorter delay
                 className="text-slate-600 mb-6 md:mb-8 text-center lg:text-left"
               >
                 Our intelligent AI analyzes job descriptions to create perfectly tailored resumes that pass ATS filters and highlight your key achievements. Get real-time ATS scores and personalized suggestions to optimize each section of your resume.
@@ -511,10 +527,10 @@ export default function LandingPage() {
                 initial={{ opacity: 0, scale: 0.95 }}
                 whileInView={{ opacity: 1, scale: 1 }}
                 viewport={{ once: true }}
-                transition={{ duration: 0.4 }}
+                transition={{ duration: 0.3 }} // Faster animation
                 className="bg-white p-6 rounded-lg shadow-md border border-slate-100 col-span-2 hover:shadow-xl transition-all duration-300"
                 style={{
-                  y: useTransform(smoothScrollYProgress, [0.25, 0.35], [50, 0])
+                  y: useTransform(smoothScrollYProgress, [0.25, 0.35], [30, 0]) // Reduced movement
                 }}
               >
                 <h3 className="text-lg font-semibold text-indigo-700 mb-3">ATS Score Optimization</h3>
@@ -523,7 +539,7 @@ export default function LandingPage() {
                     <span className="text-sm font-medium text-slate-700">Current Score</span>
                     <span className="text-indigo-600 font-bold">85%</span>
                   </div>
-                  <div className="w-full bg-slate-200 rounded-full h-2.5">
+                  <div className="will-change-transform w-full bg-slate-200 rounded-full h-2.5">
                     <div className="bg-indigo-600 h-2.5 rounded-full" style={{ width: '85%' }}></div>
                   </div>
                 </div>
@@ -534,10 +550,10 @@ export default function LandingPage() {
                 initial={{ opacity: 0, scale: 0.95 }}
                 whileInView={{ opacity: 1, scale: 1 }}
                 viewport={{ once: true }}
-                transition={{ duration: 0.4, delay: 0.1 }}
+                transition={{ duration: 0.3, delay: 0.1 }} // Faster with shorter delay
                 className="bg-white p-6 rounded-lg shadow-md border border-slate-100 col-span-2 hover:shadow-xl transition-all duration-300"
                 style={{
-                  y: useTransform(smoothScrollYProgress, [0.25, 0.35], [25, -25])
+                  y: useTransform(smoothScrollYProgress, [0.25, 0.35], [15, -15]) // Reduced movement
                 }}
               >
                 <h3 className="text-lg font-semibold text-indigo-700 mb-3">Keywords Extracted</h3>
@@ -555,9 +571,9 @@ export default function LandingPage() {
         </div>
       </motion.section>
 
-      {/* Feature categories ribbon */}
+      {/* Feature categories ribbon - using CSS instead of JS animation for better performance */}
       <div className="bg-indigo-100 py-3 md:py-4 overflow-hidden">
-        <div className="flex space-x-8 md:space-x-12 animate-marquee whitespace-nowrap">
+        <div className="flex space-x-8 md:space-x-12 animate-marquee whitespace-nowrap will-change-transform">
           <span className="text-indigo-600 font-medium text-sm md:text-base mx-3 md:mx-4">✦ ATS optimization</span>
           <span className="text-indigo-600 font-medium text-sm md:text-base mx-3 md:mx-4">✦ tailored resumes</span>
           <span className="text-indigo-600 font-medium text-sm md:text-base mx-3 md:mx-4">✦ smart cover letters</span>
@@ -577,32 +593,32 @@ export default function LandingPage() {
         <motion.div 
           className="absolute -right-64 -top-64 w-[500px] h-[500px] rounded-full bg-purple-500/20 blur-3xl"
           style={{ 
-            y: useTransform(smoothScrollYProgress, [0.8, 1], [0, -100]),
-            x: useTransform(smoothScrollYProgress, [0.8, 1], [0, -50])
+            y: useTransform(smoothScrollYProgress, [0.8, 1], [0, -50]), // Reduced movement
+            x: useTransform(smoothScrollYProgress, [0.8, 1], [0, -30]) // Reduced movement
           }}
         ></motion.div>
         
         <motion.div 
           className="absolute -left-64 -bottom-64 w-[600px] h-[600px] rounded-full bg-indigo-500/20 blur-3xl"
           style={{ 
-            y: useTransform(smoothScrollYProgress, [0.8, 1], [0, 100]),
-            x: useTransform(smoothScrollYProgress, [0.8, 1], [0, -50])
+            y: useTransform(smoothScrollYProgress, [0.8, 1], [0, 50]), // Reduced movement
+            x: useTransform(smoothScrollYProgress, [0.8, 1], [0, -30]) // Reduced movement
           }}
         ></motion.div>
         
         <div className="container mx-auto px-4 text-center relative z-10">
           <motion.div 
             className="max-w-3xl mx-auto"
-            initial={{ opacity: 0, y: 30 }}
+            initial={{ opacity: 0, y: 20 }} // Reduced movement
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
+            transition={{ duration: 0.5 }} // Faster animation
           >
             <h2 className="text-3xl md:text-4xl font-bold text-white mb-6">
               Begin Your Job Search Journey Today
             </h2>
             <p className="text-xl text-indigo-100 mb-8 md:mb-10">
-              ATScribe offers the most affordable, AI-powered tools to help students and early career professionals land their dream jobs. Join now and transform your job search experience.
+              {branding.appName} offers the most affordable, AI-powered tools to help students and early career professionals land their dream jobs. Join now and transform your job search experience.
             </p>
             <div className="flex flex-col sm:flex-row justify-center gap-4">
               <motion.div
@@ -617,7 +633,7 @@ export default function LandingPage() {
                     <motion.span
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
-                      transition={{ duration: 0.3, delay: 0.8 }}
+                      transition={{ duration: 0.3, delay: 0.4 }} // Faster with shorter delay
                       className="mr-2"
                     >
                       Get Started Free
@@ -625,7 +641,7 @@ export default function LandingPage() {
                     <motion.svg 
                       className="w-5 h-5" 
                       animate={{ x: [0, 5, 0] }}
-                      transition={{ duration: 1.5, repeat: Infinity, repeatType: "reverse", repeatDelay: 2 }}
+                      transition={{ duration: 2, repeat: Infinity, repeatType: "reverse", repeatDelay: 3 }} // Slower for less jank
                       fill="none" 
                       stroke="currentColor" 
                       viewBox="0 0 24 24"
@@ -649,40 +665,40 @@ export default function LandingPage() {
             </div>
             <div className="mt-10 md:mt-12 grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-8">
               <motion.div 
-                initial={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0, y: 15 }} // Reduced movement
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ duration: 0.4 }}
+                transition={{ duration: 0.3 }} // Faster animation
                 className="bg-white/10 backdrop-blur-sm p-4 rounded-lg"
               >
                 <h3 className="text-white font-semibold mb-1">Student-Friendly</h3>
                 <p className="text-indigo-200 text-sm">Affordable pricing for students</p>
               </motion.div>
               <motion.div 
-                initial={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0, y: 15 }} // Reduced movement
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ duration: 0.4, delay: 0.1 }}
+                transition={{ duration: 0.3, delay: 0.05 }} // Faster with shorter delay
                 className="bg-white/10 backdrop-blur-sm p-4 rounded-lg"
               >
                 <h3 className="text-white font-semibold mb-1">ATS-Optimized</h3>
                 <p className="text-indigo-200 text-sm">Get past the digital gatekeepers</p>
               </motion.div>
               <motion.div 
-                initial={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0, y: 15 }} // Reduced movement
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ duration: 0.4, delay: 0.2 }}
+                transition={{ duration: 0.3, delay: 0.1 }} // Faster with shorter delay
                 className="bg-white/10 backdrop-blur-sm p-4 rounded-lg"
               >
                 <h3 className="text-white font-semibold mb-1">Secure</h3>
                 <p className="text-indigo-200 text-sm">End-to-end data encryption</p>
               </motion.div>
               <motion.div 
-                initial={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0, y: 15 }} // Reduced movement
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ duration: 0.4, delay: 0.3 }}
+                transition={{ duration: 0.3, delay: 0.15 }} // Faster with shorter delay
                 className="bg-white/10 backdrop-blur-sm p-4 rounded-lg"
               >
                 <h3 className="text-white font-semibold mb-1">Advanced AI</h3>
@@ -698,15 +714,15 @@ export default function LandingPage() {
         <div className="container mx-auto px-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             <motion.div 
-              initial={{ opacity: 0, x: 30 }}
+              initial={{ opacity: 0, x: 20 }} // Reduced movement
               whileInView={{ opacity: 1, x: 0 }}
               viewport={{ once: true }}
-              transition={{ duration: 0.6 }}
+              transition={{ duration: 0.5 }}
               className="order-1 md:order-1 mb-8 md:mb-0"
             >
               <div className="relative">
                 <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-xl blur opacity-20"></div>
-                <div className="bg-white relative p-6 md:p-8 rounded-xl border border-slate-100 shadow-lg">
+                <div className="bg-white relative p-6 md:p-8 rounded-xl border border-slate-100 shadow-lg will-change-transform">
                   <h3 className="text-xl font-bold text-indigo-700 mb-4">Cover Letter Generator</h3>
                   <div className="bg-slate-50 p-4 rounded-lg mb-5">
                     <p className="text-sm text-slate-700 italic mb-3">
@@ -735,10 +751,10 @@ export default function LandingPage() {
             </motion.div>
             
             <motion.div 
-              initial={{ opacity: 0, x: -30 }}
+              initial={{ opacity: 0, x: -20 }} // Reduced movement
               whileInView={{ opacity: 1, x: 0 }}
               viewport={{ once: true }}
-              transition={{ duration: 0.6 }}
+              transition={{ duration: 0.5 }}
               className="order-2 md:order-2"
             >
               <span className="text-xs font-semibold uppercase tracking-wider text-indigo-600 mb-2 md:mb-4 inline-block">PERSONALIZED OUTREACH</span>
@@ -927,7 +943,7 @@ export default function LandingPage() {
                 <span className="text-indigo-600">Security</span>
               </h2>
               <p className="text-slate-600 mb-8">
-                We take your privacy seriously. ATScribe employs advanced encryption for all sensitive data, 
+                We take your privacy seriously. {branding.appName} employs advanced encryption for all sensitive data, 
                 ensuring your personal information and job application details remain secure and private.
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
@@ -1122,7 +1138,7 @@ export default function LandingPage() {
               Coming Soon
             </h2>
             <p className="text-slate-600 max-w-3xl mx-auto">
-              We're constantly evolving ATScribe with innovative features to make your job search even more effective.
+              We're constantly evolving {branding.appName} with innovative features to make your job search even more effective.
             </p>
           </div>
           

@@ -1,12 +1,18 @@
 import express from 'express';
 import { truncateText } from '../../openai';
 import { ApiKeyService } from '../utils/ai-key-service';
-import { OpenAIApi } from '../../openai';  // Import the named export
+import { OpenAIApi, parseResume as aiParseResume } from '../../openai';  // Import the parseResume function from openai.ts
 import { db } from '../../config/db';
 import { eq, sql, and } from 'drizzle-orm';
 import { featureUsage, features } from '@shared/schema';
 import { requireUser } from '../../middleware/auth';
 import { requireFeatureAccess, trackFeatureUsage } from '../../middleware/feature-access';
+import { planFeatures } from '@shared/schema';
+import { extractDocumentText } from '../../simple-parser'; // Import the extractDocumentText function
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
+import os from 'os';
 
 // Use latest model for AI calls
 const MODEL = "gpt-4o"; // Using same model as in ai-resume-utils.ts
@@ -510,7 +516,6 @@ router.post('/extract-keywords',
 router.post('/analyze-job-description', 
   requireUser,
   requireFeatureAccess('ai_generation'),
-  trackFeatureUsage('ai_generation'),
   async (req, res) => {
     try {
       const { jobDescription } = req.body;
@@ -521,9 +526,96 @@ router.post('/analyze-job-description',
           error: 'MISSING_JOB_DESCRIPTION'
         });
       }
+
+      // Check if the job description is too long
+      const MAX_DESCRIPTION_LENGTH = 5000;
+      if (jobDescription.length > MAX_DESCRIPTION_LENGTH) {
+        return res.status(400).json({
+          message: `Job description is too long (${jobDescription.length} characters). Maximum length is ${MAX_DESCRIPTION_LENGTH} characters.`,
+          error: 'DESCRIPTION_TOO_LONG'
+        });
+      }
+
+      // Check token usage BEFORE making the API call
+      if (req.isAuthenticated && req.isAuthenticated() && req.user) {
+        try {
+          // Get current usage to check against limits
+          const userId = req.user.id;
+          const feature = await db.select()
+            .from(features)
+            .where(eq(features.code, 'ai_generation'))
+            .limit(1);
+
+          if (feature.length === 0) {
+            return res.status(500).json({
+              message: 'Feature configuration error. Please contact support.',
+              error: 'FEATURE_NOT_FOUND'
+            });
+          }
+
+          const featureId = feature[0].id;
+          
+          const usage = await db.select()
+            .from(featureUsage)
+            .where(and(
+              eq(featureUsage.userId, userId),
+              eq(featureUsage.featureId, featureId)
+            ))
+            .limit(1);
+          
+          // Check if user has enough tokens available
+          if (usage.length > 0) {
+            const currentUsage = usage[0].aiTokenCount || 0;
+            
+            // Safely get token limit from associated plan feature (via an additional query)
+            const planFeature = await db.select({ limitValue: planFeatures.limitValue })
+              .from(planFeatures)
+              .where(eq(planFeatures.featureId, featureId))
+              .limit(1);
+            
+            const tokenLimit = planFeature.length > 0 ? (planFeature[0].limitValue || 0) : 0;
+            const estimatedTokens = 1000; // Estimate tokens for analyze job
+            
+            if (tokenLimit > 0 && currentUsage + estimatedTokens > tokenLimit) {
+              return res.status(429).json({
+                message: 'You have reached your token usage limit. Please try again later or upgrade your plan.',
+                error: 'TOKEN_LIMIT_EXCEEDED',
+                currentUsage,
+                tokenLimit
+              });
+            }
+          }
+        } catch (tokenCheckError) {
+          console.error('Error checking token usage:', tokenCheckError);
+          // Continue processing but log the error
+        }
+      }
       
       try {
+        // Apply tracking BEFORE making the API call
+        if (req.isAuthenticated && req.isAuthenticated() && req.user) {
+          await trackFeatureUsage('ai_generation')(req, res, () => {});
+        }
+
         const result = await analyzeJobDescription(jobDescription);
+        
+        // Validate the result to ensure it contains expected data
+        if (!result || typeof result !== 'object') {
+          throw new Error('Invalid response format from AI service');
+        }
+
+        // Ensure all categories exist
+        const expectedCategories = [
+          'technicalSkills', 'softSkills', 'education', 
+          'responsibilities', 'industryTerms', 'tools', 'certifications'
+        ];
+        
+        const validatedResult: any = {};
+        expectedCategories.forEach(category => {
+          validatedResult[category] = Array.isArray(result[category as keyof typeof result]) 
+            ? result[category as keyof typeof result] 
+            : [];
+        });
         
         // Track token usage for AI-specific metrics
         if (req.isAuthenticated && req.isAuthenticated() && req.user) {
@@ -536,7 +628,7 @@ router.post('/analyze-job-description',
           }
         }
         
-        return res.json(result);
+        return res.json(validatedResult);
       } catch (error: any) {
         console.error('Error analyzing job description:', error);
         
@@ -550,6 +642,11 @@ router.post('/analyze-job-description',
           return res.status(429).json({ 
             message: 'OpenAI API rate limit exceeded. Please try again later.',
             error: 'RATE_LIMIT'
+          });
+        } else if (error.message.includes('token')) {
+          return res.status(429).json({
+            message: 'Token usage limit exceeded. Please try again later or upgrade your plan.',
+            error: 'TOKEN_LIMIT_EXCEEDED'
           });
         }
         
@@ -915,5 +1012,160 @@ ${truncateText(existingContent, 300)}
       });
     }
 });
+
+// Parse resume from uploaded file
+router.post('/parse-resume', 
+  requireUser,
+  requireFeatureAccess('ai_generation'),
+  trackFeatureUsage('ai_generation'),
+  async (req, res) => {
+    if (!req.isAuthenticated() || !req.user) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    
+    try {
+      // Set up temporary storage for the uploaded file
+      const tempDir = path.join(os.tmpdir(), 'resume-uploads');
+      // Ensure the directory exists
+      if (!fs.existsSync(tempDir)) {
+        fs.mkdirSync(tempDir, { recursive: true });
+      }
+      
+      // Set up storage configuration
+      const storage = multer.diskStorage({
+        destination: (req: any, file: any, cb: any) => {
+          cb(null, tempDir);
+        },
+        filename: (req: any, file: any, cb: any) => {
+          // Use unique filename to avoid collisions
+          const uniqueName = `${Date.now()}-${Math.round(Math.random() * 1E9)}${path.extname(file.originalname)}`;
+          cb(null, uniqueName);
+        }
+      });
+      
+      // Set up multer to handle file upload with size limit
+      const upload = multer({
+        storage: storage,
+        limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+        fileFilter: (req: any, file: any, cb: any) => {
+          // Accept docx files
+          const ext = path.extname(file.originalname).toLowerCase();
+          if (ext !== '.docx' && ext !== '.pdf' && ext !== '.doc' && ext !== '.txt') {
+            return cb(new Error('Only .docx, .pdf, .doc, and .txt files are supported'), false);
+          }
+          cb(null, true);
+        }
+      }).single('resume');
+      
+      // Handle file upload using promise wrapper
+      const uploadPromise = new Promise((resolve, reject) => {
+        upload(req, res, (err: any) => {
+          if (err) {
+            console.error('File upload error:', err);
+            reject(err);
+          } else {
+            resolve(req.file);
+          }
+        });
+      });
+      
+      try {
+        // Wait for file to be uploaded
+        const file: any = await uploadPromise;
+        
+        // If no file was uploaded, return an error
+        if (!file) {
+          return res.status(400).json({ 
+            message: "No file was uploaded.", 
+            error: "MISSING_FILE" 
+          });
+        }
+        
+        console.log(`File uploaded to ${file.path}. Parsing resume...`);
+        
+        try {
+          // First use the simple parser to extract text from the document
+          const extractedText = await extractDocumentText(file.path);
+          
+          if (!extractedText || extractedText.trim().length === 0) {
+            throw new Error("Could not extract text from document. The file may be corrupted or password-protected.");
+          }
+          
+          // Use the OpenAI-based parser on the extracted text
+          const resumeData = await aiParseResume(extractedText);
+          
+          // Clean up the temporary file after parsing
+          fs.unlinkSync(file.path);
+          
+          // Track token usage for AI-specific metrics
+          if (req.isAuthenticated() && req.user) {
+            // Approximate token usage for sophisticated parsing
+            const estimatedTokens = Math.min(extractedText.length / 4, 10000);
+            await trackTokenUsage(req.user.id, 'ai_generation', estimatedTokens);
+          }
+          
+          return res.json(resumeData);
+        } catch (parseError: any) {
+          // Clean up the file
+          if (file?.path && fs.existsSync(file.path)) {
+            fs.unlinkSync(file.path);
+          }
+          
+          // Handle specific OpenAI error types
+          if (parseError.name === 'AuthenticationError' || 
+              (parseError.error && parseError.error.type === 'invalid_request_error') ||
+              parseError.message.includes('API key')) {
+            console.error('OpenAI API key error:', parseError);
+            return res.status(503).json({
+              message: "AI service configuration error. Please contact an administrator to set up the OpenAI API key.",
+              error: "API_CONFIGURATION_ERROR"
+            });
+          }
+          
+          // Handle rate limits
+          if (parseError.status === 429 || parseError.message.includes('rate limit')) {
+            return res.status(429).json({
+              message: "AI service is currently overloaded. Please try again in a few minutes.",
+              error: "RATE_LIMIT_EXCEEDED"
+            });
+          }
+          
+          // Re-throw for general error handler
+          throw parseError;
+        }
+      } catch (uploadError: any) {
+        // Handle multer/upload specific errors
+        if (uploadError.message.includes('Only .docx')) {
+          return res.status(400).json({ 
+            message: "Only .docx, .pdf, .doc, and .txt files are supported", 
+            error: "UNSUPPORTED_FILE_TYPE" 
+          });
+        } else if (uploadError.code === 'LIMIT_FILE_SIZE') {
+          return res.status(400).json({ 
+            message: "File size limit exceeded (max 5MB)", 
+            error: "FILE_TOO_LARGE" 
+          });
+        }
+        
+        throw uploadError; // Re-throw for general error handler
+      }
+    } catch (error: any) {
+      console.error('Error parsing resume:', error);
+      
+      // For known OpenAI-related errors that might have been re-thrown
+      if (error.name === 'AuthenticationError' || error.message.includes('API key')) {
+        return res.status(503).json({
+          message: "AI service is not properly configured. Please contact support.",
+          error: "AI_SERVICE_ERROR"
+        });
+      }
+      
+      return res.status(500).json({ 
+        message: "Failed to parse resume: " + (error.message || "Unknown error"), 
+        error: "PARSING_ERROR" 
+      });
+    }
+  }
+);
 
 export default router; 

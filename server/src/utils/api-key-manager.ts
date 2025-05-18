@@ -3,83 +3,106 @@ import { apiKeys } from "@shared/schema";
 import { eq, and, desc } from "drizzle-orm";
 
 /**
- * API Key Manager utility
- * Provides methods to retrieve and manage API keys from the database
+ * API Key Manager - Handles retrieving and caching API keys from 
+ * various sources: database, environment variables, etc.
  */
 export class ApiKeyManager {
+  private static keyCache: Map<string, {
+    key: string;
+    timestamp: number;
+  }> = new Map();
+  
+  private static cacheTTL = 5 * 60 * 1000; // 5 minutes in milliseconds
+  
   /**
-   * Get an active API key for a specific service
-   * @param service The service to get an API key for (e.g., 'openai')
-   * @returns The API key string or null if no active key is found
+   * Get an API key for a specific service
+   * @param service The service name (e.g., 'openai', 'anthropic')
+   * @returns The API key or null if not found
    */
-  static async getActiveKey(service: string = 'openai'): Promise<string | null> {
+  static async getKey(service: string): Promise<string | null> {
+    // Check if we have a cached key that's still valid
+    const cached = this.keyCache.get(service);
+    if (cached && (Date.now() - cached.timestamp) < this.cacheTTL) {
+      return cached.key;
+    }
+    
     try {
-      // Find an active key for the specified service
+      // Get the most recently used active key for this service
       const keys = await db.select()
         .from(apiKeys)
-        .where(
-          and(
-            eq(apiKeys.service, service),
-            eq(apiKeys.isActive, true)
-          )
-        )
-        .orderBy(desc(apiKeys.lastUsed)) // Get most recently used key first
+        .where(and(
+          eq(apiKeys.service, service),
+          eq(apiKeys.isActive, true)
+        ))
+        .orderBy(desc(apiKeys.lastUsed))
         .limit(1);
-
+      
       if (keys.length === 0) {
         console.warn(`No active API key found for service: ${service}`);
         return null;
       }
-
-      const key = keys[0];
       
       // Update the last used timestamp
-      await this.updateLastUsed(key.id);
+      await db.update(apiKeys)
+        .set({ lastUsed: new Date() })
+        .where(eq(apiKeys.id, keys[0].id));
       
-      return key.key;
+      // Cache the key
+      this.keyCache.set(service, {
+        key: keys[0].key,
+        timestamp: Date.now()
+      });
+      
+      return keys[0].key;
     } catch (error) {
-      console.error("Error retrieving API key:", error);
+      console.error(`Error retrieving API key for service ${service}:`, error);
       return null;
     }
   }
-
-  /**
-   * Update the lastUsed timestamp for an API key
-   * @param keyId The ID of the key to update
-   */
-  static async updateLastUsed(keyId: number): Promise<void> {
-    try {
-      await db.update(apiKeys)
-        .set({ lastUsed: new Date() })
-        .where(eq(apiKeys.id, keyId));
-    } catch (error) {
-      console.error("Error updating API key last used timestamp:", error);
-    }
-  }
-
+  
   /**
    * Get an API key with fallback to environment variable
-   * @param service The service to get an API key for (e.g., 'openai')
-   * @param envVarName The name of the environment variable to use as fallback
-   * @returns The API key string or null if no key is found
+   * @param service The service name
+   * @param envVar The environment variable name to use as fallback
+   * @returns The API key or null if not found
    */
-  static async getKeyWithFallback(service: string = 'openai', envVarName: string = 'OPENAI_API_KEY'): Promise<string | null> {
-    // Try to get a key from the database first
-    const dbKey = await this.getActiveKey(service);
-    
-    if (dbKey) {
-      return dbKey;
-    }
+  static async getKeyWithFallback(service: string, envVar: string): Promise<string | null> {
+    // First try from database
+    const dbKey = await this.getKey(service);
+    if (dbKey) return dbKey;
     
     // Fall back to environment variable
-    const envKey = process.env[envVarName];
-    
+    const envKey = process.env[envVar];
     if (envKey) {
-      console.log(`Using environment variable ${envVarName} for ${service} API key`);
+      console.log(`Using API key from environment variable: ${envVar}`);
       return envKey;
     }
     
-    console.error(`No API key found for service: ${service}`);
+    // No key found
     return null;
+  }
+  
+  /**
+   * Clear the key cache for a specific service or all services
+   * @param service Optional service name. If not provided, clears all cached keys.
+   */
+  static clearCache(service?: string): void {
+    if (service) {
+      this.keyCache.delete(service);
+    } else {
+      this.keyCache.clear();
+    }
+  }
+  
+  /**
+   * Explicitly cache a key for a service
+   * @param service The service name
+   * @param key The API key to cache
+   */
+  static cacheKey(service: string, key: string): void {
+    this.keyCache.set(service, {
+      key,
+      timestamp: Date.now()
+    });
   }
 } 

@@ -11,6 +11,7 @@ import { PaymentService } from '@/services/payment-service';
 import { toast } from '@/hooks/use-toast';
 import { BillingDetails } from '@/services/payment-service';
 import { Loader2 } from 'lucide-react';
+import { useAuth } from '@/hooks/use-auth';
 
 // List of countries for the dropdown
 const countries = [
@@ -312,6 +313,11 @@ export default function BillingDetailsForm({
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [fieldConfig, setFieldConfig] = useState(countryFields.US);
   const [selectedCountry, setSelectedCountry] = useState<string>(existingDetails?.country || 'US');
+  
+  // Get user data from auth context
+  const auth = useAuth();
+  // Check if user is logged in
+  const userIsLoggedIn = !!auth.user;
 
   // Use dynamic validation schema based on selected country
   const form = useForm<BillingFormValues>({
@@ -363,6 +369,22 @@ export default function BillingDetailsForm({
   const onSubmit = async (values: BillingFormValues) => {
     setIsSubmitting(true);
     try {
+      // Check if user is authenticated before trying to save billing details
+      if (!userIsLoggedIn) {
+        // Store billing details in session/local storage for later use after authentication
+        const billingDetailsKey = 'pending_billing_details';
+        sessionStorage.setItem(billingDetailsKey, JSON.stringify(values));
+        
+        toast({
+          title: 'Authentication required',
+          description: 'Please log in or register to continue with your billing information.',
+        });
+        
+        // Redirect to login/register page or show auth modal
+        window.location.href = '/auth?redirect=' + encodeURIComponent(window.location.pathname + window.location.search);
+        return;
+      }
+      
       // Save billing details using the PaymentService
       const savedDetails = await PaymentService.saveBillingDetails(values as BillingDetails);
       toast({
@@ -372,6 +394,19 @@ export default function BillingDetailsForm({
       onDetailsSubmitted(savedDetails);
     } catch (error: any) {
       console.error('Error saving billing details:', error);
+      
+      // Handle authentication errors specifically
+      if (error.response?.status === 401) {
+        toast({
+          title: 'Authentication required',
+          description: 'Please log in or register to continue with your billing information.',
+          variant: 'destructive',
+        });
+        
+        // Redirect to auth page
+        window.location.href = '/auth?redirect=' + encodeURIComponent(window.location.pathname + window.location.search);
+        return;
+      }
       
       // Provide a more specific error message based on the response if available
       const errorMessage = 
@@ -385,15 +420,6 @@ export default function BillingDetailsForm({
         description: errorMessage,
         variant: 'destructive',
       });
-      
-      // If we get a 401 Unauthorized error, the session might have expired
-      if (error.response?.status === 401) {
-        toast({
-          title: 'Session expired',
-          description: 'Your session has expired. Please refresh the page and try again.',
-          variant: 'destructive',
-        });
-      }
       
       // If we get a network error, provide a specific message
       if (error.message?.includes('Network Error')) {

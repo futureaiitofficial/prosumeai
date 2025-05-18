@@ -1,6 +1,7 @@
 import { initializeEncryption } from '../utils/encryption';
 import { initializeDataEncryption } from './data-encryption';
 import { initializeSessionConfig, sessionTimeoutMiddleware, regenerateSessionAfterLogin, postLoginSessionHandler, validateActiveSession } from './session-security';
+import { initializeEmailService } from '../services/init-email';
 
 /**
  * Export middleware components for convenient importing
@@ -37,6 +38,9 @@ export async function initializeServices() {
     // Initialize session security configuration
     await initializeSessionConfig();
     console.log('Session security configuration initialized');
+    
+    // Initialize email service
+    await initializeEmailService();
     
     return true;
   } catch (error) {

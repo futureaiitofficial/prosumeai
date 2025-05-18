@@ -11,6 +11,7 @@ import { Progress } from '@/components/ui/progress';
 import SharedHeader from '@/components/layouts/shared-header';
 import SharedFooter from '@/components/layouts/SharedFooter';
 import Link from 'next/link';
+import { useBranding } from '@/components/branding/branding-provider';
 
 // Parse URL search params to get the plan ID
 const getParamsFromLocation = () => {
@@ -21,6 +22,7 @@ const getParamsFromLocation = () => {
 };
 
 export default function RegisterPage() {
+  const branding = useBranding();
   const [location, navigate] = useLocation();
   const { planId } = getParamsFromLocation();
   const [selectedPlan, setSelectedPlan] = useState<any>(null);
@@ -189,8 +191,8 @@ export default function RegisterPage() {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       <Head>
-        <title>Create an Account | ATScribe</title>
-        <meta name="description" content="Sign up for ATScribe and start creating professional resumes that get you noticed." />
+        <title>Create an Account | {branding.appName}</title>
+        <meta name="description" content={`Sign up for ${branding.appName} and start creating professional resumes that get you noticed.`} />
       </Head>
       
       {/* Header with fixed position - using forceBackground prop to make it always visible */}
@@ -201,8 +203,8 @@ export default function RegisterPage() {
       
       {/* Brand Banner */}
       <div className="bg-gradient-to-r from-indigo-950 via-indigo-900 to-purple-900 py-4 text-center">
-        <h1 className="text-white text-2xl md:text-3xl font-bold">ATScribe</h1>
-        <p className="text-indigo-200 text-sm md:text-base mt-1">AI-powered resume and cover letter builder for professionals</p>
+        <h1 className="text-white text-2xl md:text-3xl font-bold">{branding.appName}</h1>
+        <p className="text-indigo-200 text-sm md:text-base mt-1">{branding.appTagline}</p>
       </div>
       
       {/* Progress Bar */}
@@ -237,7 +239,7 @@ export default function RegisterPage() {
                 <CardHeader className="bg-gradient-to-r from-indigo-50 to-purple-50 border-b border-indigo-100">
                   <CardTitle className="text-2xl text-indigo-900">Create Your Account</CardTitle>
                   <CardDescription className="text-indigo-700">
-                    Fill in your details to get started with ATScribe
+                    Fill in your details to get started with {branding.appName}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="pt-8">

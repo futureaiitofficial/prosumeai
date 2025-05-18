@@ -14,7 +14,9 @@ import {
   paymentTransactions,
   paymentWebhookEvents,
   userBillingDetails,
-  planPricing
+  planPricing,
+  brandingSettings,
+  smtpSettings
 } from "@shared/schema";
 import { eq, count, and, or, desc, asc, gt, lt, gte, lte, like, ilike, inArray, isNull, notInArray, isNotNull, between, sql, sum } from "drizzle-orm";
 import { hashPassword } from "../../config/auth";
@@ -28,6 +30,7 @@ import { z } from "zod";
 import { exec } from "child_process";
 import { promisify } from "util";
 import { registerPaymentGatewayAdminRoutes } from './admin/payment-gateway-routes';
+import { registerSmtpRoutes } from './admin/smtp-routes';
 import { SubscriptionService } from "../../services/subscription-service";
 import { fileURLToPath } from "url";
 
@@ -88,6 +91,9 @@ export function registerAdminRoutes(app: Express) {
   
   // Register payment gateway routes
   registerPaymentGatewayAdminRoutes(app);
+  
+  // Register SMTP settings routes
+  registerSmtpRoutes(app);
   
   // Debug endpoint - available without admin check to help troubleshoot admin access
   app.get("/api/admin/debug", (req: Request, res: Response) => {
@@ -2138,6 +2144,239 @@ export function registerAdminRoutes(app: Express) {
         message: 'Failed to reset device tracking data', 
         error: error.message 
       });
+    }
+  });
+
+  // Branding Settings Management
+  
+  // Get branding settings
+  app.get("/api/admin/branding-settings", async (req, res) => {
+    try {
+      const brandingSettingsData = await db.select().from(brandingSettings).limit(1);
+      
+      // If no settings exist yet, return default settings
+      if (!brandingSettingsData || brandingSettingsData.length === 0) {
+        // Default branding settings
+        const defaultSettings = {
+          appName: "ProsumeAI",
+          appTagline: "AI-powered resume and career tools",
+          logoUrl: "/logo.png",
+          faviconUrl: "/favicon.ico",
+          enableDarkMode: true,
+          primaryColor: "#4f46e5",
+          secondaryColor: "#10b981",
+          accentColor: "#f97316",
+          footerText: "© 2023 ProsumeAI. All rights reserved.",
+          customCss: "",
+          customJs: ""
+        };
+        
+        res.json(defaultSettings);
+      } else {
+        res.json(brandingSettingsData[0]);
+      }
+    } catch (error) {
+      console.error("Error fetching branding settings:", error);
+      res.status(500).json({ message: "Failed to fetch branding settings" });
+    }
+  });
+  
+  // Update branding settings
+  app.post("/api/admin/branding-settings", requireAdmin, async (req, res) => {
+    try {
+      const { 
+        appName, 
+        appTagline, 
+        logoUrl, 
+        faviconUrl, 
+        enableDarkMode, 
+        primaryColor, 
+        secondaryColor, 
+        accentColor, 
+        footerText, 
+        customCss, 
+        customJs 
+      } = req.body;
+      
+      // Input validation
+      if (!appName) {
+        return res.status(400).json({ message: "Application name is required" });
+      }
+      
+      // Check if branding settings exist
+      const existingSettings = await db.select().from(brandingSettings).limit(1);
+      
+      if (existingSettings && existingSettings.length > 0) {
+        // Update existing settings
+        const updatedSettings = await db.update(brandingSettings)
+          .set({
+            appName,
+            appTagline,
+            logoUrl,
+            faviconUrl,
+            enableDarkMode,
+            primaryColor,
+            secondaryColor,
+            accentColor,
+            footerText,
+            customCss,
+            customJs,
+            updatedAt: new Date()
+          })
+          .where(eq(brandingSettings.id, existingSettings[0].id))
+          .returning();
+        
+        res.json(updatedSettings[0]);
+      } else {
+        // Create new settings
+        const newSettings = await db.insert(brandingSettings)
+          .values({
+            appName,
+            appTagline,
+            logoUrl,
+            faviconUrl,
+            enableDarkMode,
+            primaryColor,
+            secondaryColor,
+            accentColor,
+            footerText,
+            customCss,
+            customJs
+          })
+          .returning();
+        
+        res.json(newSettings[0]);
+      }
+    } catch (error) {
+      console.error("Error updating branding settings:", error);
+      res.status(500).json({ message: "Failed to update branding settings" });
+    }
+  });
+  
+  // Logo upload endpoint
+  app.post("/api/admin/branding/logo", requireAdmin, upload.single('logo'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: 'No logo image provided' });
+      }
+      
+      const logoDir = path.join(process.cwd(), 'public', 'images', 'branding');
+      
+      // Create directory if it doesn't exist
+      if (!fs.existsSync(logoDir)) {
+        fs.mkdirSync(logoDir, { recursive: true });
+      }
+      
+      // Generate filename with timestamp
+      const fileType = path.extname(req.file.originalname);
+      const fileName = `logo-${Date.now()}${fileType}`;
+      const filePath = path.join(logoDir, fileName);
+      
+      // Move file from uploads to final destination
+      fs.renameSync(req.file.path, filePath);
+      
+      // Create URL for the logo
+      const logoUrl = `/images/branding/${fileName}`;
+      
+      // Update branding settings with new logo URL
+      const existingSettings = await db.select().from(brandingSettings).limit(1);
+      
+      if (existingSettings && existingSettings.length > 0) {
+        await db.update(brandingSettings)
+          .set({
+            logoUrl,
+            updatedAt: new Date()
+          })
+          .where(eq(brandingSettings.id, existingSettings[0].id));
+      }
+      
+      res.json({ 
+        message: "Logo uploaded successfully",
+        logoUrl 
+      });
+    } catch (error) {
+      console.error("Error uploading logo:", error);
+      res.status(500).json({ message: "Failed to upload logo" });
+    }
+  });
+  
+  // Favicon upload endpoint
+  app.post("/api/admin/branding/favicon", requireAdmin, upload.single('favicon'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: 'No favicon image provided' });
+      }
+      
+      const faviconDir = path.join(process.cwd(), 'public', 'images', 'branding');
+      
+      // Create directory if it doesn't exist
+      if (!fs.existsSync(faviconDir)) {
+        fs.mkdirSync(faviconDir, { recursive: true });
+      }
+      
+      // Generate filename with timestamp
+      const fileType = path.extname(req.file.originalname);
+      const fileName = `favicon-${Date.now()}${fileType}`;
+      const filePath = path.join(faviconDir, fileName);
+      
+      // Move file from uploads to final destination
+      fs.renameSync(req.file.path, filePath);
+      
+      // Create URL for the favicon
+      const faviconUrl = `/images/branding/${fileName}`;
+      
+      // Update branding settings with new favicon URL
+      const existingSettings = await db.select().from(brandingSettings).limit(1);
+      
+      if (existingSettings && existingSettings.length > 0) {
+        await db.update(brandingSettings)
+          .set({
+            faviconUrl,
+            updatedAt: new Date()
+          })
+          .where(eq(brandingSettings.id, existingSettings[0].id));
+      }
+      
+      res.json({ 
+        message: "Favicon uploaded successfully",
+        faviconUrl 
+      });
+    } catch (error) {
+      console.error("Error uploading favicon:", error);
+      res.status(500).json({ message: "Failed to upload favicon" });
+    }
+  });
+
+  // Public endpoint for branding settings (no admin auth required)
+  app.get("/api/branding", async (req, res) => {
+    try {
+      const brandingSettingsData = await db.select().from(brandingSettings).limit(1);
+      
+      // If no settings exist yet, return default settings
+      if (!brandingSettingsData || brandingSettingsData.length === 0) {
+        // Default branding settings
+        const defaultSettings = {
+          appName: "ProsumeAI",
+          appTagline: "AI-powered resume and career tools",
+          logoUrl: "/logo.png",
+          faviconUrl: "/favicon.ico",
+          enableDarkMode: true,
+          primaryColor: "#4f46e5",
+          secondaryColor: "#10b981",
+          accentColor: "#f97316",
+          footerText: "© 2023 ProsumeAI. All rights reserved."
+        };
+        
+        // Don't expose custom CSS and JS to public
+        res.json(defaultSettings);
+      } else {
+        // Don't expose custom CSS and JS to public
+        const { customCss, customJs, ...publicSettings } = brandingSettingsData[0];
+        res.json(publicSettings);
+      }
+    } catch (error) {
+      console.error("Error fetching branding settings:", error);
+      res.status(500).json({ message: "Failed to fetch branding settings" });
     }
   });
 }

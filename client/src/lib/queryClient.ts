@@ -72,7 +72,11 @@ export async function apiRequest(
   method: string, 
   endpoint: string, 
   data?: any, 
-  options?: { responseType?: 'json' | 'blob' | 'text' }
+  options?: { 
+    responseType?: 'json' | 'blob' | 'text',
+    isFormData?: boolean,
+    signal?: AbortSignal
+  }
 ): Promise<Response> {
   // If session is already invalidated, don't make additional requests
   if (isSessionInvalidated) {
@@ -81,16 +85,30 @@ export async function apiRequest(
   
   const url = endpoint.startsWith('http') ? endpoint : `${API_BASE_URL}${endpoint}`;
   
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  
   const fetchOptions: RequestInit = {
     method,
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers,
     credentials: 'include',
   };
   
+  // Add AbortSignal if provided
+  if (options?.signal) {
+    fetchOptions.signal = options.signal;
+  }
+  
   if (data) {
-    fetchOptions.body = JSON.stringify(data);
+    // Handle FormData differently
+    if (options?.isFormData) {
+      // For FormData, don't set Content-Type as the browser will set it with the boundary
+      delete headers['Content-Type'];
+      fetchOptions.body = data;
+    } else {
+      fetchOptions.body = JSON.stringify(data);
+    }
   }
   
   try {

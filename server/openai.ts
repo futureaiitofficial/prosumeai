@@ -1,6 +1,9 @@
 // Import OpenAI
 import OpenAILib from 'openai';
 import { ApiKeyManager } from './src/utils/api-key-manager';
+import { db } from './config/db';
+import { apiKeys } from '@shared/schema';
+import { eq, and, desc } from 'drizzle-orm';
 
 // Use a different variable name to avoid collision
 const OpenAI = OpenAILib;
@@ -11,20 +14,44 @@ const openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || 'placeho
 // Function to update the API key
 export async function updateApiKey(): Promise<boolean> {
   try {
+    // First try to get the key from the manager
     const apiKey = await ApiKeyManager.getKeyWithFallback('openai', 'OPENAI_API_KEY');
     
-    if (!apiKey) {
-      console.error('No valid OpenAI API key found, using placeholder for development');
-      // Don't throw an error, just return false
-      return false;
+    if (apiKey) {
+      // Use the API key from the manager
+      openaiClient.apiKey = apiKey;
+      return true;
     }
     
-    // Update the API key
-    openaiClient.apiKey = apiKey;
-    return true;
+    // If no key from manager, try to fetch an active API key from the database
+    const dbKeys = await db.select()
+      .from(apiKeys)
+      .where(and(
+        eq(apiKeys.service, 'openai'),
+        eq(apiKeys.isActive, true)
+      ))
+      .orderBy(desc(apiKeys.id))
+      .limit(1);
+    
+    if (dbKeys && dbKeys.length > 0) {
+      const dbKey = dbKeys[0].key;
+      
+      // Update the in-memory client with the database key
+      openaiClient.apiKey = dbKey;
+      
+      // Update the last used timestamp
+      await db.update(apiKeys)
+        .set({ lastUsed: new Date() })
+        .where(eq(apiKeys.id, dbKeys[0].id));
+      
+      console.log('Successfully retrieved API key from database');
+      return true;
+    }
+    
+    console.error('No valid OpenAI API key found in environment or database');
+    return false;
   } catch (error) {
     console.error('Error updating API key:', error);
-    // Don't throw an error, just return false
     return false;
   }
 }
@@ -77,66 +104,22 @@ export function truncateText(text: string, maxChars: number = 4000): string {
  * First pass: Extract raw information with AI understanding of resume context
  * Second pass: Structure the extracted information to a defined format
  */
-export async function parseResume(text: string): Promise<{
-  personalInfo: {
-    fullName: string;
-    email: string;
-    phone: string;
-    location: string;
-    country: string;
-    city: string;
-    linkedinUrl: string;
-    portfolioUrl: string;
-  };
-  summary: string;
-  workExperience: Array<{
-    id: string;
-    company: string;
-    position: string;
-    location: string;
-    startDate: string | null;
-    endDate: string | null;
-    current: boolean;
-    description: string;
-    achievements: string[];
-  }>;
-  education: Array<{
-    id: string;
-    institution: string;
-    degree: string;
-    fieldOfStudy: string;
-    startDate: string | null;
-    endDate: string | null;
-    current: boolean;
-    description: string;
-  }>;
-  skills: string[];
-  technicalSkills: string[];
-  softSkills: string[];
-  certifications: Array<{
-    id: string;
-    name: string;
-    issuer: string;
-    date: string | null;
-    expires: boolean;
-    expiryDate: string | null;
-  }>;
-  projects: Array<{
-    id: string;
-    name: string;
-    description: string;
-    technologies: string[];
-    startDate: string | null;
-    endDate: string | null;
-    current: boolean;
-    url: string | null;
-  }>;
-  note?: string;
-}> {
+export async function parseResume(resumeText: string): Promise<any> {
   try {
-    console.log(`Analyzing resume with ${text.length} characters`);
+    // Prepare the resumeText for processing
+    console.log(`Analyzing resume with ${resumeText.length} characters`);
+    
+    // Check and update API key before proceeding
+    const apiKeyUpdated = await updateApiKey();
+    if (!apiKeyUpdated) {
+      throw new Error('No valid OpenAI API key available. Please configure an API key in the admin panel.');
+    }
+    
+    // Let's use a two-pass system: first extract raw fields, then interpret them
+    console.log('Starting two-pass resume parsing with advanced NLP...');
+    
     // Truncate text to handle token limits
-    const truncatedText = truncateText(text, 14000);
+    const truncatedText = truncateText(resumeText, 14000);
 
     // FIRST PASS: Deep analysis of the resume with minimal structure constraints
     try {
@@ -144,20 +127,18 @@ export async function parseResume(text: string): Promise<{
       
       // First pass - extract raw information without strict formatting
       const firstPassPrompt = `
-        You are an advanced resume analyzer with NLP and OCR capabilities.
+        You are an advanced resume analyzer with exceptional detail extraction capabilities.
         
         TASK:
-        Deeply analyze this resume text and EXTRACT ONLY THE INFORMATION THAT IS ACTUALLY PRESENT IN THE DOCUMENT.
+        Deeply analyze this resume text and EXTRACT ALL INFORMATION THAT IS ACTUALLY PRESENT.
         
         CRITICALLY IMPORTANT:
         - DO NOT INVENT OR GENERATE ANY INFORMATION THAT IS NOT IN THE DOCUMENT
         - DO NOT USE PLACEHOLDERS LIKE "John Doe" OR "Not specified"
-        - DO NOT MAKE ASSUMPTIONS OR INFERENCES BEYOND WHAT'S EXPLICITLY WRITTEN
         - If you cannot find certain information, explicitly state "NOT FOUND IN DOCUMENT"
         - You must only extract what is actually written in the text
         - DO NOT create descriptions for job experiences if only bullet points are provided
-        - NEVER combine bullets into paragraph form
-        - NEVER add or invent bullet points that aren't in the document
+        - PAY EXTREMELY CLOSE ATTENTION TO ANY DATES, LOCATIONS, NAMES mentioned
         
         CONTEXT:
         This text was extracted from a document and may have formatting issues. 
@@ -165,81 +146,63 @@ export async function parseResume(text: string): Promise<{
         Your job is to understand the semantic meaning regardless of format.
 
         ESPECIALLY IMPORTANT FOR SECTIONS DETECTION:
-        - Pay close attention to ALL CAPS text like "EDUCATION", "SKILLS", "EXPERIENCE" which might be section headers
-        - Look for Markdown-style headers with # or ## symbols which indicate section headings
-        - Check for formatting clues such as bold text, larger font sizes, or underlined text that might signal section headers
-        - In DOCX files, educational institutions might be listed with degree names and dates (e.g., "University of X - Bachelor of Y - 2018-2022")
-        - For skills, look for lists of technologies, languages, tools, methodologies, etc. 
-        - Pay attention to bullet points (•) that might contain skills lists
+        - Pay close attention to ALL CAPS text like "EDUCATION", "SKILLS", "EXPERIENCE" which are likely section headers
+        - Check for NESTED STRUCTURE within sections (like multiple jobs under EXPERIENCE)
+        - For EDUCATION, extract specific details about:
+          * Institution name (e.g., University of Michigan)
+          * Degree type (e.g., Bachelor of Science, Masters, Ph.D)
+          * Field of study (e.g., Computer Science, Business Administration)
+          * Dates attended (including months if available)
+          * GPA if provided
+          * Honors, awards, or other academic achievements
         
-        FOCUS ON FINDING THESE TYPES OF INFORMATION (regardless of how they're labeled in the document):
+        FOCUS ON FINDING THESE TYPES OF INFORMATION:
         
-        1. PERSON: Who is this person? Name, contact info, location, links, etc.
-           - Look for explicit mentions of names, email addresses, phone numbers
-           - Look for location information (city, country)
-           - Look for LinkedIn URLs, portfolio URLs
-           - NEVER make up contact details that aren't in the document
-           - If any of these are not found, explicitly state "NOT FOUND" for that field
+        1. PERSON: Who is this person? Name, contact info, location, links
         
-        2. PROFILE SUMMARY: Any kind of professional overview
-           - Could be labeled as "Summary", "Profile", "Objective", "About Me", etc.
-           - Quote the exact text if you find it
-           - NEVER write a summary if none exists
-           - If not found, state "NOT FOUND"
+        2. PROFILE SUMMARY: Any professional overview
         
-        3. WORK HISTORY: Information about professional roles
-           - Might be labeled "Experience", "Employment", "Work History", "Professional Background", etc.
-           - Extract ACTUAL company names, job titles, dates, responsibilities
-           - If there are only bullet points, do NOT create a paragraph description
-           - If there's a paragraph and bullet points, keep them separate
-           - Make sure to PRESERVE the EXACT ORIGINAL BULLET POINTS
-           - Quote the actual text for descriptions
-           - DO NOT invent any details about job responsibilities
-           - If not found, state "NO WORK HISTORY FOUND"
+        3. WORK HISTORY: For each position, extract:
+           - Company name (EXACTLY as written)
+           - Job title (EXACTLY as written)
+           - Location (city, state, country, remote)
+           - PRECISE start and end dates (include month and year if available)
+           - Whether the position is current/present
+           - Full description text OR separate bullet points
+           - DO NOT combine bullet points into paragraphs
         
-        4. EDUCATION: Academic background
-           - CRITICAL SECTION - SEARCH EXTREMELY THOROUGHLY
-           - Might be labeled "EDUCATION", "ACADEMIC", "Academic Background", "Qualifications", "ACADEMIC CREDENTIALS", etc.
-           - Look for any university or college names such as "Michigan Technological University", "Jawaharlal Nehru", etc.
-           - Look for degree indicators like "Masters", "Bachelor", "BS", "BA", "MS", "PhD", "Doctor of", "Pharm.D", etc.
-           - Look for phrases like "Expected December 2024", "August 2014 – July 2020", "GPA: 3.75", etc.
-           - Extract ACTUAL institutions, degrees, fields of study, dates - even if they're not in a dedicated section
-           - Be sure to check the BOTTOM of the resume as Education is often listed last
-           - Even if there's no explicit "EDUCATION" heading, extract any academic information you can find
-           - NEVER invent educational details
-           - If not found after extremely thorough checking, state "NO EDUCATION FOUND"
+        4. EDUCATION: For each institution:
+           - Full institution name (EXACTLY as written)
+           - PRECISE degree information (degree type, field)
+           - PRECISE dates (start year, graduation/end year)
+           - Location if provided
+           - GPA, honors, relevant coursework if mentioned
         
-        5. SKILLS: Abilities and competencies 
-           - CRITICAL SECTION - SEARCH THOROUGHLY
-           - Might be labeled "SKILLS", "Competencies", "Core Strengths", "Technologies", "TECHNICAL SKILLS", etc.
-           - Might be a bulleted or comma-separated list of terms
-           - Look for technical skills (programming languages, software, hardware, methodologies)
-           - Look for soft skills (communication, leadership, teamwork)
-           - Look for language proficiencies
-           - List ONLY the exact skills mentioned
-           - DO NOT categorize skills by type unless they are already categorized in the document
-           - If no explicit skills section after thorough checking, state "NO EXPLICIT SKILLS SECTION"
+        5. SKILLS: Abilities and competencies:
+           - List ALL technical skills (programming languages, tools, platforms)
+           - List ALL soft skills (communication, leadership, etc.)
+           - If skills are categorized in the document, preserve those categories
+           - If certification dates are mentioned, include them
         
-        6. PROJECTS: Personal or professional endeavors
-           - Might be labeled "Projects", "Key Projects", "Portfolio", etc.
-           - Extract ACTUAL project information
-           - NEVER add your own interpretation of project descriptions
-           - If not found, state "NO PROJECTS FOUND"
+        6. PROJECTS: For each project:
+           - Project name
+           - Description
+           - Technologies/tools used
+           - Dates if provided
+           - URL/link if provided
         
-        7. CERTIFICATIONS: Professional credentials
-           - Might be labeled "Certifications", "Credentials", "Licenses", etc.
-           - Extract ACTUAL certification information
-           - NEVER invent certification details
-           - If not found, state "NO CERTIFICATIONS FOUND"
+        7. CERTIFICATIONS: For each certification:
+           - Full certification name (EXACTLY as written)
+           - Issuing organization
+           - Date received and expiration date if provided
         
         OUTPUT INSTRUCTIONS:
-        - Organize your findings under these broad semantic categories
+        - Organize your findings into clearly labeled semantic categories
         - Include ONLY information actually found in the document VERBATIM
         - For any field where information is missing, explicitly state that it's not found
         - Quote exact text when possible to show it came from the document
-        - PRESERVE all bullet points EXACTLY as they appear in the document
-        - NEVER invent names, addresses, dates, or any other details not present in the text
-        - NEVER convert bullet points into paragraphs or paragraphs into bullet points
+        - PRESERVE all bullet points EXACTLY as they appear
+        - If dates are provided in the document, include BOTH month and year when available
         
         RESUME TEXT:
         ${truncatedText}
@@ -250,7 +213,7 @@ export async function parseResume(text: string): Promise<{
         messages: [
           {
             role: "system",
-            content: "You are an advanced resume analysis system with exceptional information extraction capabilities. Your primary goal is STRICT ADHERENCE to only extracting information that is explicitly present in the document. NEVER add information, explanations, or text that is not directly in the source document. If the document only contains bullet points, do not create paragraphs from them. If information is missing, clearly state it's not in the document. IMPORTANT: Pay special attention to EDUCATION sections which are usually toward the bottom of a resume. Look for university names (e.g., 'Michigan Technological University'), degree types (e.g., 'Masters', 'Doctor of Pharmacy', 'Pharm.D'), and graduation dates even if they're not in a dedicated section."
+            content: "You are an advanced resume analysis system with exceptional information extraction capabilities. Your primary goal is STRICT ADHERENCE to only extracting information that is explicitly present in the document. NEVER add information that is not directly in the document. ALWAYS include EXACT dates when they are mentioned, preserving the PRECISE format (like 'May 2019 - June 2023' rather than just '2019-2023'). Pay special attention to extracting education details - even from minimal mentions."
           },
           {
             role: "user",
@@ -267,80 +230,77 @@ export async function parseResume(text: string): Promise<{
 
       // SECOND PASS: Structure the extracted information into the required format
       const secondPassPrompt = `
-        You are a resume structuring expert. Take this raw information extracted from a resume and structure it ONLY using the information provided.
+        You are a resume structuring expert. Take this raw information extracted from a resume and structure it precisely.
         
         CRITICALLY IMPORTANT:
         - DO NOT INVENT ANY INFORMATION that wasn't provided in the first pass
-        - When the first pass shows "NOT FOUND IN DOCUMENT" or similar, use "Not found in document" in the JSON 
-        - DO NOT use placeholder names like "John Doe" or generic values
-        - ONLY structure the actual information that was extracted in the first pass
+        - When the first pass shows "NOT FOUND IN DOCUMENT" or similar, use empty strings or arrays in your JSON
+        - Keep all dates in the EXACT format they were extracted (e.g., if "May 2019 - Present" was found, use that format)
+        - Preserve all bullets points exactly as they appear
+        - For skills, separate technical skills from soft skills where possible
         
         Raw extracted resume information:
         ${firstPassContent}
         
-        Structure this information into the following JSON format:
+        Structure this information into the following JSON format with extreme attention to detail:
         {
           "personalInfo": {
-            "fullName": "Actual name from document or 'Not found in document'",
-            "email": "Actual email from document or 'Not found in document'",
-            "phone": "Actual phone from document or 'Not found in document'",
-            "location": "Actual location from document or 'Not found in document'",
-            "country": "Actual country from document or 'Not found in document'",
-            "city": "Actual city from document or 'Not found in document'",
+            "fullName": "Actual name from document or empty string",
+            "email": "Actual email from document or empty string",
+            "phone": "Actual phone from document or empty string",
+            "location": "Actual location from document or empty string",
+            "country": "Actual country from document or empty string",
+            "city": "Actual city from document or empty string",
             "linkedinUrl": "Actual LinkedIn URL or empty string",
             "portfolioUrl": "Actual Portfolio URL or empty string"
           },
-          "summary": "Actual summary from document or 'Not found in document'",
+          "summary": "Actual summary from document or empty string",
           "workExperience": [
-            // Only include if work experience was found, otherwise leave as empty array
             {
               "id": "exp-1",
-              "company": "Actual company name from document",
-              "position": "Actual job title from document",
-              "location": "Actual job location from document or 'Not specified'",
-              "startDate": "Actual start date in YYYY-MM-DD format if found",
-              "endDate": "Actual end date in YYYY-MM-DD format or null if current",
+              "company": "Actual company name",
+              "position": "Actual job title",
+              "location": "Actual job location or empty string",
+              "startDate": "EXACT start date as mentioned in document",
+              "endDate": "EXACT end date as mentioned in document or null if current",
               "current": true/false based on document,
-              "description": "Actual job description from document",
-              "achievements": ["Actual achievement 1", "Actual achievement 2"] 
+              "description": "Job description paragraph if present",
+              "achievements": ["Achievement 1", "Achievement 2"] 
             }
           ],
           "education": [
-            // Only include if education was found, otherwise leave as empty array
             {
               "id": "edu-1",
-              "institution": "Actual school name from document",
-              "degree": "Actual degree type from document",
-              "fieldOfStudy": "Actual field of study from document",
-              "startDate": "Actual start date if found",
-              "endDate": "Actual end date or null if current",
+              "institution": "Actual institution name",
+              "degree": "Actual degree type",
+              "fieldOfStudy": "Actual field of study",
+              "startDate": "EXACT start date as mentioned",
+              "endDate": "EXACT end date as mentioned or null if current",
               "current": true/false based on document,
-              "description": "Actual education details from document"
+              "description": "Additional education details"
             }
           ],
-          "skills": ["Only actual skills mentioned in document"],
-          "technicalSkills": ["Only actual technical skills mentioned in document"],
-          "softSkills": ["Only actual soft skills mentioned in document"],
+          "skills": ["All skills found in document"],
+          "technicalSkills": ["Technical skills found in document"],
+          "softSkills": ["Soft skills found in document"],
           "certifications": [
-            // Only include if certifications were found, otherwise leave as empty array
             {
               "id": "cert-1",
-              "name": "Actual certification name from document",
-              "issuer": "Actual issuing organization from document",
-              "date": "Actual issue date if found",
+              "name": "Actual certification name",
+              "issuer": "Actual issuing organization",
+              "date": "EXACT date of certification as mentioned",
               "expires": true/false based on document,
-              "expiryDate": "Actual expiry date or null"
+              "expiryDate": "EXACT expiry date as mentioned or null"
             }
           ],
           "projects": [
-            // Only include if projects were found, otherwise leave as empty array
             {
               "id": "proj-1",
-              "name": "Actual project name from document",
-              "description": "Actual project description from document",
-              "technologies": ["Actual technology 1", "Actual technology 2"],
-              "startDate": "Actual start date if found",
-              "endDate": "Actual end date or null if ongoing",
+              "name": "Actual project name",
+              "description": "Actual project description",
+              "technologies": ["Tech 1", "Tech 2"],
+              "startDate": "EXACT date as mentioned",
+              "endDate": "EXACT date as mentioned or null if ongoing",
               "current": true/false based on document,
               "url": "Actual project URL or null"
             }
@@ -348,12 +308,12 @@ export async function parseResume(text: string): Promise<{
         }
         
         CRITICAL INSTRUCTIONS:
-        1. DO NOT INVENT DATA - if information is missing from the first pass, use "Not found in document"
-        2. If the entire category is missing (like "NO WORK HISTORY FOUND"), use an empty array for that section
-        3. For dates, use the format provided in the document. If only year is mentioned, use YYYY-01-01
-        4. DO NOT try to fill in missing information with educated guesses
-        5. For string fields with no information, use "Not found in document"
-        6. Only include array items (work experience, education, etc.) that were actually found in the document
+        1. DO NOT INVENT DATA - if information is missing, use empty strings or arrays
+        2. Keep sections empty (empty arrays) if no information was found
+        3. Preserve the EXACT date formats from the document 
+        4. Do not standardize or reformat dates unless they're ambiguous
+        5. When a date is just a year (e.g., "2020"), leave it as "2020" not "2020-01-01"
+        6. Do not create fake IDs with random numbers - just use sequential identifiers like "exp-1", "exp-2"
       `;
 
       const secondPassResponse = await openaiClient.chat.completions.create({
@@ -361,7 +321,7 @@ export async function parseResume(text: string): Promise<{
         messages: [
           {
             role: "system",
-            content: "You are a resume formatting specialist who takes raw extracted resume information and structures it into clean, consistent JSON. CRITICALLY IMPORTANT: NEVER invent or generate information that wasn't in the first pass. Do not make guesses or inferences. Only structure information that was explicitly identified in the first pass. If something wasn't found in the document, clearly mark it as 'Not found in document'. PRESERVE ORIGINAL BULLET POINTS EXACTLY. If the first pass only found bullet points for job descriptions, DO NOT convert them into paragraph format. Keep bullet points as an array of individual items. DO NOT generate descriptions if none exist in the source document. CRUCIAL: For EDUCATION entries, look for ANY mentions of universities, colleges, degrees (Masters, Doctorate, Pharm.D, etc.), or educational timeframes in the first pass text. Even if they weren't under a clear 'EDUCATION' heading, include them in the education array if they represent academic credentials."
+            content: "You are a resume formatting specialist who takes raw extracted resume information and structures it into consistent JSON. ABSOLUTELY NEVER invent information that wasn't in the first pass. Use empty strings or arrays for missing information. MOST IMPORTANTLY - keep all dates in EXACTLY the format they were extracted (like 'March 2018 - Present' rather than formatting to YYYY-MM)."
           },
           {
             role: "user",
@@ -390,30 +350,27 @@ export async function parseResume(text: string): Promise<{
       if (!parsedData.certifications) parsedData.certifications = [];
       if (!parsedData.projects) parsedData.projects = [];
       
-      // Keep empty work experience array if none is found
-      // This will allow the user to know there was no work experience in the document
-      
       // Ensure personal info fields exist
       if (!parsedData.personalInfo) {
         parsedData.personalInfo = {
-          fullName: "Not clearly provided in resume",
-          email: "Not provided in resume",
-          phone: "Not provided in resume",
-          location: "Not provided in resume",
-          country: "Not provided in resume",
-          city: "Not provided in resume",
+          fullName: "",
+          email: "",
+          phone: "",
+          location: "",
+          country: "",
+          city: "",
           linkedinUrl: "",
           portfolioUrl: ""
         };
       }
       
-      // Set summary to "Not found in document" if it doesn't exist
-      if (!parsedData.summary || parsedData.summary.trim() === "") {
-        parsedData.summary = "Not found in document";
+      // Clean up summary to never say "Not found"
+      if (!parsedData.summary || parsedData.summary.includes("not found") || parsedData.summary.includes("Not found")) {
+        parsedData.summary = "";
       }
       
       // Handle truncation note
-      if (text.length > 14000) {
+      if (resumeText.length > 14000) {
         parsedData.note = "Resume was truncated during processing due to length.";
       }
       

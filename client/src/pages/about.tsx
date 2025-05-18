@@ -3,33 +3,36 @@ import { Link } from 'wouter';
 import { motion } from 'framer-motion';
 import Head from 'next/head';
 import SharedHeader from '@/components/layouts/shared-header';
+import SharedFooter from '@/components/layouts/SharedFooter';
+import { useBranding } from '@/components/branding/branding-provider';
 
 export default function AboutPage() {
   const containerRef = useRef<HTMLDivElement>(null);
+  const branding = useBranding();
   
   return (
     <div ref={containerRef} className="relative min-h-screen overflow-hidden">
       <Head>
-        <title>About ATScribe | AI-Powered Resume Builder for Students & Job Seekers</title>
-        <meta name="description" content="ATScribe uses advanced AI technology to create professional resumes and cover letters that help students and early career professionals land more interviews and job offers." />
+        <title>About {branding.appName} | AI-Powered Resume Builder for Students & Job Seekers</title>
+        <meta name="description" content={`${branding.appName} uses advanced AI technology to create professional resumes and cover letters that help students and early career professionals land more interviews and job offers.`} />
         <meta name="keywords" content="resume builder, AI resume, job application tools, ATS-friendly resume, cover letter generator, career tools, job search" />
         
         {/* Open Graph / Facebook */}
         <meta property="og:type" content="website" />
-        <meta property="og:url" content="https://ATScribe.com/about" />
-        <meta property="og:title" content="About ATScribe | AI-Powered Resume Builder for Students & Job Seekers" />
-        <meta property="og:description" content="ATScribe uses advanced AI technology to create professional resumes and cover letters that help students and early career professionals land more interviews and job offers." />
-        <meta property="og:image" content="https://ATScribe.com/images/about-og-image.jpg" />
+        <meta property="og:url" content={`https://${branding.appName}.com/about`} />
+        <meta property="og:title" content={`About ${branding.appName} | AI-Powered Resume Builder for Students & Job Seekers`} />
+        <meta property="og:description" content={`${branding.appName} uses advanced AI technology to create professional resumes and cover letters that help students and early career professionals land more interviews and job offers.`} />
+        <meta property="og:image" content={`https://${branding.appName}.com/images/about-og-image.jpg`} />
         
         {/* Twitter */}
         <meta property="twitter:card" content="summary_large_image" />
-        <meta property="twitter:url" content="https://ATScribe.com/about" />
-        <meta property="twitter:title" content="About ATScribe | AI-Powered Resume Builder for Students & Job Seekers" />
-        <meta property="twitter:description" content="ATScribe uses advanced AI technology to create professional resumes and cover letters that help students and early career professionals land more interviews and job offers." />
-        <meta property="twitter:image" content="https://ATScribe.com/images/about-og-image.jpg" />
+        <meta property="twitter:url" content={`https://${branding.appName}.com/about`} />
+        <meta property="twitter:title" content={`About ${branding.appName} | AI-Powered Resume Builder for Students & Job Seekers`} />
+        <meta property="twitter:description" content={`${branding.appName} uses advanced AI technology to create professional resumes and cover letters that help students and early career professionals land more interviews and job offers.`} />
+        <meta property="twitter:image" content={`https://${branding.appName}.com/images/about-og-image.jpg`} />
         
         {/* Canonical URL */}
-        <link rel="canonical" href="https://ATScribe.com/about" />
+        <link rel="canonical" href={`https://${branding.appName}.com/about`} />
       </Head>
       
       <SharedHeader isLandingPage={false} />
@@ -46,7 +49,7 @@ export default function AboutPage() {
             className="text-center max-w-4xl mx-auto"
           >
             <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold text-white mb-4 md:mb-6">
-              About <span className="text-indigo-400">ATScribe</span>
+              About <span className="text-indigo-400">{branding.appName}</span>
             </h1>
             <p className="text-lg md:text-2xl text-indigo-200 mb-8">
               The AI-powered platform designed to help students and professionals land interviews at top companies with stunning resumes and personalized cover letters.
@@ -82,7 +85,7 @@ export default function AboutPage() {
               </h2>
 
               <p className="text-slate-600 mb-6">
-                ATScribe was born from our founder's personal struggle with the job application process. After spending thousands of dollars on resume services and countless hours customizing applications, the frustration was real: existing tools were expensive, inefficient, and not designed for those starting their careers.
+                {branding.appName} was born from our founder's personal struggle with the job application process. After spending thousands of dollars on resume services and countless hours customizing applications, the frustration was real: existing tools were expensive, inefficient, and not designed for those starting their careers.
               </p>
               <p className="text-slate-600 mb-6">
                 Our mission became clear: build affordable AI-powered tools specifically for students and early career professionals that would democratize access to high-quality resume building, ATS optimization, and job application tracking.
@@ -91,7 +94,7 @@ export default function AboutPage() {
                 Today, we're proud to have helped over 15,000 job seekers land interviews and secure positions at companies they love, all while making these powerful tools accessible to those who need them most.
               </p>
               <p className="text-slate-700">
-                ATScribe is one of the premier products from Futureaiit Consulting Pvt.Ltd.
+                {branding.appName} is one of the premier products from Futureaiit Consulting Pvt.Ltd.
               </p>
             </motion.div>
             
@@ -105,7 +108,7 @@ export default function AboutPage() {
               <div className="rounded-xl overflow-hidden shadow-xl">
                 <img 
                   src="/images/about-story.svg" 
-                  alt="The journey of ATScribe" 
+                  alt={`The journey of ${branding.appName}`} 
                   className="w-full h-auto"
                 />
               </div>
@@ -192,7 +195,7 @@ export default function AboutPage() {
           <div className="max-w-3xl mx-auto text-center mb-12 md:mb-16">
             <span className="text-xs font-semibold uppercase tracking-wider text-indigo-600 mb-2 md:mb-4 inline-block">WHY CHOOSE US</span>
             <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mb-6">
-              Transform Your Job Search With ATScribe
+              Transform Your Job Search With {branding.appName}
             </h2>
             <p className="text-slate-600">
               Our AI-powered platform is specifically designed to help students and early career professionals stand out in competitive job markets with professionally crafted resumes and cover letters.
@@ -268,7 +271,7 @@ export default function AboutPage() {
               </div>
               <h3 className="text-xl font-bold mb-4">All-in-One Solution</h3>
               <p className="text-slate-700">
-                From resume building to cover letter generation and job application tracking, ATScribe provides everything you need to manage your entire job search in one platform.
+                From resume building to cover letter generation and job application tracking, {branding.appName} provides everything you need to manage your entire job search in one platform.
               </p>
             </motion.div>
           </div>
@@ -284,7 +287,7 @@ export default function AboutPage() {
               What We're Building
             </h2>
             <p className="text-indigo-200 mb-3">
-              ATScribe is designed with ambitious goals to transform how students and early career professionals approach their job search.
+              {branding.appName} is designed with ambitious goals to transform how students and early career professionals approach their job search.
             </p>
 
           </div>
@@ -344,7 +347,7 @@ export default function AboutPage() {
             Ready to Transform Your Job Search?
           </h2>
           <p className="text-base md:text-xl text-indigo-100 mb-8 md:mb-10 max-w-2xl mx-auto">
-            Be among the first to experience ATScribe's powerful AI tools designed to help you create winning resumes and land your dream job.
+            Be among the first to experience {branding.appName}'s powerful AI tools designed to help you create winning resumes and land your dream job.
           </p>
           <div className="flex flex-col sm:flex-row justify-center gap-4">
             <Link href="/pricing">
@@ -352,7 +355,7 @@ export default function AboutPage() {
                 Start For Free
               </a>
             </Link>
-            <a href="mailto:contact@ATScribe.com" className="px-6 md:px-8 py-3 bg-transparent border border-white hover:bg-white/10 text-white font-medium rounded-md transition-colors inline-block">
+            <a href={`mailto:contact@${branding.appName}.com`} className="px-6 md:px-8 py-3 bg-transparent border border-white hover:bg-white/10 text-white font-medium rounded-md transition-colors inline-block">
               Contact Us
             </a>
           </div>
@@ -360,71 +363,7 @@ export default function AboutPage() {
       </section>
 
       {/* Footer */}
-      <footer className="bg-slate-900 py-10 md:py-12 text-white">
-        <div className="container mx-auto px-4">
-          <div className="flex flex-col md:flex-row justify-between mb-6 md:mb-8">
-            <div className="mb-8 md:mb-0">
-              <div className="text-xl md:text-2xl font-bold mb-3 md:mb-4">ATScribe</div>
-              <p className="text-slate-400 max-w-xs text-sm md:text-base">
-                AI-powered resume and cover letter builder to help students and early career professionals land their dream jobs.
-              </p>
-              <p className="text-slate-500 mt-3 md:mt-4 text-xs md:text-sm">
-                A product of Futureaiit Consulting Private Limited
-              </p>
-            </div>
-            
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-6 md:gap-8">
-              <div>
-                <h4 className="text-base md:text-lg font-semibold mb-3 md:mb-4">Product</h4>
-                <ul className="space-y-2">
-                  <li><a href="/#features" className="text-slate-400 hover:text-indigo-400 transition-colors text-sm md:text-base">Resume Builder</a></li>
-                  <li><a href="/#pricing" className="text-slate-400 hover:text-indigo-400 transition-colors text-sm md:text-base">Cover Letter Creator</a></li>
-                  <li><a href="/#features" className="text-slate-400 hover:text-indigo-400 transition-colors text-sm md:text-base">Job Tracker</a></li>
-                </ul>
-              </div>
-              
-              <div>
-                <h4 className="text-base md:text-lg font-semibold mb-3 md:mb-4">Company</h4>
-                <ul className="space-y-2">
-                  <li><a href="/about" className="text-slate-400 hover:text-indigo-400 transition-colors text-sm md:text-base">About Us</a></li>
-                  <li><a href="/careers" className="text-slate-400 hover:text-indigo-400 transition-colors text-sm md:text-base">Careers</a></li>
-                  <li><a href="/contact" className="text-slate-400 hover:text-indigo-400 transition-colors text-sm md:text-base">Contact</a></li>
-                </ul>
-              </div>
-              
-              <div className="col-span-2 sm:col-span-1 mt-6 sm:mt-0">
-                <h4 className="text-base md:text-lg font-semibold mb-3 md:mb-4">Legal</h4>
-                <ul className="space-y-2">
-                  <li><a href="/privacy" className="text-slate-400 hover:text-indigo-400 transition-colors text-sm md:text-base">Privacy Policy</a></li>
-                  <li><a href="/terms" className="text-slate-400 hover:text-indigo-400 transition-colors text-sm md:text-base">Terms of Service</a></li>
-                </ul>
-              </div>
-            </div>
-          </div>
-          
-          <div className="pt-6 md:pt-8 border-t border-slate-800 flex flex-col md:flex-row justify-between items-center">
-            <div className="text-slate-500 text-xs md:text-sm text-center md:text-left">
-              &copy; {new Date().getFullYear()} Futureaiit Consulting Private Limited. All rights reserved.
-            </div>
-            
-            <div className="mt-4 md:mt-0 flex space-x-6">
-              <a href="https://twitter.com/ATScribe" className="text-slate-500 hover:text-indigo-400 transition-colors">
-                <span className="sr-only">Twitter</span>
-                <svg className="h-5 w-5 md:h-6 md:w-6" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M8.29 20.251c7.547 0 11.675-6.253 11.675-11.675 0-.178 0-.355-.012-.53A8.348 8.348 0 0022 5.92a8.19 8.19 0 01-2.357.646 4.118 4.118 0 001.804-2.27 8.224 8.224 0 01-2.605.996 4.107 4.107 0 00-6.993 3.743 11.65 11.65 0 01-8.457-4.287 4.106 4.106 0 001.27 5.477A4.072 4.072 0 012.8 9.713v.052a4.105 4.105 0 003.292 4.022 4.095 4.095 0 01-1.853.07 4.108 4.108 0 003.834 2.85A8.233 8.233 0 012 18.407a11.616 11.616 0 006.29 1.84"></path>
-                </svg>
-              </a>
-              
-              <a href="https://linkedin.com/company/ATScribe" className="text-slate-500 hover:text-indigo-400 transition-colors">
-                <span className="sr-only">LinkedIn</span>
-                <svg className="h-5 w-5 md:h-6 md:w-6" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                  <path fillRule="evenodd" d="M4.98 3.5c0 1.381-1.11 2.5-2.48 2.5s-2.48-1.119-2.48-2.5c0-1.38 1.11-2.5 2.48-2.5s2.48 1.12 2.48 2.5zm.02 4.5h-5v16h5v-16zm7.982 0h-4.968v16h4.969v-8.399c0-4.67 6.029-5.052 6.029 0v8.399h4.988v-10.131c0-7.88-8.922-7.593-11.018-3.714v-2.155z" clipRule="evenodd"></path>
-                </svg>
-              </a>
-            </div>
-          </div>
-        </div>
-      </footer>
+      <SharedFooter />
     </div>
   );
 } 

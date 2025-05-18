@@ -6,10 +6,22 @@ import RecentActivity from "@/components/dashboard/recent-activity";
 import RecentApplications from "@/components/dashboard/recent-applications";
 import { useAuth } from "@/hooks/use-auth";
 
+// Define a type for job applications
+interface JobApplication {
+  id: string;
+  // Add other properties based on your actual data structure
+  // These are just examples:
+  jobTitle?: string;
+  company?: string;
+  status?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export default function Dashboard() {
   const { user } = useAuth();
   
-  const { data: jobApplications = [] } = useQuery({
+  const { data: jobApplications = [] } = useQuery<JobApplication[]>({
     queryKey: ["/api/job-applications"],
     enabled: !!user,
   });

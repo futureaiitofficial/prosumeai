@@ -6,6 +6,7 @@ import LoginForm from "@/components/auth/login-form";
 import RegisterForm from "@/components/auth/register-form";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
+import { useBranding } from "@/components/branding/branding-provider";
 
 // New advanced mascot component with eye animations
 const AuthMascot = () => {
@@ -382,6 +383,7 @@ const Prevent_ScrollingEffect = () => {
 };
 
 export default function AuthPage() {
+  const branding = useBranding();
   const [location, navigate] = useLocation();
   const search = useSearch();
   const { user, isLoading } = useAuth();
@@ -437,7 +439,7 @@ export default function AuthPage() {
           
           <div className="relative z-10 p-8 md:p-12 lg:p-16 max-w-lg">
             <h1 className="text-white text-3xl md:text-4xl lg:text-5xl font-bold mb-6">
-              Welcome to ATScribe
+              Welcome to {branding.appName}
             </h1>
             <p className="text-primary-foreground/80 text-lg mb-8">
               The AI-powered resume builder that helps you land your dream job. Craft standout resumes tailored to each job application in minutes.
@@ -447,7 +449,7 @@ export default function AuthPage() {
               <AuthMascot />
               
               <div className="bg-white/10 rounded-lg p-6 backdrop-blur-sm">
-                <h3 className="text-white text-xl font-medium mb-3">Why choose ATScribe?</h3>
+                <h3 className="text-white text-xl font-medium mb-3">Why choose {branding.appName}?</h3>
                 <ul className="space-y-2 text-primary-foreground/80">
                   <li className="flex items-start">
                     <svg className="h-5 w-5 text-green-400 mr-2 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

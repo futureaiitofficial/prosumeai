@@ -31,12 +31,20 @@ const passwordRequirements = {
 // Create a dynamic registerSchema
 function createRegisterSchema(passwordReqs: typeof passwordRequirements) {
   return z.object({
-    username: z.string().min(3, {
-      message: "Username must be at least 3 characters.",
+    username: z.string().min(6, {
+      message: "Username must be at least 6 characters.",
     }),
-    email: z.string().email({
-      message: "Please enter a valid email address.",
-    }),
+    email: z.string()
+      .min(1, { message: "Email is required" })
+      .refine(
+        (email) => {
+          // More comprehensive email validation regex
+          // This will catch malformed emails like "rdma.@"
+          const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+          return emailRegex.test(email);
+        },
+        { message: "Please enter a valid email address." }
+      ),
     password: z.string()
       .min(passwordReqs.minLength, {
         message: `Password must be at least ${passwordReqs.minLength} characters.`,
@@ -231,7 +239,7 @@ export default function RegisterForm({ selectedPlanId }: RegisterFormProps) {
 
   // Function to check username availability
   const checkUsernameAvailability = useCallback(async (username: string) => {
-    if (!username || username.length < 3) {
+    if (!username || username.length < 6) {
       setUsernameStatus(null);
       setIsCheckingUsername(false);
       return;
@@ -253,8 +261,11 @@ export default function RegisterForm({ selectedPlanId }: RegisterFormProps) {
 
   // Function to check email disposability
   const checkEmailDisposability = useCallback(async (email: string) => {
-    if (!email || !email.includes('@')) {
-      setEmailStatus(null);
+    // More thorough email validation before making the API call
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    
+    if (!email || !emailRegex.test(email)) {
+      setEmailStatus({ disposable: true, message: 'Invalid email format' });
       setIsCheckingEmail(false);
       return;
     }

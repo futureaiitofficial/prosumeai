@@ -1,443 +1,307 @@
 import fs from 'fs';
+import { exec } from 'child_process';
+import util from 'util';
+import path from 'path';
+// Import PDF parser and mammoth using dynamic import for ES modules
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+const pdfParse = require('pdf-parse');
+const mammoth = require('mammoth');
+
+// Promisify exec for async use
+const execAsync = util.promisify(exec);
 
 /**
- * A very simple resume parser that doesn't rely on external libraries.
- * This handles all file types by treating them as raw text and extracting
- * information using regular expressions and text pattern matching.
+ * Extracts text content from various document formats
+ * This is a utility function to get plain text that can then be processed by AI
  */
-export function parseResume(filePath: string): {
-  name: string;
-  email: string;
-  phone: string;
-  linkedIn: string;
-  skills: string[];
-  sections: Record<string, string>;
-  workExperience: any[];
-  education: any[];
-  projects: any[];
-  certifications: any[];
-} {
+export async function extractDocumentText(filePath: string): Promise<string> {
   try {
-    // Check file extension to determine if it's a binary file
+    console.log(`Extracting text from file: ${filePath}`);
+    // Check file extension to determine the format
     const fileExt = filePath.toLowerCase().split('.').pop();
-    let fileContent = '';
     
-    if (fileExt === 'pdf' || fileExt === 'docx' || fileExt === 'doc') {
-      // For binary files, read as buffer and convert to text
-      console.log(`Detected binary file: ${fileExt}`);
-      const buffer = fs.readFileSync(filePath);
-      // Basic conversion, will catch some text in binary files
-      fileContent = buffer.toString('utf8');
-    } else {
-      // For text files, read directly
-      fileContent = fs.readFileSync(filePath, 'utf8');
+    // Handle text files directly
+    if (fileExt === 'txt') {
+      return fs.readFileSync(filePath, 'utf8');
     }
     
-    // Strip out non-printable ASCII characters to clean up the text
-    const cleanedText = fileContent.replace(/[^\x20-\x7E\r\n]/g, ' ')
-                                  .replace(/\s+/g, ' ');
-    
-    // Break into lines
-    const lines = cleanedText.split('\n')
-                            .map(line => line.trim())
-                            .filter(line => line.length > 0);
-    
-    // Extract basic information with regex patterns
-    const emailPattern = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/;
-    const phonePattern = /\b(?:\+?1[ -]?)?\(?\d{3}\)?[ -]?\d{3}[ -]?\d{4}\b/;
-    const linkedinPattern = /(?:linkedin\.com\/in\/|linkedin\:)[a-zA-Z0-9_-]+/i;
-    
-    const emailMatch = cleanedText.match(emailPattern);
-    const phoneMatch = cleanedText.match(phonePattern);
-    const linkedinMatch = cleanedText.match(linkedinPattern);
-    
-    // Log the first 5 lines to help with debugging
-    console.log("First 5 lines:", lines.slice(0, 5));
-    
-    // Try to extract name (typically in the first few lines)
-    let nameMatch = "";
-    
-    // First look for filename - often contains the person's name
-    if (filePath) {
-      const filename = filePath.split('/').pop() || "";
-      const nameFromFile = filename.replace(/\.(pdf|docx|doc|txt)$/i, '').replace(/_/g, ' ').trim();
-      
-      // If filename contains sensible name (not too short, no numbers or special characters)
-      if (nameFromFile.length > 3 && nameFromFile.length < 40 && /^[A-Za-z\s]+$/.test(nameFromFile)) {
-        console.log(`Using name from filename: ${nameFromFile}`);
-        nameMatch = nameFromFile;
-      }
-    }
-    
-    // If name wasn't found in filename, try to find it in first few lines
-    if (!nameMatch) {
-      for (let i = 0; i < Math.min(10, lines.length); i++) {
-        const line = lines[i];
-        // Check if this looks like a name (no email, no phone, not too long)
-        if (line.length > 0 && line.length < 40 && 
-            !emailPattern.test(line) && 
-            !phonePattern.test(line) &&
-            !/\d{4}/.test(line) && // No years
-            !/^(RESUME|CURRICULUM|CV|PROFILE)$/i.test(line) && // Not resume title
-            /^[A-Za-z\s\.,]+$/.test(line)) { // Only alpha characters, spaces, periods
-          nameMatch = line;
-          console.log(`Found name in text: ${nameMatch}`);
-          break;
+    // Handle PDF files using pdf-parse
+    if (fileExt === 'pdf') {
+      try {
+        console.log(`Extracting text from PDF: ${filePath}`);
+        const dataBuffer = fs.readFileSync(filePath);
+        const data = await pdfParse(dataBuffer);
+        
+        // data.text contains all the text content
+        if (data.text) {
+          console.log(`Successfully extracted ${data.text.length} characters from PDF`);
+          return data.text;
+        } else {
+          throw new Error('PDF parsing returned empty text');
         }
+      } catch (pdfError: any) {
+        console.error('PDF extraction error:', pdfError);
+        throw new Error(`PDF parsing failed: ${pdfError.message || 'Unknown error'}`);
       }
     }
     
-    // Extract sections based on common resume headers
+    // For DOCX files, use mammoth library
+    if (fileExt === 'docx') {
+      try {
+        console.log(`Extracting text from DOCX using mammoth: ${filePath}`);
+        const buffer = fs.readFileSync(filePath);
+        const result = await mammoth.extractRawText({ buffer });
+        
+        if (result && result.value) {
+          console.log(`Successfully extracted ${result.value.length} characters from DOCX`);
+          return result.value;
+        } else {
+          console.warn('Mammoth extraction returned empty result, falling back to basic extraction');
+        }
+      } catch (docxError: any) {
+        console.error('DOCX extraction error:', docxError);
+        console.log('Falling back to basic text extraction...');
+      }
+    }
+    
+    // For DOC files, try to use external tools
+    if (fileExt === 'doc') {
+      try {
+        // Try to use external tools like antiword if available
+        try {
+          console.log(`Attempting to extract text from DOC using CLI tools: ${filePath}`);
+          const { stdout } = await execAsync(`antiword "${filePath}" || catdoc "${filePath}" || textutil -convert txt "${filePath}" -stdout`);
+          if (stdout && stdout.length > 100) {
+            console.log(`Successfully extracted ${stdout.length} characters from DOC using CLI tool`);
+            return stdout;
+          }
+        } catch (cliError) {
+          // CLI tool not available, fall back to basic extraction
+          console.log('CLI extraction tool not available, falling back to basic extraction');
+        }
+      } catch (docError) {
+        console.error('DOC extraction error:', docError);
+      }
+    }
+
+    // Fallback for binary files using basic extraction
+    console.log('Using fallback basic text extraction method');
+    let textContent = '';
+    
+    // Read the file as a buffer
+    const buffer = fs.readFileSync(filePath);
+    
+    // Basic text extraction - converts binary to text and cleans it
+    textContent = buffer.toString('utf8')
+      // Clean common binary artifacts
+      .replace(/\x00/g, '') // Remove null bytes
+      .replace(/[^\x20-\x7E\r\n]/g, ' ') // Replace non-printable chars with spaces
+      .replace(/\s+/g, ' '); // Normalize whitespace
+    
+    console.log(`Extracted ${textContent.length} characters using basic extraction`);
+    return textContent;
+  } catch (error: any) {
+    console.error('Error extracting document text:', error);
+    throw new Error(`Failed to extract text from document: ${error.message}`);
+  }
+}
+
+/**
+ * Simple parser for resume text
+ * @param filePath Path to resume file
+ * @returns Parsed resume data
+ */
+export async function parseResume(filePath: string): Promise<any> {
+  try {
+    // Extract text from the file
+    const text = await extractDocumentText(filePath);
+    
+    // Basic parsing - identify sections by common headings
     const sections: Record<string, string> = {};
     
-    // Common headers
-    const sectionHeaders = {
-      summary: /^(SUMMARY|PROFESSIONAL SUMMARY|PROFILE|OBJECTIVE)/i,
-      experience: /^(EXPERIENCE|WORK EXPERIENCE|EMPLOYMENT|WORK HISTORY)/i,
-      education: /^(EDUCATION|ACADEMIC)/i,
-      skills: /^(SKILLS|TECHNICAL SKILLS|CORE COMPETENCIES)/i,
-      projects: /^(PROJECTS|PROJECT EXPERIENCE)/i,
-      certifications: /^(CERTIFICATIONS|CERTIFICATES)/i
-    };
+    // Common section headers in resumes
+    const sectionHeaders = [
+      'EDUCATION',
+      'EXPERIENCE',
+      'WORK EXPERIENCE', 
+      'EMPLOYMENT HISTORY',
+      'SKILLS',
+      'TECHNICAL SKILLS',
+      'PROFESSIONAL SUMMARY',
+      'SUMMARY',
+      'PERSONAL INFORMATION',
+      'CONTACT',
+      'PROJECTS',
+      'CERTIFICATIONS',
+      'ACHIEVEMENTS',
+      'LANGUAGES',
+      'INTERESTS'
+    ];
     
-    let currentSection = "header";
-    sections[currentSection] = "";
+    // Split the text into lines for processing
+    const lines = text.split(/\r?\n/);
     
-    // Identify sections 
+    // First pass - identify sections
+    let currentSection = 'HEADER';
+    sections[currentSection] = '';
+    
     for (const line of lines) {
-      let foundHeader = false;
+      const cleanLine = line.trim().toUpperCase();
       
       // Check if this line is a section header
-      for (const [section, pattern] of Object.entries(sectionHeaders)) {
-        if (pattern.test(line)) {
-          currentSection = section;
-          foundHeader = true;
-          // Initialize section if not exists
+      const isHeader = sectionHeaders.some(header => 
+        cleanLine === header || 
+        cleanLine.startsWith(header + ':') || 
+        cleanLine.startsWith(header + ' ')
+      );
+      
+      if (isHeader) {
+        // Extract the actual header name (convert to title case)
+        const headerMatch = sectionHeaders.find(header => 
+          cleanLine === header || 
+          cleanLine.startsWith(header + ':') || 
+          cleanLine.startsWith(header + ' ')
+        );
+        
+        if (headerMatch) {
+          currentSection = headerMatch;
           if (!sections[currentSection]) {
-            sections[currentSection] = "";
+            sections[currentSection] = '';
           }
-          break;
         }
-      }
-      
-      // Skip header line but add content lines to the current section
-      if (!foundHeader) {
-        sections[currentSection] += line + "\n";
+      } else if (line.trim()) {
+        // Add non-empty lines to the current section
+        sections[currentSection] += line + '\n';
       }
     }
     
-    // Find skills from skills section if it exists
-    let skills: string[] = [];
-    if (sections.skills) {
-      // Skills are typically comma or bullet separated
-      skills = sections.skills
-        .split(/[,•|\n-]/)
-        .map(s => s.trim())
-        .filter(s => s.length > 0 && s.length < 50);
+    // Enhanced extraction of personal info
+    const personalInfo = {
+      name: '',
+      email: '',
+      phone: '',
+      location: '',
+      linkedIn: '',
+      website: ''
+    };
+    
+    // Look for email with a more comprehensive regex
+    // This will catch most standard email formats
+    const emailRegex = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/;
+    const emailMatch = text.match(emailRegex);
+    if (emailMatch) {
+      personalInfo.email = emailMatch[0];
+      console.log(`Found email: ${personalInfo.email}`);
     }
     
-    // Create a basic structure for work experience
-    const workExperience = [];
+    // Enhanced phone number detection with international format support
+    // This will match formats like: (123) 456-7890, 123-456-7890, +1 123 456 7890, etc.
+    const phoneRegex = /(?:\+\d{1,3}[-.\s]?)?\(?(?:\d{3})\)?[-.\s]?\d{3}[-.\s]?\d{4}/;
+    const phoneMatch = text.match(phoneRegex);
+    if (phoneMatch) {
+      personalInfo.phone = phoneMatch[0];
+      console.log(`Found phone: ${personalInfo.phone}`);
+    }
     
-    // Try to extract work experience entries if exist
-    if (sections.experience) {
-      const expLines = sections.experience.split('\n');
-      let currentExp: any = null;
-      let bullets: string[] = [];
-      
-      for (const line of expLines) {
-        // Check if line looks like a job title/company line (often has dates)
-        const hasDatePattern = /\b(19|20)\d{2}\b/.test(line) || 
-                             /(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)/i.test(line);
-        
-        if (hasDatePattern && line.length < 100) {
-          // If we already have a job entry, save it before starting new one
-          if (currentExp) {
-            currentExp.achievements = bullets;
-            currentExp.description = bullets.join("\n");
-            workExperience.push(currentExp);
-            bullets = [];
-          }
-          
-          // Start new job entry
-          currentExp = {
-            id: `exp-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-            company: "",
-            position: "",
-            location: "",
-            startDate: "",
-            endDate: "",
-            current: false,
-            description: "",
-            achievements: []
-          };
-          
-          // Try to extract dates
-          const dateRangeMatch = line.match(/(\b\d{4}\b|\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{4})\s*(?:-|to|–)\s*(\b\d{4}\b|\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{4}|Present|Current)/i);
-          
-          if (dateRangeMatch) {
-            currentExp.startDate = dateRangeMatch[1];
-            currentExp.endDate = dateRangeMatch[2];
-            currentExp.current = /present|current/i.test(dateRangeMatch[2]);
-          }
-          
-          // Try to extract position and company
-          // Common format: "Position at Company" or "Position, Company"
-          const positionMatch = line.replace(/(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{4}\s*(?:-|to|–)\s*(\b\d{4}\b|Present|Current)/gi, "").trim();
-          
-          if (positionMatch) {
-            if (positionMatch.includes(" at ")) {
-              const parts = positionMatch.split(" at ");
-              currentExp.position = parts[0].trim();
-              currentExp.company = parts[1].trim();
-            } else if (positionMatch.includes(", ")) {
-              const parts = positionMatch.split(", ");
-              currentExp.position = parts[0].trim();
-              currentExp.company = parts[1].trim();
-            } else {
-              currentExp.position = positionMatch;
-            }
-          }
-        } 
-        // Check if line is a bullet point
-        else if (line.trim().startsWith('•') || line.trim().startsWith('-') || line.trim().startsWith('*')) {
-          if (currentExp) {
-            bullets.push(line.replace(/^[•\-*]+\s*/, '').trim());
-          }
-        }
-        // Other lines may be continuation or additional info
-        else if (line.trim().length > 0 && currentExp) {
-          if (bullets.length > 0) {
-            // Likely continuation of previous bullet
-            bullets[bullets.length - 1] += " " + line.trim();
-          } else {
-            // Might be a company name or other info
-            if (!currentExp.company) {
-              currentExp.company = line.trim();
-            }
-          }
-        }
+    // Look for LinkedIn URL
+    const linkedInRegex = /(?:linkedin\.com\/in\/|linkedin:)[a-zA-Z0-9_-]+/i;
+    const linkedInMatch = text.match(linkedInRegex);
+    if (linkedInMatch) {
+      personalInfo.linkedIn = linkedInMatch[0];
+      if (!personalInfo.linkedIn.startsWith('http')) {
+        personalInfo.linkedIn = 'https://www.' + personalInfo.linkedIn;
       }
+      console.log(`Found LinkedIn: ${personalInfo.linkedIn}`);
+    }
+    
+    // Look for personal website
+    const websiteRegex = /(?:https?:\/\/)?(?:www\.)?[a-zA-Z0-9-]+\.[a-zA-Z]{2,}(?:\/[a-zA-Z0-9-._~:/?#[\]@!$&'()*+,;=]*)?/gi;
+    const websiteMatches = text.match(websiteRegex);
+    if (websiteMatches) {
+      // Filter out LinkedIn and common domains that aren't likely personal websites
+      const websites = Array.from(websiteMatches).filter(url => 
+        !url.includes('linkedin.com') && 
+        !url.includes('google.com') && 
+        !url.includes('facebook.com')
+      );
       
-      // Add the last job entry if exists
-      if (currentExp) {
-        currentExp.achievements = bullets;
-        currentExp.description = bullets.join("\n");
-        workExperience.push(currentExp);
+      if (websites.length > 0) {
+        personalInfo.website = websites[0];
+        if (!personalInfo.website.startsWith('http')) {
+          personalInfo.website = 'https://' + personalInfo.website;
+        }
+        console.log(`Found website: ${personalInfo.website}`);
       }
     }
     
-    // Extract education in a similar way
-    const education = [];
+    // Try to extract location/address
+    // Look for patterns like "City, State" or "City, State ZIP"
+    const locationRegex = /\b[A-Z][a-z]+(?:[\s-][A-Z][a-z]+)*,\s*[A-Z]{2}(?:\s*\d{5})?\b/;
+    const locationMatch = text.match(locationRegex);
+    if (locationMatch) {
+      personalInfo.location = locationMatch[0];
+      console.log(`Found location: ${personalInfo.location}`);
+    }
     
-    if (sections.education) {
-      const eduLines = sections.education.split('\n');
-      let currentEdu: any = null;
-      
-      for (const line of eduLines) {
-        // Look for degree info or institution
-        const hasDegree = /\b(?:Bachelor|Master|Ph\.D|MBA|B\.S\.|M\.S\.|B\.A\.|M\.A\.|Associate|Diploma)\b/i.test(line);
-        const hasSchool = /\b(?:University|College|Institute|School)\b/i.test(line);
-        const hasDate = /\b(19|20)\d{2}\b/.test(line);
-        
-        if ((hasDegree || hasSchool) && line.length < 100) {
-          // Save previous education entry if exists
-          if (currentEdu) {
-            education.push(currentEdu);
-          }
-          
-          // Start new education entry
-          currentEdu = {
-            id: `edu-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-            institution: "",
-            degree: "",
-            fieldOfStudy: "",
-            startDate: "",
-            endDate: "",
-            current: false,
-            description: ""
-          };
-          
-          // Try to extract institution
-          const schoolMatch = line.match(/\b([A-Z][a-z]+(?:\s[A-Z][a-z]+)*\s+(?:University|College|Institute|School))\b/);
-          if (schoolMatch) {
-            currentEdu.institution = schoolMatch[1];
-          }
-          
-          // Try to extract degree
-          const degreeMatch = line.match(/\b(Bachelor|Master|Ph\.D|MBA|B\.S\.|M\.S\.|B\.A\.|M\.A\.|Associate|Diploma)(?:'s)?\s+(?:of|in)?\s+([A-Za-z\s]+)\b/i);
-          if (degreeMatch) {
-            currentEdu.degree = degreeMatch[1];
-            if (degreeMatch[2]) {
-              currentEdu.fieldOfStudy = degreeMatch[2].trim();
-            }
-          }
-          
-          // Try to extract dates
-          const dateRangeMatch = line.match(/(\b\d{4}\b)\s*(?:-|to|–)\s*(\b\d{4}\b|Present|Current)/i);
-          if (dateRangeMatch) {
-            currentEdu.startDate = dateRangeMatch[1];
-            currentEdu.endDate = dateRangeMatch[2];
-            currentEdu.current = /present|current/i.test(dateRangeMatch[2]);
-          }
-        } 
-        else if (line.trim().length > 0 && currentEdu) {
-          // Additional information about the education
-          if (!currentEdu.description) {
-            currentEdu.description = line.trim();
-          } else {
-            currentEdu.description += " " + line.trim();
-          }
-        }
+    // Try to extract name from first few lines or contact section
+    let nameCandidate = '';
+    
+    // First check in HEADER or CONTACT sections
+    const headerLines = sections['HEADER']?.split('\n') || [];
+    const contactLines = sections['CONTACT']?.split('\n') || 
+                         sections['PERSONAL INFORMATION']?.split('\n') || [];
+    
+    // Combine lines to check for name
+    const potentialNameLines = [...headerLines.slice(0, 5), ...contactLines];
+    
+    for (const line of potentialNameLines) {
+      // Skip line if it's too short or contains email/phone/url
+      if (line.length < 3 || 
+          emailRegex.test(line) || 
+          phoneRegex.test(line) || 
+          line.includes('@') ||
+          line.includes('http') ||
+          line.includes('www.')) {
+        continue;
       }
       
-      // Add the last education entry if exists
-      if (currentEdu) {
-        education.push(currentEdu);
+      // Skip lines that are too long to be names
+      if (line.length > 40) continue;
+      
+      // Skip lines that contain multiple commas (likely address)
+      if ((line.match(/,/g) || []).length > 1) continue;
+      
+      // Good candidate for a name: 
+      // - Relatively short line
+      // - First few lines of document
+      // - Doesn't contain typical non-name content
+      // - Contains capital letters
+      if (/[A-Z][a-z]/.test(line) && 
+          !line.includes(':') && 
+          line.length < 40 &&
+          !line.includes('resume') &&
+          !line.includes('curriculum') &&
+          !line.includes('vitae')) {
+        nameCandidate = line.trim();
+        console.log(`Found possible name: ${nameCandidate}`);
+        break;
       }
     }
     
-    // Extract projects if available
-    const projects = [];
-    
-    if (sections.projects) {
-      const projLines = sections.projects.split('\n');
-      let currentProj: any = null;
-      let description: string[] = [];
-      
-      for (const line of projLines) {
-        // Project titles are often short, may have tech stack or dates
-        const isLikelyTitle = line.length < 60 && /^[A-Z]/.test(line);
-        const hasTech = line.includes('|') && 
-                      (line.includes('JavaScript') || line.includes('Python') || 
-                       line.includes('Java') || line.includes('React'));
-        
-        if (isLikelyTitle || hasTech) {
-          // Save previous project if exists
-          if (currentProj) {
-            currentProj.description = description.join("\n");
-            projects.push(currentProj);
-            description = [];
-          }
-          
-          // Create new project
-          currentProj = {
-            id: `proj-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-            name: "",
-            description: "",
-            technologies: [],
-            startDate: "",
-            endDate: "",
-            current: false,
-            url: null
-          };
-          
-          // Extract name and technologies
-          if (line.includes('|')) {
-            const parts = line.split('|').map(p => p.trim());
-            currentProj.name = parts[0];
-            if (parts.length > 1) {
-              currentProj.technologies = parts[1].split(/[,;]/).map(t => t.trim());
-            }
-          } else {
-            currentProj.name = line;
-          }
-          
-          // Try to extract date if present
-          const dateMatch = line.match(/\b(20\d{2})\b/);
-          if (dateMatch) {
-            currentProj.startDate = dateMatch[1];
-          }
-        } 
-        else if (line.trim().length > 0 && currentProj) {
-          // Line is part of project description
-          description.push(line.trim());
-        }
-      }
-      
-      // Add final project if exists
-      if (currentProj) {
-        currentProj.description = description.join("\n");
-        projects.push(currentProj);
-      }
+    if (nameCandidate) {
+      personalInfo.name = nameCandidate;
     }
     
-    // Extract certifications if available
-    const certifications = [];
-    
-    if (sections.certifications) {
-      const certLines = sections.certifications.split('\n');
-      
-      for (let i = 0; i < certLines.length; i++) {
-        const line = certLines[i].trim();
-        
-        // Skip empty lines
-        if (!line) continue;
-        
-        const isBullet = line.startsWith('•') || line.startsWith('-') || line.startsWith('*');
-        const certText = isBullet ? line.substring(1).trim() : line;
-        
-        // Skip if too short
-        if (certText.length < 3) continue;
-        
-        const cert = {
-          id: `cert-${Date.now()}-${i}`,
-          name: certText,
-          issuer: "",
-          date: "",
-          expires: false,
-          expiryDate: null
-        };
-        
-        // Try to extract issuer
-        if (certText.includes(" - ")) {
-          const parts = certText.split(" - ");
-          cert.name = parts[0].trim();
-          cert.issuer = parts[1].trim();
-        } else if (certText.includes(", ")) {
-          const parts = certText.split(", ");
-          cert.name = parts[0].trim();
-          if (parts.length > 1 && !parts[1].match(/\b20\d{2}\b/)) {
-            cert.issuer = parts[1].trim();
-          }
-        }
-        
-        // Try to extract date
-        const dateMatch = certText.match(/\b(20\d{2})\b/);
-        if (dateMatch) {
-          cert.date = dateMatch[1];
-        }
-        
-        certifications.push(cert);
-      }
-    }
-    
+    // Assemble the basic parsed data
     return {
-      name: nameMatch || "Not extracted from document",
-      email: emailMatch ? emailMatch[0] : "Not extracted from document",
-      phone: phoneMatch ? phoneMatch[0] : "Not extracted from document",
-      linkedIn: linkedinMatch ? linkedinMatch[0] : "",
-      skills,
+      personalInfo,
       sections,
-      workExperience,
-      education,
-      projects,
-      certifications
+      fullText: text,
+      message: 'Basic text extraction completed. This data requires further processing by AI.'
     };
-  } catch (error) {
-    console.error("Error in simple resume parser:", error);
-    // Return empty results on error
-    return {
-      name: "Error parsing document",
-      email: "",
-      phone: "",
-      linkedIn: "",
-      skills: [],
-      sections: {},
-      workExperience: [],
-      education: [],
-      projects: [],
-      certifications: []
-    };
+  } catch (error: any) {
+    console.error('Error in simple resume parser:', error);
+    throw new Error(`Resume parsing failed: ${error.message}`);
   }
 }

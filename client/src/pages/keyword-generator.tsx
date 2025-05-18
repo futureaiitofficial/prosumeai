@@ -73,7 +73,7 @@ export default function KeywordGenerator() {
   const [keywordData, setKeywordData] = useState<KeywordAnalysisResult | null>(null);
   const [words, setWords] = useState<WordCloudWord[]>([]);
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState("word-cloud");
+  const [activeTab, setActiveTab] = useState("wordCloud");
   const [resumeData, setResumeData] = useState<ResumeData | null>(null);
   const [atsScore, setAtsScore] = useState<number | null>(null);
   const [flattenedKeywords, setFlattenedKeywords] = useState<string[]>([]);
@@ -112,26 +112,82 @@ export default function KeywordGenerator() {
     }
 
     setLoading(true);
+    // Reset any previous errors and data
+    setKeywordData(null);
+    setWords([]);
+    setFlattenedKeywords([]);
 
     try {
-      // Call the AI endpoint using the relative path
+      // Prepare a clean version of the job description (remove excessive whitespace)
+      const cleanJobDescription = jobDescription.trim().replace(/\s+/g, ' ');
+
+      // Add a timeout to prevent infinite loading if the server doesn't respond
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+
+      // Call the AI endpoint using the relative path with error handling
       const response = await fetch("/api/ai/analyze-job-description", {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ jobDescription }),
+        body: JSON.stringify({ jobDescription: cleanJobDescription }),
+        signal: controller.signal
       });
 
-      // Log detailed error information
+      // Clear the timeout since we got a response
+      clearTimeout(timeoutId);
+
+      // Check for specific error status codes for better error messages
       if (!response.ok) {
         const errorText = await response.text().catch(() => 'No error details available');
         console.error(`API Error (${response.status}):`, errorText);
-        throw new Error(`Failed to analyze job description: ${response.status} ${response.statusText}`);
+        
+        let errorMessage = 'Failed to analyze job description';
+        
+        if (response.status === 429) {
+          errorMessage = 'You have reached your token usage limit. Please try again later or upgrade your plan.';
+        } else if (response.status === 401) {
+          errorMessage = 'Authentication required. Please log in again.';
+          // Refresh the page to force re-authentication
+          setTimeout(() => window.location.reload(), 2000);
+        } else if (response.status === 500) {
+          errorMessage = 'Server error processing your request. Please try with a shorter job description.';
+        } else if (response.status === 503) {
+          errorMessage = 'Service temporarily unavailable. Please try again in a few minutes.';
+        }
+        
+        toast({
+          title: "Error",
+          description: errorMessage,
+          variant: "destructive",
+        });
+        
+        setLoading(false);
+        return;
       }
 
-      const apiResponse = await response.json();
+      // Try parsing the response with proper error handling
+      let apiResponse;
+      try {
+        apiResponse = await response.json();
+      } catch (jsonError) {
+        console.error("Failed to parse API response:", jsonError);
+        toast({
+          title: "Error",
+          description: "Received malformed response from server. Please try again.",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+
       console.log("Raw API response:", apiResponse);
+      
+      // Validate API response structure
+      if (!apiResponse || typeof apiResponse !== 'object') {
+        throw new Error('Invalid response format from keyword analysis API');
+      }
       
       // Process the response to make it more ATS-friendly
       const processedResponse = processKeywordsForATS(apiResponse);
@@ -145,9 +201,15 @@ export default function KeywordGenerator() {
         }
       }
       
-      // If we have no keywords, throw an error
+      // If we have no keywords, show a specific message
       if (allKeywords.length === 0) {
-        throw new Error('No keywords found in the job description');
+        toast({
+          title: "No keywords found",
+          description: "We couldn't extract any relevant keywords from this job description. Try providing more detailed content.",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
       }
       
       // Always apply our smart categorization to ensure consistent categorization
@@ -170,11 +232,33 @@ export default function KeywordGenerator() {
       
       // Prepare data for word cloud
       prepareWordCloudData(data);
-    } catch (error) {
+      
+      // Set active tab to word cloud and force redraw
+      setActiveTab("wordCloud");
+      setTimeout(() => setForceRedraw(prev => prev + 1), 50);
+      
+      // Show success message
+      toast({
+        title: "Keywords extracted",
+        description: `Found ${allKeywords.length} keywords in the job description.`,
+      });
+    } catch (error: any) {
       console.error("Error extracting keywords:", error);
+      
+      // Different error messages based on the type of error
+      let errorMessage = "Failed to extract keywords. Please try again.";
+      
+      if (error.name === 'AbortError') {
+        errorMessage = "Request timed out. The server took too long to respond.";
+      } else if (error.message.includes('token')) {
+        errorMessage = "You've reached your token usage limit. Please try again later or upgrade your plan.";
+      } else if (error.message.includes('network') || error.message.includes('connection')) {
+        errorMessage = "Network connection issue. Please check your internet connection and try again.";
+      }
+      
       toast({
         title: "Error",
-        description: "Failed to extract keywords. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -449,13 +533,15 @@ export default function KeywordGenerator() {
     // Only render when we have words and we're on the word cloud tab
     if (!words.length || !wordCloudRef.current || activeTab !== "wordCloud") return;
     
+    console.log("Rendering word cloud with", words.length, "words");
+    
     // Clear any existing content
     const container = wordCloudRef.current;
     while (container.firstChild) {
       container.removeChild(container.firstChild);
     }
     
-    const width = container.offsetWidth;
+    const width = container.offsetWidth || 800;
     const height = 500;
     
     // Create and append the SVG
@@ -491,16 +577,33 @@ export default function KeywordGenerator() {
     container.addEventListener('DOMNodeRemoved', cleanupTooltip);
     
     // Generate the word cloud layout
-    const layout = cloud()
-      .size([width, height])
-      .words(words.map(d => ({ ...d })))
-      .padding(5)
-      .rotate(() => 0)
-      .font("Arial")
-      .fontSize(d => (d as any).value)
-      .on("end", drawWords);
-    
-    layout.start();
+    try {
+      // Clone words for d3 processing to avoid mutation issues
+      const wordItems = words.map(d => ({
+        text: d.text,
+        size: d.value,
+        color: d.color,
+        category: d.category
+      }));
+      
+      const layout = cloud()
+        .size([width, height])
+        .words(wordItems)
+        .padding(5)
+        .rotate(() => 0)
+        .font("Arial")
+        .fontSize(d => (typeof d.size === 'number' ? d.size : 10))
+        .on("end", drawWords);
+      
+      layout.start();
+    } catch (error) {
+      console.error("Error rendering word cloud:", error);
+      // Show error message in the container
+      const errorMsg = document.createElement("div");
+      errorMsg.className = "text-center text-red-500 p-4";
+      errorMsg.textContent = "Error rendering word cloud. Please try again.";
+      container.appendChild(errorMsg);
+    }
     
     function drawWords(words: any[]) {
       words.forEach(word => {
@@ -584,6 +687,12 @@ export default function KeywordGenerator() {
       tooltip.style.left = `${x}px`;
       tooltip.style.top = `${y}px`;
     }
+    
+    // Return cleanup function
+    return () => {
+      cleanupTooltip();
+      container.removeEventListener('DOMNodeRemoved', cleanupTooltip);
+    };
   }, [words, activeTab, forceRedraw]);
 
   // Format category name (helper function)
@@ -643,8 +752,11 @@ export default function KeywordGenerator() {
     const cloudWords: WordCloudWord[] = [];
     
     Object.entries(data).forEach(([category, keywords]) => {
-      if (Array.isArray(keywords)) {
+      if (Array.isArray(keywords) && keywords.length > 0) {
         keywords.forEach(keyword => {
+          // Skip empty keywords
+          if (!keyword.trim()) return;
+          
           cloudWords.push({
             text: keyword,
             value: getWordValue(keyword, category as keyof typeof categoryColors),
@@ -655,7 +767,18 @@ export default function KeywordGenerator() {
       }
     });
     
-    setWords(cloudWords);
+    // Ensure we don't have too many words (which could crash the browser)
+    const maxWords = 150;
+    const finalWords = cloudWords.length > maxWords 
+      ? cloudWords.sort((a, b) => b.value - a.value).slice(0, maxWords)
+      : cloudWords;
+    
+    setWords(finalWords);
+    
+    // Force an immediate redraw of the word cloud after setting the data
+    setTimeout(() => {
+      setForceRedraw(prev => prev + 1);
+    }, 100);
   };
 
   return (

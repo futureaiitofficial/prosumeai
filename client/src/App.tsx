@@ -45,11 +45,13 @@ import ContactPage from '@/pages/contact';
 import AuthenticatedRedirect from '@/components/auth/authenticated-redirect';
 import AdminToolsPage from '@/pages/admin/tools';
 import AdminSecurityPage from '@/pages/admin/security';
+import AdminSettingsPage from '@/pages/admin/settings';
 import ForgotPasswordPage from '@/pages/forgot-password';
 import ResetPasswordPage from '@/pages/reset-password';
 import TermsOfServicePage from '@/pages/terms';
 import PrivacyPolicyPage from '@/pages/privacy';
 import RegisterPage from '@/pages/register';
+import { BrandingProvider } from '@/components/branding/branding-provider';
 
 // Session Recovery component to handle network disconnections
 function SessionRecovery() {
@@ -154,7 +156,7 @@ function Router() {
       <AdminRoute path="/admin/users" component={AdminUsersPage} />
       <AdminRoute path="/admin/templates" component={AdminTemplatesPage} />
       <AdminRoute path="/admin/analytics" component={AdminDashboard} />
-      <AdminRoute path="/admin/settings" component={AdminDashboard} />
+      <AdminRoute path="/admin/settings" component={AdminSettingsPage} />
       <AdminRoute path="/admin/system-status" component={SystemStatusPage} />
       <AdminRoute path="/admin/backups" component={BackupsPage} />
       <AdminRoute path="/admin/api-keys" component={ApiKeysPage} />
@@ -172,13 +174,15 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <LocationProvider>
+        <BrandingProvider>
+          <LocationProvider>
             <SidebarProvider>
               <SessionRecovery />
               <Router />
               <Toaster />
             </SidebarProvider>
-        </LocationProvider>
+          </LocationProvider>
+        </BrandingProvider>
       </AuthProvider>
     </QueryClientProvider>
   );

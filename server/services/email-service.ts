@@ -1,0 +1,498 @@
+// Import nodemailer using correct ES module syntax
+import * as nodemailer from "nodemailer";
+import { db } from '../config/db';
+import { smtpSettings, brandingSettings } from '@shared/schema';
+
+// Import the BrandingSettings type from the branding provider
+interface BrandingSettings {
+  appName: string;
+  appTagline: string;
+  logoUrl: string;
+  faviconUrl: string;
+  enableDarkMode: boolean;
+  primaryColor: string;
+  secondaryColor: string;
+  accentColor: string;
+  footerText: string;
+  customCss?: string;
+  customJs?: string;
+}
+
+interface EmailOptions {
+  to: string | string[];
+  subject: string;
+  text?: string;
+  html?: string;
+  replyTo?: string;
+  cc?: string | string[];
+  bcc?: string | string[];
+  attachments?: Array<{
+    filename: string;
+    content: Buffer | string;
+    contentType?: string;
+  }>;
+}
+
+// Password reset email template
+const getPasswordResetTemplate = (username: string, resetLink: string, branding: BrandingSettings) => {
+  const primaryColor = branding?.primaryColor || "#4f46e5";
+  const secondaryColor = branding?.secondaryColor || "#10b981";
+  const appName = branding?.appName || "atScribe";
+  const logoUrl = branding?.logoUrl || "/logo.png";
+  const footerText = branding?.footerText || "© 2025 atScribe. All rights reserved.";
+
+  // Use absolute URL for logo
+  const baseUrl = process.env.BASE_URL || "http://localhost:5173";
+  const absoluteLogoUrl = logoUrl.startsWith('http') ? logoUrl : `${baseUrl}${logoUrl}`;
+
+  return `
+  <!DOCTYPE html>
+  <html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Password Reset Request</title>
+    <style>
+      body {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        line-height: 1.6;
+        color: #333;
+        margin: 0;
+        padding: 0;
+        background-color: #f5f7fa;
+      }
+      .email-container {
+        max-width: 600px;
+        margin: 0 auto;
+        background-color: #ffffff;
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+      }
+      .header {
+        background-color: ${primaryColor};
+        color: white;
+        padding: 20px;
+        text-align: center;
+      }
+      .logo {
+        max-height: 60px;
+        margin-bottom: 10px;
+      }
+      .content {
+        padding: 30px 20px;
+      }
+      .footer {
+        background-color: #f5f5f5;
+        padding: 15px;
+        text-align: center;
+        font-size: 12px;
+        color: #666;
+      }
+      .button-container {
+        text-align: center;
+        margin: 30px 0;
+      }
+      .button {
+        display: inline-block;
+        background-color: ${secondaryColor};
+        color: white;
+        text-decoration: none;
+        padding: 14px 30px;
+        border-radius: 4px;
+        font-weight: bold;
+      }
+      .alert-box {
+        background-color: #fff8e6;
+        border-left: 4px solid #f59e0b;
+        padding: 15px;
+        margin: 20px 0;
+        border-radius: 4px;
+      }
+      .divider {
+        height: 1px;
+        background-color: #eaeaea;
+        margin: 25px 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="email-container">
+      <div class="header">
+        <img src="${absoluteLogoUrl}" alt="${appName} Logo" class="logo">
+        <h1>Password Reset Request</h1>
+      </div>
+      <div class="content">
+        <h2>Hello ${username},</h2>
+        
+        <p>We received a request to reset your password for your ${appName} account. If you did not make this request, you can safely ignore this email.</p>
+        
+        <div class="button-container">
+          <a href="${resetLink}" class="button">Reset Your Password</a>
+        </div>
+        
+        <p>This password reset link will expire in 24 hours for security reasons.</p>
+        
+        <div class="alert-box">
+          <p><strong>Security Tip:</strong> Never share your password with anyone. ${appName} support team will never ask for your password.</p>
+        </div>
+        
+        <div class="divider"></div>
+        
+        <p>If the button above doesn't work, you can copy and paste the following link into your browser:</p>
+        <p style="word-break: break-all; font-size: 14px; color: #666;">${resetLink}</p>
+      </div>
+      <div class="footer">
+        <p>${footerText}</p>
+        <p>If you didn't request this password reset, please contact support immediately.</p>
+      </div>
+    </div>
+  </body>
+  </html>
+  `;
+};
+
+// Welcome email template
+const getWelcomeTemplate = (username: string, branding: BrandingSettings) => {
+  const primaryColor = branding?.primaryColor || "#4f46e5";
+  const secondaryColor = branding?.secondaryColor || "#10b981";
+  const accentColor = branding?.accentColor || "#f97316";
+  const appName = branding?.appName || "atScribe";
+  const appTagline = branding?.appTagline || "AI-powered resume and career tools";
+  const logoUrl = branding?.logoUrl || "/logo.png";
+  const footerText = branding?.footerText || "© 2023 atScribe. All rights reserved.";
+
+  // Use absolute URL for logo
+  const baseUrl = process.env.BASE_URL || "http://localhost:5173";
+  const absoluteLogoUrl = logoUrl.startsWith('http') ? logoUrl : `${baseUrl}${logoUrl}`;
+
+  return `
+  <!DOCTYPE html>
+  <html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome to ${appName}!</title>
+    <style>
+      body {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        line-height: 1.6;
+        color: #333;
+        margin: 0;
+        padding: 0;
+        background-color: #f5f7fa;
+      }
+      .email-container {
+        max-width: 600px;
+        margin: 0 auto;
+        background-color: #ffffff;
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+      }
+      .header {
+        background-color: ${primaryColor};
+        color: white;
+        padding: 30px 20px;
+        text-align: center;
+      }
+      .logo {
+        max-height: 70px;
+        margin-bottom: 15px;
+      }
+      .content {
+        padding: 30px 20px;
+      }
+      .footer {
+        background-color: #f5f5f5;
+        padding: 15px;
+        text-align: center;
+        font-size: 12px;
+        color: #666;
+      }
+      .button-container {
+        text-align: center;
+        margin: 30px 0;
+      }
+      .button {
+        display: inline-block;
+        background-color: ${secondaryColor};
+        color: white;
+        text-decoration: none;
+        padding: 14px 30px;
+        border-radius: 4px;
+        font-weight: bold;
+      }
+      .feature-container {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        margin: 30px 0;
+      }
+      .feature {
+        flex-basis: 48%;
+        margin-bottom: 20px;
+        padding: 15px;
+        background-color: #f9f9f9;
+        border-radius: 6px;
+      }
+      .feature-title {
+        color: ${primaryColor};
+        margin-top: 0;
+        margin-bottom: 10px;
+        font-size: 16px;
+      }
+      .divider {
+        height: 1px;
+        background-color: #eaeaea;
+        margin: 25px 0;
+      }
+      .tagline {
+        font-style: italic;
+        color: #888;
+        text-align: center;
+        margin: 20px 0;
+      }
+      h1 {
+        margin: 5px 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="email-container">
+      <div class="header">
+        <img src="${absoluteLogoUrl}" alt="${appName} Logo" class="logo">
+        <h1>Welcome to ${appName}!</h1>
+        <p>${appTagline}</p>
+      </div>
+      <div class="content">
+        <h2>Hello ${username},</h2>
+        
+        <p>Thank you for joining ${appName}! We're excited to have you on board and can't wait to help you advance your career with our powerful tools.</p>
+        
+        <div class="button-container">
+          <a href="${baseUrl}/dashboard" class="button">Get Started Now</a>
+        </div>
+        
+        <p class="tagline">Your success is just a few clicks away!</p>
+        
+        <div class="feature-container">
+          <div class="feature">
+            <h3 class="feature-title">AI-Powered Resumes</h3>
+            <p>Create professional resumes tailored to specific job descriptions with just a few clicks.</p>
+          </div>
+          <div class="feature">
+            <h3 class="feature-title">Custom Cover Letters</h3>
+            <p>Generate personalized cover letters that highlight your unique qualifications.</p>
+          </div>
+          <div class="feature">
+            <h3 class="feature-title">Job Application Tracking</h3>
+            <p>Keep track of all your job applications in one organized dashboard.</p>
+          </div>
+          <div class="feature">
+            <h3 class="feature-title">Career Insights</h3>
+            <p>Get valuable insights and recommendations to improve your job search.</p>
+          </div>
+        </div>
+        
+        <div class="divider"></div>
+        
+        <p>If you have any questions or need assistance, our support team is always ready to help. Just reply to this email or visit our help center.</p>
+        
+        <p>Best regards,<br>The ${appName} Team</p>
+      </div>
+      <div class="footer">
+        <p>${footerText}</p>
+        <p>You received this email because you signed up for ${appName}.</p>
+      </div>
+    </div>
+  </body>
+  </html>
+  `;
+};
+
+export class EmailService {
+  private static instance: EmailService;
+  private transporter: any = null;
+  private settings: any = null;
+  private initialized = false;
+  private brandingData: BrandingSettings | null = null;
+
+  private constructor() {}
+
+  public static getInstance(): EmailService {
+    if (!EmailService.instance) {
+      EmailService.instance = new EmailService();
+    }
+    return EmailService.instance;
+  }
+
+  public async init(): Promise<boolean> {
+    try {
+      // Load SMTP settings from database
+      const settings = await db.select().from(smtpSettings).limit(1);
+      
+      if (settings.length === 0 || !settings[0].enabled) {
+        console.warn('SMTP is not configured or not enabled');
+        this.initialized = false;
+        return false;
+      }
+      
+      const smtpConfig = settings[0];
+      
+      if (!smtpConfig.host || !smtpConfig.username || !smtpConfig.password) {
+        console.warn('SMTP configuration is incomplete');
+        this.initialized = false;
+        return false;
+      }
+      
+      // Load branding settings
+      const brandingResult = await db.select().from(brandingSettings).limit(1);
+      if (brandingResult.length > 0) {
+        this.brandingData = brandingResult[0] as BrandingSettings;
+      } else {
+        // Set default branding settings if not available in database
+        this.brandingData = {
+          appName: "atScribe",
+          appTagline: "AI-powered resume and career tools",
+          logoUrl: "/logo.png",
+          faviconUrl: "/favicon.ico",
+          enableDarkMode: true,
+          primaryColor: "#4f46e5",
+          secondaryColor: "#10b981",
+          accentColor: "#f97316",
+          footerText: "© 2023 atScribe. All rights reserved."
+        };
+      }
+      
+      // Store settings for later reference
+      this.settings = smtpConfig;
+      
+      // Create transporter
+      this.transporter = nodemailer.createTransport({
+        host: smtpConfig.host,
+        port: parseInt(smtpConfig.port),
+        secure: smtpConfig.encryption === 'ssl', // true for SSL
+        auth: {
+          user: smtpConfig.username,
+          pass: smtpConfig.password
+        },
+        tls: {
+          // Do not fail on invalid certificates
+          rejectUnauthorized: false
+        }
+      });
+      
+      this.initialized = true;
+      return true;
+    } catch (error) {
+      console.error('Failed to initialize email service:', error);
+      this.initialized = false;
+      return false;
+    }
+  }
+
+  public async sendEmail(options: EmailOptions): Promise<boolean> {
+    try {
+      // Check if service is initialized
+      if (!this.initialized || !this.transporter || !this.settings) {
+        await this.init();
+        
+        // If initialization failed, return false
+        if (!this.initialized || !this.transporter) {
+          return false;
+        }
+      }
+      
+      // Send email
+      const info = await this.transporter.sendMail({
+        from: `"${this.settings.senderName}" <${this.settings.senderEmail}>`,
+        to: options.to,
+        subject: options.subject,
+        text: options.text,
+        html: options.html,
+        replyTo: options.replyTo,
+        cc: options.cc,
+        bcc: options.bcc,
+        attachments: options.attachments
+      });
+      
+      console.log('Email sent:', info.messageId);
+      return true;
+    } catch (error) {
+      console.error('Failed to send email:', error);
+      return false;
+    }
+  }
+
+  // Static helper method for sending emails without needing to call getInstance
+  public static async sendEmail(options: EmailOptions): Promise<boolean> {
+    const instance = EmailService.getInstance();
+    return await instance.sendEmail(options);
+  }
+  
+  // Send a password reset email
+  public static async sendPasswordResetEmail(to: string, resetLink: string, username: string): Promise<boolean> {
+    const instance = EmailService.getInstance();
+    
+    // Ensure branding data is loaded
+    if (!instance.brandingData) {
+      await instance.init();
+    }
+    
+    // Generate HTML with branding
+    const html = getPasswordResetTemplate(username, resetLink, instance.brandingData as BrandingSettings);
+    
+    // Generate plain text version
+    const text = `Hello ${username}, 
+    
+We received a request to reset your password. To proceed with the password reset, please click the following link: ${resetLink}. 
+
+This link will expire in 24 hours.
+
+If you did not request a password reset, please ignore this email or contact support if you have concerns.`;
+    
+    return await instance.sendEmail({
+      to,
+      subject: "Password Reset Request",
+      html,
+      text
+    });
+  }
+  
+  // Send a welcome email
+  public static async sendWelcomeEmail(to: string, username: string): Promise<boolean> {
+    const instance = EmailService.getInstance();
+    
+    // Ensure branding data is loaded
+    if (!instance.brandingData) {
+      await instance.init();
+    }
+    
+    // Generate HTML with branding
+    const html = getWelcomeTemplate(username, instance.brandingData as BrandingSettings);
+    
+    // Get app name from branding for subject line
+    const appName = instance.brandingData?.appName || "atScribe";
+    
+    // Generate plain text version
+    const text = `Hello ${username}, 
+    
+Thank you for joining ${appName}! We're excited to help you create professional resumes and advance your career.
+
+With ${appName}, you can:
+- Create AI-powered resumes tailored to specific job descriptions
+- Generate customized cover letters
+- Track your job applications
+- And much more!
+
+If you have any questions or need assistance, please don't hesitate to contact our support team.`;
+    
+    return await instance.sendEmail({
+      to,
+      subject: `Welcome to ${appName}!`,
+      html,
+      text
+    });
+  }
+} 
