@@ -27,9 +27,9 @@ export default function DefaultLayout({
         
         <main className={cn(
           "flex-1 transition-all duration-300",
-          isCollapsed ? "2xl:ml-16" : "2xl:ml-64"
+          isCollapsed ? "md:ml-16" : "md:ml-64"
         )}>
-          <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto">
+          <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto pb-16 md:pb-8">
             <div className="grid gap-6">
               {/* Page Header */}
               <div>

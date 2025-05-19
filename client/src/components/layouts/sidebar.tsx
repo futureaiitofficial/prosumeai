@@ -28,7 +28,7 @@ export default function Sidebar() {
   // Set up mobile and tablet detection
   useEffect(() => {
     const checkMobileOrTablet = () => {
-      setIsMobileOrTablet(window.innerWidth <= 1024);
+      setIsMobileOrTablet(window.innerWidth < 768);
     };
     
     checkMobileOrTablet();
@@ -39,7 +39,7 @@ export default function Sidebar() {
     };
   }, []);
 
-  // Don't render sidebar at all on mobile or tablet
+  // Don't render sidebar at all on mobile
   if (isMobileOrTablet) return null;
 
   const handleLogout = () => {
@@ -64,7 +64,7 @@ export default function Sidebar() {
   return (
     <aside 
       className={cn(
-        "fixed h-screen border-r border-slate-200 bg-white transition-all duration-300 ease-in-out dark:border-slate-800 dark:bg-slate-900 z-40 2xl:block",
+        "fixed h-screen border-r border-slate-200 bg-white transition-all duration-300 ease-in-out dark:border-slate-800 dark:bg-slate-900 z-40 hidden md:block",
         isCollapsed ? "w-16" : "w-64"
       )}
     >

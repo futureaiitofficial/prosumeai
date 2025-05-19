@@ -6,7 +6,7 @@ export default function MobileNav() {
   const [location] = useLocation();
 
   const links = [
-    { href: "/", label: "Dashboard", icon: Home },
+    { href: "/dashboard", label: "Dashboard", icon: Home },
     { href: "/resumes", label: "Resumes", icon: File },
     { href: "/cover-letters", label: "Letters", icon: FileText },
     { href: "/job-applications", label: "Jobs", icon: Clipboard },
@@ -14,7 +14,7 @@ export default function MobileNav() {
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-20 border-t border-slate-200 bg-white p-2 2xl:hidden dark:border-slate-800 dark:bg-slate-900">
+    <nav className="fixed bottom-0 left-0 right-0 z-20 border-t border-slate-200 bg-white p-2 md:hidden dark:border-slate-800 dark:bg-slate-900">
       <div className="grid grid-cols-5 gap-1">
         {links.map((link) => {
           const Icon = link.icon;
