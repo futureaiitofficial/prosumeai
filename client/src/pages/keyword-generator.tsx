@@ -125,6 +125,8 @@ export default function KeywordGenerator() {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
 
+      console.log("Sending request to analyze job description API...");
+      
       // Call the AI endpoint using the relative path with error handling
       const response = await fetch("/api/ai/analyze-job-description", {
         method: 'POST',
@@ -137,6 +139,8 @@ export default function KeywordGenerator() {
 
       // Clear the timeout since we got a response
       clearTimeout(timeoutId);
+      
+      console.log(`API Response Status: ${response.status}`);
 
       // Check for specific error status codes for better error messages
       if (!response.ok) {
@@ -145,9 +149,22 @@ export default function KeywordGenerator() {
         
         let errorMessage = 'Failed to analyze job description';
         
+        try {
+          // Try to parse error as JSON
+          const errorJson = JSON.parse(errorText);
+          if (errorJson.message) {
+            errorMessage = errorJson.message;
+            console.error("Error details:", errorJson);
+          }
+        } catch (e) {
+          // If parsing fails, use the raw text
+          console.error("Raw error text:", errorText);
+        }
+        
+        // Set specific error messages based on status code
         if (response.status === 429) {
           errorMessage = 'You have reached your token usage limit. Please try again later or upgrade your plan.';
-        } else if (response.status === 401) {
+        } else if (response.status === 401 || response.status === 403) {
           errorMessage = 'Authentication required. Please log in again.';
           // Refresh the page to force re-authentication
           setTimeout(() => window.location.reload(), 2000);
@@ -171,6 +188,7 @@ export default function KeywordGenerator() {
       let apiResponse;
       try {
         apiResponse = await response.json();
+        console.log("API response successfully parsed:", apiResponse);
       } catch (jsonError) {
         console.error("Failed to parse API response:", jsonError);
         toast({
@@ -181,11 +199,10 @@ export default function KeywordGenerator() {
         setLoading(false);
         return;
       }
-
-      console.log("Raw API response:", apiResponse);
       
       // Validate API response structure
       if (!apiResponse || typeof apiResponse !== 'object') {
+        console.error("Invalid API response structure:", apiResponse);
         throw new Error('Invalid response format from keyword analysis API');
       }
       
@@ -254,6 +271,8 @@ export default function KeywordGenerator() {
         errorMessage = "You've reached your token usage limit. Please try again later or upgrade your plan.";
       } else if (error.message.includes('network') || error.message.includes('connection')) {
         errorMessage = "Network connection issue. Please check your internet connection and try again.";
+      } else if (error.message.includes('format')) {
+        errorMessage = "The server returned data in an unexpected format. Please try again later.";
       }
       
       toast({
@@ -795,6 +814,18 @@ export default function KeywordGenerator() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
+              <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-md p-4 mb-4">
+                <h4 className="font-medium text-blue-800 dark:text-blue-300 flex items-center text-sm">
+                  <Sparkles className="h-4 w-4 mr-2" />
+                  Tips for best results:
+                </h4>
+                <ul className="text-sm text-blue-700 dark:text-blue-400 mt-2 space-y-1 list-disc pl-5">
+                  <li>Paste only the <span className="font-medium">job description content</span> (max 5000 characters)</li>
+                  <li>Remove salary information, application instructions, and company details</li>
+                  <li>Include sections about responsibilities and qualifications</li>
+                  <li>The more focused the content, the better the keyword extraction</li>
+                </ul>
+              </div>
               <Textarea
                 placeholder="Paste job description here..."
                 value={jobDescription}
@@ -802,9 +833,15 @@ export default function KeywordGenerator() {
                 className="min-h-[200px] font-mono text-sm"
               />
               
+              <div className="flex justify-end">
+                <span className={`text-xs ${jobDescription.length > 5000 ? 'text-red-500 font-medium' : 'text-slate-500'}`}>
+                  {jobDescription.length} / 5000 characters
+                </span>
+              </div>
+              
               <Button 
                 onClick={handleExtractKeywords} 
-                disabled={loading || !jobDescription.trim()}
+                disabled={loading || !jobDescription.trim() || jobDescription.length > 5000}
                 className="w-full"
               >
                 {loading ? (

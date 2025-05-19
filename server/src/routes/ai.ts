@@ -516,6 +516,7 @@ router.post('/extract-keywords',
 router.post('/analyze-job-description', 
   requireUser,
   requireFeatureAccess('ai_generation'),
+  trackFeatureUsage('ai_generation'),
   async (req, res) => {
     try {
       const { jobDescription } = req.body;
@@ -592,11 +593,7 @@ router.post('/analyze-job-description',
       }
       
       try {
-        // Apply tracking BEFORE making the API call
-        if (req.isAuthenticated && req.isAuthenticated() && req.user) {
-          await trackFeatureUsage('ai_generation')(req, res, () => {});
-        }
-
+        // Note: Feature usage tracking is now handled by the middleware
         const result = await analyzeJobDescription(jobDescription);
         
         // Validate the result to ensure it contains expected data
