@@ -431,36 +431,12 @@ function setupAuthRoutes(app: Express) {
         changedAt: new Date()
       }];
 
-      // Extract selectedPlanId if it exists in the request body
-      const { selectedPlanId, ...userData } = req.body;
-
       const user = await storage.createUser({
-        ...userData,
+        ...req.body,
         password: hashedPassword,
         lastPasswordChange: new Date(),
         passwordHistory: passwordHistory,
       });
-
-      // If there's a selectedPlanId and we're coming from a payment context,
-      // associate the user with the subscription plan
-      if (selectedPlanId) {
-        try {
-          console.log(`Associating user ${user.id} with plan ${selectedPlanId}`);
-          
-          // Import the subscription service to handle plan association
-          const subscriptionService = require('../services/subscription-service');
-          
-          // Associate the user with the plan
-          // Note: The actual payment record should already be created by the payment verification process
-          await subscriptionService.associateUserWithPlan(user.id, parseInt(selectedPlanId, 10));
-          
-          console.log(`Successfully associated user ${user.id} with plan ${selectedPlanId}`);
-        } catch (subscriptionError) {
-          console.error(`Error associating user with subscription plan:`, subscriptionError);
-          // Don't fail registration if subscription association fails
-          // We'll need a separate process to reconcile this later
-        }
-      }
 
       req.login(user, (err) => {
         if (err) return next(err);

@@ -390,15 +390,12 @@ export default function AuthPage() {
   const [activeTab, setActiveTab] = useState<string>("login");
   const [showSignupCTA, setShowSignupCTA] = useState<boolean>(false);
   
-  // Check if URL has signup=true parameter
+  // Check if there's a redirect parameter
   useEffect(() => {
     const params = new URLSearchParams(search);
-    const signup = params.get("signup");
-    if (signup === "true") {
-      // Direct users to pricing page instead of showing signup form
-      navigate("/pricing");
-    }
-  }, [search, navigate]);
+    const redirect = params.get("redirect");
+    // We'll use this redirect parameter later if needed
+  }, [search]);
 
   // Redirect if user is already authenticated
   useEffect(() => {
@@ -506,7 +503,7 @@ export default function AuthPage() {
                   <h3 className="text-lg font-medium text-blue-900 mb-2">Don't have an account yet?</h3>
                   <p className="text-blue-700 mb-4">Create a free account and start building ATS-friendly resumes today!</p>
                   <Button 
-                    onClick={() => navigate('/pricing')} 
+                    onClick={() => navigate('/register')} 
                     className="w-full bg-blue-600 hover:bg-blue-700"
                   >
                     Create Free Account

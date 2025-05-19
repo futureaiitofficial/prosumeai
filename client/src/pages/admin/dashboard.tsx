@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useAdmin } from "@/hooks/use-admin";
+import { useBranding } from "@/components/branding/branding-provider";
 import { Redirect } from "wouter";
 import { AdminLayout } from "@/components/admin/layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -106,6 +107,7 @@ interface ServerStatusData {
 export default function AdminDashboard() {
   const { user } = useAuth();
   const { isAdmin, isLoading: adminCheckLoading } = useAdmin();
+  const branding = useBranding();
   const [activeTab, setActiveTab] = useState("overview");
   
   // Add missing state declarations
@@ -305,7 +307,7 @@ export default function AdminDashboard() {
     <AdminLayout>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold">Admin Dashboard</h1>
+          <h1 className="text-2xl font-bold">{branding.appName} Admin Dashboard</h1>
           <p className="text-muted-foreground">Welcome back to your admin dashboard</p>
         </div>
         <div className="flex items-center gap-2">

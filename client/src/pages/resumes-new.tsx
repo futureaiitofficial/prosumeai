@@ -65,6 +65,7 @@ import {
   parseISO
 } from "date-fns";
 import type { Resume } from "@shared/schema";
+import { useSubscriptionErrorHandler } from "@/utils/error-handler";
 
 export default function Resumes() {
   const { user } = useAuth();
@@ -79,6 +80,7 @@ export default function Resumes() {
     companyName: "",
     jobDescription: ""
   });
+  const { handleError, ErrorDialog } = useSubscriptionErrorHandler();
 
   // Search and filter state
   const [searchTerm, setSearchTerm] = useState("");
@@ -179,11 +181,17 @@ export default function Resumes() {
       navigate(`/resume-builder?id=${data.id}`);
     },
     onError: (error: Error) => {
-      toast({
-        title: "Failed to create resume",
-        description: error.message,
-        variant: "destructive"
-      });
+      // Handle subscription errors
+      const handled = handleError(error);
+      
+      // Only show generic error if subscription error wasn't caught
+      if (!handled) {
+        toast({
+          title: "Failed to create resume",
+          description: error.message,
+          variant: "destructive"
+        });
+      }
     }
   });
 
@@ -202,11 +210,18 @@ export default function Resumes() {
       setResumeToDelete(null);
     },
     onError: (error: Error) => {
-      toast({
-        title: "Failed to delete resume",
-        description: error.message,
-        variant: "destructive"
-      });
+      // Handle subscription errors first
+      const handled = handleError(error);
+      
+      // If not a subscription error, show generic error
+      if (!handled) {
+        toast({
+          title: "Failed to delete resume",
+          description: error.message,
+          variant: "destructive"
+        });
+      }
+      
       setDeleteDialogOpen(false);
       setResumeToDelete(null);
     }
@@ -247,10 +262,11 @@ export default function Resumes() {
   };
 
   // Function to display creation date
-  const displayDate = (dateString?: string | null) => {
+  const displayDate = (dateString?: string | Date | null) => {
     if (!dateString) return "Unknown date";
     try {
-      return format(parseISO(dateString), "MMM d, yyyy");
+      const date = typeof dateString === 'string' ? parseISO(dateString) : dateString;
+      return format(date, "MMM d, yyyy");
     } catch (e) {
       return "Invalid date";
     }
@@ -261,6 +277,9 @@ export default function Resumes() {
       pageTitle="Resumes"
       pageDescription="Create and manage your professional resumes"
     >
+      {/* Subscription Error Dialog */}
+      <ErrorDialog />
+      
       {/* Search and Filter Bar */}
       <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div className="relative flex w-full max-w-md items-center">

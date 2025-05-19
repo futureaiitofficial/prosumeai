@@ -42,9 +42,9 @@ const countryFields = {
     addressLine1: { label: 'Street Address', placeholder: '123 Main St' },
     phoneNumber: { 
       label: 'Phone Number', 
-      placeholder: '(555) 123-4567', 
-      pattern: /^\(?([0-9]{3})\)?[-.\s]?([0-9]{3})[-.\s]?([0-9]{4})$/, 
-      message: 'Please enter a valid US phone number' 
+      placeholder: '5551234567', 
+      pattern: /^[0-9+]+$/, 
+      message: 'Please enter digits only (no spaces, dashes or parentheses) for payment compatibility' 
     },
     taxId: { label: 'Tax ID (EIN)', placeholder: 'XX-XXXXXXX' }
   },
@@ -61,9 +61,9 @@ const countryFields = {
     addressLine1: { label: 'Street Address', placeholder: '10 Downing Street' },
     phoneNumber: { 
       label: 'Phone Number', 
-      placeholder: '020 1234 5678', 
-      pattern: /^((\+44(\s)?)|0)[0-9]{3,4}(\s)?[0-9]{3}(\s)?[0-9]{3}$/, 
-      message: 'Please enter a valid UK phone number' 
+      placeholder: '+447123456789', 
+      pattern: /^[0-9+]+$/, 
+      message: 'Please enter digits only (and + symbol if needed) for payment compatibility' 
     },
     taxId: { label: 'VAT Number', placeholder: 'GB123456789' }
   },
@@ -157,8 +157,8 @@ const countryFields = {
     phoneNumber: { 
       label: 'Phone Number', 
       placeholder: 'Phone Number', 
-      pattern: /^\+?[0-9\s-()]{7,20}$/, 
-      message: 'Please enter a valid phone number' 
+      pattern: /^[0-9+]+$/, 
+      message: 'Please enter digits only (and + symbol if needed) for Razorpay compatibility' 
     },
     taxId: { label: 'Tax/VAT ID', placeholder: 'Tax/VAT ID' }
   }
@@ -208,6 +208,7 @@ interface BillingDetailsFormProps {
   existingDetails: BillingDetails | null;
   onDetailsSubmitted: (details: BillingDetails) => void;
   onCancel: () => void;
+  [key: string]: any; // Allow for additional props like data attributes
 }
 
 // Helper function to format input based on pattern
@@ -218,19 +219,24 @@ const formatInput = (value: string, country: string, field: 'phoneNumber' | 'pos
   let formattedValue = value;
   
   if (field === 'phoneNumber') {
-    // Format US phone numbers automatically
-    if (country === 'US' && value.length > 0) {
-      // Strip all non-numeric characters
-      const numericOnly = value.replace(/\D/g, '');
-      
-      if (numericOnly.length <= 3) {
-        return numericOnly;
-      } else if (numericOnly.length <= 6) {
-        return `(${numericOnly.slice(0, 3)}) ${numericOnly.slice(3)}`;
-      } else {
-        return `(${numericOnly.slice(0, 3)}) ${numericOnly.slice(3, 6)}-${numericOnly.slice(6, 10)}`;
+    // For all phone numbers, only allow digits and + for payment gateway compatibility
+    // Keep only digits and + symbol
+    const cleanedPhoneNumber = value.replace(/[^0-9+]/g, '');
+    
+    // Ensure only one + and it's at the beginning
+    if (cleanedPhoneNumber.includes('+')) {
+      const parts = cleanedPhoneNumber.split('+');
+      // If multiple + signs, keep only the first one
+      if (parts.length > 2) {
+        return '+' + parts.slice(1).join('');
+      }
+      // Ensure + is only at the beginning
+      if (cleanedPhoneNumber.indexOf('+') !== 0) {
+        return '+' + cleanedPhoneNumber.replace(/\+/g, '');
       }
     }
+    
+    return cleanedPhoneNumber;
   } else if (field === 'postalCode') {
     // For US ZIP codes, format properly
     if (country === 'US') {
@@ -308,7 +314,8 @@ const formatInput = (value: string, country: string, field: 'phoneNumber' | 'pos
 export default function BillingDetailsForm({ 
   existingDetails, 
   onDetailsSubmitted, 
-  onCancel 
+  onCancel,
+  ...otherProps // Collect any additional props like data attributes
 }: BillingDetailsFormProps) {
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [fieldConfig, setFieldConfig] = useState(countryFields.US);
@@ -318,6 +325,13 @@ export default function BillingDetailsForm({
   const auth = useAuth();
   // Check if user is logged in
   const userIsLoggedIn = !!auth.user;
+
+  // Add component initialization logging
+  console.log("BillingDetailsForm rendered with existing details:", existingDetails ? {
+    fullName: existingDetails.fullName,
+    country: existingDetails.country,
+    hasAddress: !!existingDetails.addressLine1
+  } : 'none');
 
   // Use dynamic validation schema based on selected country
   const form = useForm<BillingFormValues>({
@@ -346,6 +360,36 @@ export default function BillingDetailsForm({
       companyName: '',
     }
   });
+
+  // Force reset of form when existingDetails changes
+  useEffect(() => {
+    if (existingDetails) {
+      console.log("Resetting form with existing details", {
+        fullName: existingDetails.fullName,
+        country: existingDetails.country
+      });
+
+      form.reset({
+        fullName: existingDetails.fullName || '',
+        country: existingDetails.country || '',
+        addressLine1: existingDetails.addressLine1 || '',
+        addressLine2: existingDetails.addressLine2 || '',
+        city: existingDetails.city || '',
+        state: existingDetails.state || '',
+        postalCode: existingDetails.postalCode || '',
+        phoneNumber: existingDetails.phoneNumber || '',
+        taxId: existingDetails.taxId || '',
+        companyName: existingDetails.companyName || '',
+      });
+      
+      // If country changes, update field config
+      if (existingDetails.country && existingDetails.country !== selectedCountry) {
+        setSelectedCountry(existingDetails.country);
+        const newConfig = countryFields[existingDetails.country as keyof typeof countryFields] || countryFields.default;
+        setFieldConfig(newConfig);
+      }
+    }
+  }, [existingDetails, form]);
 
   // Watch for country changes to update field labels and validation schema
   const watchedCountry = useWatch({
@@ -436,242 +480,256 @@ export default function BillingDetailsForm({
 
   // Format input values for specific fields
   const handleInputFormat = (e: React.ChangeEvent<HTMLInputElement>, fieldName: 'phoneNumber' | 'postalCode') => {
+    // Only format if there's an actual value
+    if (e.target.value.trim() === '') {
+      form.setValue(fieldName, '');
+      return;
+    }
+    
+    // Ensure we're not getting an encrypted value
+    if (e.target.value.includes(':') && e.target.value.split(':').length === 3) {
+      form.setValue(fieldName, '');
+      return;
+    }
+    
     const formatted = formatInput(e.target.value, selectedCountry, fieldName);
     form.setValue(fieldName, formatted);
   };
 
   return (
-    <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <FormField
-            control={form.control}
-            name="fullName"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Full Name</FormLabel>
-                <FormControl>
-                  <Input placeholder="John Doe" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="country"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Country</FormLabel>
-                <Select 
-                  onValueChange={(value) => {
-                    field.onChange(value);
-                    // Reset postal code and phone when country changes to avoid validation errors
-                    form.setValue('postalCode', '');
-                    form.setValue('phoneNumber', '');
-                  }} 
-                  defaultValue={field.value}
-                >
+    <div className="space-y-6" data-billing-form tabIndex={-1} {...otherProps}>
+      <Form {...form} key={`billing-form-${selectedCountry}`}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <FormField
+              control={form.control}
+              name="fullName"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Full Name</FormLabel>
                   <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a country" />
-                    </SelectTrigger>
+                    <Input placeholder="John Doe" {...field} />
                   </FormControl>
-                  <SelectContent>
-                    {countries.map((country) => (
-                      <SelectItem key={country.value} value={country.value}>
-                        {country.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-          <FormField
-            control={form.control}
-            name="addressLine1"
-            render={({ field }) => (
-              <FormItem className="col-span-2">
-                <FormLabel>{fieldConfig.addressLine1.label}</FormLabel>
-                <FormControl>
-                  <Input placeholder={fieldConfig.addressLine1.placeholder} {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+            <FormField
+              control={form.control}
+              name="country"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Country</FormLabel>
+                  <Select 
+                    onValueChange={(value) => {
+                      field.onChange(value);
+                      // Reset postal code and phone when country changes to avoid validation errors
+                      form.setValue('postalCode', '');
+                      form.setValue('phoneNumber', '');
+                    }} 
+                    defaultValue={field.value}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a country" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {countries.map((country) => (
+                        <SelectItem key={country.value} value={country.value}>
+                          {country.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-          <FormField
-            control={form.control}
-            name="addressLine2"
-            render={({ field }) => (
-              <FormItem className="col-span-2">
-                <FormLabel>Address Line 2 (Optional)</FormLabel>
-                <FormControl>
-                  <Input placeholder="Apt 4B" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+            <FormField
+              control={form.control}
+              name="addressLine1"
+              render={({ field }) => (
+                <FormItem className="col-span-2">
+                  <FormLabel>{fieldConfig.addressLine1.label}</FormLabel>
+                  <FormControl>
+                    <Input placeholder={fieldConfig.addressLine1.placeholder} {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-          <FormField
-            control={form.control}
-            name="city"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>{fieldConfig.city.label}</FormLabel>
-                <FormControl>
-                  <Input placeholder={fieldConfig.city.placeholder} {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+            <FormField
+              control={form.control}
+              name="addressLine2"
+              render={({ field }) => (
+                <FormItem className="col-span-2">
+                  <FormLabel>Address Line 2 (Optional)</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Apt 4B" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-          <FormField
-            control={form.control}
-            name="state"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>{fieldConfig.state.label}</FormLabel>
-                <FormControl>
-                  <Input placeholder={fieldConfig.state.placeholder} {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+            <FormField
+              control={form.control}
+              name="city"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{fieldConfig.city.label}</FormLabel>
+                  <FormControl>
+                    <Input placeholder={fieldConfig.city.placeholder} {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-          <FormField
-            control={form.control}
-            name="postalCode"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>{fieldConfig.postalCode.label}</FormLabel>
-                <FormControl>
-                  <Input 
-                    placeholder={fieldConfig.postalCode.placeholder} 
-                    {...field} 
-                    value={field.value}
-                    onChange={(e) => {
-                      handleInputFormat(e, 'postalCode');
-                    }}
-                    onKeyDown={(e) => {
-                      // Common keys to always allow: backspace, delete, tab, escape, enter, navigation
-                      const commonAllowedKeys = [8, 9, 13, 27, 46, 37, 38, 39, 40];
-                      // Allow: Ctrl+A, Ctrl+C, Ctrl+V, Ctrl+X
-                      const ctrlCombos = (e.keyCode >= 65 && e.keyCode <= 90 && e.ctrlKey === true);
-                      // Allow: home, end, page up, page down
-                      const navKeys = (e.keyCode >= 35 && e.keyCode <= 36);
-                      
-                      if (commonAllowedKeys.indexOf(e.keyCode) !== -1 || ctrlCombos || navKeys) {
-                        return;
-                      }
-                      
-                      // Country-specific restrictions
-                      switch(selectedCountry) {
-                        case 'US':
-                          // For US, allow only numbers and hyphen
-                          if ((e.shiftKey || (e.keyCode < 48 || e.keyCode > 57)) && 
-                              (e.keyCode < 96 || e.keyCode > 105) && 
-                              e.keyCode !== 189) { // 189 is hyphen
-                            e.preventDefault();
-                          }
-                          break;
-                          
-                        case 'CA':
-                          // For Canada, allow letters, numbers and space
-                          const isLetter = (e.keyCode >= 65 && e.keyCode <= 90);
-                          const isNumber = (e.keyCode >= 48 && e.keyCode <= 57) || 
-                                          (e.keyCode >= 96 && e.keyCode <= 105);
-                          const isSpace = e.keyCode === 32;
-                          
-                          if (!isLetter && !isNumber && !isSpace) {
-                            e.preventDefault();
-                          }
-                          break;
-                          
-                        case 'GB':
-                          // For UK, allow letters, numbers and space
-                          const isUKLetter = (e.keyCode >= 65 && e.keyCode <= 90);
-                          const isUKNumber = (e.keyCode >= 48 && e.keyCode <= 57) || 
-                                           (e.keyCode >= 96 && e.keyCode <= 105);
-                          const isUKSpace = e.keyCode === 32;
-                          
-                          if (!isUKLetter && !isUKNumber && !isUKSpace) {
-                            e.preventDefault();
-                          }
-                          break;
-                          
-                        case 'AU':
-                          // For Australia, allow only numbers
-                          if ((e.shiftKey || (e.keyCode < 48 || e.keyCode > 57)) && 
-                              (e.keyCode < 96 || e.keyCode > 105)) {
-                            e.preventDefault();
-                          }
-                          break;
-                          
-                        case 'IN':
-                          // For India, allow only numbers
-                          if ((e.shiftKey || (e.keyCode < 48 || e.keyCode > 57)) && 
-                              (e.keyCode < 96 || e.keyCode > 105)) {
-                            e.preventDefault();
-                          }
-                          break;
-                          
-                        case 'DE':
-                          // For Germany, allow only numbers
-                          if ((e.shiftKey || (e.keyCode < 48 || e.keyCode > 57)) && 
-                              (e.keyCode < 96 || e.keyCode > 105)) {
-                            e.preventDefault();
-                          }
-                          break;
-                          
-                        // Add more countries as needed
+            <FormField
+              control={form.control}
+              name="state"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{fieldConfig.state.label}</FormLabel>
+                  <FormControl>
+                    <Input placeholder={fieldConfig.state.placeholder} {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="postalCode"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{fieldConfig.postalCode.label}</FormLabel>
+                  <FormControl>
+                    <Input 
+                      placeholder={fieldConfig.postalCode.placeholder} 
+                      {...field} 
+                      value={field.value}
+                      onChange={(e) => {
+                        handleInputFormat(e, 'postalCode');
+                      }}
+                      onKeyDown={(e) => {
+                        // Common keys to always allow: backspace, delete, tab, escape, enter, navigation
+                        const commonAllowedKeys = [8, 9, 13, 27, 46, 37, 38, 39, 40];
+                        // Allow: Ctrl+A, Ctrl+C, Ctrl+V, Ctrl+X
+                        const ctrlCombos = (e.keyCode >= 65 && e.keyCode <= 90 && e.ctrlKey === true);
+                        // Allow: home, end, page up, page down
+                        const navKeys = (e.keyCode >= 35 && e.keyCode <= 36);
                         
-                        default:
-                          // For other countries, allow alphanumeric, space, and hyphen
-                          const isDefaultLetter = (e.keyCode >= 65 && e.keyCode <= 90);
-                          const isDefaultNumber = (e.keyCode >= 48 && e.keyCode <= 57) || 
-                                               (e.keyCode >= 96 && e.keyCode <= 105);
-                          const isDefaultSpace = e.keyCode === 32;
-                          const isDefaultHyphen = e.keyCode === 189 || e.keyCode === 109;
-                          
-                          if (!isDefaultLetter && !isDefaultNumber && !isDefaultSpace && !isDefaultHyphen) {
-                            e.preventDefault();
-                          }
-                          break;
-                      }
-                    }}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+                        if (commonAllowedKeys.indexOf(e.keyCode) !== -1 || ctrlCombos || navKeys) {
+                          return;
+                        }
+                        
+                        // Country-specific restrictions
+                        switch(selectedCountry) {
+                          case 'US':
+                            // For US, allow only numbers and hyphen
+                            if ((e.shiftKey || (e.keyCode < 48 || e.keyCode > 57)) && 
+                                (e.keyCode < 96 || e.keyCode > 105) && 
+                                e.keyCode !== 189) { // 189 is hyphen
+                              e.preventDefault();
+                            }
+                            break;
+                            
+                          case 'CA':
+                            // For Canada, allow letters, numbers and space
+                            const isLetter = (e.keyCode >= 65 && e.keyCode <= 90);
+                            const isNumber = (e.keyCode >= 48 && e.keyCode <= 57) || 
+                                            (e.keyCode >= 96 && e.keyCode <= 105);
+                            const isSpace = e.keyCode === 32;
+                            
+                            if (!isLetter && !isNumber && !isSpace) {
+                              e.preventDefault();
+                            }
+                            break;
+                            
+                          case 'GB':
+                            // For UK, allow letters, numbers and space
+                            const isUKLetter = (e.keyCode >= 65 && e.keyCode <= 90);
+                            const isUKNumber = (e.keyCode >= 48 && e.keyCode <= 57) || 
+                                             (e.keyCode >= 96 && e.keyCode <= 105);
+                            const isUKSpace = e.keyCode === 32;
+                            
+                            if (!isUKLetter && !isUKNumber && !isUKSpace) {
+                              e.preventDefault();
+                            }
+                            break;
+                            
+                          case 'AU':
+                            // For Australia, allow only numbers
+                            if ((e.shiftKey || (e.keyCode < 48 || e.keyCode > 57)) && 
+                                (e.keyCode < 96 || e.keyCode > 105)) {
+                              e.preventDefault();
+                            }
+                            break;
+                            
+                          case 'IN':
+                            // For India, allow only numbers
+                            if ((e.shiftKey || (e.keyCode < 48 || e.keyCode > 57)) && 
+                                (e.keyCode < 96 || e.keyCode > 105)) {
+                              e.preventDefault();
+                            }
+                            break;
+                            
+                          case 'DE':
+                            // For Germany, allow only numbers
+                            if ((e.shiftKey || (e.keyCode < 48 || e.keyCode > 57)) && 
+                                (e.keyCode < 96 || e.keyCode > 105)) {
+                              e.preventDefault();
+                            }
+                            break;
+                            
+                            // Add more countries as needed
+                            
+                            default:
+                              // For other countries, allow alphanumeric, space, and hyphen
+                              const isDefaultLetter = (e.keyCode >= 65 && e.keyCode <= 90);
+                              const isDefaultNumber = (e.keyCode >= 48 && e.keyCode <= 57) || 
+                                                   (e.keyCode >= 96 && e.keyCode <= 105);
+                              const isDefaultSpace = e.keyCode === 32;
+                              const isDefaultHyphen = e.keyCode === 189 || e.keyCode === 109;
+                              
+                              if (!isDefaultLetter && !isDefaultNumber && !isDefaultSpace && !isDefaultHyphen) {
+                                e.preventDefault();
+                              }
+                              break;
+                        }
+                      }}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-          <FormField
-            control={form.control}
-            name="phoneNumber"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Phone Number (Optional)</FormLabel>
-                <FormControl>
-                  <Input 
-                    placeholder={fieldConfig.phoneNumber.placeholder} 
-                    {...field} 
-                    value={field.value}
-                    onChange={(e) => {
-                      handleInputFormat(e, 'phoneNumber');
-                    }}
-                    onKeyDown={(e) => {
-                      // For US, prevent any non-numeric keys except backspace, delete, tab, etc.
-                      if (selectedCountry === 'US') {
+            <FormField
+              control={form.control}
+              name="phoneNumber"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Phone Number (Optional)</FormLabel>
+                  <div className="text-xs text-amber-600 mb-1">
+                    For payment compatibility, use only digits and optionally a + at the beginning
+                  </div>
+                  <FormControl>
+                    <Input 
+                      placeholder={fieldConfig.phoneNumber.placeholder} 
+                      {...field} 
+                      value={field.value}
+                      onChange={(e) => {
+                        handleInputFormat(e, 'phoneNumber');
+                      }}
+                      onKeyDown={(e) => {
                         // Allow: backspace, delete, tab, escape, enter, navigation keys
                         if ([8, 9, 13, 27, 46, 37, 38, 39, 40].indexOf(e.keyCode) !== -1 ||
                             // Allow: Ctrl+A, Ctrl+C, Ctrl+V, Ctrl+X
@@ -681,73 +739,85 @@ export default function BillingDetailsForm({
                           return;
                         }
                         
+                        const plusKeyCode = 187; // + key
+                        const numpadPlusKeyCode = 107; // + key on numpad
+                        
+                        // Allow + sign (with or without shift), but only if it's at the beginning
+                        if ((e.keyCode === plusKeyCode && e.shiftKey) || e.keyCode === numpadPlusKeyCode) {
+                          // Only allow + at the beginning
+                          if (field.value && field.value.length > 0 && !field.value.startsWith('+')) {
+                            e.preventDefault();
+                          }
+                          return;
+                        }
+                        
                         // If it's not a number, prevent the default behavior
                         if ((e.shiftKey || (e.keyCode < 48 || e.keyCode > 57)) && 
                             (e.keyCode < 96 || e.keyCode > 105)) {
                           e.preventDefault();
                         }
-                      }
-                    }}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+                      }}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-          <FormField
-            control={form.control}
-            name="companyName"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Company Name (Optional)</FormLabel>
-                <FormControl>
-                  <Input placeholder="Your Company" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+            <FormField
+              control={form.control}
+              name="companyName"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Company Name (Optional)</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Your Company" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-          <FormField
-            control={form.control}
-            name="taxId"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>{fieldConfig.taxId.label} (Optional)</FormLabel>
-                <FormControl>
-                  <Input placeholder={fieldConfig.taxId.placeholder} {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
+            <FormField
+              control={form.control}
+              name="taxId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{fieldConfig.taxId.label} (Optional)</FormLabel>
+                  <FormControl>
+                    <Input placeholder={fieldConfig.taxId.placeholder} {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
 
-        <div className="flex justify-end gap-3 pt-4">
-          <Button 
-            type="button" 
-            variant="outline" 
-            onClick={onCancel}
-            disabled={isSubmitting}
-          >
-            Cancel
-          </Button>
-          <Button 
-            type="submit"
-            disabled={isSubmitting}
-          >
-            {isSubmitting ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Saving...
-              </>
-            ) : (
-              <>Continue</>
-            )}
-          </Button>
-        </div>
-      </form>
-    </Form>
+          <div className="flex justify-end gap-3 pt-4">
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={onCancel}
+              disabled={isSubmitting}
+            >
+              Cancel
+            </Button>
+            <Button 
+              type="submit"
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>Continue</>
+              )}
+            </Button>
+          </div>
+        </form>
+      </Form>
+    </div>
   );
 } 

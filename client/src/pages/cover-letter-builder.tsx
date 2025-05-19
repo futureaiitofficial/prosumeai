@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { Plus, Wand2, FileText, Briefcase, ChevronRight, ArrowLeft, FileEdit, FileDown, Building, Lock, AlertTriangle, Loader2, Sparkles } from "lucide-react";
+import { handleSubscriptionError } from "@/utils/error-handler";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -191,11 +192,13 @@ export default function CoverLetterBuilder() {
       }
     },
     onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to save cover letter. Please try again.",
-        variant: "destructive",
-      });
+      if (!handleSubscriptionError(error, toast)) {
+        toast({
+          title: "Error",
+          description: error.message || "Failed to save cover letter. Please try again.",
+          variant: "destructive",
+        });
+      }
       console.error("Error saving cover letter:", error);
     }
   });
@@ -228,11 +231,13 @@ export default function CoverLetterBuilder() {
       }
     },
     onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to update cover letter. Please try again.",
-        variant: "destructive",
-      });
+      if (!handleSubscriptionError(error, toast)) {
+        toast({
+          title: "Error",
+          description: error.message || "Failed to update cover letter. Please try again.",
+          variant: "destructive",
+        });
+      }
       console.error("Error updating cover letter:", error);
     }
   });
@@ -271,11 +276,13 @@ export default function CoverLetterBuilder() {
     onError: (error: Error) => {
       setIsGenerating(false);
       console.error("Error generating content:", error);
-      toast({
-        title: "Error",
-        description: error.message || "Failed to generate content. Please try again.",
-        variant: "destructive",
-      });
+      if (!handleSubscriptionError(error, toast)) {
+        toast({
+          title: "Error",
+          description: error.message || "Failed to generate content. Please try again.",
+          variant: "destructive",
+        });
+      }
     }
   });
 
@@ -374,11 +381,13 @@ export default function CoverLetterBuilder() {
       setCurrentStep("content");
     } catch (error) {
       console.error('Error generating content:', error);
-      toast({
-        title: "Error",
-        description: "Failed to generate content. Please try again.",
-        variant: "destructive",
-      });
+      if (!handleSubscriptionError(error, toast)) {
+        toast({
+          title: "Error",
+          description: "Failed to generate content. Please try again.",
+          variant: "destructive",
+        });
+      }
     } finally {
       setIsGenerating(false);
     }
@@ -423,11 +432,13 @@ export default function CoverLetterBuilder() {
       });
     } catch (error) {
       console.error("Error enhancing cover letter:", error);
-      toast({
-        title: "Error",
-        description: "Failed to enhance content. Please try again.",
-        variant: "destructive",
-      });
+      if (!handleSubscriptionError(error, toast)) {
+        toast({
+          title: "Error",
+          description: "Failed to enhance content. Please try again.",
+          variant: "destructive",
+        });
+      }
     } finally {
       setIsGenerating(false);
     }
@@ -927,12 +938,14 @@ export default function CoverLetterBuilder() {
     } catch (error: any) {
       console.error('Error initiating PDF download:', error);
 
-      // Simplified error toast
-      toast({
-        title: "Error Generating PDF",
-        description: error.message || "Failed to generate PDF. Please try again.",
-        variant: "destructive",
-      });
+      // Use our standardized error handler
+      if (!handleSubscriptionError(error, toast)) {
+        toast({
+          title: "Error Generating PDF",
+          description: error.message || "Failed to generate PDF. Please try again.",
+          variant: "destructive",
+        });
+      }
     } 
   };
 

@@ -1,6 +1,6 @@
 import React, { useRef } from 'react';
 import Head from 'next/head';
-import { Link } from 'wouter';
+import { Link, useLocation } from 'wouter';
 import { useQuery } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,6 +11,7 @@ import { Separator } from '@/components/ui/separator';
 import SharedHeader from '@/components/layouts/shared-header';
 import SharedFooter from '@/components/layouts/SharedFooter';
 import { useBranding } from '@/components/branding/branding-provider';
+import { useAuth } from '@/hooks/use-auth';
 
 // Reuse the interfaces from the subscription page
 interface SubscriptionPlan {
@@ -108,12 +109,20 @@ const PricingPage: React.FC = () => {
     return plan.price && plan.price !== '0.00' ? `${plan.price} USD` : 'Free';
   };
 
+  const { user, isLoading: isAuthLoading } = useAuth();
+  const [location, navigate] = useLocation();
+  
   const handlePlanSelection = (plan: SubscriptionPlan) => {
-    // Store the selected plan ID in session storage
+    // Store the selected plan ID for reference in subscription page
     sessionStorage.setItem('selectedPlanId', plan.id.toString());
     
-    // Redirect to the register page with plan ID
-    window.location.href = `/register?planId=${plan.id}`;
+    if (user) {
+      // If logged in, redirect to subscription page
+      navigate('/user/subscription');
+    } else {
+      // If not logged in, redirect to register page first with redirect param
+      navigate('/register?redirect=/user/subscription');
+    }
   };
 
   // Function to format token counts with "K" for thousands
@@ -594,15 +603,29 @@ const PricingPage: React.FC = () => {
           <h2 className="text-3xl md:text-4xl font-bold mb-6">Ready to boost your career prospects?</h2>
           <p className="text-xl text-indigo-200 mb-8">Join thousands of students and professionals who have transformed their job search with {branding.appName}.</p>
           <div className="flex flex-col sm:flex-row justify-center gap-4">
-            <Link href="/register?planId=1">
-              <a className="px-8 py-4 bg-green-600 hover:bg-green-700 rounded-md font-medium transition-colors inline-block text-lg">
+            {user ? (
+              <Button 
+                onClick={() => navigate('/user/subscription')} 
+                className="px-8 py-4 bg-green-600 hover:bg-green-700 rounded-md font-medium transition-colors inline-block text-lg"
+              >
+                Manage Subscription
+              </Button>
+            ) : (
+              <Button 
+                onClick={() => navigate('/register?redirect=/user/subscription')} 
+                className="px-8 py-4 bg-green-600 hover:bg-green-700 rounded-md font-medium transition-colors inline-block text-lg"
+              >
                 Get Started for Free
                 <p className="text-xs mt-1 font-normal">No Credit Card Required</p>
-              </a>
-            </Link>
-            <a href={`mailto:contact@${branding.appName}.com`} className="px-8 py-4 bg-transparent border border-white hover:bg-white/10 text-white font-medium rounded-md transition-colors inline-block">
+              </Button>
+            )}
+            <Button
+              variant="outline"
+              className="px-8 py-4 bg-transparent border border-white hover:bg-white/10 text-white font-medium rounded-md transition-colors inline-block"
+              onClick={() => window.location.href = `mailto:contact@${branding.appName}.com`}
+            >
               Contact Sales
-            </a>
+            </Button>
           </div>
         </div>
       </div>

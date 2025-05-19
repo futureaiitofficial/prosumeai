@@ -9,6 +9,38 @@ import { appSettings } from '@shared/schema';
 import crypto from 'crypto';
 import { requireAdmin } from '../../middleware/admin';
 import { withEncryption } from '../../middleware/index';
+import { sanitizeBillingData } from '../../middleware/data-encryption';
+
+// Add this helper function before registerPaymentRoutes
+function cleanEncryptedEmptyValues(data: any): any {
+  if (!data) return data;
+  
+  // Create a copy to avoid modifying the original
+  const cleanedData = { ...data };
+  
+  // Clean up any field that looks like encrypted data but should be empty
+  Object.keys(cleanedData).forEach(key => {
+    const value = cleanedData[key];
+    if (typeof value === 'string') {
+      // Check if it looks like an encrypted value (salt:authTag:encrypted)
+      const parts = value.split(':');
+      if (parts.length === 3 && 
+          parts[0].length === 16 && 
+          parts[1].length === 32 && 
+          /^[0-9a-f]+$/i.test(parts[0]) && 
+          /^[0-9a-f]+$/i.test(parts[1]) && 
+          /^[0-9a-f]+$/i.test(parts[2])) {
+        
+        // Treat these optional fields specially
+        if (['phoneNumber', 'addressLine2', 'taxId', 'companyName'].includes(key)) {
+          cleanedData[key] = ''; // Set to empty string
+        }
+      }
+    }
+  });
+  
+  return cleanedData;
+}
 
 export function registerPaymentRoutes(app: express.Express) {
   // Get user's billing details
@@ -40,8 +72,11 @@ export function registerPaymentRoutes(app: express.Express) {
         fullName: billingDetails[0].fullName || (billingDetails[0] as any).full_name
       };
       
+      // Clean up any encrypted empty values
+      const cleanedData = cleanEncryptedEmptyValues(responseData);
+      
       console.log(`Found billing details for user ${userId}`);
-      res.json(responseData);
+      res.json(cleanedData);
     } catch (error: any) {
       console.error('Error in GET /api/user/billing-details:', error);
       res.status(500).json({ 
@@ -66,12 +101,15 @@ export function registerPaymentRoutes(app: express.Express) {
       
       // Extract data from request body, making country field uppercase for consistency
       // Map client property (fullName) to database column (full_name)
-      const billingData: any = { 
+      let billingData: any = { 
         ...req.body, 
         userId,
         country: req.body.country?.toUpperCase() || 'US',
         full_name: req.body.fullName || req.body.full_name || '' 
       };
+      
+      // Sanitize the billing data to ensure optional fields are properly handled
+      billingData = sanitizeBillingData(billingData);
       
       // Check if billing details already exist
       const existingDetails = await db.select()

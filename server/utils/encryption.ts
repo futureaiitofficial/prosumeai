@@ -617,6 +617,11 @@ export function isEncrypted(str: string): boolean {
  * @returns The encrypted data
  */
 export function safeEncrypt(data: any): string {
+  // Don't encrypt empty, null or undefined values
+  if (data === '' || data === null || data === undefined) {
+    return '';
+  }
+  
   if (typeof data === 'string' && isEncrypted(data)) {
     return data; // Already encrypted
   }

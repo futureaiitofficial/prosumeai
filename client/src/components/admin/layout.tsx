@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { useSidebar } from "@/hooks/use-sidebar";
+import { useBranding } from "@/components/branding/branding-provider";
 import { Button } from "@/components/ui/button";
 import { 
   BarChart3, 
@@ -52,6 +53,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const { user, logoutMutation } = useAuth();
   const { isCollapsed, toggleCollapsed, isMobileOpen, toggleMobileOpen } = useSidebar();
+  const branding = useBranding();
 
   // Close mobile menu on location change
   useEffect(() => {
@@ -109,12 +111,12 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
         )}>
           {!isCollapsed ? (
             <Link href="/" className="font-bold text-lg flex items-center">
-              ATScribe
+              {branding.appName}
               <Badge variant="outline" className="ml-2 text-xs">Admin</Badge>
             </Link>
           ) : (
             <Link href="/" className="font-bold text-lg">
-              P
+              {branding.appName.charAt(0)}
             </Link>
           )}
           <Button 
@@ -227,7 +229,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
         {/* Mobile sidebar header */}
         <div className="flex h-16 items-center justify-between border-b border-gray-200 dark:border-gray-800 px-4">
           <Link href="/" className="font-bold text-lg flex items-center">
-            ATScribe
+            {branding.appName}
             <Badge variant="outline" className="ml-2 text-xs">Admin</Badge>
           </Link>
           <Button 

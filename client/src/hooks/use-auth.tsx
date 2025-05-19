@@ -242,13 +242,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       queryClient.setQueryData(["/api/user"], userData);
       toast({
         title: "Registration successful",
-        description: `Welcome to ATScribe, ${userData.username}!`,
+        description: `Welcome to ${userData.username}!`,
       });
-      // Redirect based on user role
+      // Redirect based on user role or URL parameters
       if (userData.isAdmin) {
         setLocation("/admin/dashboard");
       } else {
-        setLocation("/dashboard");
+        // Redirect to dashboard with showSubscription parameter for new users
+        setLocation("/dashboard?showSubscription=true");
       }
     },
     onError: (error: Error) => {

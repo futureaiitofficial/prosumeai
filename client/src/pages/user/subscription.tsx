@@ -339,7 +339,18 @@ const UserSubscriptionPage: React.FC = () => {
       const response = await apiRequest('POST', '/api/user/subscription/upgrade', { planId });
       const data = await response.json();
       
-      // Check if redirection to payment is required
+      // Format amounts for display - handle INR and USD differently
+      const formatAmount = (amount: number, currency: string) => {
+        if (currency === 'INR') {
+          return `₹${amount.toFixed(0)}`; // No decimals for INR
+        }
+        return `$${amount.toFixed(2)}`; // 2 decimals for USD
+      };
+      
+      // Get the amount from pricing data rather than plan.price
+      const selectedNewPlan = plans.find((p: SubscriptionPlan) => p.id === planId);
+      const selectedCurrentPlan = subscription ? plans.find((p: SubscriptionPlan) => p.id === subscription.planId) : null;
+      
       if (data.redirectToPayment) {
         // If server provided a payment URL, use it
         if (data.paymentUrl) {
@@ -357,6 +368,13 @@ const UserSubscriptionPage: React.FC = () => {
           console.log('Redirecting to checkout:', checkoutUrl);
           window.location.href = checkoutUrl;
         }
+      } else if (data.subscription) {
+        // Subscription was created/updated without payment (free plan)
+        toast({
+          title: "Success",
+          description: "Your subscription has been upgraded successfully",
+        });
+        refetchSubscription();
       }
       
       return data;
@@ -771,7 +789,9 @@ const UserSubscriptionPage: React.FC = () => {
           const remainingValue = data.proration.remainingValue || 
                              (data.proration.diagnosticInfo?.remainingValue || 0);
           const newPlanPrice = data.proration.newPlanPrice || 
-                            (data.proration.diagnosticInfo?.newPrice || 0);
+                            (data.proration.diagnosticInfo?.newPrice || 
+                            (selectedNewPlan?.pricing?.length ? parseFloat(selectedNewPlan.pricing[0].price) : 0));
+          
           const currency = data.proration.currency || 
                        (data.proration.diagnosticInfo?.currency || 
                        (selectedNewPlan?.displayCurrency || 'USD'));
@@ -785,7 +805,7 @@ const UserSubscriptionPage: React.FC = () => {
           } else if (prorationAmount > 0) {
             prorationMessage = `You'll be charged ${formatAmount(prorationAmount, currency)} for this upgrade.`;
           } else {
-            prorationMessage = `You'll be charged for this upgrade immediately.`;
+            prorationMessage = `You'll be charged ${formatAmount(newPlanPrice, currency)} for this upgrade.`;
           }
           
           // Confirm with user before redirecting to checkout
@@ -803,13 +823,18 @@ const UserSubscriptionPage: React.FC = () => {
           // This is a new subscription, not an upgrade
           const selectedPlan = plans.find((p: SubscriptionPlan) => p.id === planId);
           const planName = selectedPlan?.name || 'selected plan';
-          const currency = selectedPlan?.displayCurrency || 'USD';
-          const price = selectedPlan?.displayPrice || '0';
+          
+          // Get pricing from the plan's pricing object instead of the old way
+          const currency = selectedPlan?.pricing?.length > 0 ? selectedPlan.pricing[0].currency : (selectedPlan?.displayCurrency || 'USD');
+          const price = selectedPlan?.pricing?.length > 0 ? selectedPlan.pricing[0].price : (selectedPlan?.displayPrice || '0');
+          
+          // Format the price for display
+          const formattedPrice = currency === 'INR' ? `₹${price}` : `$${price}`;
           
           // For new users, show a simpler confirmation
           const confirmed = window.confirm(
             `You're about to subscribe to the ${planName} plan.\n\n` +
-            `You'll be charged ${currency === 'INR' ? '₹' : '$'}${price} for this subscription.\n\n` +
+            `You'll be charged ${formattedPrice} for this subscription.\n\n` +
             `Would you like to proceed?`
           );
           
@@ -836,7 +861,6 @@ const UserSubscriptionPage: React.FC = () => {
         toast({
           title: "Success",
           description: "Your subscription has been upgraded successfully",
-          variant: "default"
         });
         refetchSubscription();
       }
@@ -1034,7 +1058,7 @@ const UserSubscriptionPage: React.FC = () => {
                                   <div className="flex justify-between text-sm">
                                     <span>{feature.featureName || 'Unknown Feature'}</span>
                                     <span>
-                                      {usageValue} / {limitValue} {isTokenFeature ? 'tokens' : ''}
+                                      {usageValue} / {limitValue} {isTokenFeature ? 'tokens' : 'uses'}
                                     </span>
                                   </div>
                                   <Progress
@@ -1097,19 +1121,24 @@ const UserSubscriptionPage: React.FC = () => {
                   </CardFooter>
                 </Card>
               ) : (
-                <Card>
-                  <CardHeader>
-                    <CardTitle>No Active Subscription</CardTitle>
-                    <CardDescription>You don't have an active subscription plan. Choose a plan to unlock premium features.</CardDescription>
-                  </CardHeader>
-                  <CardContent className="flex justify-center py-8">
-                    <div className="text-center">
-                      <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                      <p className="text-muted-foreground mb-6">Subscribe to a plan to gain access to advanced features.</p>
-                      <Button onClick={() => setTab('plans')}>View Available Plans</Button>
-                    </div>
-                  </CardContent>
-                </Card>
+                              <Card>
+                <CardHeader>
+                  <CardTitle>No Active Subscription</CardTitle>
+                  <CardDescription>Choose a subscription plan to unlock premium features and maximize your experience.</CardDescription>
+                </CardHeader>
+                <CardContent className="flex justify-center py-8">
+                  <div className="text-center">
+                    <AlertCircle className="h-12 w-12 text-indigo-400 mx-auto mb-4" />
+                    <p className="text-muted-foreground mb-6">Get started with a subscription to access AI-powered resume building, ATS optimization, and more.</p>
+                    <Button 
+                      onClick={() => setTab('plans')}
+                      className="bg-indigo-600 hover:bg-indigo-700"
+                    >
+                      View Available Plans
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
               )}
             </TabsContent>
             

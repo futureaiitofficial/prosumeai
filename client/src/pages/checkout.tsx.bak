@@ -136,10 +136,7 @@ const BillingReview = React.memo(({ billingInfo, handleReviewBillingAndContinue,
         </Button>
         <Button 
           variant="outline" 
-          onClick={() => {
-            console.log("Edit billing details clicked from review");
-            handleEditBillingDetails();
-          }}
+          onClick={handleEditBillingDetails}
           id="edit-billing-details-button"
           type="button"
         >
@@ -214,9 +211,6 @@ export function CheckoutPage() {
   const [showBillingReview, setShowBillingReview] = useState(false);
   const [progress, setProgress] = useState(60); // Start at 60% since we're at step 3 of the registration flow
   const branding = useBranding();
-  const [formKey, setFormKey] = useState(0);
-  // Add isEditing flag to prevent auto-advancing when user explicitly clicks Edit
-  const [isEditing, setIsEditing] = useState(false);
 
   // Add featuresLoading and featuresError state
   const [featuresLoading, setFeaturesLoading] = useState(false);
@@ -523,27 +517,10 @@ export function CheckoutPage() {
   // Effect to auto-advance to payment step if we have billing info
   // Fix dependency array to prevent infinite looping
   useEffect(() => {
-    // Only auto-advance if not explicitly editing and we have billing info
-    if (billingInfo && selectedPlan && currentStep === 'billing' && !showBillingReview && !isEditing) {
-      console.log("Auto-advancing to billing review since we have billing info", { 
-        billingInfo: !!billingInfo,
-        selectedPlan: !!selectedPlan,
-        currentStep,
-        showBillingReview,
-        isEditing
-      });
+    if (billingInfo && selectedPlan && currentStep === 'billing' && !showBillingReview) {
       setShowBillingReview(true);
     }
-  }, [billingInfo, selectedPlan, currentStep, showBillingReview, isEditing]);
-
-  // Add a debug effect to log state changes for easier troubleshooting
-  useEffect(() => {
-    console.log("Checkout state updated", { 
-      currentStep, 
-      showBillingReview: showBillingReview,
-      hasBillingInfo: !!billingInfo
-    });
-  }, [currentStep, showBillingReview, billingInfo]);
+  }, [billingInfo, selectedPlan, currentStep, showBillingReview]);
 
   // Pre-fetch payment intent and gateway key as soon as billing info is available
   useEffect(() => {
@@ -552,14 +529,11 @@ export function CheckoutPage() {
     }
   }, [billingInfo, planId]);
 
-  // Add loading state specifically for payment details
-  const [paymentDetailsLoading, setPaymentDetailsLoading] = useState(false);
+  // Add a formKey state to force re-rendering of the form
+  const [formKey, setFormKey] = useState(0);
 
   const handleBillingDetailsSubmitted = (details: BillingDetails) => {
-    // Reset editing flag after submission
-    setIsEditing(false);
     setBillingInfo(details);
-    setShowBillingReview(true);
     setCurrentStep('payment');
     initPaymentIntent();
   };
@@ -571,21 +545,13 @@ export function CheckoutPage() {
 
   const handleEditBillingDetails = () => {
     console.log("Edit billing details clicked");
-    // Force re-render the form with existing details by incrementing the formKey
-    setFormKey(prevKey => prevKey + 1);
-    // Set editing flag to prevent auto-advancing
-    setIsEditing(true);
-    // Direct state changes to show the form instead of review
+    // Direct state changes, no animations or timers
     setShowBillingReview(false);
     setCurrentStep('billing');
   };
 
   // Create payment intent after billing details are submitted or if they already exist
   const initPaymentIntent = async () => {
-    // Set payment loading state to true
-    setPaymentDetailsLoading(true);
-    setPaymentError('');
-
     try {
       if (!planId) return;
       
@@ -622,15 +588,10 @@ export function CheckoutPage() {
         description: errorMessage,
         variant: "destructive"
       });
-    } finally {
-      // Always set loading to false when done
-      setPaymentDetailsLoading(false);
     }
   };
 
   const handleBillingCancel = () => {
-    // Reset editing flag
-    setIsEditing(false);
     // Redirect logged-in users to dashboard, others to pricing page
     if (user) {
       navigate('/dashboard');
@@ -1203,12 +1164,11 @@ export function CheckoutPage() {
                             user={user}
                           />
                         ) : (
-                          <div className="billing-form-container" key={`form-container-${formKey}`}>
+                          <div className="billing-form-container" key={showBillingReview ? 'review-mode' : 'form-mode'}>
                             <BillingDetailsForm
                               existingDetails={billingInfo}
                               onDetailsSubmitted={handleBillingDetailsSubmitted}
                               onCancel={handleBillingCancel}
-                              key={`billing-form-${formKey}`}
                             />
                           </div>
                         )}
@@ -1249,16 +1209,7 @@ export function CheckoutPage() {
                           <Button 
                             variant="ghost" 
                             size="sm" 
-                            onClick={() => {
-                              // Force form re-render by incrementing the formKey
-                              setFormKey(prevKey => prevKey + 1);
-                              // Set editing flag to prevent auto-advancing
-                              setIsEditing(true);
-                              // Reset states to show the form
-                              setShowBillingReview(false);
-                              setCurrentStep('billing');
-                              console.log("Edit billing details clicked from payment step");
-                            }}
+                            onClick={() => setCurrentStep('billing')}
                             className="text-primary text-xs flex items-center"
                           >
                             <span className="mr-1">Edit Details</span>
@@ -1386,13 +1337,7 @@ export function CheckoutPage() {
                         </Alert>
                       )}
                       
-                      {paymentDetailsLoading ? (
-                        <div className="py-8 flex flex-col items-center justify-center space-y-4">
-                          <Loader2 className="h-10 w-10 animate-spin text-primary" />
-                          <p className="text-sm text-gray-600">Initializing payment...</p>
-                          <p className="text-xs text-gray-500">This may take a few moments</p>
-                        </div>
-                      ) : paymentIntent ? (
+                      {paymentIntent && (
                         <div className="space-y-6">
                           {/* Order Summary */}
                           <div className="rounded-md">
@@ -1407,7 +1352,12 @@ export function CheckoutPage() {
                               onClick={processPayment}
                               disabled={isProcessing || !paymentIntent || !gatewayKey}
                             >
-                              {isProcessing ? (
+                              {(!paymentIntent || !gatewayKey) ? (
+                                <>
+                                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                                  Preparing payment...
+                                </>
+                              ) : isProcessing ? (
                                 <>
                                   <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                                   Processing...
@@ -1417,21 +1367,21 @@ export function CheckoutPage() {
                                   <DollarSign className="mr-2 h-5 w-5" />
                                   {actuallyIsUpgrade === true
                                     ? `Pay for Upgrade ${formatCurrency(
-                                        paymentIntent.actualPlanAmount 
-                                          ? paymentIntent.actualPlanAmount / 100
-                                          : paymentIntent.amount, 
-                                        paymentIntent.currency
-                                      )}`
+                                      paymentIntent.actualPlanAmount 
+                                        ? paymentIntent.actualPlanAmount / 100
+                                        : paymentIntent.amount, 
+                                      paymentIntent.currency
+                                    )}`
                                     : `Subscribe for ${formatCurrency(
-                                        prorationAmount !== undefined 
-                                          ? prorationAmount // Already in full currency units from URL
-                                          : (paymentIntent.actualPlanAmount
-                                              ? paymentIntent.actualPlanAmount / 100 // Convert from smallest unit to full unit
-                                              : (paymentIntent.currency === 'INR'
-                                                  ? paymentIntent.amount / 100 // Convert paisa to rupees
-                                                  : paymentIntent.amount)), // Keep as is for other currencies
-                                        paymentIntent.currency
-                                      )}`
+                                      prorationAmount !== undefined 
+                                        ? prorationAmount // Already in full currency units from URL
+                                        : (paymentIntent.actualPlanAmount
+                                          ? paymentIntent.actualPlanAmount / 100 // Convert from smallest unit to full unit
+                                          : (paymentIntent.currency === 'INR'
+                                            ? paymentIntent.amount / 100 // Convert paisa to rupees
+                                            : paymentIntent.amount)), // Keep as is for other currencies
+                                      paymentIntent.currency
+                                    )}`
                                   }
                                 </>
                               )}
@@ -1468,19 +1418,6 @@ export function CheckoutPage() {
                               </div>
                             </div>
                           </div>
-                        </div>
-                      ) : (
-                        <div className="py-8 flex flex-col items-center justify-center space-y-4">
-                          <AlertCircle className="h-10 w-10 text-amber-500" />
-                          <p className="text-sm text-gray-600">Unable to initialize payment</p>
-                          <p className="text-xs text-gray-500">Please try refreshing the page</p>
-                          <Button 
-                            variant="secondary"
-                            size="sm"
-                            onClick={() => window.location.reload()}
-                          >
-                            Refresh Page
-                          </Button>
                         </div>
                       )}
                     </div>

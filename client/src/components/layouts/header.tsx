@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Link } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { useSidebar } from "@/hooks/use-sidebar";
+import { useBranding } from "@/components/branding/branding-provider";
 import { Moon, Sun, Bell, User, ChevronDown } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -16,6 +17,7 @@ import {
 export default function Header() {
   const { user, logoutMutation } = useAuth();
   const { isCollapsed, toggleCollapsed } = useSidebar();
+  const branding = useBranding();
   const [darkMode, setDarkMode] = useState(() => {
     if (typeof window !== 'undefined') {
       return document.documentElement.classList.contains('dark');
@@ -41,23 +43,7 @@ export default function Header() {
         <div className="flex items-center gap-2">
           <Link href="/">
             <div className="flex items-center gap-2 cursor-pointer">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="24"
-                height="24"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="h-6 w-6 text-primary-600"
-              >
-                <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
-                <path d="M2 17l10 5 10-5"></path>
-                <path d="M2 12l10 5 10-5"></path>
-              </svg>
-              <span className="text-xl font-bold">ATScribe</span>
+              <span className="text-xl font-bold">{branding.appName}</span>
             </div>
           </Link>
         </div>

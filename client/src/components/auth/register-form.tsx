@@ -73,7 +73,7 @@ let registerSchema = createRegisterSchema(passwordRequirements);
 type RegisterFormValues = z.infer<typeof registerSchema>;
 
 interface RegisterFormProps {
-  selectedPlanId?: string | null;
+  // Empty interface for future props if needed
 }
 
 // Calculate password strength
@@ -111,7 +111,7 @@ function getStrengthLabel(strength: number): string {
   return 'Strong';
 }
 
-export default function RegisterForm({ selectedPlanId }: RegisterFormProps) {
+export default function RegisterForm() {
   const { registerMutation } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [isPasswordField, setIsPasswordField] = useState(false);
@@ -123,9 +123,18 @@ export default function RegisterForm({ selectedPlanId }: RegisterFormProps) {
   const [passwordStrength, setPasswordStrength] = useState(0);
   const [currentRequirements, setCurrentRequirements] = useState(passwordRequirements);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [redirectUrl, setRedirectUrl] = useState<string | null>(null);
 
-  // Fetch password requirements on component mount
+  // Fetch password requirements on component mount and check for redirect URL
   useEffect(() => {
+    // Check if there's a redirect parameter in the URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const redirect = urlParams.get('redirect');
+    if (redirect) {
+      setRedirectUrl(redirect);
+    }
+    
+    // Fetch password requirements
     axios.get('/api/password-requirements')
       .then(response => {
         const { requirements, text } = response.data;
@@ -176,20 +185,20 @@ export default function RegisterForm({ selectedPlanId }: RegisterFormProps) {
       fullName: data.fullName || "", // Provide empty string as default
     };
     
-    const registerData = selectedPlanId 
-      ? { ...processedData, selectedPlanId } 
-      : processedData;
-    
-    // Store registration data in session storage to be used during checkout
-    sessionStorage.setItem('registrationData', JSON.stringify(registerData));
-    
-    // Redirect to checkout page with plan ID
-    if (selectedPlanId) {
-      window.location.href = `/checkout?planId=${selectedPlanId}`;
-    } else {
-      // Fallback to free plan or direct registration
-      registerMutation.mutate(registerData);
-    }
+    // Register the user
+    registerMutation.mutate(processedData, {
+      onSuccess: () => {
+        // After successful registration, redirect to dashboard or specified redirect URL
+        if (redirectUrl) {
+          window.location.href = redirectUrl;
+        } else {
+          window.location.href = '/dashboard';
+        }
+      },
+      onError: () => {
+        setIsSubmitting(false);
+      }
+    });
   };
 
   // Track focus on password field to coordinate with mascot animation

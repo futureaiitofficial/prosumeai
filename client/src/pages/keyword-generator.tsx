@@ -11,6 +11,7 @@ import cloud from "d3-cloud";
 import DefaultLayout from "@/components/layouts/default-layout";
 import { calculateATSScore } from "@/lib/ats-score";
 import { ResumeData } from "@/types/resume";
+import { handleSubscriptionError } from "@/utils/error-handler";
 
 interface KeywordCategory {
   name: string;
@@ -148,23 +149,39 @@ export default function KeywordGenerator() {
         console.error(`API Error (${response.status}):`, errorText);
         
         let errorMessage = 'Failed to analyze job description';
+        let errorObj = null;
         
         try {
           // Try to parse error as JSON
-          const errorJson = JSON.parse(errorText);
-          if (errorJson.message) {
-            errorMessage = errorJson.message;
-            console.error("Error details:", errorJson);
+          errorObj = JSON.parse(errorText);
+          if (errorObj.message) {
+            errorMessage = errorObj.message;
+            console.error("Error details:", errorObj);
           }
         } catch (e) {
           // If parsing fails, use the raw text
           console.error("Raw error text:", errorText);
         }
         
-        // Set specific error messages based on status code
+        // Create a standardized error object for our handler
+        const error = {
+          response: {
+            status: response.status,
+            data: errorObj || { message: errorMessage }
+          }
+        };
+        
+        // Use our standard error handler
+        if (handleSubscriptionError(error, toast)) {
+          // Error was handled by our subscription error handler
+          setLoading(false);
+          return;
+        }
+        
+        // If not handled as a subscription error, provide specific messages
         if (response.status === 429) {
           errorMessage = 'You have reached your token usage limit. Please try again later or upgrade your plan.';
-        } else if (response.status === 401 || response.status === 403) {
+        } else if (response.status === 401) {
           errorMessage = 'Authentication required. Please log in again.';
           // Refresh the page to force re-authentication
           setTimeout(() => window.location.reload(), 2000);
@@ -799,6 +816,8 @@ export default function KeywordGenerator() {
       setForceRedraw(prev => prev + 1);
     }, 100);
   };
+
+  // No subscription dialog needed with standard error handling
 
   return (
     <DefaultLayout pageTitle="Keyword Generator" pageDescription="Extract ATS-optimized keywords from job descriptions">

@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { handleSubscriptionError } from "@/utils/error-handler";
 import { 
   Loader2, 
   ArrowLeft, 
@@ -483,11 +484,13 @@ export default function ResumeBuilder() {
       });
     },
     onError: (error: Error) => {
-      toast({
-        title: "Failed to save resume",
-        description: error.message,
-        variant: "destructive",
-      });
+      if (!handleSubscriptionError(error, toast)) {
+        toast({
+          title: "Failed to save resume",
+          description: error.message,
+          variant: "destructive",
+        });
+      }
       console.error("Resume save error:", error);
     },
   });
@@ -510,11 +513,13 @@ export default function ResumeBuilder() {
       });
     },
     onError: (error: Error) => {
-      toast({
-        title: "Failed to update resume",
-        description: error.message,
-        variant: "destructive",
-      });
+      if (!handleSubscriptionError(error, toast)) {
+        toast({
+          title: "Failed to update resume",
+          description: error.message,
+          variant: "destructive",
+        });
+      }
       console.error("Resume update error:", error);
     },
   });

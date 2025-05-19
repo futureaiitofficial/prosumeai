@@ -174,7 +174,8 @@ export function encryptModelData(data: any, modelName: string): any {
 
   // Encrypt each field
   for (const field of modelConfig.fields) {
-    if (encryptedData[field] !== undefined && encryptedData[field] !== null) {
+    // Only encrypt if the field has an actual value (not empty strings, null, or undefined)
+    if (encryptedData[field] !== undefined && encryptedData[field] !== null && encryptedData[field] !== '') {
       encryptedData[field] = safeEncrypt(encryptedData[field]);
     }
   }
@@ -209,7 +210,15 @@ export function decryptModelData(data: any, modelName: string): any {
       // Only decrypt if the field is actually encrypted
       if (typeof decryptedData[field] === 'string' && isEncrypted(decryptedData[field])) {
         try {
-          decryptedData[field] = safeDecrypt(decryptedData[field]);
+          // Decrypt the value
+          const decryptedValue = safeDecrypt(decryptedData[field]);
+          
+          // Handle cases where empty values were encrypted
+          if (decryptedValue === '' || decryptedValue === null || decryptedValue === undefined) {
+            decryptedData[field] = '';
+          } else {
+            decryptedData[field] = decryptedValue;
+          }
         } catch (error) {
           console.error(`Failed to decrypt field ${field} in ${modelName}:`, error);
           // Keep the encrypted value if decryption fails
@@ -290,6 +299,30 @@ export function getEncryptionConfig(): { config: EncryptionFieldConfig, enabled:
  */
 export function withEncryption(modelName: string) {
   return [encryptRequestData(modelName), decryptResponseData(modelName)];
+}
+
+/**
+ * Sanitize billing data to ensure empty fields are not encrypted
+ * @param data The billing data to sanitize
+ * @returns The sanitized data
+ */
+export function sanitizeBillingData(data: any): any {
+  if (!data) return data;
+  
+  // Create a copy to avoid modifying the original
+  const sanitized = { ...data };
+  
+  // Optional fields that should be empty if not provided
+  const optionalFields = ['phoneNumber', 'addressLine2', 'taxId', 'companyName'];
+  
+  // Sanitize each optional field
+  for (const field of optionalFields) {
+    if (sanitized[field] === undefined || sanitized[field] === null || sanitized[field] === '') {
+      sanitized[field] = '';
+    }
+  }
+  
+  return sanitized;
 }
 
 /**
