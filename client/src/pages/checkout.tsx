@@ -14,6 +14,9 @@ import BillingDetailsForm from "@/components/checkout/billing-details-form";
 import axios from 'axios';
 import Image from 'next/image';
 import { useBranding } from '@/components/branding/branding-provider';
+// Import country-state-city package
+import { Country, State } from 'country-state-city';
+import { useRegion } from '@/hooks/use-region';
 
 // Helper function to check if a string looks like an encrypted value
 function isLikelyEncrypted(value: string | undefined | null): boolean {
@@ -89,6 +92,13 @@ const getParamsFromLocation = () => {
   };
 };
 
+// Add user region interface
+interface UserRegion {
+  region: 'GLOBAL' | 'INDIA';
+  currency: 'USD' | 'INR';
+  country?: string;
+}
+
 const BillingReview = React.memo(({ billingInfo, handleReviewBillingAndContinue, handleEditBillingDetails, user }: {
   billingInfo: BillingDetails | null;
   handleReviewBillingAndContinue: () => void;
@@ -96,6 +106,11 @@ const BillingReview = React.memo(({ billingInfo, handleReviewBillingAndContinue,
   user: any;
 }) => {
   if (!billingInfo) return null;
+
+  // Get country and state names from codes
+  const countryName = billingInfo.country ? Country.getCountryByCode(billingInfo.country)?.name || billingInfo.country : '';
+  const stateName = billingInfo.state && billingInfo.country ? 
+    State.getStateByCodeAndCountry(billingInfo.state, billingInfo.country)?.name || billingInfo.state : billingInfo.state;
 
   return (
     <div className="space-y-6">
@@ -114,7 +129,7 @@ const BillingReview = React.memo(({ billingInfo, handleReviewBillingAndContinue,
         </div>
         <div>
           <p className="text-gray-500 text-sm mb-1">Country</p>
-          <p className="font-medium">{billingInfo.country}</p>
+          <p className="font-medium">{countryName}</p>
         </div>
         {billingInfo.addressLine1 && (
           <div>
@@ -124,7 +139,7 @@ const BillingReview = React.memo(({ billingInfo, handleReviewBillingAndContinue,
               <p className="font-medium">{billingInfo.addressLine2}</p>
             )}
             <p className="font-medium">
-              {[billingInfo.city, billingInfo.state, billingInfo.postalCode].filter(Boolean).join(", ")}
+              {[billingInfo.city, stateName, billingInfo.postalCode].filter(Boolean).join(", ")}
             </p>
           </div>
         )}
@@ -217,6 +232,9 @@ export function CheckoutPage() {
   const [formKey, setFormKey] = useState(0);
   // Add isEditing flag to prevent auto-advancing when user explicitly clicks Edit
   const [isEditing, setIsEditing] = useState(false);
+  
+  // Replace direct region management with the useRegion hook
+  const { userRegion, formatCurrency: formatRegionCurrency } = useRegion();
 
   // Add featuresLoading and featuresError state
   const [featuresLoading, setFeaturesLoading] = useState(false);
@@ -252,17 +270,10 @@ export function CheckoutPage() {
 
   // Move format currency outside of render loop for better performance
   const formatCurrency = useCallback((amount: number, currencyCode: string = 'USD') => {
-    // For INR, check if we need to convert from smallest unit
-    if (currencyCode === 'INR' && amount > 10000 && amount % 1 === 0) {
-      // This looks like it might be in paisa - convert to rupees
-      amount = amount / 100;
-    }
+    console.log(`Formatting currency: ${amount} ${currencyCode}`);
     
-    // For USD, check if we need to convert from cents
-    if (currencyCode === 'USD' && amount > 1000 && amount % 1 === 0) {
-      // This looks like it might be in cents - convert to dollars
-      amount = amount / 100;
-    }
+    // Don't automatically convert values, trust the values from the API
+    // The server sends amounts in their display format, not the Razorpay format
     
     // Use appropriate locale based on currency
     const locale = currencyCode === 'INR' ? 'en-IN' : 'en-US';
@@ -592,7 +603,8 @@ export function CheckoutPage() {
       // Create a payment details object with plan ID and always start immediately
       const paymentDetails = {
         planId,
-        startImmediately: true // Always start immediately for new subscriptions
+        startImmediately: true, // Always start immediately for new subscriptions
+        isSubscription: true    // Explicitly mark as subscription
       };
       
       console.log('Creating payment intent with details:', paymentDetails);
@@ -639,9 +651,11 @@ export function CheckoutPage() {
     }
   };
 
-  // Get price display based on selected plan
+  // Get price display based on user region
   const getPriceDisplay = (plan: any) => {
     if (!plan) return 'Loading...';
+    
+    console.log("Checkout: Getting price display for plan:", plan.name, "User region:", userRegion);
     
     // For freemium plans
     if (plan.isFreemium || !plan.pricing || plan.pricing?.length === 0) {
@@ -650,23 +664,36 @@ export function CheckoutPage() {
     
     // Check if the plan has displayPrice and displayCurrency fields from the server
     if (plan.displayPrice && plan.displayCurrency) {
-      return formatCurrency(parseFloat(plan.displayPrice), plan.displayCurrency);
+      console.log("Checkout: Using display price from server:", plan.displayPrice, plan.displayCurrency);
+      return formatRegionCurrency(parseFloat(plan.displayPrice), plan.displayCurrency);
     }
     
-    // Fallback to default pricing
+    // Try to get pricing for user's region first
+    const regionPricing = plan.pricing?.find((p: any) => p.targetRegion === userRegion.region);
+    if (regionPricing) {
+      console.log("Checkout: Found pricing for user region:", userRegion.region, regionPricing);
+      return formatRegionCurrency(parseFloat(regionPricing.price), regionPricing.currency);
+    }
+    
+    // Fallback to global pricing
     const pricing = plan.pricing?.find((p: any) => p.targetRegion === 'GLOBAL');
     if (pricing) {
-      return formatCurrency(parseFloat(pricing.price), pricing.currency);
+      console.log("Checkout: Using fallback global pricing:", pricing);
+      return formatRegionCurrency(parseFloat(pricing.price), pricing.currency);
     }
     
     // Default fallback
     if (plan.name === 'Pro') {
-      return formatCurrency(29.99, 'USD');
+      console.log("Checkout: Using hardcoded Pro plan pricing");
+      return userRegion.region === 'INDIA' 
+        ? formatRegionCurrency(1999, 'INR')
+        : formatRegionCurrency(29.99, 'USD');
     }
     
     // Last resort fallback
+    console.log("Checkout: Using last resort fallback pricing:", plan.price);
     return plan.price && plan.price !== '0.00' 
-      ? formatCurrency(parseFloat(plan.price), plan.currency || 'USD') 
+      ? formatRegionCurrency(parseFloat(plan.price), plan.currency || 'USD') 
       : 'Loading...';
   };
 
@@ -684,6 +711,8 @@ export function CheckoutPage() {
   const verifyPayment = (response: RazorpayResponse) => {
     setIsProcessing(true);
     
+    console.log('Razorpay payment callback received:', JSON.stringify(response, null, 2));
+    
     if (!planId) {
       setPaymentError('Missing plan information');
       setIsProcessing(false);
@@ -698,7 +727,7 @@ export function CheckoutPage() {
       planId,
     };
     
-    console.log('Verifying payment with data:', verificationData);
+    console.log('Verifying payment with data:', JSON.stringify(verificationData, null, 2));
     
     PaymentService.verifyPayment(verificationData)
       .then(result => {
@@ -787,6 +816,8 @@ export function CheckoutPage() {
       console.log('Payment amount being sent to Razorpay:', paymentAmount);
       console.log('Actual plan amount that will be charged after authentication:', 
                  paymentIntent.actualPlanAmount ? paymentIntent.actualPlanAmount : 'Not provided');
+      console.log('Payment currency from intent:', paymentIntent.currency);
+      console.log('User region from hook:', userRegion);
       
       // Clean up phone number if it looks encrypted
       let phoneNumber = billingInfo?.phoneNumber;
@@ -798,16 +829,19 @@ export function CheckoutPage() {
         phoneNumber = undefined;
       }
       
+      // Ensure currency consistency - if user is in India, use INR
+      const currency = userRegion.region === 'INDIA' ? 'INR' : paymentIntent.currency;
+      
       // Set up Razorpay options
       const options: RazorpayOptions = {
         key: gatewayKey.publicKey,
         amount: paymentAmount,
-        currency: paymentIntent.currency,
+        currency: currency, // Use currency based on user region
         name: branding.appName,
         description: upgradeFlow 
           ? `New ${paymentIntent.planName} Plan Subscription` 
           : `${paymentIntent.planName} Plan Subscription`,
-        subscription_id: paymentIntent.subscriptionId || '',
+        subscription_id: paymentIntent.subscriptionId,
         image: '/logo.png',
         handler: verifyPayment,
         prefill: {
@@ -819,7 +853,8 @@ export function CheckoutPage() {
         notes: {
           start_immediately: 'true',
           actual_plan_amount: paymentIntent.actualPlanAmount?.toString() || '',
-          plan_name: paymentIntent.planName
+          plan_name: paymentIntent.planName,
+          user_region: userRegion.region // Add user region to payment notes
         },
         theme: {
           color: '#4f46e5' // Match your primary color
@@ -830,6 +865,9 @@ export function CheckoutPage() {
           }
         }
       };
+      
+      console.log('Razorpay options:', JSON.stringify(options, null, 2));
+      console.log('Payment intent for debug:', JSON.stringify(paymentIntent, null, 2));
       
       // Initialize Razorpay
       if (typeof window !== 'undefined' && 'Razorpay' in window) {
@@ -909,40 +947,104 @@ export function CheckoutPage() {
     );
   };
 
-  // For regular new subscriptions
-  const displayRegularSubscription = () => {
-    if (!paymentIntent) return null;
+  // Helper function to get the appropriate locale based on currency
+  const getCurrencyLocale = (currency: string): string => {
+    switch (currency) {
+      case 'INR':
+        return 'en-IN';
+      case 'USD':
+        return 'en-US';
+      default:
+        return 'en-US';
+    }
+  };
 
-    // Get authentication amount (shown by Razorpay)
-    const authAmount = paymentIntent.currency === 'INR' 
-      ? paymentIntent.amount / 100 
-      : paymentIntent.amount;
+  // Now, in the displayRegularSubscription function, let's fix any types and make sure we properly format amounts
+  const displayRegularSubscription = () => {
+    if (!selectedPlan || !paymentIntent) return null;
     
-    // Get actual plan amount (charged after authentication)
-    const fullPlanAmount = paymentIntent.actualPlanAmount 
-      ? (paymentIntent.currency === 'INR' ? paymentIntent.actualPlanAmount / 100 : paymentIntent.actualPlanAmount / 100)
-      : authAmount;
+    // Format amount for display including currency
+    const formattedPrice = new Intl.NumberFormat(getCurrencyLocale(paymentIntent.currency), {
+      style: 'currency',
+      currency: paymentIntent.currency,
+    }).format(paymentIntent.amount);
     
+    // Format subtotal if available
+    const formattedSubtotal = paymentIntent.subtotal ? 
+      new Intl.NumberFormat(getCurrencyLocale(paymentIntent.currency), {
+        style: 'currency',
+        currency: paymentIntent.currency,
+      }).format(paymentIntent.subtotal) : formattedPrice;
+    
+    // Check if we have tax details
+    const hasTax = paymentIntent.taxDetails && 
+                  paymentIntent.taxDetails.taxAmount > 0;
+                  
+    const taxAmount = hasTax && paymentIntent.taxDetails ? 
+      new Intl.NumberFormat(getCurrencyLocale(paymentIntent.currency), {
+        style: 'currency',
+        currency: paymentIntent.currency,
+      }).format(paymentIntent.taxDetails.taxAmount) : null;
+      
+    const taxPercentage = hasTax && paymentIntent.taxDetails ? 
+      paymentIntent.taxDetails.taxPercentage : null;
+    
+    // Get billing cycle text
+    const billingCycleText = paymentIntent.billingCycle === 'MONTHLY' ? '/month' : '/year';
+    
+    const isTaxIncluded = paymentIntent.currency === 'INR';
+
     return (
-      <div className="space-y-4">
-        <div className="flex justify-between items-center bg-gray-50 p-3 rounded-lg">
-          <div>
-            <span className="font-medium text-gray-800">{selectedPlan?.name} Plan</span>
-            <p className="text-xs text-gray-500">{selectedPlan?.description || `${paymentIntent.billingCycle.toLowerCase()} billing`}</p>
+      <div className="bg-white rounded-lg shadow-sm border p-5 dark:bg-slate-900 dark:border-slate-800">
+        <div className="flex flex-col space-y-3">
+          <h3 className="text-lg font-semibold">{selectedPlan.name}</h3>
+          <p className="text-gray-500 text-sm dark:text-gray-400">{selectedPlan.description}</p>
+          
+          <div className="py-2">
+            <div className="flex justify-between">
+              <span className="text-gray-600 dark:text-gray-300">Subscription</span>
+              <span className="font-semibold">{formattedSubtotal}{billingCycleText}</span>
+            </div>
+            
+            {hasTax && taxAmount && (
+              <div className="flex justify-between mt-1">
+                <span className="text-gray-600 dark:text-gray-300">
+                  {isTaxIncluded ? `GST (${taxPercentage}%, included)` : `Tax (${taxPercentage}%)`}
+                </span>
+                <span>{taxAmount}</span>
+              </div>
+            )}
+            
+            <div className="flex justify-between mt-2 pt-2 border-t">
+              <span className="font-medium">Total</span>
+              <span className="font-bold">{formattedPrice}{billingCycleText}</span>
+            </div>
+            
+            {isTaxIncluded && (
+              <div className="mt-2 text-xs text-amber-600">
+                Price is inclusive of GST as per Indian tax regulations.
+              </div>
+            )}
+            
+            {hasTax && paymentIntent.taxDetails?.taxBreakdown && (
+              <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-800">
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                  {isTaxIncluded ? 'GST breakdown (included in price):' : 'Tax breakdown:'}
+                </p>
+                {paymentIntent.taxDetails.taxBreakdown.map((tax, idx) => (
+                  <div key={idx} className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
+                    <span>{tax.name} ({tax.percentage}%{isTaxIncluded ? ', included' : ''})</span>
+                    <span>
+                      {new Intl.NumberFormat(getCurrencyLocale(paymentIntent.currency), {
+                        style: 'currency',
+                        currency: paymentIntent.currency,
+                      }).format(tax.amount)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-          <span className="font-semibold text-lg">{formatCurrency(fullPlanAmount, paymentIntent.currency)}</span>
-        </div>
-        
-        <Separator />
-        
-        <div className="flex justify-between font-semibold text-lg">
-          <span>Total</span>
-          <span>{formatCurrency(fullPlanAmount, paymentIntent.currency)}</span>
-        </div>
-        
-        <div className="flex items-center justify-center space-x-2 text-sm text-gray-500 mt-2">
-          <CreditCard className="h-4 w-4" />
-          <span>{`You'll be charged ${paymentIntent.billingCycle === 'YEARLY' ? 'annually' : 'monthly'}`}</span>
         </div>
       </div>
     );
@@ -1146,6 +1248,13 @@ export function CheckoutPage() {
         
         {loadingProgress === 100 && (
           <>
+            {/* Show region indicator */}
+            {userRegion.region === 'INDIA' && (
+              <div className="text-center mb-4 text-sm text-gray-500">
+                Showing prices for India (INR)
+              </div>
+            )}
+            
             {/* Checkout Progress Bar */}
             <div className="mb-6">
               <div className="flex justify-between items-center mb-2">
@@ -1231,7 +1340,7 @@ export function CheckoutPage() {
                         </div>
                         <div>
                           <p className="text-gray-500 text-sm mb-1">Country</p>
-                          <p className="font-medium">{billingInfo.country}</p>
+                          <p className="font-medium">{billingInfo.country ? Country.getCountryByCode(billingInfo.country)?.name || billingInfo.country : ''}</p>
                         </div>
                         {billingInfo.addressLine1 && (
                           <div>
@@ -1241,7 +1350,7 @@ export function CheckoutPage() {
                               <p className="font-medium">{billingInfo.addressLine2}</p>
                             )}
                             <p className="font-medium">
-                              {[billingInfo.city, billingInfo.state, billingInfo.postalCode].filter(Boolean).join(", ")}
+                              {[billingInfo.city, billingInfo.state && billingInfo.country ? State.getStateByCodeAndCountry(billingInfo.state, billingInfo.country)?.name || billingInfo.state : billingInfo.state, billingInfo.postalCode].filter(Boolean).join(", ")}
                             </p>
                           </div>
                         )}
@@ -1417,21 +1526,15 @@ export function CheckoutPage() {
                                   <DollarSign className="mr-2 h-5 w-5" />
                                   {actuallyIsUpgrade === true
                                     ? `Pay for Upgrade ${formatCurrency(
-                                        paymentIntent.actualPlanAmount 
+                                        (paymentIntent.actualPlanAmount && paymentIntent.actualPlanAmount > 0)
                                           ? paymentIntent.actualPlanAmount / 100
                                           : paymentIntent.amount, 
                                         paymentIntent.currency
                                       )}`
                                     : `Subscribe for ${formatCurrency(
-                                        prorationAmount !== undefined 
-                                          ? prorationAmount // Already in full currency units from URL
-                                          : (paymentIntent.actualPlanAmount
-                                              ? paymentIntent.actualPlanAmount / 100 // Convert from smallest unit to full unit
-                                              : (paymentIntent.currency === 'INR'
-                                                  ? paymentIntent.amount / 100 // Convert paisa to rupees
-                                                  : paymentIntent.amount)), // Keep as is for other currencies
+                                        (paymentIntent.amount),
                                         paymentIntent.currency
-                                      )}`
+                                      )}${paymentIntent.currency === 'INR' ? ' (GST incl.)' : ''}`
                                   }
                                 </>
                               )}

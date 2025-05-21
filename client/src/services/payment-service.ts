@@ -24,6 +24,32 @@ export interface PaymentIntent {
   isFutureSubscription?: boolean;
   startImmediately?: boolean;
   startAt?: number;
+  // Tax related fields
+  subtotal?: number;
+  taxDetails?: {
+    taxType: string;
+    taxAmount: number;
+    taxPercentage: number;
+    taxBreakdown: Array<{
+      name: string;
+      type: string;
+      percentage: number;
+      amount: number;
+    }>;
+    subtotal: number;
+    total: number;
+  };
+  // Proration related fields
+  prorationInfo?: {
+    originalPlanPrice?: number;
+    newPlanPrice?: number;
+    remainingValue?: number;
+    prorationAmount?: number;
+    prorationCredit?: number;
+    isUpgrade?: boolean;
+    currency?: string;
+  };
+  isSubscription: boolean;
 }
 
 export interface PaymentDetails {
@@ -31,6 +57,7 @@ export interface PaymentDetails {
   amount?: number;
   currency?: string;
   isUpgrade?: boolean;
+  isSubscription?: boolean;
 }
 
 export interface BillingDetails {
@@ -81,10 +108,16 @@ export const PaymentService = {
       
       // Handle backwards compatibility with the old API that accepted just a planId
       if (typeof paymentDetailsOrPlanId === 'number') {
-        paymentDetails = { planId: paymentDetailsOrPlanId };
+        paymentDetails = { 
+          planId: paymentDetailsOrPlanId,
+          isSubscription: true // Always create a subscription by default
+        };
         console.log(`Creating payment intent for plan ID: ${paymentDetailsOrPlanId}`);
       } else {
-        paymentDetails = paymentDetailsOrPlanId;
+        paymentDetails = {
+          ...paymentDetailsOrPlanId,
+          isSubscription: paymentDetailsOrPlanId.isSubscription !== false // Default to true unless explicitly set to false
+        };
         console.log(`Creating payment intent with details:`, paymentDetails);
       }
       
@@ -138,28 +171,32 @@ export const PaymentService = {
   },
 
   /**
-   * Verify a payment
+   * Verify a payment with the server
+   * @param verificationData Payment verification data from Razorpay
+   * @returns Verification result
    */
-  verifyPayment: async (paymentData: {
+  verifyPayment: async (verificationData: {
     paymentId: string;
-    planId: number;
-    signature?: string;
+    signature: string;
     subscriptionId?: string;
+    planId?: number;
     isUpgrade?: boolean;
-  }): Promise<PaymentVerificationResult> => {
+  }): Promise<any> => {
     try {
-      console.log('Sending payment verification request with data:', JSON.stringify(paymentData));
-      const response = await axios.post('/api/payments/verify', paymentData);
-      console.log('Payment verification response:', response.data);
-      return response.data;
+      console.log('[Payment Service] Verifying payment with data:', JSON.stringify(verificationData, null, 2));
+      const response = await axios.post('/api/payments/verify', verificationData);
+      console.log('[Payment Service] Verification response:', JSON.stringify(response.data, null, 2));
+      return {
+        success: true,
+        ...response.data
+      };
     } catch (error: any) {
-      console.error('Error verifying payment:', error);
+      console.error('[Payment Service] Error verifying payment:', error);
       
-      // Return a structured error response for consistent handling
+      const errorMessage = error.response?.data?.message || error.message || 'Payment verification failed';
       return {
         success: false,
-        message: error.response?.data?.message || 'Failed to verify payment',
-        error: error.response?.data?.error || error.message
+        message: errorMessage
       };
     }
   },
@@ -235,13 +272,63 @@ export const PaymentService = {
    * Get user's region based on IP
    */
   getUserRegion: async () => {
+    // Use local storage cache to avoid repeatedly fetching the region
+    const cachedRegion = localStorage.getItem('user-region-cache');
+    const cacheTimestamp = localStorage.getItem('user-region-timestamp');
+    
+    // Check if we have a valid cached region (less than 24 hours old)
+    if (cachedRegion && cacheTimestamp) {
+      const cacheTime = parseInt(cacheTimestamp, 10);
+      const now = Date.now();
+      const cacheAge = now - cacheTime;
+      const cacheTTL = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+      
+      if (cacheAge < cacheTTL) {
+        try {
+          const regionData = JSON.parse(cachedRegion);
+          console.log('Using cached region data:', regionData);
+          return regionData;
+        } catch (e) {
+          // Invalid JSON in cache, will fetch fresh data
+          console.warn('Invalid region cache data, fetching fresh data');
+        }
+      }
+    }
+    
     try {
+      console.log('Fetching user region from server...');
       const response = await axios.get('/api/user/region');
+      console.log('Server response for region detection:', response.data);
+      
+      // Validate the response data
+      if (!response.data || !response.data.region) {
+        console.warn('Region response missing required fields, defaulting to GLOBAL');
+        return { region: 'GLOBAL', currency: 'USD', error: 'Invalid server response' };
+      }
+      
+      // Cache the valid region data
+      try {
+        localStorage.setItem('user-region-cache', JSON.stringify(response.data));
+        localStorage.setItem('user-region-timestamp', Date.now().toString());
+      } catch (e) {
+        console.warn('Failed to cache region data:', e);
+      }
+      
       return response.data;
     } catch (error: any) {
       console.error('Error fetching user region:', error);
+      
+      // Try to extract specific error information
+      const errorMessage = error.response?.data?.error || error.message;
+      
+      // Check if there's a network error, which might indicate local development
+      if (error.message?.includes('Network Error')) {
+        console.warn('Network error detecting region, likely running in local development');
+        return { region: 'GLOBAL', currency: 'USD', error: 'Network error' };
+      }
+      
       // Default to GLOBAL if we can't determine region
-      return { region: 'GLOBAL', currency: 'USD' };
+      return { region: 'GLOBAL', currency: 'USD', error: errorMessage };
     }
   },
 
@@ -326,6 +413,147 @@ export const PaymentService = {
       return response.data;
     } catch (error: any) {
       console.error('Error verifying payment gateway key:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Get user's invoices
+   */
+  getUserInvoices: async () => {
+    try {
+      const response = await axios.get('/api/user/invoices');
+      return response.data;
+    } catch (error: any) {
+      console.error('Error fetching user invoices:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Get invoice by ID
+   */
+  getInvoiceById: async (invoiceId: number) => {
+    try {
+      const response = await axios.get(`/api/user/invoices/${invoiceId}`);
+      return response.data;
+    } catch (error: any) {
+      console.error(`Error fetching invoice ${invoiceId}:`, error);
+      throw error;
+    }
+  },
+
+  /**
+   * Download invoice
+   */
+  downloadInvoice: async (invoiceId: number) => {
+    try {
+      console.log(`Downloading invoice ${invoiceId}`);
+      
+      const response = await axios.get(`/api/user/invoices/${invoiceId}/download`, {
+        responseType: 'blob',
+        headers: {
+          'Accept': 'application/pdf'
+        }
+      });
+      
+      // Check if the response is a valid PDF
+      if (response.headers['content-type'] !== 'application/pdf') {
+        console.error('Received non-PDF content type:', response.headers['content-type']);
+      }
+      
+      // Additional validation of the PDF data
+      const blob = response.data;
+      if (blob.size < 1000) {
+        console.warn(`Received very small PDF (${blob.size} bytes), may be corrupt`);
+      }
+      
+      return blob;
+    } catch (error: any) {
+      console.error(`Error downloading invoice ${invoiceId}:`, error);
+      
+      // Log more detailed error information
+      if (error.response) {
+        console.error('Error response status:', error.response.status);
+        console.error('Error response headers:', error.response.headers);
+        if (error.response.data instanceof Blob) {
+          // Try to extract text from error blob
+          try {
+            const text = await error.response.data.text();
+            console.error('Error blob content:', text);
+          } catch (e) {
+            console.error('Could not read error blob content');
+          }
+        } else {
+          console.error('Error response data:', error.response.data);
+        }
+      }
+      
+      throw error;
+    }
+  },
+
+  /**
+   * Get invoices for a specific subscription
+   */
+  getSubscriptionInvoices: async (subscriptionId: number) => {
+    try {
+      const response = await axios.get(`/api/subscription/invoices/${subscriptionId}`);
+      return response.data;
+    } catch (error: any) {
+      console.error(`Error fetching invoices for subscription ${subscriptionId}:`, error);
+      throw error;
+    }
+  },
+
+  /**
+   * Download an invoice for a transaction, generating one if it doesn't exist
+   * @param transactionId The ID of the transaction
+   * @returns Promise containing the PDF blob data
+   */
+  downloadTransactionInvoice: async (transactionId: number) => {
+    try {
+      console.log(`Downloading invoice for transaction ${transactionId}`);
+      
+      const response = await axios.get(`/api/user/transactions/${transactionId}/download`, {
+        responseType: 'blob',
+        headers: {
+          'Accept': 'application/pdf'
+        }
+      });
+      
+      // Check if the response is a valid PDF
+      if (response.headers['content-type'] !== 'application/pdf') {
+        console.error('Received non-PDF content type:', response.headers['content-type']);
+      }
+      
+      // Additional validation of the PDF data
+      const blob = response.data;
+      if (blob.size < 1000) {
+        console.warn(`Received very small PDF (${blob.size} bytes), may be corrupt`);
+      }
+      
+      return blob;
+    } catch (error: any) {
+      console.error(`Error downloading transaction invoice ${transactionId}:`, error);
+      
+      // Log more detailed error information
+      if (error.response) {
+        console.error('Error response status:', error.response.status);
+        console.error('Error response headers:', error.response.headers);
+        if (error.response.data instanceof Blob) {
+          // Try to extract text from error blob
+          try {
+            const text = await error.response.data.text();
+            console.error('Error blob content:', text);
+          } catch (e) {
+            console.error('Could not read error blob content');
+          }
+        } else {
+          console.error('Error response data:', error.response.data);
+        }
+      }
+      
       throw error;
     }
   }

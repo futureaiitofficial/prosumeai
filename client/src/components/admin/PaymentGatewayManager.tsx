@@ -805,6 +805,10 @@ export function PaymentGatewayManager() {
                 <CardDescription>
                   Map your subscription plans to Razorpay plans for subscription processing
                 </CardDescription>
+                <div className="bg-amber-50 border-l-4 border-amber-500 p-3 mt-2 text-sm">
+                  <p><strong>Important:</strong> For INR payments, plan prices should already include the 18% GST.</p>
+                  <p className="text-xs mt-1">When creating plans with INR currency, set the price as the total amount including GST. This ensures customers see the full price with taxes included from the beginning.</p>
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">

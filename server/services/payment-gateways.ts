@@ -4,6 +4,7 @@ import { userSubscriptions, subscriptionPlans, planPricing, paymentTransactions,
 import { eq, and } from 'drizzle-orm';
 import Razorpay from 'razorpay';
 import crypto from 'crypto';
+import { TaxService } from './tax-service';
 
 // Utility function to decrypt API keys
 export function decryptApiKey(encryptedKey: string): string {
@@ -114,6 +115,29 @@ async function getApiKeyFromDB(service: string): Promise<string | null> {
   } catch (error) {
     console.error(`Error getting ${service} API key from database:`, error);
     return null;
+  }
+}
+
+// Function to calculate total amount with tax for INR payments
+async function calculateTotalWithTax(userId: number, amount: number, currency: string): Promise<{
+  total: number;
+  taxAmount: number;
+  taxDetails: any;
+}> {
+  if (currency !== 'INR') {
+    return { total: amount, taxAmount: 0, taxDetails: null };
+  }
+
+  try {
+    const taxCalculation = await TaxService.calculateTaxes(userId, amount, currency);
+    return {
+      total: taxCalculation.total,
+      taxAmount: taxCalculation.taxAmount,
+      taxDetails: taxCalculation
+    };
+  } catch (error) {
+    console.error('Error calculating tax:', error);
+    return { total: amount, taxAmount: 0, taxDetails: null };
   }
 }
 
@@ -356,48 +380,61 @@ class RazorpayGateway implements PaymentGateway {
   }
 
   async createPaymentIntent(amount: number, currency: string, metadata: any): Promise<any> {
-    const isInitialized = await this.ensureInitialized();
-    
-    if (!isInitialized || !this.razorpay) {
-      console.error('Razorpay not properly initialized, falling back to mock implementation');
-      this.initializeMockRazorpay();
-    }
-    
+    await this.ensureInitialized();
+
     try {
-      if (!this.razorpay?.subscriptions) {
-        console.warn('Razorpay subscriptions API not available, using mock implementation');
-        // Create mock subscription as fallback
-        return {
-          subscriptionId: `sub_mock_${Date.now()}`, // Use sub_ prefix even for mocks
-          amount: Math.round(amount * 100),
-          currency: currency || 'INR',
-          gateway: 'RAZORPAY',
-          short_url: null
-        };
+      console.log(`Creating Razorpay payment intent for amount: ${amount} ${currency}`);
+
+      if (!metadata.userId) {
+        throw new Error('User ID is required in metadata for payment intent creation');
       }
+
+      // Calculate tax for INR payments
+      const { total, taxAmount, taxDetails } = await calculateTotalWithTax(
+        metadata.userId,
+        amount,
+        currency
+      );
+
+      // Use the total (including tax) for the payment
+      const amountInSmallestUnit = Math.round(total * 100); // Convert to paise/cents
       
-      // For subscriptions, it's better to return just the necessary info
-      // and let the actual subscription be created in createSubscription
-      console.log(`Creating payment intent data for subscription amount: ${amount} ${currency}`);
-      
+      // Store original amount and tax details for reference
+      const orderMetadata = {
+        ...metadata,
+        originalAmount: amount,
+        taxAmount,
+        taxDetails: taxDetails ? JSON.stringify(taxDetails) : null
+      };
+
+      const orderOptions = {
+        amount: amountInSmallestUnit,
+        currency: currency,
+        receipt: `receipt_${Date.now()}`,
+        notes: orderMetadata
+      };
+
+      console.log(`Creating Razorpay order with options:`, {
+        ...orderOptions,
+        notes: { ...orderOptions.notes, taxDetails: '(stringified)' }
+      });
+
+      const order = await this.razorpay.orders.create(orderOptions);
+      console.log(`Created Razorpay order:`, order.id);
+
       return {
-        subscriptionId: `sub_temp_${Date.now()}`, // Using proper prefix for client validation
-        amount: Math.round(amount * 100),
-        currency: currency.toUpperCase(),
-        gateway: 'RAZORPAY',
-        short_url: null
+        ...order,
+        clientSecret: order.id, // Razorpay doesn't have a clientSecret, but we use the order ID here
+        amount: total,
+        originalAmount: amount,
+        taxAmount,
+        taxDetails,
+        currency: currency,
+        gateway: 'RAZORPAY'
       };
     } catch (error) {
       console.error('Error creating Razorpay payment intent:', error);
-      // Create mock placeholder as fallback on error
-      console.warn('Creating mock Razorpay subscription placeholder due to error');
-      return {
-        subscriptionId: `sub_error_${Date.now()}`, // Use sub_ prefix for consistency
-        amount: Math.round(amount * 100),
-        currency: currency || 'INR',
-        gateway: 'RAZORPAY',
-        short_url: null
-      };
+      throw error;
     }
   }
 
@@ -743,7 +780,7 @@ class RazorpayGateway implements PaymentGateway {
             const customer = await this.razorpay!.customers.create({
               name: uniqueName,
               email: user[0].email,
-              contact: billingDetails.length > 0 ? billingDetails[0].phoneNumber || '' : '',
+              contact: billingDetails.length > 0 ? formatPhoneForRazorpay(billingDetails[0].phoneNumber || '') : '',
               notes: {
                 internal_user_id: userId.toString(),
                 username: user[0].username || '',
@@ -768,7 +805,7 @@ class RazorpayGateway implements PaymentGateway {
           const customer = await this.razorpay!.customers.create({
             name: uniqueName,
             email: `${user[0].email.split('@')[0]}+${uniqueSuffix}@${user[0].email.split('@')[1]}`,
-            contact: billingDetails.length > 0 ? billingDetails[0].phoneNumber || '' : '',
+            contact: billingDetails.length > 0 ? formatPhoneForRazorpay(billingDetails[0].phoneNumber || '') : '',
             notes: {
               internal_user_id: userId.toString(),
               username: user[0].username || '',
@@ -799,6 +836,12 @@ class RazorpayGateway implements PaymentGateway {
       // or if this is an upgrade (where we keep the user's preference)
       if (metadata.startImmediately === false || metadata.isUpgrade) {
         startImmediately = metadata.startImmediately === true;
+      }
+      
+      // Check for explicit subscription flag - this overrides other logic to ensure we create a subscription
+      if (metadata.isSubscription === true) {
+        console.log('Explicit subscription requested - ensuring subscription flow is used');
+        startImmediately = true;
       }
       
       // Important: For immediate subscriptions, Razorpay expects exact current time
@@ -909,6 +952,7 @@ class RazorpayGateway implements PaymentGateway {
       const subscription = await this.razorpay!.subscriptions.create(subscriptionParams);
       
       console.log(`Created Razorpay subscription: ${subscription.id} for user ${userId} with customer ${customerId}`);
+      console.log('Full subscription response:', JSON.stringify(subscription));
       
       // Store the Razorpay customer ID in our database for future reference
       try {
@@ -928,6 +972,7 @@ class RazorpayGateway implements PaymentGateway {
       
       // Return subscription details for client-side checkout
       return {
+        id: subscription.id,
         subscriptionId: subscription.id,
         gateway: 'RAZORPAY',
         amount: authAmount, // Return the appropriate amount based on our logic
@@ -1232,40 +1277,93 @@ class RazorpayGateway implements PaymentGateway {
       const correctCurrency = targetRegion === 'INDIA' ? 'INR' : 'USD';
       const hasCurrencyMismatch = payment.currency !== correctCurrency;
       
-      // Record the payment transaction with detailed metadata
-      await db.insert(paymentTransactions)
-        .values({
-          userId: subscription[0].userId,
-          subscriptionId: subscription[0].id,
-          amount: (payment.amount / 100).toString(), // Convert from paise to INR/USD
-          currency: payment.currency,
-          gateway: 'RAZORPAY',
-          gatewayTransactionId: payment.id,
-          status: 'COMPLETED',
-          metadata: {
-            planDetails: {
-              id: subscription[0].planId,
-              name: planData.length > 0 ? planData[0].name : 'Unknown Plan',
-              cycle: planData.length > 0 ? planData[0].billingCycle : 'MONTHLY'
-            },
-            paymentDetails: {
-              expectedCurrency: correctCurrency,
-              actualCurrency: payment.currency,
-              hasCurrencyMismatch: hasCurrencyMismatch,
-              correctPlanPrice: finalPricingData?.price || null,
-              correctPlanCurrency: finalPricingData?.currency || correctCurrency
-            },
-            userRegion: targetRegion,
-            userCountry: userCountry,
-            isUpgrade: payment.notes?.isUpgrade === 'true',
-            paymentMethod: payment.method || 'unknown',
-            email: payment.email,
-            contact: payment.contact,
-            description: payment.description || 'Subscription payment'
-          }
-        })
-        .onConflictDoNothing();
+      if (hasCurrencyMismatch) {
+        console.error(`Currency mismatch detected for payment ${payment.id}!`);
+        console.error(`User country: ${userCountry}, User region: ${targetRegion}`);
+        console.error(`Expected currency: ${correctCurrency}, Actual currency from Razorpay: ${payment.currency}`);
         
+        // CRITICAL FIX: Use the correct currency based on user location instead of blindly trusting Razorpay
+        // This ensures that USD customers get USD transactions in our system regardless of Razorpay's response
+        console.log(`Overriding currency for payment ${payment.id} from ${payment.currency} to ${correctCurrency}`);
+        
+        // ADDITIONAL FIX: Also correct the amount when changing from INR to USD or vice versa
+        let correctedAmount = (payment.amount / 100).toString(); // Default: use original amount
+        
+        if (finalPricingData) {
+          // If we're fixing the currency, we should also fix the amount to match the correct plan price
+          correctedAmount = finalPricingData.price.toString();
+          console.log(`Also correcting amount from ${payment.amount / 100} ${payment.currency} to ${correctedAmount} ${correctCurrency}`);
+        }
+      
+        // Record the payment transaction with detailed metadata
+        await db.insert(paymentTransactions)
+          .values({
+            userId: subscription[0].userId,
+            subscriptionId: subscription[0].id,
+            amount: correctedAmount,
+            currency: correctCurrency, // Use correct currency on mismatch
+            gateway: 'RAZORPAY',
+            gatewayTransactionId: payment.id,
+            status: 'COMPLETED',
+            metadata: {
+              planDetails: {
+                id: subscription[0].planId,
+                name: planData.length > 0 ? planData[0].name : 'Unknown Plan',
+                cycle: planData.length > 0 ? planData[0].billingCycle : 'MONTHLY'
+              },
+              paymentDetails: {
+                expectedCurrency: correctCurrency,
+                actualCurrency: payment.currency,
+                hasCurrencyMismatch: hasCurrencyMismatch,
+                correctPlanPrice: finalPricingData?.price || null,
+                correctPlanCurrency: finalPricingData?.currency || correctCurrency
+              },
+              userRegion: targetRegion,
+              userCountry: userCountry,
+              isUpgrade: payment.notes?.isUpgrade === 'true',
+              paymentMethod: payment.method || 'unknown',
+              email: payment.email,
+              contact: payment.contact,
+              description: payment.description || 'Subscription payment'
+            }
+          })
+          .onConflictDoNothing();
+      } else {
+        // Record the payment transaction with detailed metadata
+        await db.insert(paymentTransactions)
+          .values({
+            userId: subscription[0].userId,
+            subscriptionId: subscription[0].id,
+            amount: (payment.amount / 100).toString(), // Convert from paise to INR/USD
+            currency: payment.currency,
+            gateway: 'RAZORPAY',
+            gatewayTransactionId: payment.id,
+            status: 'COMPLETED',
+            metadata: {
+              planDetails: {
+                id: subscription[0].planId,
+                name: planData.length > 0 ? planData[0].name : 'Unknown Plan',
+                cycle: planData.length > 0 ? planData[0].billingCycle : 'MONTHLY'
+              },
+              paymentDetails: {
+                expectedCurrency: correctCurrency,
+                actualCurrency: payment.currency,
+                hasCurrencyMismatch: hasCurrencyMismatch,
+                correctPlanPrice: finalPricingData?.price || null,
+                correctPlanCurrency: finalPricingData?.currency || correctCurrency
+              },
+              userRegion: targetRegion,
+              userCountry: userCountry,
+              isUpgrade: payment.notes?.isUpgrade === 'true',
+              paymentMethod: payment.method || 'unknown',
+              email: payment.email,
+              contact: payment.contact,
+              description: payment.description || 'Subscription payment'
+            }
+          })
+          .onConflictDoNothing();
+      }
+      
       console.log('Processed successful payment for subscription:', subscription[0].id);
     } catch (error) {
       console.error('Error handling successful Razorpay payment:', error);
@@ -1531,41 +1629,96 @@ class RazorpayGateway implements PaymentGateway {
       const correctCurrency = targetRegion === 'INDIA' ? 'INR' : 'USD';
       const hasCurrencyMismatch = payment.currency !== correctCurrency;
       
-      // Record the payment transaction with rich metadata
-      await db.insert(paymentTransactions)
-        .values({
-          userId: userSubscription[0].userId,
-          subscriptionId: userSubscription[0].id,
-          amount: (payment.amount / 100).toString(), // Convert from paise to INR/USD
-          currency: payment.currency,
-          gateway: 'RAZORPAY',
-          gatewayTransactionId: payment.id,
-          status: 'COMPLETED',
-          metadata: {
-            planDetails: {
-              id: userSubscription[0].planId,
-              name: plan.length > 0 ? plan[0].name : 'Unknown Plan',
-              cycle: plan.length > 0 ? plan[0].billingCycle : 'MONTHLY'
-            },
-            paymentDetails: {
-              expectedCurrency: correctCurrency,
-              actualCurrency: payment.currency,
-              hasCurrencyMismatch: hasCurrencyMismatch,
-              correctPlanPrice: finalPricingData?.price || null,
-              correctPlanCurrency: finalPricingData?.currency || correctCurrency
-            },
-            userRegion: targetRegion,
-            userCountry: userCountry,
-            isRenewal: true,
-            paymentMethod: payment.method || 'unknown',
-            renewalDate: now.toISOString(),
-            nextRenewalDate: newEndDate.toISOString(),
-            description: 'Subscription renewal payment'
-          }
-        })
-        .onConflictDoNothing();
+      if (hasCurrencyMismatch) {
+        console.error(`Currency mismatch detected for subscription renewal payment ${payment.id}!`);
+        console.error(`User country: ${userCountry}, User region: ${targetRegion}`);
+        console.error(`Expected currency: ${correctCurrency}, Actual currency from Razorpay: ${payment.currency}`);
         
-      console.log('Subscription renewed:', userSubscription[0].id);
+        // CRITICAL FIX: Use the correct currency based on user location instead of blindly trusting Razorpay
+        // This ensures that USD customers get USD transactions in our system regardless of Razorpay's response
+        console.log(`Overriding currency for subscription renewal payment ${payment.id} from ${payment.currency} to ${correctCurrency}`);
+        
+        // ADDITIONAL FIX: Also correct the amount when changing from INR to USD or vice versa
+        let correctedAmount = (payment.amount / 100).toString(); // Default: use original amount
+        
+        if (finalPricingData) {
+          // If we're fixing the currency, we should also fix the amount to match the correct plan price
+          correctedAmount = finalPricingData.price.toString();
+          console.log(`Also correcting amount from ${payment.amount / 100} ${payment.currency} to ${correctedAmount} ${correctCurrency}`);
+        }
+        
+        // Record the payment transaction with rich metadata
+        await db.insert(paymentTransactions)
+          .values({
+            userId: userSubscription[0].userId,
+            subscriptionId: userSubscription[0].id,
+            amount: correctedAmount,
+            currency: correctCurrency, // Use correct currency on mismatch
+            gateway: 'RAZORPAY',
+            gatewayTransactionId: payment.id,
+            status: 'COMPLETED',
+            metadata: {
+              planDetails: {
+                id: userSubscription[0].planId,
+                name: plan.length > 0 ? plan[0].name : 'Unknown Plan',
+                cycle: plan.length > 0 ? plan[0].billingCycle : 'MONTHLY'
+              },
+              paymentDetails: {
+                expectedCurrency: correctCurrency,
+                actualCurrency: payment.currency,
+                hasCurrencyMismatch: hasCurrencyMismatch,
+                correctPlanPrice: finalPricingData?.price || null,
+                correctPlanCurrency: finalPricingData?.currency || correctCurrency
+              },
+              userRegion: targetRegion,
+              userCountry: userCountry,
+              isRenewal: true,
+              paymentMethod: payment.method || 'unknown',
+              renewalDate: now.toISOString(),
+              nextRenewalDate: newEndDate.toISOString(),
+              description: 'Subscription renewal payment'
+            }
+          })
+          .onConflictDoNothing();
+        
+        console.log('Subscription renewed:', userSubscription[0].id);
+      } else {
+        // Record the payment transaction with rich metadata
+        await db.insert(paymentTransactions)
+          .values({
+            userId: userSubscription[0].userId,
+            subscriptionId: userSubscription[0].id,
+            amount: (payment.amount / 100).toString(), // Convert from paise to INR/USD
+            currency: payment.currency,
+            gateway: 'RAZORPAY',
+            gatewayTransactionId: payment.id,
+            status: 'COMPLETED',
+            metadata: {
+              planDetails: {
+                id: userSubscription[0].planId,
+                name: plan.length > 0 ? plan[0].name : 'Unknown Plan',
+                cycle: plan.length > 0 ? plan[0].billingCycle : 'MONTHLY'
+              },
+              paymentDetails: {
+                expectedCurrency: correctCurrency,
+                actualCurrency: payment.currency,
+                hasCurrencyMismatch: hasCurrencyMismatch,
+                correctPlanPrice: finalPricingData?.price || null,
+                correctPlanCurrency: finalPricingData?.currency || correctCurrency
+              },
+              userRegion: targetRegion,
+              userCountry: userCountry,
+              isRenewal: true,
+              paymentMethod: payment.method || 'unknown',
+              renewalDate: now.toISOString(),
+              nextRenewalDate: newEndDate.toISOString(),
+              description: 'Subscription renewal payment'
+            }
+          })
+          .onConflictDoNothing();
+        
+        console.log('Subscription renewed:', userSubscription[0].id);
+      }
     } catch (error) {
       console.error('Error handling Razorpay subscription charge:', error);
       throw error;
@@ -2190,3 +2343,29 @@ class RazorpayGateway implements PaymentGateway {
 
 // Create instance
 const razorpayGateway = new RazorpayGateway(); 
+
+// Utility function to format phone number for Razorpay compatibility
+export function formatPhoneForRazorpay(phoneNumber: string | null | undefined): string {
+  if (!phoneNumber) return '';
+  
+  // Clean the phone number - keep only digits and + symbol
+  let cleaned = phoneNumber.replace(/[^0-9+]/g, '');
+  
+  // Ensure + is only at the beginning if present
+  if (cleaned.includes('+') && !cleaned.startsWith('+')) {
+    cleaned = '+' + cleaned.replace(/\+/g, '');
+  }
+  
+  // If we have multiple +, keep only the first one
+  if (cleaned.indexOf('+') !== cleaned.lastIndexOf('+')) {
+    const parts = cleaned.split('+');
+    cleaned = '+' + parts.slice(1).join('');
+  }
+  
+  // Ensure we have at least 5 digits for Razorpay to accept it
+  if (cleaned.replace(/\+/g, '').length < 5) {
+    return ''; // Return empty if too short - Razorpay will reject very short numbers
+  }
+  
+  return cleaned;
+}

@@ -468,11 +468,11 @@ export const userBillingDetails = pgTable("user_billing_details", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").notNull().references(() => users.id).unique(),
   fullName: text("full_name").notNull(),
-  country: text("country").notNull(),
+  country: text("country").notNull(),  // ISO country code (e.g., 'US', 'IN')
   addressLine1: text("address_line_1").notNull(),
   addressLine2: text("address_line_2"),
   city: text("city").notNull(),
-  state: text("state").notNull(),
+  state: text("state").notNull(),      // ISO state code (e.g., 'CA', 'NY')
   postalCode: text("postal_code").notNull(),
   phoneNumber: text("phone_number"),
   taxId: text("tax_id"), // For GST in India, VAT/Tax ID for other countries
@@ -523,6 +523,87 @@ export const paymentWebhookEvents = pgTable("payment_webhook_events", {
   processed: boolean("processed").default(false).notNull(),
   processingErrors: text("processing_errors"),
   createdAt: timestamp("created_at").defaultNow()
+});
+
+// Tax Type Enum
+export const taxTypeEnum = pgEnum('tax_type', [
+  'GST',
+  'CGST',
+  'SGST',
+  'IGST'
+]);
+
+// Tax Settings Schema
+export const taxSettings = pgTable("tax_settings", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  type: taxTypeEnum("type").notNull(),
+  percentage: decimal("percentage", { precision: 5, scale: 2 }).notNull(),
+  country: text("country").notNull(),  // ISO country code (e.g., 'US', 'IN')
+  stateApplicable: text("state_applicable"),  // ISO state code (e.g., 'CA', 'NY')
+  enabled: boolean("enabled").default(true).notNull(),
+  applyToRegion: targetRegionEnum("apply_to_region").notNull(),
+  applyCurrency: currencyEnum("apply_currency").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow()
+});
+
+// Company Tax Information Schema
+export const companyTaxInfo = pgTable("company_tax_info", {
+  id: serial("id").primaryKey(),
+  companyName: text("company_name").notNull(),
+  address: text("address").notNull(),
+  city: text("city").notNull(),
+  state: text("state").notNull(),      // ISO state code (e.g., 'CA', 'NY')
+  country: text("country").notNull(),  // ISO country code (e.g., 'US', 'IN')
+  postalCode: text("postal_code").notNull(),
+  gstin: text("gstin"),
+  pan: text("pan"),
+  taxRegNumber: text("tax_reg_number"),
+  email: text("email").notNull(),
+  phone: text("phone").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow()
+});
+
+// Invoice Settings Schema
+export const invoiceSettings = pgTable("invoice_settings", {
+  id: serial("id").primaryKey(),
+  logoUrl: text("logo_url"),
+  footerText: text("footer_text"),
+  termsAndConditions: text("terms_and_conditions"),
+  invoicePrefix: text("invoice_prefix").default("INV-"),
+  showTaxBreakdown: boolean("show_tax_breakdown").default(true).notNull(),
+  nextInvoiceNumber: integer("next_invoice_number").default(1000).notNull(),
+  defaultDueDays: integer("default_due_days").default(15).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow()
+});
+
+// Invoice Schema
+export const invoices = pgTable("invoices", {
+  id: serial("id").primaryKey(),
+  invoiceNumber: text("invoice_number").notNull().unique(),
+  userId: integer("user_id").notNull().references(() => users.id),
+  transactionId: integer("transaction_id").references(() => paymentTransactions.id),
+  subscriptionId: integer("subscription_id").references(() => userSubscriptions.id),
+  subscriptionPlan: text("subscription_plan"),
+  nextPaymentDate: timestamp("next_payment_date"),
+  gatewayTransactionId: text("gateway_transaction_id"),
+  razorpayPaymentId: text("razorpay_payment_id"),
+  subtotal: decimal("subtotal", { precision: 10, scale: 2 }).notNull(),
+  taxAmount: decimal("tax_amount", { precision: 10, scale: 2 }).notNull(),
+  total: decimal("total", { precision: 10, scale: 2 }).notNull(),
+  currency: currencyEnum("currency").notNull(),
+  status: text("status").notNull().default("paid"), // paid, pending, cancelled
+  billingDetails: jsonb("billing_details").notNull(),
+  companyDetails: jsonb("company_details").notNull(),
+  taxDetails: jsonb("tax_details"),
+  items: jsonb("items").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  paidAt: timestamp("paid_at"),
+  dueDate: timestamp("due_date"),
+  notes: text("notes")
 });
 
 // SMTP Settings Schema
@@ -697,6 +778,29 @@ export const insertSmtpSettingsSchema = createInsertSchema(smtpSettings).omit({
   updatedAt: true
 });
 
+export const insertTaxSettingsSchema = createInsertSchema(taxSettings).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+
+export const insertCompanyTaxInfoSchema = createInsertSchema(companyTaxInfo).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+
+export const insertInvoiceSettingsSchema = createInsertSchema(invoiceSettings).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+
+export const insertInvoiceSchema = createInsertSchema(invoices).omit({
+  id: true,
+  createdAt: true
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type AppSetting = typeof appSettings.$inferSelect;
@@ -752,6 +856,18 @@ export type InsertPaymentWebhookEvent = z.infer<typeof insertPaymentWebhookEvent
 
 export type SmtpSettings = typeof smtpSettings.$inferSelect;
 export type InsertSmtpSettings = z.infer<typeof insertSmtpSettingsSchema>;
+
+export type TaxSettings = typeof taxSettings.$inferSelect;
+export type InsertTaxSettings = z.infer<typeof insertTaxSettingsSchema>;
+
+export type CompanyTaxInfo = typeof companyTaxInfo.$inferSelect;
+export type InsertCompanyTaxInfo = z.infer<typeof insertCompanyTaxInfoSchema>;
+
+export type InvoiceSettings = typeof invoiceSettings.$inferSelect;
+export type InsertInvoiceSettings = z.infer<typeof insertInvoiceSettingsSchema>;
+
+export type Invoice = typeof invoices.$inferSelect;
+export type InsertInvoice = z.infer<typeof insertInvoiceSchema>;
 
 // Resume-related type definitions for frontend
 export type WorkExperience = {

@@ -122,14 +122,87 @@ export function registerSubscriptionRoutes(app: express.Express) {
         return res.status(400).json({ message: 'Invalid plan ID' });
       }
       const updateData = req.body;
+
+      // Log the update data for debugging
+      console.log('Updating plan', planId, 'with data:', updateData);
+      
+      // Extract pricing data if present
+      const { usdPrice, inrPrice, ...planUpdateData } = updateData;
+      
+      // Update the base plan data
       const updatedPlan = await db.update(subscriptionPlans)
-        .set(updateData)
+        .set(planUpdateData)
         .where(eq(subscriptionPlans.id, planId))
         .returning();
+      
       if (!updatedPlan.length) {
         return res.status(404).json({ message: 'Plan not found' });
       }
-      res.json(updatedPlan[0]);
+
+      // Check if we need to update pricing
+      if (usdPrice || inrPrice) {
+        console.log('Updating pricing for plan', planId, '- USD:', usdPrice, 'INR:', inrPrice);
+        
+        // Get existing pricing records
+        const existingPricing = await db.select()
+          .from(planPricing)
+          .where(eq(planPricing.planId, planId));
+        
+        // Update USD pricing if provided
+        if (usdPrice) {
+          const usdPricing = existingPricing.find(p => p.currency === 'USD' && p.targetRegion === 'GLOBAL');
+          if (usdPricing) {
+            await db.update(planPricing)
+              .set({ price: usdPrice, updatedAt: new Date() })
+              .where(eq(planPricing.id, usdPricing.id));
+            console.log('Updated USD pricing record');
+          } else {
+            // Create new USD pricing if it doesn't exist
+            await db.insert(planPricing).values({
+              planId,
+              targetRegion: 'GLOBAL',
+              currency: 'USD',
+              price: usdPrice
+            });
+            console.log('Created new USD pricing record');
+          }
+        }
+        
+        // Update INR pricing if provided
+        if (inrPrice) {
+          const inrPricing = existingPricing.find(p => p.currency === 'INR' && p.targetRegion === 'INDIA');
+          if (inrPricing) {
+            await db.update(planPricing)
+              .set({ price: inrPrice, updatedAt: new Date() })
+              .where(eq(planPricing.id, inrPricing.id));
+            console.log('Updated INR pricing record');
+          } else {
+            // Create new INR pricing if it doesn't exist
+            await db.insert(planPricing).values({
+              planId,
+              targetRegion: 'INDIA',
+              currency: 'INR',
+              price: inrPrice
+            });
+            console.log('Created new INR pricing record');
+          }
+        }
+      }
+      
+      // Fetch the updated plan with pricing to return in the response
+      const updatedPlanWithPricing = await db.select()
+        .from(subscriptionPlans)
+        .where(eq(subscriptionPlans.id, planId))
+        .limit(1);
+      
+      const updatedPricing = await db.select()
+        .from(planPricing)
+        .where(eq(planPricing.planId, planId));
+      
+      res.json({
+        ...updatedPlanWithPricing[0],
+        pricing: updatedPricing
+      });
     } catch (error: any) {
       console.error(`Error in PATCH /api/admin/subscription-plans/${req.params.id}:`, error);
       res.status(500).json({ 
@@ -1592,6 +1665,19 @@ export function registerSubscriptionRoutes(app: express.Express) {
         return res.json({ region: 'GLOBAL', currency: 'USD' });
       }
       
+      // Special case handling for known PageKite IPs
+      const knownPageKiteIPs = ['89.116.21.215'];
+      if (knownPageKiteIPs.includes(clientIp)) {
+        console.log(`Detected known PageKite IP: ${clientIp}, setting region to INDIA`);
+        return res.json({ 
+          region: 'INDIA', 
+          currency: 'INR', 
+          country: 'IN', 
+          countryName: 'India',
+          source: 'manual-override'
+        });
+      }
+      
       // Cache key for IP address
       const cacheKey = `ip-region-${clientIp}`;
       
@@ -1640,10 +1726,13 @@ export function registerSubscriptionRoutes(app: express.Express) {
         const country = data.country_code;
         const countryName = data.country_name;
         
-        // Create result
-        const regionResult = country === 'IN' 
-          ? { region: 'INDIA', currency: 'INR', country, countryName } 
-          : { region: 'GLOBAL', currency: 'USD', country, countryName };
+        // Create result - India gets its own region, all others are GLOBAL
+        // You can expand this list to support more regional pricing as needed
+        let regionResult = { region: 'GLOBAL', currency: 'USD', country, countryName, source: 'ipapi' };
+        
+        if (country === 'IN') {
+          regionResult = { region: 'INDIA', currency: 'INR', country, countryName, source: 'ipapi' };
+        }
         
         // Cache the result for future use
         try {
@@ -1690,10 +1779,12 @@ export function registerSubscriptionRoutes(app: express.Express) {
         const country = data.country;
         const countryName = data.name || country;
         
-        // Create result
-        const regionResult = country === 'IN' 
-          ? { region: 'INDIA', currency: 'INR', country, countryName } 
-          : { region: 'GLOBAL', currency: 'USD', country, countryName };
+        let regionResult = { region: 'GLOBAL', currency: 'USD', country, countryName, source: 'geojs' };
+        
+        // Create result - India gets INR, all others get USD
+        if (country === 'IN') {
+          regionResult = { region: 'INDIA', currency: 'INR', country, countryName, source: 'geojs' };
+        }
         
         // Cache the result
         try {
@@ -1721,7 +1812,8 @@ export function registerSubscriptionRoutes(app: express.Express) {
       return res.json({ 
         region: 'GLOBAL', 
         currency: 'USD', 
-        error: 'All geolocation services failed' 
+        error: 'All geolocation services failed',
+        source: 'fallback'
       });
     }
   }

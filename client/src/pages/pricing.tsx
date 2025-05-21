@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import Head from 'next/head';
 import { Link, useLocation } from 'wouter';
 import { useQuery } from '@tanstack/react-query';
@@ -12,6 +12,8 @@ import SharedHeader from '@/components/layouts/shared-header';
 import SharedFooter from '@/components/layouts/SharedFooter';
 import { useBranding } from '@/components/branding/branding-provider';
 import { useAuth } from '@/hooks/use-auth';
+import { useRegion } from '@/hooks/use-region';
+import { PaymentService } from '@/services/payment-service';
 
 // Reuse the interfaces from the subscription page
 interface SubscriptionPlan {
@@ -49,16 +51,35 @@ interface PlanFeature {
   resetFrequency: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY' | 'NEVER';
 }
 
+// Add user region interface
+interface UserRegion {
+  region: 'GLOBAL' | 'INDIA';
+  currency: 'USD' | 'INR';
+  country?: string;
+}
+
 const PricingPage: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const branding = useBranding();
+  const featuresRef = useRef<HTMLDivElement>(null);
+  const { user, isLoading: isAuthLoading } = useAuth();
+  const [location, navigate] = useLocation();
+  const [highlightedPlan, setHighlightedPlan] = useState<string | null>(null);
+  
+  // Use the region hook instead of direct state and API calls
+  const { 
+    userRegion, 
+    isLoading: isRegionLoading,
+    formatCurrency 
+  } = useRegion();
 
   // Fetch available plans
-  const { data: plansData, isLoading: isPlansLoading } = useQuery({
+  const { data: plansData, isLoading: isPlansLoading, error: plansError } = useQuery({
     queryKey: ['subscriptionPlans'],
     queryFn: async () => {
       const response = await apiRequest('GET', '/api/public/subscription-plans');
       const data = await response.json();
+      console.log('Fetched subscription plans:', data);
       return data;
     }
   });
@@ -87,31 +108,49 @@ const PricingPage: React.FC = () => {
     }
   });
 
+  // Effect to scroll to the features section when URL has #features
+  useEffect(() => {
+    if (location.includes('#features') && featuresRef.current) {
+      featuresRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [location]);
+
   // Get price display based on user region
-  const getPriceDisplay = (plan: SubscriptionPlan) => {
-    // For freemium plans
-    if (plan.isFreemium || !plan.pricing || plan.pricing.length === 0) {
+  const getPriceDisplay = (plan: any) => {
+    // Only show as free if the plan is explicitly marked as freemium
+    if (plan.isFreemium) {
       return 'Free';
     }
     
     // Check if the plan has displayPrice and displayCurrency fields from the server
     if (plan.displayPrice && plan.displayCurrency) {
-      return `${plan.displayPrice} ${plan.displayCurrency}`;
+      return formatCurrency(parseFloat(plan.displayPrice));
     }
     
-    // Fallback to default pricing
-    const pricing = plan.pricing.find(p => p.targetRegion === 'GLOBAL');
+    // Try to get pricing for user's region first
+    const regionPricing = plan.pricing?.find((p: any) => p.targetRegion === userRegion.region);
+    if (regionPricing) {
+      return formatCurrency(parseFloat(regionPricing.price));
+    }
+    
+    // Fallback to global pricing
+    const pricing = plan.pricing?.find((p: any) => p.targetRegion === 'GLOBAL');
     if (pricing) {
-      return `${pricing.price} ${pricing.currency}`;
+      return formatCurrency(parseFloat(pricing.price));
     }
     
-    // Last resort fallback
-    return plan.price && plan.price !== '0.00' ? `${plan.price} USD` : 'Free';
+    // Only if we can't find any pricing information, check the plan's base price
+    // If it's 0, then show as Free
+    if (plan.price === '0' || plan.price === '0.00' || 
+        (typeof plan.price === 'number' && plan.price === 0) || 
+        !plan.pricing || plan.pricing.length === 0) {
+      return 'Free';
+    }
+    
+    // Default fallback to plan price
+    return formatCurrency(parseFloat(plan.price || '0'));
   };
 
-  const { user, isLoading: isAuthLoading } = useAuth();
-  const [location, navigate] = useLocation();
-  
   const handlePlanSelection = (plan: SubscriptionPlan) => {
     // Store the selected plan ID for reference in subscription page
     sessionStorage.setItem('selectedPlanId', plan.id.toString());
@@ -191,16 +230,21 @@ const PricingPage: React.FC = () => {
       if (a.isFreemium && !b.isFreemium) return -1;
       if (!a.isFreemium && b.isFreemium) return 1;
       
-      // Compare prices for paid plans
-      const aPrice = a.pricing?.find((p: { targetRegion: string }) => p.targetRegion === 'GLOBAL')?.price || a.price || '0';
-      const bPrice = b.pricing?.find((p: { targetRegion: string }) => p.targetRegion === 'GLOBAL')?.price || b.price || '0';
+      // Compare prices for paid plans based on user region
+      const aPrice = a.pricing?.find((p: any) => p.targetRegion === userRegion.region)?.price || 
+                    a.pricing?.find((p: any) => p.targetRegion === 'GLOBAL')?.price || 
+                    a.price || '0';
+      
+      const bPrice = b.pricing?.find((p: any) => p.targetRegion === userRegion.region)?.price || 
+                    b.pricing?.find((p: any) => p.targetRegion === 'GLOBAL')?.price || 
+                    b.price || '0';
       
       const aNumericPrice = parseFloat(aPrice);
       const bNumericPrice = parseFloat(bPrice);
       
       return aNumericPrice - bNumericPrice;
     });
-  }, [filteredPlans]);
+  }, [filteredPlans, userRegion.region]);
 
   // Get unique features across all plans
   const uniqueFeatures = React.useMemo(() => {
@@ -266,6 +310,12 @@ const PricingPage: React.FC = () => {
             </div>
           ) : (
             <>
+              {/* Add region indication */}
+              {userRegion.region && (
+                <div className="text-center mb-6 text-sm text-gray-500">
+                  {userRegion.region === 'INDIA' ? 'Showing prices for India (INR)' : 'Showing international prices (USD)'}
+                </div>
+              )}
               {/* Pricing Card Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-24">
                 {sortedPlans.map((plan: SubscriptionPlan) => {
@@ -602,26 +652,28 @@ const PricingPage: React.FC = () => {
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-3xl md:text-4xl font-bold mb-6">Ready to boost your career prospects?</h2>
           <p className="text-xl text-indigo-200 mb-8">Join thousands of students and professionals who have transformed their job search with {branding.appName}.</p>
-          <div className="flex flex-col sm:flex-row justify-center gap-4">
+          <div className="flex flex-col sm:flex-row justify-center gap-4 sm:gap-6">
             {user ? (
               <Button 
                 onClick={() => navigate('/user/subscription')} 
-                className="px-8 py-4 bg-green-600 hover:bg-green-700 rounded-md font-medium transition-colors inline-block text-lg"
+                className="px-8 py-6 bg-green-600 hover:bg-green-700 shadow-lg hover:shadow-xl rounded-lg font-medium transition-all duration-300 text-lg flex-1 max-w-xs mx-auto sm:mx-0"
               >
                 Manage Subscription
               </Button>
             ) : (
               <Button 
                 onClick={() => navigate('/register?redirect=/user/subscription')} 
-                className="px-8 py-4 bg-green-600 hover:bg-green-700 rounded-md font-medium transition-colors inline-block text-lg"
+                className="px-8 py-6 bg-green-600 hover:bg-green-700 shadow-lg hover:shadow-xl rounded-lg font-medium transition-all duration-300 text-lg group flex-1 max-w-xs mx-auto sm:mx-0"
               >
-                Get Started for Free
-                <p className="text-xs mt-1 font-normal">No Credit Card Required</p>
+                <div>
+                  <span className="group-hover:translate-x-1 inline-block transition-transform duration-300">Get Started for Free</span>
+                  <p className="text-xs mt-1 font-normal opacity-90">No Credit Card Required</p>
+                </div>
               </Button>
             )}
             <Button
               variant="outline"
-              className="px-8 py-4 bg-transparent border border-white hover:bg-white/10 text-white font-medium rounded-md transition-colors inline-block"
+              className="px-8 py-6 bg-transparent border-2 border-white/60 hover:border-white hover:bg-white/10 text-white font-medium rounded-lg transition-all duration-300 shadow-lg hover:shadow-xl flex-1 max-w-xs mx-auto sm:mx-0"
               onClick={() => window.location.href = `mailto:contact@${branding.appName}.com`}
             >
               Contact Sales

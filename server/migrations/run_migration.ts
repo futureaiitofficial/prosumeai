@@ -49,6 +49,15 @@ async function runAllMigrations() {
       console.error('Error running reset user auth fields migration:', error);
     }
     
+    // Run the invoice reference fields migration
+    try {
+      const invoiceReferenceFieldsModule = await import('./add-invoice-reference-fields.js');
+      await invoiceReferenceFieldsModule.default();
+      console.log('Invoice reference fields migration completed');
+    } catch (error) {
+      console.error('Error running invoice reference fields migration:', error);
+    }
+    
     console.log('All migrations completed successfully');
   } catch (error) {
     console.error('Migration failed:', error);

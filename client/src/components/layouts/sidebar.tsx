@@ -52,8 +52,8 @@ export default function Sidebar() {
     { href: "/cover-letters", label: "Cover Letters", icon: FileText },
     { href: "/job-applications", label: "Job Applications", icon: Clipboard },
     { href: "/keyword-generator", label: "Keyword Generator", icon: Sparkles },
-    { href: "/profile", label: "Profile", icon: User },
     { href: "/user/subscription", label: "Subscription", icon: CreditCard },
+    { href: "/profile", label: "Profile", icon: User },
   ];
   
   // Admin links that will be displayed only if the user is an admin

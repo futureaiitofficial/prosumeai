@@ -119,6 +119,98 @@ const SubscriptionManagement: React.FC = () => {
   const [editingFeatureId, setEditingFeatureId] = useState<number | null>(null);
   const [isEditingPlanFeature, setIsEditingPlanFeature] = useState(false);
   const [editingPlanFeatureId, setEditingPlanFeatureId] = useState<number | null>(null);
+  const [gstRate, setGstRate] = useState<number>(18);
+  const [isLoadingTaxRate, setIsLoadingTaxRate] = useState<boolean>(false);
+
+
+  const downloadTransactionInvoice = async (transactionId: number) => {
+    try {
+      // Show a loading toast
+      toast({
+        title: "Generating invoice",
+        description: "Please wait while we prepare your invoice...",
+      });
+      
+      // Use our new endpoint to download the invoice
+      const response = await axios.get(`/api/user/transactions/${transactionId}/download`, {
+        responseType: 'blob', // Important: we need the response as a blob
+        headers: {
+          'Accept': 'application/pdf'
+        }
+      });
+      
+      // Verify we actually got PDF data
+      if (response.headers['content-type'] !== 'application/pdf') {
+        console.error('Received non-PDF content type:', response.headers['content-type']);
+        throw new Error('Server did not return a valid PDF document');
+      }
+      
+      // Create a URL for the blob with explicit MIME type
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      
+      // Ensure the blob has content (should be at least a few KB for a valid PDF)
+      if (blob.size < 100) {
+        console.error('PDF size is suspiciously small:', blob.size, 'bytes');
+        throw new Error('The generated PDF appears to be invalid');
+      }
+      
+      const url = window.URL.createObjectURL(blob);
+      
+      // Create a temporary link element and trigger download
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `Invoice-${transactionId}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      
+      // Clean up after a short delay to ensure download starts
+      setTimeout(() => {
+        if (link.parentNode) link.parentNode.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      }, 100);
+      
+      toast({
+        title: "Success",
+        description: "Invoice downloaded successfully",
+      });
+    } catch (error: any) {
+      console.error('Error downloading invoice:', error);
+      
+      // Extract a more helpful error message
+      let errorMessage = "Failed to download invoice";
+      
+      if (error.response) {
+        // Try to extract error message from response if possible
+        if (error.response.data instanceof Blob) {
+          try {
+            // Try to read text content if the error was returned as a blob
+            const textContent = await error.response.data.text();
+            try {
+              const jsonData = JSON.parse(textContent);
+              errorMessage = jsonData.message || errorMessage;
+            } catch (e) {
+              // Not JSON, use the text directly if it's reasonable
+              if (textContent && textContent.length < 100) {
+                errorMessage = textContent;
+              }
+            }
+          } catch (e) {
+            console.error('Could not read error blob content:', e);
+          }
+        } else if (error.response.data?.message) {
+          errorMessage = error.response.data.message;
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive"
+      });
+    }
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -158,10 +250,52 @@ const SubscriptionManagement: React.FC = () => {
       }
     };
     fetchData();
+
+    // Fetch GST rate from tax settings
+    const fetchGstRate = async () => {
+      setIsLoadingTaxRate(true);
+      try {
+        const response = await axios.get('/api/admin/tax-settings');
+        const taxSettings = response.data;
+        
+        // Find the GST tax setting for India with INR currency
+        const gstSetting = taxSettings.find(
+          (tax: any) => 
+            tax.type === 'GST' && 
+            tax.applyToRegion === 'INDIA' && 
+            tax.applyCurrency === 'INR' &&
+            tax.enabled
+        );
+        
+        if (gstSetting) {
+          setGstRate(gstSetting.percentage);
+          console.log(`Using GST rate from database: ${gstSetting.percentage}%`);
+        } else {
+          console.log('No GST setting found, using default 18%');
+        }
+      } catch (error) {
+        console.error('Error fetching GST rate:', error);
+        toast({
+          title: "Note",
+          description: "Using default 18% GST rate. Couldn't fetch current rate.",
+          variant: "destructive"
+        });
+      } finally {
+        setIsLoadingTaxRate(false);
+      }
+    };
+    
+    fetchGstRate();
   }, []);
 
   const handleAddPlan = async () => {
     try {
+      // Show a loading toast to indicate the operation is in progress
+      const loadingToast = toast({
+        title: isEditing ? "Updating plan..." : "Creating plan...",
+        description: "Please wait while we process your request.",
+      });
+
       const planToSend = {
         name: newPlan.name,
         description: newPlan.description,
@@ -181,6 +315,10 @@ const SubscriptionManagement: React.FC = () => {
         // Refresh the plan list to get the updated data
         const plansRes = await axios.get('/api/admin/subscription-plans');
         setPlans(plansRes.data);
+        toast({
+          title: "Success",
+          description: "Plan updated successfully",
+        });
       } else {
         console.log('Creating plan with data:', planToSend);
         response = await axios.post('/api/admin/subscription-plans', planToSend);
@@ -188,6 +326,10 @@ const SubscriptionManagement: React.FC = () => {
         const plansRes = await axios.get('/api/admin/subscription-plans');
         setPlans(plansRes.data);
         setSelectedPlanId(response.data.id); // Select the newly created plan
+        toast({
+          title: "Success",
+          description: "Plan created successfully",
+        });
       }
       setNewPlan({
         id: 0,
@@ -205,8 +347,13 @@ const SubscriptionManagement: React.FC = () => {
       setIsEditing(false);
       setEditingPlanId(null);
       setSelectedPlanId(response.data.id);
-    } catch (error) {
-      console.error(error);
+    } catch (error: any) {
+      console.error('Error managing plan:', error);
+      toast({
+        title: "Error",
+        description: error.response?.data?.message || "Failed to manage plan. Please try again.",
+        variant: "destructive"
+      });
     }
   };
 
@@ -361,12 +508,22 @@ const SubscriptionManagement: React.FC = () => {
       const updatedPlan = { ...plan, active: !plan.active };
       await axios.patch(`/api/admin/subscription-plans/${plan.id}`, { active: updatedPlan.active });
       setPlans(plans.map(p => p.id === plan.id ? updatedPlan : p));
-    } catch (error) {
-      console.error(error);
+      toast({
+        title: "Success",
+        description: `Plan ${updatedPlan.active ? 'activated' : 'deactivated'} successfully`,
+      });
+    } catch (error: any) {
+      console.error('Error toggling plan status:', error);
+      toast({
+        title: "Error",
+        description: error.response?.data?.message || "Failed to update plan status",
+        variant: "destructive"
+      });
     }
   };
 
   const handleEditPlan = (plan: SubscriptionPlan) => {
+    // Stop event propagation to prevent row click from interfering
     setNewPlan({
       id: plan.id,
       name: plan.name,
@@ -383,6 +540,12 @@ const SubscriptionManagement: React.FC = () => {
     setGlobalPrice(plan.pricing.find(p => p.targetRegion === 'GLOBAL')?.price || '');
     setIndiaPrice(plan.pricing.find(p => p.targetRegion === 'INDIA')?.price || '');
     setSelectedPlanId(plan.id);
+    
+    // Scroll to the top of the form
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth'
+    });
   };
 
   const handleAddPricing = async () => {
@@ -704,11 +867,40 @@ const SubscriptionManagement: React.FC = () => {
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">Price (INR - India)</label>
-                  <Input
-                    value={indiaPrice}
-                    onChange={e => setIndiaPrice(e.target.value)}
-                    placeholder="Price in INR for India"
-                  />
+                  <div className="space-y-2">
+                    <Input
+                      value={indiaPrice}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setIndiaPrice(value);
+                      }}
+                      placeholder="Price in INR for India (GST inclusive)"
+                    />
+                    <div className="text-xs text-amber-700 font-medium bg-amber-50 p-2 rounded border border-amber-200">
+                      <p className="font-bold">Plan prices for India should be GST inclusive ({gstRate}% GST).</p>
+                      <p className="mt-1">Enter the TOTAL price customers will pay (including GST).</p>
+                      {isLoadingTaxRate && (
+                        <div className="text-xs italic">Loading current GST rate...</div>
+                      )}
+                      {indiaPrice && !isNaN(parseFloat(indiaPrice)) && (
+                        <div className="mt-2 space-y-1 border-t border-amber-200 pt-2">
+                          <p className="font-medium">Price breakdown:</p>
+                          <div className="flex justify-between">
+                            <span>Base price:</span>
+                            <span>₹{(parseFloat(indiaPrice) / (1 + gstRate/100)).toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>GST ({gstRate}%):</span>
+                            <span>₹{(parseFloat(indiaPrice) - parseFloat(indiaPrice) / (1 + gstRate/100)).toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between font-semibold border-t border-amber-200 pt-1 mt-1">
+                            <span>Total price (what you entered):</span>
+                            <span>₹{parseFloat(indiaPrice).toFixed(2)}</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
                 <div className="grid grid-cols-3 gap-4 mb-4">
                   <div className="flex items-center">
@@ -749,7 +941,36 @@ const SubscriptionManagement: React.FC = () => {
                   </div>
                 </div>
                 <div className="flex items-center justify-center col-span-full md:col-span-1 mt-6 md:mt-0">
-                  <Button onClick={handleAddPlan} className="w-full md:w-auto col-span-full md:col-span-1">{isEditing ? 'Update Plan' : 'Add Plan'}</Button>
+                  <Button onClick={handleAddPlan} className="w-full md:w-auto col-span-full md:col-span-1" 
+                    variant={isEditing ? "default" : "default"}>
+                    {isEditing ? 'Update Plan' : 'Add Plan'}
+                  </Button>
+                  {isEditing && (
+                    <Button 
+                      type="button"
+                      variant="outline" 
+                      onClick={() => {
+                        setNewPlan({
+                          id: 0,
+                          name: '',
+                          description: '',
+                          price: '0.00',
+                          billingCycle: 'MONTHLY',
+                          isFeatured: false,
+                          isFreemium: false,
+                          active: false,
+                          pricing: []
+                        });
+                        setGlobalPrice('');
+                        setIndiaPrice('');
+                        setIsEditing(false);
+                        setEditingPlanId(null);
+                      }}
+                      className="w-full md:w-auto ml-2"
+                    >
+                      Cancel
+                    </Button>
+                  )}
                 </div>
               </div>
             </CardContent>
@@ -795,8 +1016,8 @@ const SubscriptionManagement: React.FC = () => {
                       <TableCell>
                         <div className="flex space-x-2">
                           <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); handleViewPlan(plan.id); }}>View</Button>
-                          <Button variant="outline" size="sm" onClick={() => handleEditPlan(plan)}>Edit</Button>
-                          <Button variant={plan.active ? 'destructive' : 'secondary'} size="sm" onClick={() => handleTogglePlanActive(plan)}>
+                          <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); handleEditPlan(plan); }}>Edit</Button>
+                          <Button variant={plan.active ? 'destructive' : 'secondary'} size="sm" onClick={(e) => { e.stopPropagation(); handleTogglePlanActive(plan); }}>
                             {plan.active ? 'Deactivate' : 'Activate'}
                           </Button>
                           <Button variant="destructive" size="sm" onClick={async (e) => {

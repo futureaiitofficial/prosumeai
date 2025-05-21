@@ -4,8 +4,12 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui
 import { Skeleton } from '../ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { useToast } from '@/hooks/use-toast';
+import { PaymentService } from '../../services/payment-service';
+import InvoiceCard from './invoice-card';
+import { Download } from 'lucide-react';
+import { handlePDFViewing } from '@/utils/pdf-helpers';
 
-interface Invoice {
+interface RazorpayInvoice {
   id: string;
   entity: string;
   customer_id: string;
@@ -20,6 +24,26 @@ interface Invoice {
   billing_end?: number;
 }
 
+interface CustomInvoice {
+  id: number;
+  invoiceNumber: string;
+  userId: number;
+  transactionId: number;
+  subtotal: string;
+  taxAmount: string;
+  total: string;
+  currency: string;
+  status: string;
+  billingDetails: any;
+  companyDetails: any;
+  taxDetails: any;
+  items: any[];
+  createdAt: string;
+  paidAt?: string;
+  dueDate?: string;
+  notes?: string;
+}
+
 interface Transaction {
   id: number;
   amount: string;
@@ -29,6 +53,7 @@ interface Transaction {
   status: string;
   createdAt: string;
   refundReason?: string;
+  invoiceId?: number;
 }
 
 interface SubscriptionInvoicesProps {
@@ -37,43 +62,114 @@ interface SubscriptionInvoicesProps {
 
 // Helper function to format currency
 function formatCurrency(amount: number, currencyCode: string = 'USD'): string {
-  // For INR currency, use appropriate locale
-  const locale = currencyCode === 'INR' ? 'en-IN' : 'en-US';
+  // Log currency information for debugging
+  console.log(`Formatting amount ${amount} with currency ${currencyCode}`);
   
-  const formatter = new Intl.NumberFormat(locale, {
-    style: 'currency',
-    currency: currencyCode,
-    minimumFractionDigits: currencyCode === 'INR' ? 0 : 2,
-    maximumFractionDigits: 2
-  });
-  return formatter.format(amount);
+  // Ensure currency code is valid and fallback to USD if not
+  const validCurrency = ['USD', 'INR'].includes(currencyCode) ? currencyCode : 'USD';
+  
+  // For INR currency, use appropriate locale
+  const locale = validCurrency === 'INR' ? 'en-IN' : 'en-US';
+  
+  try {
+    const formatter = new Intl.NumberFormat(locale, {
+      style: 'currency',
+      currency: validCurrency,
+      minimumFractionDigits: validCurrency === 'INR' ? 0 : 2,
+      maximumFractionDigits: 2
+    });
+    return formatter.format(amount);
+  } catch (error) {
+    console.error(`Error formatting currency: ${error}`);
+    // Fallback format if formatter fails
+    return `${validCurrency === 'USD' ? '$' : '₹'}${amount.toFixed(validCurrency === 'INR' ? 0 : 2)}`;
+  }
+}
+
+// Helper to fix GST calculation for display purposes
+function formatGSTValues(invoice: CustomInvoice) {
+  if (invoice.currency === 'INR') {
+    const total = parseFloat(invoice.total);
+    const taxAmount = parseFloat(invoice.taxAmount);
+    const subtotal = parseFloat(invoice.subtotal);
+    
+    // Calculate if the invoice is using exclusive tax (where total = subtotal + tax)
+    const calculatedTotal = subtotal + taxAmount;
+    const isExclusiveTax = Math.abs(total - calculatedTotal) < 0.01;
+    
+    if (isExclusiveTax) {
+      // For displaying, convert to inclusive tax
+      const percentage = 18; // Standard GST rate
+      // Recalculate values using the inclusive tax formula
+      const correctTaxAmount = (total * percentage) / (100 + percentage);
+      const correctSubtotal = total - correctTaxAmount;
+      
+      return {
+        displaySubtotal: correctSubtotal,
+        displayTaxAmount: correctTaxAmount,
+        total
+      };
+    }
+  }
+  
+  // If not INR or already using inclusive tax, return original values
+  return {
+    displaySubtotal: parseFloat(invoice.subtotal),
+    displayTaxAmount: parseFloat(invoice.taxAmount),
+    total: parseFloat(invoice.total)
+  };
 }
 
 export function SubscriptionInvoices({ subscriptionId }: SubscriptionInvoicesProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [razorpayInvoices, setRazorpayInvoices] = useState<RazorpayInvoice[]>([]);
+  const [customInvoices, setCustomInvoices] = useState<CustomInvoice[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [downloadingInvoice, setDownloadingInvoice] = useState<number | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
-    if (!subscriptionId) return;
-
     const fetchInvoices = async () => {
       try {
         setLoading(true);
-        const response = await fetch(`/api/subscription/invoices/${subscriptionId}`);
         
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.message || 'Failed to fetch invoices');
+        let data;
+        
+        // If subscriptionId is provided, fetch invoices for that specific subscription
+        if (subscriptionId) {
+          try {
+            data = await PaymentService.getSubscriptionInvoices(parseInt(subscriptionId));
+          } catch (err: any) {
+            // If this fails with a 404, fall back to getting all user invoices
+            if (err.response && err.response.status === 404) {
+              console.log("Subscription invoice endpoint returned 404, falling back to user invoices");
+              data = await PaymentService.getUserInvoices();
+            } else {
+              throw err; // Re-throw if it's not a 404
+            }
+          }
+        } else {
+          // If no subscriptionId provided, fetch all user invoices
+          data = await PaymentService.getUserInvoices();
         }
         
-        const data = await response.json();
-        setInvoices(data.invoices || []);
+        // Set state from response data
         setTransactions(data.transactions || []);
+        
+        // Fetch our custom invoices if available
+        if (data.customInvoices) {
+          setCustomInvoices(data.customInvoices);
+        } else {
+          setCustomInvoices([]);
+        }
+        
+        // We no longer use Razorpay invoices
+        setRazorpayInvoices([]);
+        
         setError(null);
       } catch (err: any) {
+        console.error("Error fetching invoices:", err);
         setError(err.message || 'Failed to load subscription invoices');
         toast({
           title: 'Error',
@@ -92,6 +188,68 @@ export function SubscriptionInvoices({ subscriptionId }: SubscriptionInvoicesPro
   const formatDate = (timestamp?: number) => {
     if (!timestamp) return 'N/A';
     return new Date(timestamp * 1000).toLocaleDateString();
+  };
+
+  // Handle Razorpay invoice download
+  const handleRazorpayDownload = (invoiceId: string) => {
+    // Razorpay invoices are usually available for download from their website
+    // Since this is an external URL, we'll open it in a new tab
+    window.open(`https://dashboard.razorpay.com/app/invoices/${invoiceId}`, '_blank');
+    
+    toast({
+      title: 'Opening Razorpay Invoice',
+      description: 'The invoice will open in a new tab from Razorpay.',
+    });
+  };
+
+  // Handle transaction invoice download using the new endpoint
+  const handleTransactionInvoiceDownload = async (transaction: Transaction) => {
+    try {
+      setDownloadingInvoice(transaction.id);
+      
+      toast({
+        title: 'Generating Invoice',
+        description: 'Please wait while your invoice is being prepared...',
+      });
+      
+      // Generate a unique timestamp to avoid cache issues
+      const timestamp = Date.now();
+      const url = `/api/user/transactions/${transaction.id}/download?t=${timestamp}`;
+      const filename = `Invoice-Transaction-${transaction.id}.pdf`;
+      
+      // Use our PDF helper utility to handle viewing/downloading
+      const success = await handlePDFViewing(url, filename);
+      
+      if (success) {
+        toast({
+          title: 'Invoice Ready',
+          description: 'Your invoice should be available now.',
+        });
+      } else {
+        throw new Error('Unable to open or download PDF');
+      }
+    } catch (error: any) {
+      console.error('Error opening transaction invoice:', error);
+      
+      // Show a more helpful error message
+      let errorMessage = 'Failed to open invoice. Please try again later.';
+      
+      if (error.message) {
+        errorMessage = `Error: ${error.message}`;
+      }
+      
+      if (error.response?.status) {
+        errorMessage += ` (Status: ${error.response.status})`;
+      }
+      
+      toast({
+        title: 'Download Failed',
+        description: errorMessage,
+        variant: 'destructive'
+      });
+    } finally {
+      setDownloadingInvoice(null);
+    }
   };
 
   if (loading) {
@@ -138,49 +296,22 @@ export function SubscriptionInvoices({ subscriptionId }: SubscriptionInvoicesPro
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {(invoices.length === 0 && transactions.length === 0) ? (
+        {(razorpayInvoices.length === 0 && transactions.length === 0 && customInvoices.length === 0) ? (
           <p className="text-center py-6 text-muted-foreground">No payment records found for this subscription.</p>
         ) : (
           <>
-            {invoices.length > 0 && (
+            {customInvoices.length > 0 && (
               <>
-                <h3 className="text-lg font-medium mb-2">Invoices from Razorpay</h3>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Invoice ID</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Amount</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Billing Period</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {invoices.map((invoice) => (
-                      <TableRow key={invoice.id}>
-                        <TableCell>{invoice.id}</TableCell>
-                        <TableCell>{formatDate(invoice.date)}</TableCell>
-                        <TableCell>{formatCurrency(invoice.amount / 100, invoice.currency)}</TableCell>
-                        <TableCell>
-                          <span className={`px-2 py-1 rounded-full text-xs ${
-                            invoice.status === 'paid' ? 'bg-green-100 text-green-800' : 
-                            invoice.status === 'refunded' ? 'bg-amber-100 text-amber-800' : 
-                            'bg-gray-100 text-gray-800'
-                          }`}>
-                            {invoice.status}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          {invoice.billing_start && invoice.billing_end ? 
-                            `${formatDate(invoice.billing_start)} to ${formatDate(invoice.billing_end)}` : 
-                            'N/A'}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                <h3 className="text-lg font-medium mb-4">Your Invoices</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                  {customInvoices.map((invoice) => (
+                    <InvoiceCard key={invoice.id} invoice={invoice} />
+                  ))}
+                </div>
               </>
             )}
+
+            {/* Razorpay invoices section removed - we now rely on our own invoices */}
 
             {transactions.length > 0 && (
               <>
@@ -193,13 +324,22 @@ export function SubscriptionInvoices({ subscriptionId }: SubscriptionInvoicesPro
                       <TableHead>Transaction ID</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Notes</TableHead>
+                      <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {transactions.map((transaction) => (
                       <TableRow key={transaction.id}>
                         <TableCell>{new Date(transaction.createdAt).toLocaleDateString()}</TableCell>
-                        <TableCell>{formatCurrency(parseFloat(transaction.amount), transaction.currency)}</TableCell>
+                        <TableCell>
+                          {(() => {
+                            // Debug log to inspect transaction currency and amount
+                            console.log(`Transaction ${transaction.id}: Amount=${transaction.amount}, Currency=${transaction.currency}`);
+                            
+                            // Make sure we're using the transaction's actual currency
+                            return formatCurrency(parseFloat(transaction.amount), transaction.currency);
+                          })()}
+                        </TableCell>
                         <TableCell className="font-mono text-xs">
                           {transaction.gatewayTransactionId || 'N/A'}
                         </TableCell>
@@ -216,6 +356,21 @@ export function SubscriptionInvoices({ subscriptionId }: SubscriptionInvoicesPro
                         <TableCell className="max-w-[200px] truncate">
                           {transaction.refundReason || 'N/A'}
                         </TableCell>
+                        <TableCell>
+                          {transaction.status === 'COMPLETED' && (
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              disabled={downloadingInvoice === transaction.id}
+                              onClick={() => handleTransactionInvoiceDownload(transaction)}
+                            >
+                              <Download className="h-4 w-4 mr-1" />
+                              <span className="sr-only md:not-sr-only md:ml-1">
+                                {downloadingInvoice === transaction.id ? 'Loading...' : 'Invoice'}
+                              </span>
+                            </Button>
+                          )}
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -223,10 +378,7 @@ export function SubscriptionInvoices({ subscriptionId }: SubscriptionInvoicesPro
               </>
             )}
 
-            <div className="mt-4 text-sm text-muted-foreground">
-              <p>Note: For Razorpay subscriptions, the first charge is typically a small authentication amount. 
-              The actual subscription charge happens after successful authentication.</p>
-            </div>
+            {/* Note about payments removed */}
           </>
         )}
       </CardContent>

@@ -16,6 +16,7 @@ import {
   ListIcon,
   Wrench,
   Shield,
+  Receipt,
 } from "lucide-react";
 
 export default function AdminPage() {
@@ -121,6 +122,13 @@ export function AdminDashboardPage() {
       icon: <ListIcon className="h-5 w-5" />,
       href: "/admin/subscriptions",
       color: "bg-cyan-500"
+    },
+    {
+      title: "Tax Settings",
+      description: "Configure GST tax and invoice settings",
+      icon: <Receipt className="h-5 w-5" />,
+      href: "/admin/tax",
+      color: "bg-emerald-500"
     },
     {
       title: "Tools",

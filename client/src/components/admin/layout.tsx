@@ -91,6 +91,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
     { name: "Security", href: "/admin/security", icon: Shield },
     { name: "System Status", href: "/admin/system-status", icon: Server },
     { name: "Subscriptions", href: "/admin/subscriptions", icon: CreditCard },
+    { name: "Tax Settings", href: "/admin/tax", icon: ScrollText },
     { name: "Tools", href: "/admin/tools", icon: Wrench },
     { name: "Settings", href: "/admin/settings", icon: Settings },
   ];

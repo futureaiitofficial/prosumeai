@@ -7,6 +7,9 @@ import ApplicationProgress from "@/components/dashboard/application-progress";
 import RecentActivity from "@/components/dashboard/recent-activity";
 import RecentApplications from "@/components/dashboard/recent-applications";
 import { useAuth } from "@/hooks/use-auth";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { FileText } from "lucide-react";
 
 // Define a type for job applications
 interface JobApplication {
@@ -31,9 +34,9 @@ export default function Dashboard() {
       const urlParams = new URLSearchParams(window.location.search);
       const showSubscription = urlParams.get('showSubscription');
       
-      // If the showSubscription parameter is present, redirect to subscription page
+      // If the showSubscription parameter is present, redirect to subscription page with plans tab active
       if (showSubscription === 'true') {
-        navigate('/user/subscription');
+        navigate('/user/subscription?tab=plans');
       }
     }
   }, [user, navigate]);
@@ -71,7 +74,7 @@ export default function Dashboard() {
           <p className="text-indigo-700 mt-1">
             You haven't selected a subscription plan yet. To unlock all features,{' '}
             <button
-              onClick={() => navigate('/user/subscription')}
+              onClick={() => navigate('/user/subscription?tab=plans')}
               className="text-indigo-600 font-medium underline hover:text-indigo-800"
             >
               choose a plan
@@ -90,6 +93,9 @@ export default function Dashboard() {
         {/* Recent Activity */}
         <RecentActivity className="md:col-span-2" jobApplications={jobApplications} />
       </div>
+      
+      {/* Quick Links Section */}
+
       
       {/* Recent Applications */}
       <RecentApplications jobApplications={jobApplications} />

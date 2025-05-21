@@ -10,6 +10,11 @@ import crypto from 'crypto';
 import { requireAdmin } from '../../middleware/admin';
 import { withEncryption } from '../../middleware/index';
 import { sanitizeBillingData } from '../../middleware/data-encryption';
+import { TaxService, TaxCalculationResult, TaxBreakdownItem } from '../../services/tax-service';
+import { safeDecrypt } from '../../utils/encryption';
+
+// Use the local version of formatPhoneForRazorpay
+// import { formatPhoneForRazorpay } from '../../services/payment-gateways';
 
 // Add this helper function before registerPaymentRoutes
 function cleanEncryptedEmptyValues(data: any): any {
@@ -31,8 +36,25 @@ function cleanEncryptedEmptyValues(data: any): any {
           /^[0-9a-f]+$/i.test(parts[1]) && 
           /^[0-9a-f]+$/i.test(parts[2])) {
         
-        // Treat these optional fields specially
-        if (['phoneNumber', 'addressLine2', 'taxId', 'companyName'].includes(key)) {
+        // For phone numbers especially, we want to attempt decryption instead of replacing with empty string
+        if (key === 'phoneNumber') {
+          try {
+            // Use the decryption function imported at the top of the file
+            const decrypted = safeDecrypt(value);
+            
+            // Only set to empty if decryption fails or results in empty string
+            if (decrypted === null || decrypted === undefined || decrypted === '') {
+              cleanedData[key] = '';
+            } else {
+              cleanedData[key] = decrypted;
+            }
+          } catch (error) {
+            console.error(`Failed to decrypt phoneNumber:`, error);
+            // Don't replace with empty string on error - keep the encrypted value
+          }
+        }
+        // For other optional fields, continue with original behavior
+        else if (['addressLine2', 'taxId', 'companyName'].includes(key)) {
           cleanedData[key] = ''; // Set to empty string
         }
       }
@@ -40,6 +62,32 @@ function cleanEncryptedEmptyValues(data: any): any {
   });
   
   return cleanedData;
+}
+
+// Add this helper function to handle phone number formatting for Razorpay
+function formatPhoneForRazorpay(phoneNumber: string): string {
+  if (!phoneNumber) return '';
+  
+  // Clean the phone number - keep only digits and + symbol
+  let cleaned = phoneNumber.replace(/[^0-9+]/g, '');
+  
+  // Ensure + is only at the beginning if present
+  if (cleaned.includes('+') && !cleaned.startsWith('+')) {
+    cleaned = '+' + cleaned.replace(/\+/g, '');
+  }
+  
+  // If we have multiple +, keep only the first one
+  if (cleaned.indexOf('+') !== cleaned.lastIndexOf('+')) {
+    const parts = cleaned.split('+');
+    cleaned = '+' + parts.slice(1).join('');
+  }
+  
+  // Ensure we have at least 5 digits for Razorpay to accept it
+  if (cleaned.replace(/\+/g, '').length < 5) {
+    return ''; // Return empty if too short - Razorpay will reject very short numbers
+  }
+  
+  return cleaned;
 }
 
 export function registerPaymentRoutes(app: express.Express) {
@@ -228,18 +276,53 @@ export function registerPaymentRoutes(app: express.Express) {
       let userRegion = 'GLOBAL';
       let currency = customCurrency || 'USD';
       
-      // First try to get region from billing details
-      const billingDetails = await db.select()
-        .from(userBillingDetails)
-        .where(eq(userBillingDetails.userId, userId))
-        .limit(1);
+      // First check IP-based region detection - this is critical to show correct currency
+      // Get the IP address 
+      const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
+      const clientIp = Array.isArray(ip) ? ip[0] : ip.split(',')[0].trim();
       
-      if (billingDetails.length) {
-        if (billingDetails[0].country === 'IN') {
-          userRegion = 'INDIA';
-          if (!customCurrency) currency = 'INR';
+      // Check for PageKite proxy IP
+      const knownPageKiteIPs = ['89.116.21.215'];
+      if (knownPageKiteIPs.includes(clientIp)) {
+        console.log(`Detected PageKite proxy IP: ${clientIp}, setting region to INDIA`);
+        userRegion = 'INDIA';
+        currency = 'INR';
+      } 
+      // If not a PageKite IP, try to get region from cached IP lookup
+      else {
+        const cacheKey = `ip-region-${clientIp}`;
+        const cachedRegion = await db.select()
+          .from(appSettings)
+          .where(eq(appSettings.key, cacheKey))
+          .limit(1);
+        
+        if (cachedRegion.length > 0 && cachedRegion[0].value) {
+          const regionData = cachedRegion[0].value as any;
+          if (regionData.region === 'INDIA' || regionData.country === 'IN') {
+            console.log(`Using cached geolocation for IP ${clientIp}: INDIA`);
+            userRegion = 'INDIA';
+            currency = 'INR';
+          }
         }
       }
+      
+      // If no region detected from IP, fallback to billing details
+      if (userRegion === 'GLOBAL') {
+        // Try to get region from billing details
+        const billingDetails = await db.select()
+          .from(userBillingDetails)
+          .where(eq(userBillingDetails.userId, userId))
+          .limit(1);
+        
+        if (billingDetails.length) {
+          if (billingDetails[0].country === 'IN') {
+            userRegion = 'INDIA';
+            if (!customCurrency) currency = 'INR';
+          }
+        }
+      }
+      
+      console.log(`Using region ${userRegion} and currency ${currency} for payment intent`);
       
       // Get specific pricing for the user's region
       let pricing = await db.select()
@@ -250,7 +333,7 @@ export function registerPaymentRoutes(app: express.Express) {
         ))
         .limit(1);
       
-      let amount = customAmount || 0;
+      let subtotal = customAmount || 0;
       
       // If no region-specific pricing is found, fall back to global pricing
       if (!pricing.length) {
@@ -271,17 +354,17 @@ export function registerPaymentRoutes(app: express.Express) {
       // If using custom amount for upgrade proration
       if (isUpgrade && customAmount !== null) {
         console.log(`[Intent] Using custom amount: ${customAmount}, currency=${currency}`);
-        amount = customAmount;
+        subtotal = customAmount;
       } else {
         // Otherwise use the plan price
-        amount = parseFloat(pricing[0].price);
+        subtotal = parseFloat(pricing[0].price);
         currency = pricing[0].currency;
       }
       
       // For upgrade with proration but no custom amount
       if (isUpgrade && prorationDetails && prorationDetails.prorationAmount !== undefined && customAmount === null) {
         console.log(`Using calculated proration amount: ${prorationDetails.prorationAmount}`);
-        amount = prorationDetails.prorationAmount;
+        subtotal = prorationDetails.prorationAmount;
         
         // Ensure we're using the currency from the proration calculation
         if (prorationDetails.currency) {
@@ -290,7 +373,55 @@ export function registerPaymentRoutes(app: express.Express) {
         }
       }
       
-      console.log(`[Intent] Final values: planId=${planId}, userRegion=${userRegion}, amount=${amount}, currency=${currency}, isUpgrade=${isUpgrade}`);
+      // For INR, assume the price already includes GST
+      let amount = subtotal;
+      let taxCalculation: TaxCalculationResult = {
+        taxType: 'NONE',
+        taxAmount: 0,
+        taxPercentage: 0,
+        taxBreakdown: [],
+        subtotal: subtotal,
+        total: subtotal
+      };
+      
+      // Only create tax notes to indicate that GST is already included in the price
+      if (currency === 'INR') {
+        // For record keeping, calculate the embedded GST amount (18% of base price)
+        // Base price = final price / 1.18
+        const basePrice = subtotal / 1.18;
+        const gstAmount = subtotal - basePrice;
+        const gstPercentage = 18;
+        
+        console.log(`For INR price ${subtotal}, base price is ${basePrice.toFixed(2)} and GST (18%) is ${gstAmount.toFixed(2)}`);
+        
+        const gstBreakdown: TaxBreakdownItem = {
+          name: 'GST (Included)',
+          type: 'GST',
+          percentage: gstPercentage,
+          amount: gstAmount
+        };
+        
+        taxCalculation = {
+          taxType: 'GST',
+          taxAmount: gstAmount,
+          taxPercentage: gstPercentage,
+          taxBreakdown: [gstBreakdown],
+          subtotal: basePrice,
+          total: subtotal // Total remains the same since GST is already included
+        };
+      } else {
+        // For non-INR currencies, calculate tax separately if needed
+        try {
+          taxCalculation = await TaxService.calculateTaxes(userId, subtotal, currency);
+          console.log('Tax calculation result:', JSON.stringify(taxCalculation, null, 2));
+          amount = taxCalculation.total;
+        } catch (taxError) {
+          console.error('Error calculating taxes:', taxError);
+          // Continue without tax calculation
+        }
+      }
+      
+      console.log(`[Intent] Final values: planId=${planId}, userRegion=${userRegion}, subtotal=${subtotal}, tax=${taxCalculation.taxAmount}, total=${amount}, currency=${currency}, isUpgrade=${isUpgrade}`);
       
       const paymentGatewayName = 'razorpay'; // Default to Razorpay, can be made configurable later
       const paymentGateway = getPaymentGatewayByName(paymentGatewayName);
@@ -313,17 +444,49 @@ export function registerPaymentRoutes(app: express.Express) {
       // Create the subscription
       console.log(`Creating Razorpay subscription for plan ${planId} with currency ${currency}`);
       
-      const paymentData = await paymentGateway.createSubscription(
+      // Convert back to the smallest currency unit for Razorpay (paise for INR)
+      // For INR, we need to multiply by 100 to convert rupees to paise
+      const razorpayAmount = currency === 'INR' 
+        ? Math.round(amount * 100) // Convert rupees to paise (smallest unit)
+        : Math.round(amount * 100); // Convert dollars to cents (smallest unit)
+      
+      console.log(`Amount conversion for Razorpay: ${amount} ${currency} → ${razorpayAmount} ${currency} (smallest units)`);
+      
+      // Format the tax information for notes
+      const taxNotes = taxCalculation.taxAmount > 0 
+        ? `Tax: ${taxCalculation.taxType} ${taxCalculation.taxPercentage}% (${taxCalculation.taxAmount} ${currency})` 
+        : 'No tax applied';
+      
+      // Add more detailed notes about the pricing
+      const priceNotes = `Base price: ${subtotal} ${currency}, Tax: ${taxCalculation.taxAmount} ${currency}, Total: ${amount} ${currency}`;
+      
+      // CRITICAL: Ensure we're creating a subscription and not a one-time payment
+      // We need to force startImmediately to true to make it a subscription
+      const subscriptionResponse = await paymentGateway.createSubscription(
         planId,
         userId,
         {
           planName: plan[0].name,
           billingCycle: plan[0].billingCycle,
           currency: currency,
-          amount: amount,
+          amount: razorpayAmount, // Pass amount in smallest currency unit (paise for INR)
+          subtotal: subtotal,     // Original price before tax
           isUpgrade: isUpgrade,
-          startImmediately: true,
-          startDate: new Date()
+          startImmediately: true, // CRITICAL: Must be true to create a subscription immediately
+          startDate: new Date(),
+          userRegion: userRegion, // Pass user region to payment gateway
+          isSubscription: true,   // Explicitly mark as subscription
+          taxInfo: {
+            taxType: taxCalculation.taxType,
+            taxAmount: taxCalculation.taxAmount,
+            taxPercentage: taxCalculation.taxPercentage,
+            taxNotes: taxNotes
+          },
+          notes: {
+            pricingDetails: priceNotes,
+            taxInfo: taxNotes,
+            isSubscription: "true" // Add to notes for debugging
+          }
         }
       ).catch((razorpayError) => {
         console.error('Error in Razorpay subscription creation:', razorpayError);
@@ -334,11 +497,11 @@ export function registerPaymentRoutes(app: express.Express) {
         throw new Error(`Razorpay error: ${errorMessage}`);
       });
       
-      console.log(`Razorpay subscription created - Subscription ID: ${paymentData.subscriptionId}`);
+      console.log(`Razorpay subscription created - Subscription ID: ${subscriptionResponse.subscriptionId}`);
       
       // Validate subscription ID format before sending to client
-      if (!paymentData.subscriptionId || typeof paymentData.subscriptionId !== 'string' || !paymentData.subscriptionId.startsWith('sub_')) {
-        console.error(`Invalid subscription ID format received from Razorpay: "${paymentData.subscriptionId}"`);
+      if (!subscriptionResponse.subscriptionId || typeof subscriptionResponse.subscriptionId !== 'string' || !subscriptionResponse.subscriptionId.startsWith('sub_')) {
+        console.error(`Invalid subscription ID format received from Razorpay: "${subscriptionResponse.subscriptionId}"`);
         return res.status(500).json({
           message: 'Failed to create a valid subscription with payment gateway',
           error: 'Invalid subscription ID format'
@@ -346,15 +509,23 @@ export function registerPaymentRoutes(app: express.Express) {
       }
       
       // Build comprehensive response for client
-      const responsePayload = {
-        ...paymentData,
-        planName: plan[0].name,
-        billingCycle: plan[0].billingCycle,
+      let result = {
+        paymentIntentId: subscriptionResponse.id,
+        subscriptionId: subscriptionResponse.subscriptionId,
+        amount: amount,
         currency: currency,
+        planName: plan[0].name,
+        planDescription: plan[0].description,
+        billingCycle: plan[0].billingCycle,
         gateway: 'RAZORPAY',
-        short_url: null,
-        isUpgrade: isUpgrade
+        isUpgrade: isUpgrade,
+        // Include tax details for display in UI
+        taxDetails: taxCalculation,
+        subtotal: subtotal
       };
+      
+      // Log the full subscription response for debugging
+      console.log('[Intent] Full subscription response:', JSON.stringify(subscriptionResponse, null, 2));
       
       // Add proration details for upgrades
       if (isUpgrade && prorationDetails) {
@@ -364,20 +535,21 @@ export function registerPaymentRoutes(app: express.Express) {
           remainingValue: prorationDetails.remainingValue,
           prorationAmount: prorationDetails.prorationAmount,
           prorationCredit: prorationDetails.prorationCredit,
-          isUpgrade: prorationDetails.isUpgrade
+          isUpgrade: prorationDetails.isUpgrade,
+          currency: currency
         };
         
-        Object.assign(responsePayload, { 
+        Object.assign(result, { 
           prorationInfo,
           // Include the full plan price for reference (in currency units, not smallest units)
-          fullPlanPrice: parseFloat(pricing[0].price)
+          actualPlanAmount: parseFloat(pricing[0].price)
         });
       }
       
       // For debugging
-      console.log('[Intent] Response to client:', JSON.stringify(responsePayload, null, 2));
+      console.log('[Intent] Response to client:', JSON.stringify(result, null, 2));
       
-      res.json(responsePayload);
+      res.json(result);
     } catch (error: any) {
       console.error('Error creating payment/subscription:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';

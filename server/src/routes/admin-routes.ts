@@ -16,7 +16,8 @@ import {
   userBillingDetails,
   planPricing,
   brandingSettings,
-  smtpSettings
+  smtpSettings,
+  invoices
 } from "@shared/schema";
 import { eq, count, and, or, desc, asc, gt, lt, gte, lte, like, ilike, inArray, isNull, notInArray, isNotNull, between, sql, sum } from "drizzle-orm";
 import { hashPassword } from "../../config/auth";
@@ -33,6 +34,7 @@ import { registerPaymentGatewayAdminRoutes } from './admin/payment-gateway-route
 import { registerSmtpRoutes } from './admin/smtp-routes';
 import { SubscriptionService } from "../../services/subscription-service";
 import { fileURLToPath } from "url";
+import { TaxService } from '../../services/tax-service';
 
 // Get server root path for ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -2377,6 +2379,127 @@ export function registerAdminRoutes(app: Express) {
     } catch (error) {
       console.error("Error fetching branding settings:", error);
       res.status(500).json({ message: "Failed to fetch branding settings" });
+    }
+  });
+
+  // Manually trigger currency validation
+  app.post('/api/admin/validate-transaction-currencies', requireAdmin, async (req, res) => {
+    try {
+      // Import the validation function
+      const { validateTransactionCurrencies } = await import('../../scripts/validate-transaction-currencies.js');
+      
+      // Run validation in the background without blocking the response
+      setTimeout(async () => {
+        try {
+          const issues = await validateTransactionCurrencies();
+          console.log(`Manual transaction validation completed. Found ${issues.length} issues.`);
+        } catch (validationError) {
+          console.error('Error in manual transaction validation:', validationError);
+        }
+      }, 0);
+      
+      res.json({ 
+        message: 'Transaction currency validation started',
+        note: 'The validation is running asynchronously. Check the server logs for results.'
+      });
+    } catch (error) {
+      console.error('Error triggering transaction validation:', error);
+      res.status(500).json({ error: 'Failed to trigger transaction validation' });
+    }
+  });
+
+  // Manually fix a specific transaction's currency and amount
+  app.post('/api/admin/fix-transaction/:transactionId', requireAdmin, async (req, res) => {
+    try {
+      const transactionId = parseInt(req.params.transactionId);
+      
+      if (isNaN(transactionId)) {
+        return res.status(400).json({ error: 'Invalid transaction ID' });
+      }
+      
+      // Get transaction details
+      const transaction = await db.select()
+        .from(paymentTransactions)
+        .where(eq(paymentTransactions.id, transactionId))
+        .limit(1);
+        
+      if (!transaction.length) {
+        return res.status(404).json({ error: 'Transaction not found' });
+      }
+      
+      // Get the user's billing details to determine correct currency
+      const userBillingInfo = await db.select()
+        .from(userBillingDetails)
+        .where(eq(userBillingDetails.userId, transaction[0].userId))
+        .limit(1);
+        
+      // Get correct currency based on user's location  
+      const userCountry = userBillingInfo.length > 0 ? userBillingInfo[0].country : 'US';
+      const targetRegion = userCountry === 'IN' ? 'INDIA' : 'GLOBAL';
+      const correctCurrency = targetRegion === 'INDIA' ? 'INR' : 'USD';
+      
+      // Get subscription and plan information
+      const subscription = await db.select()
+        .from(userSubscriptions)
+        .where(eq(userSubscriptions.id, transaction[0].subscriptionId))
+        .limit(1);
+        
+      if (!subscription.length) {
+        return res.status(404).json({ error: 'Subscription not found for this transaction' });
+      }
+      
+      const planId = subscription[0].planId;
+      
+      // Get pricing for the correct currency
+      const pricingInfo = await db.select()
+        .from(planPricing)
+        .where(
+          and(
+            eq(planPricing.planId, planId),
+            eq(planPricing.currency, correctCurrency)
+          )
+        )
+        .limit(1);
+        
+      if (!pricingInfo.length) {
+        return res.status(404).json({ error: `No pricing found for plan ${planId} with currency ${correctCurrency}` });
+      }
+      
+      // Update transaction with correct currency and amount
+      const correctAmount = pricingInfo[0].price;
+      
+      await db.update(paymentTransactions)
+        .set({
+          currency: correctCurrency,
+          amount: correctAmount,
+          updatedAt: new Date()
+        })
+        .where(eq(paymentTransactions.id, transactionId));
+        
+      // Delete and regenerate invoice
+      await db.delete(invoices)
+        .where(eq(invoices.transactionId, transactionId));
+        
+      // Generate new invoice
+      const newInvoice = await TaxService.generateInvoice(transactionId);
+      
+      res.json({
+        message: 'Transaction and invoice fixed successfully',
+        transaction: {
+          id: transactionId,
+          newCurrency: correctCurrency,
+          newAmount: correctAmount
+        },
+        invoice: {
+          id: newInvoice.id,
+          invoiceNumber: newInvoice.invoiceNumber,
+          currency: newInvoice.currency,
+          total: newInvoice.total
+        }
+      });
+    } catch (error) {
+      console.error('Error fixing transaction:', error);
+      res.status(500).json({ error: 'Failed to fix transaction' });
     }
   });
 }

@@ -2,6 +2,7 @@ import { initializeEncryption } from '../utils/encryption';
 import { initializeDataEncryption } from './data-encryption';
 import { initializeSessionConfig, sessionTimeoutMiddleware, regenerateSessionAfterLogin, postLoginSessionHandler, validateActiveSession } from './session-security';
 import { initializeEmailService } from '../services/init-email';
+import { initializePuppeteerPDFService } from '../services/puppeteer-pdf-service';
 
 /**
  * Export middleware components for convenient importing
@@ -41,6 +42,10 @@ export async function initializeServices() {
     
     // Initialize email service
     await initializeEmailService();
+    
+    // Initialize PDF service
+    await initializePuppeteerPDFService();
+    console.log('Using puppeteer for PDF generation instead of pdfmake');
     
     return true;
   } catch (error) {

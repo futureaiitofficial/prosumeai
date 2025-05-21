@@ -46,6 +46,7 @@ import AuthenticatedRedirect from '@/components/auth/authenticated-redirect';
 import AdminToolsPage from '@/pages/admin/tools';
 import AdminSecurityPage from '@/pages/admin/security';
 import AdminSettingsPage from '@/pages/admin/settings';
+import AdminTaxPage from '@/pages/admin/tax';
 import ForgotPasswordPage from '@/pages/forgot-password';
 import ResetPasswordPage from '@/pages/reset-password';
 import TermsOfServicePage from '@/pages/terms';
@@ -164,6 +165,7 @@ function Router() {
       <AdminRoute path="/admin/payment" component={() => <AdminPaymentPage />} />
       <AdminRoute path="/admin/tools" component={AdminToolsPage} />
       <AdminRoute path="/admin/security" component={AdminSecurityPage} />
+      <AdminRoute path="/admin/tax" component={() => <AdminTaxPage />} />
       
       <Route component={NotFound} />
     </Switch>

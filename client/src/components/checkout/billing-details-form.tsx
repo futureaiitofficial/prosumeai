@@ -12,19 +12,44 @@ import { toast } from '@/hooks/use-toast';
 import { BillingDetails } from '@/services/payment-service';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
+import { useLocationContext } from '@/hooks/use-location';
+import { useRegion } from '@/hooks/use-region';
+// Import the country-state-city package
+import { Country, State, City } from 'country-state-city';
+// Define interfaces matching the country-state-city objects we need
+interface CountryType {
+  isoCode: string;
+  name: string;
+  phonecode: string;
+  flag: string;
+  currency: string;
+  latitude: string;
+  longitude: string;
+  timezones?: {zoneName: string; gmtOffset: number}[];
+}
 
-// List of countries for the dropdown
+interface StateType {
+  isoCode: string;
+  name: string;
+  countryCode: string;
+  latitude?: string;
+  longitude?: string;
+}
+
+// Get all countries from the package
+const allCountries = Country.getAllCountries();
+
+// Prioritize certain countries in the list (US, IN, GB, etc.)
+const priorityCountryCodes = ['US', 'IN', 'GB', 'CA', 'AU', 'DE', 'FR', 'JP', 'SG', 'AE'];
+
+// Sort countries to put priority countries first, then alphabetically by name
 const countries = [
-  { value: 'US', label: 'United States' },
-  { value: 'IN', label: 'India' },
-  { value: 'GB', label: 'United Kingdom' },
-  { value: 'CA', label: 'Canada' },
-  { value: 'AU', label: 'Australia' },
-  { value: 'DE', label: 'Germany' },
-  { value: 'FR', label: 'France' },
-  { value: 'JP', label: 'Japan' },
-  { value: 'SG', label: 'Singapore' },
-  { value: 'AE', label: 'United Arab Emirates' },
+  ...priorityCountryCodes
+    .map(code => allCountries.find(country => country.isoCode === code))
+    .filter(Boolean) as CountryType[],
+  ...allCountries
+    .filter(country => !priorityCountryCodes.includes(country.isoCode))
+    .sort((a, b) => a.name.localeCompare(b.name))
 ];
 
 // Country-specific field labels, placeholders and validation patterns
@@ -46,7 +71,7 @@ const countryFields = {
       pattern: /^[0-9+]+$/, 
       message: 'Please enter digits only (no spaces, dashes or parentheses) for payment compatibility' 
     },
-    taxId: { label: 'Tax ID (EIN)', placeholder: 'XX-XXXXXXX' }
+    taxId: { label: 'Tax ID (EIN/GST)', placeholder: 'XX-XXXXXXX' }
   },
   // United Kingdom
   GB: {
@@ -198,8 +223,8 @@ const getDynamicValidationSchema = (country: string) => {
       ),
     phoneNumber: z.string().optional()
       .refine(
-        (val) => !val || countryConfig.phoneNumber.pattern.test(val),
-        { message: countryConfig.phoneNumber.message }
+        (val) => !val || /^(\+[1-9][0-9]{0,14}|[0-9]{5,15})$/.test(val),
+        { message: 'Please enter a valid phone number with only digits and optionally a + at the beginning (e.g., +911234567890)' }
       ),
   });
 };
@@ -219,8 +244,8 @@ const formatInput = (value: string, country: string, field: 'phoneNumber' | 'pos
   let formattedValue = value;
   
   if (field === 'phoneNumber') {
-    // For all phone numbers, only allow digits and + for payment gateway compatibility
-    // Keep only digits and + symbol
+    // For all phone numbers, ONLY allow digits and + for Razorpay compatibility
+    // Razorpay is very strict about phone number format
     const cleanedPhoneNumber = value.replace(/[^0-9+]/g, '');
     
     // Ensure only one + and it's at the beginning
@@ -236,7 +261,9 @@ const formatInput = (value: string, country: string, field: 'phoneNumber' | 'pos
       }
     }
     
-    return cleanedPhoneNumber;
+    // Make sure it's not too long - Razorpay typically accepts numbers up to 14 digits
+    const maxLength = 15; // +91 plus 12 digits max
+    return cleanedPhoneNumber.substring(0, maxLength);
   } else if (field === 'postalCode') {
     // For US ZIP codes, format properly
     if (country === 'US') {
@@ -320,11 +347,17 @@ export default function BillingDetailsForm({
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [fieldConfig, setFieldConfig] = useState(countryFields.US);
   const [selectedCountry, setSelectedCountry] = useState<string>(existingDetails?.country || 'US');
+  // Add state for storing states list based on selected country
+  const [states, setStates] = useState<StateType[]>([]);
   
   // Get user data from auth context
   const auth = useAuth();
   // Check if user is logged in
   const userIsLoggedIn = !!auth.user;
+
+  // Get location and region information
+  const locationContext = useLocationContext();
+  const { userRegion } = useRegion();
 
   // Add component initialization logging
   console.log("BillingDetailsForm rendered with existing details:", existingDetails ? {
@@ -332,6 +365,53 @@ export default function BillingDetailsForm({
     country: existingDetails.country,
     hasAddress: !!existingDetails.addressLine1
   } : 'none');
+  
+  // Log region and location data for debugging
+  console.log("Location context data:", locationContext);
+  console.log("User region data:", userRegion);
+
+  // Helper function to determine the best matching country code from region data
+  const getBestCountryMatch = () => {
+    // Try direct country code first
+    if (userRegion?.country) {
+      return userRegion.country;
+    }
+    
+    // Try currency-based detection as a fallback
+    if (userRegion?.currency) {
+      // Common currency to country mappings
+      const currencyToCountry: Record<string, string> = {
+        'USD': 'US',
+        'INR': 'IN',
+        'GBP': 'GB',
+        'EUR': 'DE', // Default to Germany for Euro
+        'CAD': 'CA',
+        'AUD': 'AU',
+        'JPY': 'JP',
+        'SGD': 'SG'
+      };
+      
+      if (currencyToCountry[userRegion.currency]) {
+        return currencyToCountry[userRegion.currency];
+      }
+    }
+    
+    // Region-based detection
+    if (userRegion?.region === 'INDIA') {
+      return 'IN';
+    }
+    
+    // Default fallback
+    return 'US';
+  };
+
+  // Update states when country changes
+  useEffect(() => {
+    if (selectedCountry) {
+      const countryStates = State.getStatesOfCountry(selectedCountry);
+      setStates(countryStates as StateType[]);
+    }
+  }, [selectedCountry]);
 
   // Use dynamic validation schema based on selected country
   const form = useForm<BillingFormValues>({
@@ -389,7 +469,35 @@ export default function BillingDetailsForm({
         setFieldConfig(newConfig);
       }
     }
-  }, [existingDetails, form]);
+  }, [existingDetails, form, selectedCountry]);
+
+  // Determine initial country from region/location data if no existing details
+  useEffect(() => {
+    // Only auto-detect if no existing details with country
+    if (!existingDetails?.country) {
+      const detectedCountry = getBestCountryMatch();
+      console.log("Auto-detecting country from location/region data:", detectedCountry);
+      
+      // Check if the detected country code exists in our country list
+      const countryExists = countries.some(country => country.isoCode === detectedCountry);
+      
+      if (detectedCountry && countryExists) {
+        console.log("Setting country to detected country:", detectedCountry);
+        setSelectedCountry(detectedCountry);
+        const newConfig = countryFields[detectedCountry as keyof typeof countryFields] || countryFields.default;
+        setFieldConfig(newConfig);
+        
+        // Update form value
+        form.setValue('country', detectedCountry);
+        
+        // Auto-populate phone country code if appropriate
+        const countryData = countries.find(c => c.isoCode === detectedCountry);
+        if (countryData && countryData.phonecode && !form.getValues().phoneNumber) {
+          form.setValue('phoneNumber', `+${countryData.phonecode}`);
+        }
+      }
+    }
+  }, [userRegion, locationContext, existingDetails, form]);
 
   // Watch for country changes to update field labels and validation schema
   const watchedCountry = useWatch({
@@ -429,13 +537,48 @@ export default function BillingDetailsForm({
         return;
       }
       
+      console.log('Submitting billing details:', {
+        fullName: values.fullName,
+        country: values.country,
+        postalCode: values.postalCode,
+        city: values.city,
+        state: values.state,
+        hasPhone: !!values.phoneNumber
+      });
+      
       // Save billing details using the PaymentService
       const savedDetails = await PaymentService.saveBillingDetails(values as BillingDetails);
+      console.log('Billing details saved successfully:', savedDetails ? 'Success' : 'Error');
+      
+      // Force invalidate the billing details query cache to ensure fresh data
+      // This will make the profile page refetch the data on next render
+      try {
+        // Try to access the query client from the window
+        const anyWindow = window as any;
+        if (anyWindow.__REACT_QUERY_GLOBAL_CLIENT__) {
+          anyWindow.__REACT_QUERY_GLOBAL_CLIENT__.invalidateQueries({ queryKey: ['billingDetails'] });
+          console.log('Invalidated billing details cache');
+        } else {
+          // Import the query client directly
+          import('@/lib/queryClient').then(({ queryClient }) => {
+            queryClient.invalidateQueries({ queryKey: ['billingDetails'] });
+            console.log('Invalidated billing details cache using imported queryClient');
+          }).catch(err => {
+            console.error('Failed to import queryClient:', err);
+          });
+        }
+      } catch (cacheError) {
+        console.error('Error invalidating query cache:', cacheError);
+      }
+      
       toast({
         title: 'Billing details saved',
         description: 'Your billing information has been saved successfully.',
       });
+      
+      // Pass the saved details back to the parent component
       onDetailsSubmitted(savedDetails);
+      
     } catch (error: any) {
       console.error('Error saving billing details:', error);
       
@@ -527,18 +670,32 @@ export default function BillingDetailsForm({
                       // Reset postal code and phone when country changes to avoid validation errors
                       form.setValue('postalCode', '');
                       form.setValue('phoneNumber', '');
+                      // Reset state field when country changes
+                      form.setValue('state', '');
+                      // Update selected country state to trigger useEffect
+                      setSelectedCountry(value);
                     }} 
                     defaultValue={field.value}
                   >
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Select a country" />
+                        <SelectValue placeholder="Select a country">
+                          {field.value && (
+                            <div className="flex items-center">
+                              <span className="mr-2">{countries.find(c => c.isoCode === field.value)?.flag}</span>
+                              <span>{countries.find(c => c.isoCode === field.value)?.name}</span>
+                            </div>
+                          )}
+                        </SelectValue>
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
                       {countries.map((country) => (
-                        <SelectItem key={country.value} value={country.value}>
-                          {country.label}
+                        <SelectItem key={country.isoCode} value={country.isoCode}>
+                          <div className="flex items-center">
+                            <span className="mr-2">{country.flag}</span>
+                            <span>{country.name}</span>
+                          </div>
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -597,7 +754,32 @@ export default function BillingDetailsForm({
                 <FormItem>
                   <FormLabel>{fieldConfig.state.label}</FormLabel>
                   <FormControl>
-                    <Input placeholder={fieldConfig.state.placeholder} {...field} />
+                    {states.length > 0 ? (
+                      <Select 
+                        onValueChange={(value) => {
+                          field.onChange(value);
+                        }} 
+                        defaultValue={field.value}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder={`Select ${fieldConfig.state.label}`} />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {states.map((state) => (
+                            <SelectItem key={state.isoCode} value={state.isoCode}>
+                              {state.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Input 
+                        placeholder={fieldConfig.state.placeholder} 
+                        {...field} 
+                      />
+                    )}
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -620,13 +802,13 @@ export default function BillingDetailsForm({
                       }}
                       onKeyDown={(e) => {
                         // Common keys to always allow: backspace, delete, tab, escape, enter, navigation
-                        const commonAllowedKeys = [8, 9, 13, 27, 46, 37, 38, 39, 40];
+                        const commonAllowedKeys = ['Backspace', 'Tab', 'Enter', 'Escape', 'Delete', 'ArrowLeft', 'ArrowUp', 'ArrowRight', 'ArrowDown'];
                         // Allow: Ctrl+A, Ctrl+C, Ctrl+V, Ctrl+X
-                        const ctrlCombos = (e.keyCode >= 65 && e.keyCode <= 90 && e.ctrlKey === true);
+                        const ctrlCombos = /^[a-z]$/i.test(e.key) && e.ctrlKey === true;
                         // Allow: home, end, page up, page down
-                        const navKeys = (e.keyCode >= 35 && e.keyCode <= 36);
+                        const navKeys = ['Home', 'End', 'PageUp', 'PageDown'].includes(e.key);
                         
-                        if (commonAllowedKeys.indexOf(e.keyCode) !== -1 || ctrlCombos || navKeys) {
+                        if (commonAllowedKeys.includes(e.key) || ctrlCombos || navKeys) {
                           return;
                         }
                         
@@ -634,57 +816,42 @@ export default function BillingDetailsForm({
                         switch(selectedCountry) {
                           case 'US':
                             // For US, allow only numbers and hyphen
-                            if ((e.shiftKey || (e.keyCode < 48 || e.keyCode > 57)) && 
-                                (e.keyCode < 96 || e.keyCode > 105) && 
-                                e.keyCode !== 189) { // 189 is hyphen
+                            if (!/^\d$/.test(e.key) && e.key !== '-') { 
                               e.preventDefault();
                             }
                             break;
                             
                           case 'CA':
                             // For Canada, allow letters, numbers and space
-                            const isLetter = (e.keyCode >= 65 && e.keyCode <= 90);
-                            const isNumber = (e.keyCode >= 48 && e.keyCode <= 57) || 
-                                            (e.keyCode >= 96 && e.keyCode <= 105);
-                            const isSpace = e.keyCode === 32;
-                            
-                            if (!isLetter && !isNumber && !isSpace) {
+                            if (!/^[a-zA-Z0-9 ]$/.test(e.key)) {
                               e.preventDefault();
                             }
                             break;
                             
                           case 'GB':
                             // For UK, allow letters, numbers and space
-                            const isUKLetter = (e.keyCode >= 65 && e.keyCode <= 90);
-                            const isUKNumber = (e.keyCode >= 48 && e.keyCode <= 57) || 
-                                             (e.keyCode >= 96 && e.keyCode <= 105);
-                            const isUKSpace = e.keyCode === 32;
-                            
-                            if (!isUKLetter && !isUKNumber && !isUKSpace) {
+                            if (!/^[a-zA-Z0-9 ]$/.test(e.key)) {
                               e.preventDefault();
                             }
                             break;
                             
                           case 'AU':
                             // For Australia, allow only numbers
-                            if ((e.shiftKey || (e.keyCode < 48 || e.keyCode > 57)) && 
-                                (e.keyCode < 96 || e.keyCode > 105)) {
+                            if (!/^\d$/.test(e.key)) {
                               e.preventDefault();
                             }
                             break;
                             
                           case 'IN':
                             // For India, allow only numbers
-                            if ((e.shiftKey || (e.keyCode < 48 || e.keyCode > 57)) && 
-                                (e.keyCode < 96 || e.keyCode > 105)) {
+                            if (!/^\d$/.test(e.key)) {
                               e.preventDefault();
                             }
                             break;
                             
                           case 'DE':
                             // For Germany, allow only numbers
-                            if ((e.shiftKey || (e.keyCode < 48 || e.keyCode > 57)) && 
-                                (e.keyCode < 96 || e.keyCode > 105)) {
+                            if (!/^\d$/.test(e.key)) {
                               e.preventDefault();
                             }
                             break;
@@ -693,13 +860,7 @@ export default function BillingDetailsForm({
                             
                             default:
                               // For other countries, allow alphanumeric, space, and hyphen
-                              const isDefaultLetter = (e.keyCode >= 65 && e.keyCode <= 90);
-                              const isDefaultNumber = (e.keyCode >= 48 && e.keyCode <= 57) || 
-                                                   (e.keyCode >= 96 && e.keyCode <= 105);
-                              const isDefaultSpace = e.keyCode === 32;
-                              const isDefaultHyphen = e.keyCode === 189 || e.keyCode === 109;
-                              
-                              if (!isDefaultLetter && !isDefaultNumber && !isDefaultSpace && !isDefaultHyphen) {
+                              if (!/^[a-zA-Z0-9 -]$/.test(e.key)) {
                                 e.preventDefault();
                               }
                               break;
@@ -717,10 +878,7 @@ export default function BillingDetailsForm({
               name="phoneNumber"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Phone Number (Optional)</FormLabel>
-                  <div className="text-xs text-amber-600 mb-1">
-                    For payment compatibility, use only digits and optionally a + at the beginning
-                  </div>
+                  <FormLabel>Phone Number (Optional) Should start with your country code</FormLabel>
                   <FormControl>
                     <Input 
                       placeholder={fieldConfig.phoneNumber.placeholder} 
@@ -731,19 +889,18 @@ export default function BillingDetailsForm({
                       }}
                       onKeyDown={(e) => {
                         // Allow: backspace, delete, tab, escape, enter, navigation keys
-                        if ([8, 9, 13, 27, 46, 37, 38, 39, 40].indexOf(e.keyCode) !== -1 ||
-                            // Allow: Ctrl+A, Ctrl+C, Ctrl+V, Ctrl+X
-                            (e.keyCode >= 65 && e.keyCode <= 90 && e.ctrlKey === true) ||
-                            // Allow: home, end, page up, page down
-                            (e.keyCode >= 35 && e.keyCode <= 36)) {
+                        const commonAllowedKeys = ['Backspace', 'Tab', 'Enter', 'Escape', 'Delete', 'ArrowLeft', 'ArrowUp', 'ArrowRight', 'ArrowDown'];
+                        // Allow: Ctrl+A, Ctrl+C, Ctrl+V, Ctrl+X
+                        const ctrlCombos = /^[a-z]$/i.test(e.key) && e.ctrlKey === true;
+                        // Allow: home, end, page up, page down
+                        const navKeys = ['Home', 'End', 'PageUp', 'PageDown'].includes(e.key);
+                        
+                        if (commonAllowedKeys.includes(e.key) || ctrlCombos || navKeys) {
                           return;
                         }
                         
-                        const plusKeyCode = 187; // + key
-                        const numpadPlusKeyCode = 107; // + key on numpad
-                        
-                        // Allow + sign (with or without shift), but only if it's at the beginning
-                        if ((e.keyCode === plusKeyCode && e.shiftKey) || e.keyCode === numpadPlusKeyCode) {
+                        // Allow + sign, but only if it's at the beginning
+                        if (e.key === '+') {
                           // Only allow + at the beginning
                           if (field.value && field.value.length > 0 && !field.value.startsWith('+')) {
                             e.preventDefault();
@@ -752,8 +909,7 @@ export default function BillingDetailsForm({
                         }
                         
                         // If it's not a number, prevent the default behavior
-                        if ((e.shiftKey || (e.keyCode < 48 || e.keyCode > 57)) && 
-                            (e.keyCode < 96 || e.keyCode > 105)) {
+                        if (!/^\d$/.test(e.key)) {
                           e.preventDefault();
                         }
                       }}
@@ -793,26 +949,29 @@ export default function BillingDetailsForm({
             />
           </div>
 
-          <div className="flex justify-end gap-3 pt-4">
+          <div className="flex justify-between gap-3 pt-8 border-t mt-8">
             <Button 
               type="button" 
               variant="outline" 
               onClick={onCancel}
               disabled={isSubmitting}
+              size="lg"
             >
               Cancel
             </Button>
             <Button 
               type="submit"
               disabled={isSubmitting}
+              className="bg-primary hover:bg-primary/90"
+              size="lg"
             >
               {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Saving...
+                  Saving Billing Details...
                 </>
               ) : (
-                <>Continue</>
+                <>Save Billing Information</>
               )}
             </Button>
           </div>

@@ -822,8 +822,6 @@ export default function KeywordGenerator() {
   return (
     <DefaultLayout pageTitle="Keyword Generator" pageDescription="Extract ATS-optimized keywords from job descriptions">
       <div className="container mx-auto px-4 py-8">
-        <h1 className="text-2xl font-bold mb-6">ATS Keyword Generator</h1>
-        
         <Card className="mb-8">
           <CardHeader>
             <CardTitle>Extract Keywords from Job Description</CardTitle>

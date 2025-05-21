@@ -11,10 +11,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { useLocation } from "wouter";
-import { TokenUsage } from "@/components/ui/token-usage";
+
+
 import BillingDetailsForm from "@/components/checkout/billing-details-form";
-import { Loader2 } from "lucide-react";
+import { Loader2, CreditCard } from "lucide-react";
 import { PaymentService } from "@/services/payment-service";
 import type { BillingDetails } from "@/services/payment-service";
 
@@ -40,7 +40,10 @@ const countries: CountryOption[] = [
 export default function Profile() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [, navigate] = useLocation();
+  
+  // Get tab from URL query parameter
+  const [defaultTab, setDefaultTab] = useState<string>('personal');
+  
   const [profileData, setProfileData] = useState({
     fullName: user?.fullName || "",
     email: user?.email || "",
@@ -53,14 +56,53 @@ export default function Profile() {
     queryKey: ['billingDetails'],
     queryFn: async () => {
       try {
-        return await PaymentService.getBillingDetails();
+        console.log('Fetching billing details for user');
+        const details = await PaymentService.getBillingDetails();
+        console.log('Received billing details:', details ? 'Success' : 'No details found');
+        return details;
       } catch (error) {
         console.error('Error fetching billing details:', error);
         return null;
       }
     },
     enabled: !!user,
+    // Keep the data for 1 hour in the cache
+    staleTime: 60 * 60 * 1000,
+    // Never delete the data from cache automatically
+    gcTime: Infinity,
+    // Refetch on window focus and reconnect
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
   });
+  
+  // Handle initial data loading and tab selection
+  useEffect(() => {
+    // Check if URL has a tab parameter
+    const params = new URLSearchParams(window.location.search);
+    const tabParam = params.get('tab');
+    
+    // Set the active tab if it's valid
+    if (tabParam && ['personal', 'billing', 'security'].includes(tabParam)) {
+      setDefaultTab(tabParam);
+      
+      // If billing tab is selected, make sure we have fresh data
+      if (tabParam === 'billing') {
+        console.log('Billing tab selected, ensuring fresh data...');
+        // Prefetch billing data
+        billingDetailsQuery.refetch().catch(err => {
+          console.error('Error prefetching billing details:', err);
+        });
+      }
+    }
+    
+    // Ensure we have billing data regardless of tab
+    if (user && !billingDetailsQuery.data && !billingDetailsQuery.isLoading) {
+      console.log('No billing data in cache, fetching...');
+      billingDetailsQuery.refetch().catch(err => {
+        console.error('Error fetching initial billing details:', err);
+      });
+    }
+  }, [user, billingDetailsQuery]);
 
   const updateProfileMutation = useMutation({
     mutationFn: async (data: typeof profileData) => {
@@ -114,12 +156,16 @@ export default function Profile() {
           </CardHeader>
         </Card>
 
-        <Tabs defaultValue="personal" className="w-full">
-          <TabsList className="grid w-full grid-cols-4 mb-4">
+        <Tabs defaultValue={defaultTab} className="w-full" onValueChange={(value) => {
+          // Update URL when tab changes
+          const url = new URL(window.location.href);
+          url.searchParams.set('tab', value);
+          window.history.pushState({}, '', url.toString());
+        }}>
+          <TabsList className="grid w-full grid-cols-3 mb-4">
             <TabsTrigger value="personal">Personal Information</TabsTrigger>
             <TabsTrigger value="billing">Billing Information</TabsTrigger>
             <TabsTrigger value="security">Security</TabsTrigger>
-            <TabsTrigger value="usage">Usage & Limits</TabsTrigger>
           </TabsList>
           
           <TabsContent value="personal">
@@ -183,9 +229,12 @@ export default function Profile() {
           </TabsContent>
           
           <TabsContent value="billing">
-            <Card>
-              <CardHeader>
-                <CardTitle>Billing Information</CardTitle>
+            <Card className="border-primary/20 shadow-md">
+              <CardHeader className="bg-primary/5">
+                <CardTitle className="flex items-center">
+                  <CreditCard className="h-5 w-5 mr-2 text-primary" />
+                  Billing Information
+                </CardTitle>
                 <CardDescription>
                   Manage your billing details for invoices and subscriptions
                 </CardDescription>
@@ -199,9 +248,21 @@ export default function Profile() {
                   <BillingDetailsForm
                     existingDetails={billingDetailsQuery.data || null}
                     onDetailsSubmitted={(details) => {
+                      console.log('Billing details updated, refreshing UI');
                       // Update the billing details in the cache
                       queryClient.setQueryData(['billingDetails'], details);
+                      // Also invalidate the query to ensure a fresh fetch
+                      queryClient.invalidateQueries({ queryKey: ['billingDetails'] });
+                      // Force a refetch to get fresh data
+                      billingDetailsQuery.refetch().then(() => {
+                        console.log('Billing details refetched successfully');
+                      }).catch(err => {
+                        console.error('Error refetching billing details:', err);
+                      });
+                      
+                      // Exit edit mode
                       setEditingBilling(false);
+                      
                       toast({
                         title: 'Billing details updated',
                         description: 'Your billing information has been updated successfully.'
@@ -216,42 +277,141 @@ export default function Profile() {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div className="space-y-1">
                             <h3 className="text-sm font-medium">Full Name</h3>
-                            <p className="text-sm text-muted-foreground">{billingDetailsQuery.data?.fullName}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {
+                                // Check if full name is available and not an encrypted string
+                                (billingDetailsQuery.data?.fullName && 
+                                 typeof billingDetailsQuery.data?.fullName === 'string' && 
+                                 !billingDetailsQuery.data?.fullName.includes(':'))
+                                  ? billingDetailsQuery.data?.fullName
+                                  : 'Not provided'
+                              }
+                            </p>
                           </div>
                           <div className="space-y-1">
                             <h3 className="text-sm font-medium">Company</h3>
-                            <p className="text-sm text-muted-foreground">{billingDetailsQuery.data?.companyName || 'Not provided'}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {
+                                // Check if company name is available and not an encrypted string
+                                (billingDetailsQuery.data?.companyName && 
+                                 typeof billingDetailsQuery.data?.companyName === 'string' && 
+                                 !billingDetailsQuery.data?.companyName.includes(':'))
+                                  ? billingDetailsQuery.data?.companyName
+                                  : 'Not provided'
+                              }
+                            </p>
                           </div>
                           <div className="space-y-1">
                             <h3 className="text-sm font-medium">Address</h3>
                             <p className="text-sm text-muted-foreground">
-                              {billingDetailsQuery.data?.addressLine1}<br />
-                              {billingDetailsQuery.data?.addressLine2 && <>{billingDetailsQuery.data?.addressLine2}<br /></>}
-                              {billingDetailsQuery.data?.city}, {billingDetailsQuery.data?.state} {billingDetailsQuery.data?.postalCode}<br />
-                                                             {countries.find((c: CountryOption) => c.value === billingDetailsQuery.data?.country)?.label || billingDetailsQuery.data?.country}
+                              {
+                                // Check if address line 1 is available and not an encrypted string
+                                (billingDetailsQuery.data?.addressLine1 && 
+                                 typeof billingDetailsQuery.data?.addressLine1 === 'string' && 
+                                 !billingDetailsQuery.data?.addressLine1.includes(':'))
+                                  ? billingDetailsQuery.data?.addressLine1
+                                  : 'Address not provided'
+                              }<br />
+                              {
+                                // Check if address line 2 is available and not an encrypted string
+                                (billingDetailsQuery.data?.addressLine2 && 
+                                 typeof billingDetailsQuery.data?.addressLine2 === 'string' && 
+                                 !billingDetailsQuery.data?.addressLine2.includes(':')) 
+                                  ? <>{billingDetailsQuery.data?.addressLine2}<br /></>
+                                  : null
+                              }
+                              {
+                                // Display city, state, postal code
+                                (billingDetailsQuery.data?.city && 
+                                 billingDetailsQuery.data?.state && 
+                                 billingDetailsQuery.data?.postalCode)
+                                  ? `${billingDetailsQuery.data?.city}, ${billingDetailsQuery.data?.state} ${billingDetailsQuery.data?.postalCode}`
+                                  : 'Location not provided'
+                              }<br />
+                              {countries.find((c: CountryOption) => c.value === billingDetailsQuery.data?.country)?.label || billingDetailsQuery.data?.country}
                             </p>
                           </div>
                           <div className="space-y-1">
                             <h3 className="text-sm font-medium">Contact</h3>
                             <p className="text-sm text-muted-foreground">
-                              Phone: {billingDetailsQuery.data?.phoneNumber || 'Not provided'}<br />
-                              Tax ID: {billingDetailsQuery.data?.taxId || 'Not provided'}
+                              Phone: {
+                                // Check if phone number is available and not an encrypted string
+                                (billingDetailsQuery.data?.phoneNumber && 
+                                 typeof billingDetailsQuery.data?.phoneNumber === 'string' && 
+                                 !billingDetailsQuery.data?.phoneNumber.includes(':'))
+                                  ? billingDetailsQuery.data?.phoneNumber
+                                  : 'Not provided'
+                              }<br />
+                              Tax ID: {
+                                // Check if tax ID is available and not an encrypted string
+                                (billingDetailsQuery.data?.taxId && 
+                                 typeof billingDetailsQuery.data?.taxId === 'string' && 
+                                 !billingDetailsQuery.data?.taxId.includes(':'))
+                                  ? billingDetailsQuery.data?.taxId
+                                  : 'Not provided'
+                              }
                             </p>
                           </div>
                         </div>
-                        <Button
-                          onClick={() => setEditingBilling(true)}
-                          variant="outline"
-                        >
-                          Edit Billing Information
-                        </Button>
+                        <div className="flex flex-col sm:flex-row gap-4">
+                          <Button
+                            onClick={() => setEditingBilling(true)}
+                            className="bg-primary hover:bg-primary/90"
+                          >
+                            Update Billing Information
+                          </Button>
+                          
+                          <Button
+                            onClick={async () => {
+                              try {
+                                // Clear the cache first
+                                queryClient.removeQueries({ queryKey: ['billingDetails'] });
+                                
+                                // Show loading state
+                                toast({
+                                  title: 'Refreshing',
+                                  description: 'Fetching latest billing information from the server...'
+                                });
+                                
+                                // Force refresh the billing details from server with a clean cache
+                                const result = await billingDetailsQuery.refetch();
+                                
+                                if (result.isSuccess) {
+                                  toast({
+                                    title: 'Refreshed Successfully',
+                                    description: 'Billing information has been updated with the latest data.'
+                                  });
+                                } else {
+                                  throw new Error('Failed to refresh data');
+                                }
+                              } catch (error) {
+                                console.error('Error refreshing billing details:', error);
+                                toast({
+                                  title: 'Refresh Failed',
+                                  description: 'Could not refresh billing information. Please try again.',
+                                  variant: 'destructive'
+                                });
+                              }
+                            }}
+                            variant="outline"
+                          >
+                            Refresh Data
+                          </Button>
+                        </div>
                       </div>
                     ) : (
-                      <div className="text-center py-4">
-                        <p className="text-muted-foreground mb-4">No billing information on file.</p>
-                        <Button onClick={() => setEditingBilling(true)}>
-                          Add Billing Information
-                        </Button>
+                      <div className="text-center py-8">
+                        <div className="rounded-lg border border-dashed p-8 mb-6">
+                          <p className="text-muted-foreground mb-4">No billing information on file.</p>
+                          <p className="text-muted-foreground mb-4">Adding billing information helps us generate proper invoices for your subscriptions and payments.</p>
+                          <Button 
+                            onClick={() => setEditingBilling(true)}
+                            className="bg-primary hover:bg-primary/90"
+                            size="lg"
+                          >
+                            Add Billing Information
+                          </Button>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -301,61 +461,7 @@ export default function Profile() {
             </Card>
           </TabsContent>
           
-          <TabsContent value="usage">
-            <Card>
-              <CardHeader>
-                <CardTitle>Usage & Limits</CardTitle>
-                <CardDescription>
-                  Monitor your AI token usage and subscription limits
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div>
-                  <h3 className="text-lg font-medium mb-2">AI Token Usage</h3>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Your current AI token usage across different features. These limits reset according to your subscription plan.
-                  </p>
-                  <TokenUsage className="mt-4" />
-                  <div className="flex justify-end mt-4">
-                    <Button variant="outline" onClick={() => navigate("/user/subscription")}>
-                      View Subscription Details
-                    </Button>
-                  </div>
-                </div>
-                
-                <Separator />
-                
-                <div>
-                  <h3 className="text-lg font-medium mb-2">Feature Usage</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Feature-specific AI token usage for key functionality
-                  </p>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                    <div className="p-4 border rounded-lg">
-                      <h4 className="font-medium mb-2">Resume Builder</h4>
-                      <TokenUsage featureCode="resume" />
-                    </div>
-                    
-                    <div className="p-4 border rounded-lg">
-                      <h4 className="font-medium mb-2">Cover Letter Generation</h4>
-                      <TokenUsage featureCode="GENERATE_COVER_LETTER" />
-                    </div>
-                    
-                    <div className="p-4 border rounded-lg">
-                      <h4 className="font-medium mb-2">Job Application Analysis</h4>
-                      <TokenUsage featureCode="job_analysis" />
-                    </div>
-                    
-                    <div className="p-4 border rounded-lg">
-                      <h4 className="font-medium mb-2">Keyword Extraction</h4>
-                      <TokenUsage featureCode="keyword_extraction" />
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
+
         </Tabs>
       </div>
     </DefaultLayout>

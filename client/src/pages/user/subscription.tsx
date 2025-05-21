@@ -6,18 +6,19 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Progress } from '@/components/ui/progress';
-import { CreditCard, Check, X, AlertCircle, Calendar, ChevronsUpDown, Sparkles, Globe } from 'lucide-react';
+import { CreditCard, Check, X, AlertCircle, Calendar, ChevronsUpDown, Sparkles, FileText, InfoIcon, Loader2 } from 'lucide-react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import DefaultLayout from '@/components/layouts/default-layout';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { InfoIcon } from 'lucide-react';
-import { Loader2 } from 'lucide-react';
 import axios from 'axios';
 import { useLocation, useRoute } from "wouter";
 import ErrorBoundary from '@/components/error-boundary';
+import { useRegion, UserRegion } from '@/hooks/use-region';
+import { useLocationContext } from '@/hooks/use-location';
+import { SubscriptionInvoices } from '@/components/checkout/subscription-invoices';
+import { PaymentService } from '@/services/payment-service';
 
 interface UserSubscription {
   id: number;
@@ -59,13 +60,6 @@ interface SubscriptionPlan {
   displayCurrency?: string;
 }
 
-interface UserRegion {
-  region: 'GLOBAL' | 'INDIA';
-  currency: 'USD' | 'INR';
-  country?: string;
-  error?: string;
-}
-
 interface PlanFeature {
   id: number;
   planId: number;
@@ -84,48 +78,75 @@ interface PlanFeature {
 
 const UserSubscriptionPage: React.FC = () => {
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState<'current' | 'features' | 'plans'>('current');
-  const [userRegion, setUserRegion] = useState<UserRegion>({ region: 'GLOBAL', currency: 'USD' });
-  const [manualRegion, setManualRegion] = useState<string>('');
+  const [activeTab, setActiveTab] = useState<'current' | 'features' | 'plans' | 'invoices'>('current');
   const [pendingPlanName, setPendingPlanName] = useState<string | null>(null);
   const [pendingChangeLoading, setPendingChangeLoading] = useState(false);
   const [isChangingPlan, setIsChangingPlan] = useState(false);
   const [location] = useLocation();
+  
+  // Use location context for regional preferences
+  const locationContext = useLocationContext();
+  
+  // Use the centralized region hook instead of direct handling
+  const { 
+    userRegion, 
+    isLoading: isRegionLoading, 
+    setRegion,
+    formatCurrency 
+  } = useRegion();
 
-  // Fetch user's region based on IP
-  const { data: regionData, isLoading: isRegionLoading } = useQuery({
-    queryKey: ['userRegion'],
+  // Add state for billing details
+  const [billingCountry, setBillingCountry] = useState<string | null>(null);
+  const [billingRegion, setBillingRegion] = useState<'GLOBAL' | 'INDIA'>('GLOBAL');
+
+  // Fetch user's billing details
+  const { data: billingDetails, isLoading: isBillingLoading } = useQuery({
+    queryKey: ['userBillingDetails'],
     queryFn: async () => {
       try {
-        const response = await apiRequest('GET', '/api/user/region');
-        const data = await response.json();
-        console.log("Detected user region:", data);
-        
-        // Only set the region if we didn't get an error
-        if (!data.error) {
-          setUserRegion(data);
-        } else {
-          console.warn("Using default region due to geolocation error:", data.error);
-        }
-        return data;
+        const details = await PaymentService.getBillingDetails();
+        console.log("Fetched billing details:", details);
+        return details;
       } catch (error) {
-        console.error("Error fetching user region:", error);
-        return { region: 'GLOBAL', currency: 'USD', error: 'Failed to detect region' };
-      }
-    },
-    staleTime: 24 * 60 * 60 * 1000 // Cache for 24 hours
-  });
-
-  // Apply manual region change when selected
-  useEffect(() => {
-    if (manualRegion) {
-      if (manualRegion === 'INDIA') {
-        setUserRegion({ region: 'INDIA', currency: 'INR', country: 'India' });
-      } else {
-        setUserRegion({ region: 'GLOBAL', currency: 'USD', country: manualRegion === 'GLOBAL' ? 'Global' : manualRegion });
+        console.error("Error fetching billing details:", error);
+        return null;
       }
     }
-  }, [manualRegion]);
+  });
+
+  // Update region based on billing details or IP location
+  useEffect(() => {
+    if (billingDetails && billingDetails.country) {
+      console.log("Using billing address country for region:", billingDetails.country);
+      setBillingCountry(billingDetails.country);
+      
+      // Determine region based on country
+      const region = billingDetails.country === 'IN' ? 'INDIA' : 'GLOBAL';
+      setBillingRegion(region);
+      
+      // Override the detected region with billing address
+      setRegion({
+        region: region,
+        currency: region === 'INDIA' ? 'INR' : 'USD',
+        country: billingDetails.country,
+        countryName: billingDetails.country === 'IN' ? 'India' : undefined,
+        source: 'billing-details'
+      });
+    } else {
+      console.log("No billing details found, using IP-based region detection");
+      // Region is already handled by useRegion hook from IP
+    }
+  }, [billingDetails, setRegion]);
+
+  // Check for tab query parameter
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const tabParam = urlParams.get('tab');
+    
+    if (tabParam && ['current', 'features', 'plans', 'invoices'].includes(tabParam)) {
+      setActiveTab(tabParam as 'current' | 'features' | 'plans' | 'invoices');
+    }
+  }, [location]);
 
   // Fetch current subscription
   const { data: subscriptionData, isLoading: isSubscriptionLoading, refetch: refetchSubscription } = useQuery({
@@ -339,17 +360,14 @@ const UserSubscriptionPage: React.FC = () => {
       const response = await apiRequest('POST', '/api/user/subscription/upgrade', { planId });
       const data = await response.json();
       
-      // Format amounts for display - handle INR and USD differently
+      // Use formatCurrency from useRegion hook for consistent currency formatting
       const formatAmount = (amount: number, currency: string) => {
-        if (currency === 'INR') {
-          return `₹${amount.toFixed(0)}`; // No decimals for INR
-        }
-        return `$${amount.toFixed(2)}`; // 2 decimals for USD
+        return formatCurrency(amount, currency);
       };
       
       // Get the amount from pricing data rather than plan.price
-      const selectedNewPlan = plans.find((p: SubscriptionPlan) => p.id === planId);
-      const selectedCurrentPlan = subscription ? plans.find((p: SubscriptionPlan) => p.id === subscription.planId) : null;
+      const selectedNewPlan = plansData.find((p: SubscriptionPlan) => p.id === planId);
+      const selectedCurrentPlan = subscriptionData ? plansData.find((p: SubscriptionPlan) => p.id === subscriptionData.planId) : null;
       
       if (data.redirectToPayment) {
         // If server provided a payment URL, use it
@@ -531,7 +549,7 @@ const UserSubscriptionPage: React.FC = () => {
     }
   }, [subscription, plans, planName, planDescription, billingCycle]);
 
-  const isLoading = isSubscriptionLoading || isPlansLoading || isFeaturesLoading || isAllFeaturesLoading || isFeatureUsageLoading || isRegionLoading || isPendingChangeLoading;
+  const isLoading = isSubscriptionLoading || isPlansLoading || isFeaturesLoading || isAllFeaturesLoading || isFeatureUsageLoading || isRegionLoading || isPendingChangeLoading || isBillingLoading;
 
   // Format date for display
   const formatDate = (dateString: string) => {
@@ -599,7 +617,27 @@ const UserSubscriptionPage: React.FC = () => {
   }, [activeTab, refetchFeatures]);
 
   const setTab = (value: string) => {
-    setActiveTab(value as 'current' | 'features' | 'plans');
+    if (value === 'current' || 
+        value === 'features' || 
+        value === 'plans' || 
+        value === 'invoices') {
+      
+      // Update state
+      setActiveTab(value);
+      
+      // Update URL query parameter to reflect the current tab
+      const urlParams = new URLSearchParams(window.location.search);
+      urlParams.set('tab', value);
+      
+      // Update the URL without causing a full page reload
+      const newUrl = `${window.location.pathname}?${urlParams.toString()}`;
+      window.history.pushState({}, '', newUrl);
+    }
+    
+    // If switching to features tab, refresh feature data
+    if (value === 'features') {
+      refetchFeatures();
+    }
   };
 
   // Map subscription features with usage data for Current Plan tab using featuresData
@@ -663,6 +701,12 @@ const UserSubscriptionPage: React.FC = () => {
 
   // Get price display based on user region
   const getPriceDisplay = (plan: SubscriptionPlan) => {
+    // Log region information for debugging
+    console.log("Getting price display for plan:", plan.name, 
+      "Billing country:", billingCountry,
+      "Billing region:", billingRegion,
+      "IP region:", userRegion.region);
+    
     // For freemium plans
     if (plan.isFreemium || !plan.pricing || plan.pricing.length === 0) {
       return 'Free';
@@ -670,25 +714,32 @@ const UserSubscriptionPage: React.FC = () => {
     
     // Check if the plan has displayPrice and displayCurrency fields from the server
     if (plan.displayPrice && plan.displayCurrency) {
-      return `${plan.displayPrice} ${plan.displayCurrency}`;
+      console.log("Using display price from server:", plan.displayPrice, plan.displayCurrency);
+      return formatCurrency(parseFloat(plan.displayPrice), plan.displayCurrency);
     }
     
+    // Determine which region to use for pricing (prefer billing region over IP region)
+    const effectiveRegion = billingRegion || userRegion.region;
+    
     // Find pricing for the user's region
-    const userRegionPricing = plan.pricing.find(p => p.targetRegion === userRegion.region);
+    const userRegionPricing = plan.pricing.find((p: { targetRegion: string }) => p.targetRegion === effectiveRegion);
     
     // If found, use it
     if (userRegionPricing) {
-      return `${userRegionPricing.price} ${userRegionPricing.currency}`;
+      console.log("Found pricing for effective region:", effectiveRegion, userRegionPricing);
+      return formatCurrency(parseFloat(userRegionPricing.price), userRegionPricing.currency);
     }
     
     // Fallback to global pricing
-    const globalPricing = plan.pricing.find(p => p.targetRegion === 'GLOBAL');
+    const globalPricing = plan.pricing.find((p: { targetRegion: string }) => p.targetRegion === 'GLOBAL');
     if (globalPricing) {
-      return `${globalPricing.price} ${globalPricing.currency}`;
+      console.log("Using fallback global pricing:", globalPricing);
+      return formatCurrency(parseFloat(globalPricing.price), globalPricing.currency);
     }
     
     // Last resort fallback
-    return plan.price && plan.price !== '0.00' ? `${plan.price} USD` : 'Free';
+    console.log("Using last resort fallback pricing:", plan.price);
+    return plan.price && plan.price !== '0.00' ? formatCurrency(parseFloat(plan.price), 'USD') : 'Free';
   };
 
   // Helper function to get plan price as a number for comparison
@@ -700,13 +751,17 @@ const UserSubscriptionPage: React.FC = () => {
       return parseFloat(plan.displayPrice);
     }
     
+    // Determine which region to use (prefer billing region over IP region)
+    const effectiveRegion = billingRegion || userRegion.region;
+    
     if (plan.pricing && plan.pricing.length > 0) {
-      const regionPricing = plan.pricing.find(p => p.targetRegion === userRegion.region);
+      // Try to get pricing for the effective region first
+      const regionPricing = plan.pricing.find((p: { targetRegion: string }) => p.targetRegion === effectiveRegion);
       if (regionPricing) {
         return parseFloat(regionPricing.price);
       }
       
-      const globalPricing = plan.pricing.find(p => p.targetRegion === 'GLOBAL');
+      const globalPricing = plan.pricing.find((p: { targetRegion: string }) => p.targetRegion === 'GLOBAL');
       if (globalPricing) {
         return parseFloat(globalPricing.price);
       }
@@ -775,12 +830,9 @@ const UserSubscriptionPage: React.FC = () => {
           const selectedNewPlan = plans.find((p: SubscriptionPlan) => p.id === planId);
           const selectedCurrentPlan = plans.find((p: SubscriptionPlan) => p.id === subscription?.planId);
           
-          // Format amounts for display - handle INR and USD differently
+          // Use the formatCurrency function from useRegion hook for consistent formatting
           const formatAmount = (amount: number, currency: string) => {
-            if (currency === 'INR') {
-              return `₹${amount.toFixed(0)}`; // No decimals for INR
-            }
-            return `$${amount.toFixed(2)}`; // 2 decimals for USD
+            return formatCurrency(amount, currency);
           };
           
           // Extract proration information
@@ -824,12 +876,25 @@ const UserSubscriptionPage: React.FC = () => {
           const selectedPlan = plans.find((p: SubscriptionPlan) => p.id === planId);
           const planName = selectedPlan?.name || 'selected plan';
           
-          // Get pricing from the plan's pricing object instead of the old way
-          const currency = selectedPlan?.pricing?.length > 0 ? selectedPlan.pricing[0].currency : (selectedPlan?.displayCurrency || 'USD');
-          const price = selectedPlan?.pricing?.length > 0 ? selectedPlan.pricing[0].price : (selectedPlan?.displayPrice || '0');
+          // Get pricing from the plan's pricing object
+          // First check for region-specific pricing
+          const regionPricing = selectedPlan?.pricing?.find((p: { targetRegion: string }) => p.targetRegion === userRegion.region);
           
-          // Format the price for display
-          const formattedPrice = currency === 'INR' ? `₹${price}` : `$${price}`;
+          // Determine currency from multiple sources in order of priority
+          const currency = regionPricing?.currency ||                       // 1. Region-specific pricing
+                         (selectedPlan?.pricing?.length > 0 ? selectedPlan.pricing[0].currency : null) || // 2. First pricing entry
+                         selectedPlan?.displayCurrency ||                   // 3. Display currency from server
+                         locationContext.currency ||                       // 4. Location context currency
+                         userRegion.currency ||                            // 5. Region currency
+                         'USD';                                            // 6. Default fallback
+                         
+          // Get price from appropriate source
+          const price = regionPricing ? parseFloat(regionPricing.price) :
+                       (selectedPlan?.pricing?.length > 0 ? parseFloat(selectedPlan.pricing[0].price) : 
+                       (selectedPlan?.displayPrice ? parseFloat(selectedPlan.displayPrice) : 0));
+          
+          // Format the price for display using the useRegion's formatCurrency function
+          const formattedPrice = formatCurrency(price, currency);
           
           // For new users, show a simpler confirmation
           const confirmed = window.confirm(
@@ -930,19 +995,36 @@ const UserSubscriptionPage: React.FC = () => {
   const pendingChange = pendingChangeData?.subscription;
   const pendingPlan = pendingChangeData?.pendingPlan;
 
+  // Fetch user invoices
+  const { data: userInvoices, isLoading: isInvoicesLoading } = useQuery({
+    queryKey: ['userInvoices'],
+    queryFn: async () => {
+      try {
+        const response = await PaymentService.getUserInvoices();
+        console.log("Fetched user invoices:", response);
+        return response;
+      } catch (error) {
+        console.error("Error fetching invoices:", error);
+        return [];
+      }
+    },
+    enabled: activeTab === 'invoices'
+  });
+
   return (
     <ErrorBoundary>
-      <DefaultLayout pageTitle="My Subscription" pageDescription="Manage your subscription and view your available features">
+      <DefaultLayout pageTitle="Subscription Management" pageDescription="View and manage your subscription details, features, and plans.">
         {isLoading ? (
           <div className="w-full h-64 flex items-center justify-center">
             <div className="animate-pulse">Loading subscription information...</div>
           </div>
         ) : (
-          <Tabs defaultValue={activeTab} onValueChange={setTab} className="space-y-6">
-            <TabsList className="grid w-full grid-cols-3">
+          <Tabs value={activeTab} onValueChange={setTab} className="space-y-6">
+            <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="current">{subscription ? 'Current Plan' : 'No Subscription'}</TabsTrigger>
               <TabsTrigger value="features">Features & Limits</TabsTrigger>
               <TabsTrigger value="plans">{subscription ? 'Available Plans' : 'Choose a Plan'}</TabsTrigger>
+              <TabsTrigger value="invoices">Invoices</TabsTrigger>
             </TabsList>
             
             {/* Current Plan Tab */}
@@ -1121,24 +1203,88 @@ const UserSubscriptionPage: React.FC = () => {
                   </CardFooter>
                 </Card>
               ) : (
-                              <Card>
-                <CardHeader>
-                  <CardTitle>No Active Subscription</CardTitle>
-                  <CardDescription>Choose a subscription plan to unlock premium features and maximize your experience.</CardDescription>
-                </CardHeader>
-                <CardContent className="flex justify-center py-8">
-                  <div className="text-center">
-                    <AlertCircle className="h-12 w-12 text-indigo-400 mx-auto mb-4" />
-                    <p className="text-muted-foreground mb-6">Get started with a subscription to access AI-powered resume building, ATS optimization, and more.</p>
-                    <Button 
-                      onClick={() => setTab('plans')}
-                      className="bg-indigo-600 hover:bg-indigo-700"
-                    >
-                      View Available Plans
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <Card className="border-2 border-primary/10">
+                    <CardHeader className="bg-primary/5">
+                      <CardTitle className="text-2xl flex items-center gap-2">
+                        <CreditCard className="h-6 w-6 text-primary" />
+                        No Active Subscription
+                      </CardTitle>
+                      <CardDescription>Choose a subscription plan to unlock premium features and maximize your experience.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="pt-6">
+                      <div className="flex flex-col items-center justify-center py-8 text-center">
+                        <Sparkles className="h-16 w-16 text-primary/60 mb-4" />
+                        <h3 className="text-xl font-semibold mb-2">Unlock Premium Features</h3>
+                        <p className="text-muted-foreground mb-6 max-w-md">
+                          Get started with a subscription to access AI-powered resume building, ATS optimization, and advanced career tools.
+                        </p>
+                        <Button 
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setTab('plans');
+                          }}
+                          className="bg-primary hover:bg-primary/90"
+                          size="lg"
+                        >
+                          View Available Plans
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  
+                  <Card className="border border-muted">
+                    <CardHeader>
+                      <CardTitle className="text-xl flex items-center gap-2">
+                        <Check className="h-5 w-5 text-green-600" />
+                        Benefits of Upgrading
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <ul className="space-y-3">
+                        <li className="flex items-start">
+                          <Check className="h-5 w-5 text-green-600 mr-2 mt-0.5 flex-shrink-0" />
+                          <div>
+                            <span className="font-medium">AI-powered resume optimization</span>
+                            <p className="text-sm text-muted-foreground">Get tailored suggestions to improve your resume's ATS compatibility</p>
+                          </div>
+                        </li>
+                        <li className="flex items-start">
+                          <Check className="h-5 w-5 text-green-600 mr-2 mt-0.5 flex-shrink-0" />
+                          <div>
+                            <span className="font-medium">Expanded content generation</span>
+                            <p className="text-sm text-muted-foreground">Create more high-quality resumes, cover letters, and applications</p>
+                          </div>
+                        </li>
+                        <li className="flex items-start">
+                          <Check className="h-5 w-5 text-green-600 mr-2 mt-0.5 flex-shrink-0" />
+                          <div>
+                            <span className="font-medium">Advanced customization</span>
+                            <p className="text-sm text-muted-foreground">Access premium templates and personalization options</p>
+                          </div>
+                        </li>
+                        <li className="flex items-start">
+                          <Check className="h-5 w-5 text-green-600 mr-2 mt-0.5 flex-shrink-0" />
+                          <div>
+                            <span className="font-medium">Priority support</span>
+                            <p className="text-sm text-muted-foreground">Get faster responses and dedicated assistance</p>
+                          </div>
+                        </li>
+                      </ul>
+                      <div className="mt-6 text-center">
+                        <Button 
+                          variant="outline" 
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setTab('plans');
+                          }}
+                        >
+                          Compare All Plans
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
               )}
             </TabsContent>
             
@@ -1196,7 +1342,15 @@ const UserSubscriptionPage: React.FC = () => {
                   ) : (
                     <div className="py-8 text-center">
                       <p className="text-muted-foreground">Subscribe to a plan to see available features.</p>
-                      <Button className="mt-4" onClick={() => setTab('plans')}>Browse Plans</Button>
+                      <Button 
+                        className="mt-4" 
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setTab('plans');
+                        }}
+                      >
+                        Browse Plans
+                      </Button>
                     </div>
                   )}
                 </CardContent>
@@ -1204,35 +1358,21 @@ const UserSubscriptionPage: React.FC = () => {
             </TabsContent>
             
             {/* Available Plans Tab */}
-            <TabsContent value="plans">
-              <div className="space-y-6">
+                          <TabsContent value="plans">
+              <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="text-sm text-muted-foreground">
-                    {userRegion.country ? (
-                      <>Showing prices for {userRegion.region === 'INDIA' ? 'India' : 'your region'} ({userRegion.country})</>
+                    {billingCountry ? (
+                      <>Showing prices based on your billing address: {billingRegion === 'INDIA' ? 'India' : billingCountry}</>
+                    ) : userRegion.country ? (
+                      <>Showing prices based on your location: {userRegion.region === 'INDIA' ? 'India' : userRegion.country}</>
                     ) : (
                       <>Showing global prices</>
                     )}
                   </div>
-                  
-                  <div className="flex items-center gap-2">
-                    <Globe className="h-4 w-4 text-muted-foreground" />
-                    <Select value={manualRegion} onValueChange={setManualRegion}>
-                      <SelectTrigger className="w-[180px]">
-                        <SelectValue placeholder="Select Region" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="GLOBAL">Global (USD)</SelectItem>
-                        <SelectItem value="INDIA">India (INR)</SelectItem>
-                        <SelectItem value="US">United States (USD)</SelectItem>
-                        <SelectItem value="UK">United Kingdom (USD)</SelectItem>
-                        <SelectItem value="CA">Canada (USD)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
                 </div>
                 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-5">
                   {plans
                     .filter((plan: SubscriptionPlan) => plan && plan.active)
                     .map((plan: SubscriptionPlan) => {
@@ -1243,60 +1383,80 @@ const UserSubscriptionPage: React.FC = () => {
                       const isUpgrade = subscription && plan && getPlanPrice(plan) > getPlanPrice(plans.find((p: SubscriptionPlan) => p && p.id === subscription.planId) || {} as SubscriptionPlan);
                       
                       return (
-                        <Card key={plan.id} className={`${isCurrentPlan ? 'border-primary border-2' : ''} ${isPendingPlan ? 'border-amber-500 border-2' : ''} ${plan.isFeatured ? 'shadow-md' : ''}`}>
+                        <Card key={plan.id} className={`flex flex-col h-full transition-all hover:shadow-lg ${isCurrentPlan ? 'border-primary border-2' : ''} ${isPendingPlan ? 'border-amber-500 border-2' : ''} ${plan.isFeatured ? 'shadow-md ring-1 ring-primary/20' : ''}`}>
                           <CardHeader className={`${isCurrentPlan ? 'bg-primary/5' : ''} ${isPendingPlan ? 'bg-amber-500/5' : ''} ${plan.isFeatured ? 'bg-muted/50' : ''}`}>
-                            {plan.isFeatured && (
-                              <Badge className="w-fit mb-2 bg-primary">Featured</Badge>
-                            )}
-                            {isPendingPlan && (
-                              <Badge className="w-fit mb-2 bg-amber-500">Scheduled</Badge>
-                            )}
-                            <CardTitle>{plan.name}</CardTitle>
-                            <CardDescription>{plan.description}</CardDescription>
+                            <div className="flex flex-wrap gap-2 mb-2">
+                              {plan.isFeatured && (
+                                <Badge className="bg-primary">Featured</Badge>
+                              )}
+                              {isPendingPlan && (
+                                <Badge className="bg-amber-500">Scheduled</Badge>
+                              )}
+                            </div>
+                            <CardTitle className="text-xl font-bold">{plan.name}</CardTitle>
+                            <CardDescription className="line-clamp-3 min-h-[60px]">{plan.description}</CardDescription>
                           </CardHeader>
-                          <CardContent className="pt-6">
-                            <div className="mb-6">
-                              <p className="text-3xl font-bold">
+                          <CardContent className="pt-4 flex-grow min-h-[360px]">
+                            <div className="mb-3 text-center">
+                              <p className="text-2xl font-bold">
                                 {getPriceDisplay(plan)}
                               </p>
                               <p className="text-sm text-muted-foreground">per {plan?.billingCycle ? plan.billingCycle.toLowerCase() : 'month'}</p>
                             </div>
                             
-                            <Separator className="my-4" />
+                            <Separator className="my-2" />
                             
-                            <div className="space-y-2">
+                            <div className="space-y-1.5">
                               {allFeaturesByPlan[plan.id] && allFeaturesByPlan[plan.id].length > 0 ? (
-                                allFeaturesByPlan[plan.id].map((feature: any, index: number) => (
-                                  <div key={index} className="flex items-start">
-                                    {feature.limitType === 'BOOLEAN' && !feature.isEnabled ? (
-                                      <X className="h-4 w-4 text-red-600 mr-2 mt-0.5" />
-                                    ) : (
-                                      <Check className="h-4 w-4 text-green-600 mr-2 mt-0.5" />
-                                    )}
-                                    <span className="text-sm">
-                                      {feature.featureName || feature.name || 'Unnamed Feature'}
-                                      {feature.limitType === 'COUNT' && feature.limitValue && (
-                                        <span className="text-sm text-muted-foreground ml-1">
-                                          ({feature.limitValue})
-                                        </span>
+                                <>
+                                  {allFeaturesByPlan[plan.id].slice(0, 10).map((feature: any, index: number) => (
+                                    <div key={index} className="flex items-start">
+                                      {feature.limitType === 'BOOLEAN' && !feature.isEnabled ? (
+                                        <X className="h-4 w-4 text-red-600 mr-2 mt-0.5 flex-shrink-0" />
+                                      ) : (
+                                        <Check className="h-4 w-4 text-green-600 mr-2 mt-0.5 flex-shrink-0" />
                                       )}
-                                      {feature.limitType === 'UNLIMITED' && (
-                                        <span className="text-sm text-muted-foreground ml-1">
-                                          (Unlimited)
-                                        </span>
-                                      )}
-                                    </span>
-                                  </div>
-                                ))
+                                      <span className="text-sm">
+                                        {feature.featureName || feature.name || 'Unnamed Feature'}
+                                        {feature.limitType === 'COUNT' && feature.limitValue && (
+                                          <span className="text-xs text-muted-foreground ml-1">
+                                            ({feature.limitValue})
+                                          </span>
+                                        )}
+                                        {feature.limitType === 'UNLIMITED' && (
+                                          <span className="text-xs text-muted-foreground ml-1">
+                                            (Unlimited)
+                                          </span>
+                                        )}
+                                      </span>
+                                    </div>
+                                  ))}
+                                  {allFeaturesByPlan[plan.id].length > 10 && (
+                                                                          <div className="mt-1 text-center">
+                                      <Button 
+                                        variant="link" 
+                                        size="sm" 
+                                        className="text-xs h-6 p-0"
+                                                                                  onClick={(e) => {
+                                            e.preventDefault();
+                                            setTab('features');
+                                          }}
+                                      >
+                                        +{allFeaturesByPlan[plan.id].length - 10} more features
+                                      </Button>
+                                    </div>
+                                  )}
+                                </>
                               ) : (
                                 <div className="text-sm text-muted-foreground">No features available for this plan. (Plan ID: {plan.id})</div>
                               )}
                             </div>
                           </CardContent>
-                          <CardFooter>
+                          <CardFooter className="mt-auto pt-4">
                             <Button 
-                              className="w-full" 
-                              variant={isCurrentPlan ? "outline" : isPendingPlan ? "secondary" : "default"}
+                              className="w-full transition-all font-medium"
+                              size="sm"
+                              variant={isCurrentPlan ? "outline" : isPendingPlan ? "secondary" : plan.isFeatured ? "default" : "outline"}
                               onClick={() => {
                                 if (!isCurrentPlan && !isPendingPlan) {
                                   // For new users with no subscription, always use handleUpgrade
@@ -1314,7 +1474,7 @@ const UserSubscriptionPage: React.FC = () => {
                               {isCurrentPlan 
                                 ? 'Current Plan' 
                                 : isPendingPlan
-                                  ? `Scheduled for ${pendingChange?.pendingPlanChangeDate ? formatDate(pendingChange.pendingPlanChangeDate) : 'Later'}`
+                                  ? `Scheduled`
                                   : upgradeMutation.isPending || downgradeMutation.isPending
                                     ? 'Processing...' 
                                     : plan.isFreemium 
@@ -1332,6 +1492,30 @@ const UserSubscriptionPage: React.FC = () => {
                     })}
                 </div>
               </div>
+            </TabsContent>
+            
+            {/* Invoices Tab */}
+            <TabsContent value="invoices">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileText className="h-5 w-5" />
+                    Billing History
+                  </CardTitle>
+                  <CardDescription>
+                    View and download your invoices and payment history
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {subscriptionData ? (
+                    <SubscriptionInvoices subscriptionId={subscriptionData.id.toString()} />
+                  ) : (
+                    <div className="text-center py-10 text-muted-foreground">
+                      <p>No subscription found. Subscribe to a plan to view billing history.</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             </TabsContent>
           </Tabs>
         )}

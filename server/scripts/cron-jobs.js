@@ -71,6 +71,19 @@ try {
     }
   });
 
+  // Transaction currency validation - Run daily at 3 AM
+  scheduleJob('0 3 * * *', async () => {
+    try {
+      log('Running transaction currency validation job');
+      // Import dynamically to ensure we get the latest version
+      const { validateTransactionCurrencies } = await import('../scripts/validate-transaction-currencies.js');
+      await validateTransactionCurrencies();
+      log('Completed transaction currency validation job');
+    } catch (error) {
+      log(`Error in transaction currency validation job: ${error.message}`);
+    }
+  });
+
   // Add more scheduled jobs as needed
   
   log('All cron jobs scheduled successfully');

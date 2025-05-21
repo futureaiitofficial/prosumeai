@@ -259,11 +259,12 @@ export default function ContactPage() {
                     </svg>
                   </div>
                   <div>
-                    <h3 className="text-lg font-semibold text-slate-900 mb-1">Location</h3>
-                    <p className="text-slate-700 font-medium">Futureaiit Consulting Pvt.Ltd</p>
-                    <p className="text-slate-600">1234 Innovation Drive</p>
-                    <p className="text-slate-600">San Francisco, CA 94107</p>
-                    <p className="text-slate-500 text-sm mt-2 italic">{branding.appName} is a product of Futureaiit Consulting Pvt.Ltd</p>
+                    <h3 className="text-lg font-semibold text-slate-900 mb-1">CORPORATE OFFICE</h3>
+                    <p className="text-slate-700 font-medium">Futureaiit Consulting Pvt. Ltd.</p>
+                    <p className="text-slate-600">UNIT 405411 BIZNESS SQR</p>
+                    <p className="text-slate-600">Madhapur, Hyderabad, TG
+                    500081, IN</p>
+                    <p className="text-slate-500 text-sm mt-2 italic">{branding.appName} is a product of Futureaiit Consulting Pvt. Ltd.</p>
                   </div>
                 </div>
               </motion.div>

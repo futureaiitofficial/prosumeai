@@ -24,6 +24,10 @@ import net from 'net';
 import { initializeSessionConfig } from './middleware/session-security';
 import { setupAuth } from './config/auth';
 import { applySessionCookiePatch } from './utils/cookie-patch';
+import { registerPaymentRoutes } from './src/routes/payment-routes';
+import { registerSubscriptionRoutes } from './src/routes/subscription-routes';
+import { registerTaxRoutes } from './src/routes/tax-routes';
+import { registerTaxAdminRoutes } from './src/routes/tax-admin-routes';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);

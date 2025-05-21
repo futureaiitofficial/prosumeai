@@ -15,6 +15,8 @@ import { registerJobApplicationRoutes } from "./job-applications-routes";
 import { registerSubscriptionRoutes } from "./subscription-routes";
 import { registerUserRoutes } from "./user-routes";
 import { registerPaymentRoutes } from "./payment-routes";
+import { registerTaxRoutes } from "./tax-routes";
+import { registerTaxAdminRoutes } from "./tax-admin-routes";
 import { 
   sessionTimeoutMiddleware, 
   regenerateSessionAfterLogin, 
@@ -94,6 +96,8 @@ export function registerRoutes(app: express.Express): Server {
   registerSubscriptionRoutes(app);
   registerPaymentRoutes(app);
   registerUserRoutes(app);
+  registerTaxRoutes(app);
+  registerTaxAdminRoutes(app);
 
   // Add debug cookie endpoint (available in all environments)
   app.get('/api/debug/cookies', (req, res) => {
