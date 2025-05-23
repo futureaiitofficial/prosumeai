@@ -9,7 +9,8 @@ import {
   Code, 
   FileText, 
   GripVertical,
-  RotateCcw
+  RotateCcw,
+  Book
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -20,6 +21,7 @@ const sectionIcons = {
   education: <GraduationCap className="h-5 w-5" />,
   skills: <FileText className="h-5 w-5" />,
   projects: <Code className="h-5 w-5" />,
+  publications: <Book className="h-5 w-5" />,
   certifications: <Award className="h-5 w-5" />
 };
 
@@ -30,6 +32,7 @@ const sectionNames = {
   education: "Education",
   skills: "Skills",
   projects: "Projects",
+  publications: "Publications",
   certifications: "Certifications"
 };
 
@@ -40,6 +43,7 @@ const defaultSectionOrder = [
   "education", 
   "skills", 
   "projects", 
+  "publications",
   "certifications"
 ];
 

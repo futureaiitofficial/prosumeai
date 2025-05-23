@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import ResetPasswordForm from "@/components/auth/reset-password-form";
@@ -9,47 +9,112 @@ import { AlertTriangle } from "lucide-react";
 import { Link } from "wouter";
 
 function useSearch() {
-  const [location] = useLocation();
-  return location.split("?")[1] || "";
+  // Get full URL from window.location instead of wouter's location
+  // This ensures we get the complete URL with query parameters
+  return window.location.search.substring(1);
 }
 
 export default function ResetPasswordPage() {
+  // These hooks MUST be called in every render path
   const { user, isLoading } = useAuth();
   const [, setLocation] = useLocation();
   const search = useSearch();
-  console.log("Search query:", search); // Debug: full search string
-  const params = new URLSearchParams(search);
-  const token = params.get("token");
-  const userId = params.get("userId");
-  console.log("Token:", token); // Debug: token value
-  console.log("UserId:", userId); // Debug: userId value
   
-  // Redirect to dashboard if already logged in - but not if password expired
+  // Parse URL parameters
+  const [tokenParams, setTokenParams] = useState({ 
+    token: null as string | null, 
+    userId: null as string | null,
+    validRequest: false 
+  });
+  
+  // Parse URL params - do this in useEffect to avoid hook ordering issues
   useEffect(() => {
+    console.log("Full URL:", window.location.href);
+    console.log("Search query:", search);
+    console.log("Raw search part:", window.location.search);
+    
+    const params = new URLSearchParams(search);
+    const token = params.get("token");
+    const userId = params.get("userId");
+    
+         // Check if there's a # fragment in the URL that might be affecting parameter parsing
+     if (window.location.hash && !token) {
+       console.log("Hash fragment detected, trying to extract params from it");
+       // Try to extract parameters from hash fragment if present
+       const hashParams = window.location.hash.substring(1).split('&').reduce((acc, item) => {
+         const [key, value] = item.split('=');
+         if (key && value) acc[key] = value;
+         return acc;
+       }, {} as Record<string, string>);
+       
+       console.log("Params from hash:", hashParams);
+     }
+     
+     // If we still don't have parameters, try a more direct approach
+     let finalToken = token;
+     let finalUserId = userId;
+     
+     if (!finalToken || !finalUserId) {
+       // Last resort: try to extract directly from URL
+       const url = window.location.href;
+       console.log("Trying direct URL parsing as last resort");
+       
+       const tokenMatch = url.match(/[?&]token=([^&#]*)/);
+       const userIdMatch = url.match(/[?&]userId=([^&#]*)/);
+       
+       if (tokenMatch && tokenMatch[1]) finalToken = decodeURIComponent(tokenMatch[1]);
+       if (userIdMatch && userIdMatch[1]) finalUserId = decodeURIComponent(userIdMatch[1]);
+       
+       console.log("Direct URL parsing results - Token:", finalToken, "UserId:", finalUserId);
+     }
+     
+          console.log("Final Token:", finalToken);
+     console.log("Final UserId:", finalUserId);
+     
+     // Validate request
+     const validRequest = !!finalToken && !!finalUserId;
+     console.log("Valid reset request:", validRequest);
+     
+     setTokenParams({ token: finalToken, userId: finalUserId, validRequest });
+    
+         // Debug token validation if we have valid params
+     if (finalToken && finalUserId) {
+       console.log(`Reset attempt with token: ${finalToken.substring(0, 10)}... and userId: ${finalUserId}`);
+       
+       // Call debug endpoint to verify the token
+       fetch(`/api/debug/verify-token?token=${encodeURIComponent(finalToken)}&userId=${encodeURIComponent(finalUserId)}`)
+         .then(response => response.json())
+         .then(data => {
+           console.log('Token validation debug info:', data);
+         })
+         .catch(error => {
+           console.error('Error validating token:', error);
+         });
+     }
+  }, [search]);
+  
+  // Handle auth redirects - keep this separate from the token validation
+  useEffect(() => {
+    // Redirect to dashboard if already logged in - but not if password expired
     if (!isLoading && user && !(user as any).passwordExpired) {
       setLocation("/dashboard");
     }
+    
+    // If user is logged in with expired password, redirect to change password page
+    if (user && (user as any).passwordExpired) {
+      setLocation("/change-password");
+    }
   }, [user, isLoading, setLocation]);
-  
-  // Don't render anything until we check auth status
+
+  // Wait for loading
   if (isLoading) {
     return null;
   }
   
-  // If user is logged in with expired password, redirect to change password page
-  if (user && (user as any).passwordExpired) {
-    setLocation("/change-password");
-    return null;
-  }
-  
-  // Only redirect if user is authenticated and password is not expired
+  // Skip rendering if authenticated with unexpired password
   if (user && !(user as any).passwordExpired) {
     return null;
   }
-  
-  // Check if token and userId are provided
-  const validResetRequest = token && userId;
-  console.log("Valid reset request:", validResetRequest); // Debug: validation result
   
   return (
     <div className="min-h-screen bg-gradient-to-b from-indigo-50 to-white flex">
@@ -67,8 +132,8 @@ export default function ResetPasswordPage() {
         {/* Right Side - Form */}
         <div className="w-full md:w-1/2 py-8 px-4 md:px-8 flex items-center">
           <div className="w-full max-w-md mx-auto bg-white p-6 md:p-8 rounded-lg shadow-sm border border-slate-100">
-            {validResetRequest ? (
-              <ResetPasswordForm token={token!} userId={userId!} />
+            {tokenParams.validRequest && tokenParams.token && tokenParams.userId ? (
+              <ResetPasswordForm token={tokenParams.token} userId={tokenParams.userId} />
             ) : (
               <div className="space-y-4">
                 <h1 className="text-2xl font-bold text-slate-900 text-center">Invalid Reset Link</h1>
@@ -76,7 +141,13 @@ export default function ResetPasswordPage() {
                   <AlertTriangle className="h-4 w-4" />
                   <AlertTitle className="text-sm font-medium">Invalid Request</AlertTitle>
                   <AlertDescription className="text-xs">
-                    This password reset link is invalid or has expired. Please request a new password reset link.
+                    This password reset link is invalid or has expired. This can happen if:
+                    <ul className="list-disc pl-4 mt-2">
+                      <li>You've already reset your password</li>
+                      <li>You've requested multiple reset emails (only the latest is valid)</li>
+                      <li>The link has expired (valid for 24 hours)</li>
+                    </ul>
+                    Please request a new password reset link.
                   </AlertDescription>
                 </Alert>
                 <div className="flex justify-center mt-4">

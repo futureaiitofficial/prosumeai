@@ -5,6 +5,7 @@ type SidebarContextType = {
   isMobileOpen: boolean;
   toggleCollapsed: () => void;
   toggleMobileOpen: () => void;
+  closeMobileSidebar: () => void;
 };
 
 export const SidebarContext = createContext<SidebarContextType | null>(null);
@@ -21,6 +22,11 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
         setIsCollapsed(true);
       } else if (window.innerWidth >= 1280) {
         setIsCollapsed(false);
+      }
+      
+      // Close mobile sidebar when resizing to desktop
+      if (window.innerWidth >= 768) {
+        setIsMobileOpen(false);
       }
     };
 
@@ -41,6 +47,10 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
   const toggleMobileOpen = () => {
     setIsMobileOpen(!isMobileOpen);
   };
+  
+  const closeMobileSidebar = () => {
+    setIsMobileOpen(false);
+  };
 
   return (
     <SidebarContext.Provider
@@ -48,7 +58,8 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
         isCollapsed,
         isMobileOpen,
         toggleCollapsed,
-        toggleMobileOpen
+        toggleMobileOpen,
+        closeMobileSidebar
       }}
     >
       {children}

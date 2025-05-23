@@ -75,15 +75,52 @@ export default function ResetPasswordForm({ token, userId }: ResetPasswordFormPr
     setPasswordErrors([]);
 
     try {
-      const res = await apiRequest("POST", "/api/reset-password", {
+      console.log(`Submitting reset request with token: ${token.substring(0, 10)}... and userId: ${userId}`);
+      
+      // Add a delay to ensure we can see the loading state
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Log the exact data we're sending to the server
+      const requestData = {
         token,
-        userId,
+        userId, 
         newPassword: data.newPassword,
+      };
+      
+      // Additional logging to inspect token format
+      console.log('Token details:', {
+        token: token,
+        tokenType: typeof token,
+        tokenLength: token?.length,
+        tokenPrefix: token?.substring(0, 10) + '...'
       });
       
-      const result = await res.json();
+      console.log('UserId details:', {
+        userId: userId,
+        userIdType: typeof userId,
+      });
       
-      if (res.ok) {
+      console.log('Sending reset password request with data:', {
+        ...requestData,
+        newPassword: '[REDACTED]' // Don't log the actual password
+      });
+      
+      // Use fetch directly for better debug info
+      const response = await fetch('/api/reset-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify(requestData),
+      });
+      
+      console.log('Reset password response status:', response.status);
+      
+      const result = await response.json();
+      console.log('Reset password response data:', result);
+      
+      if (response.ok) {
         setSuccess(true);
         form.reset();
       } else {
@@ -95,6 +132,7 @@ export default function ResetPasswordForm({ token, userId }: ResetPasswordFormPr
         }
       }
     } catch (error: any) {
+      console.error('Reset password error:', error);
       setError(error.message || "Failed to reset password");
     } finally {
       setIsSubmitting(false);

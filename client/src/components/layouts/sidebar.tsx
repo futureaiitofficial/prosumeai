@@ -18,6 +18,7 @@ import {
 import { useAuth } from "@/hooks/use-auth";
 import { useSidebar } from "@/hooks/use-sidebar";
 import { Button } from "@/components/ui/button";
+import { motion } from "framer-motion";
 
 export default function Sidebar() {
   const [location] = useLocation();
@@ -64,44 +65,75 @@ export default function Sidebar() {
   return (
     <aside 
       className={cn(
-        "fixed h-screen border-r border-slate-200 bg-white transition-all duration-300 ease-in-out dark:border-slate-800 dark:bg-slate-900 z-40 hidden md:block",
-        isCollapsed ? "w-16" : "w-64"
+        "fixed top-16 left-0 h-[calc(100vh-4rem)] bg-white/80 backdrop-blur-md shadow-lg transition-all duration-300 ease-in-out dark:bg-slate-900/90 z-30 hidden md:block",
+        isCollapsed ? "w-20" : "w-64"
       )}
     >
       <div className="flex h-full flex-col">
-        <div className="flex justify-end p-2">
+        {/* Toggle Button Header */}
+        <div className={cn(
+          "flex items-center h-12 px-4 border-b border-slate-100 dark:border-slate-800",
+          isCollapsed ? "justify-center" : "justify-end"
+        )}>
           <Button 
             variant="ghost" 
             size="icon" 
             onClick={toggleCollapsed}
-            className="h-6 w-6 rounded-full"
+            className="h-8 w-8 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800"
           >
             {isCollapsed ? (
-              <ChevronRight className="h-4 w-4" />
+              <ChevronRight className="h-4 w-4 text-slate-600 dark:text-slate-400" />
             ) : (
-              <ChevronLeft className="h-4 w-4" />
+              <ChevronLeft className="h-4 w-4 text-slate-600 dark:text-slate-400" />
             )}
           </Button>
         </div>
-        <div className="flex-1 overflow-auto py-2">
-          <nav className="grid items-start px-2 text-sm font-medium">
+
+        {/* Navigation Links */}
+        <div className="flex-1 overflow-auto py-6">
+          <nav className="grid gap-1 px-3">
             {/* Regular navigation links */}
             {links.map((link) => {
               const Icon = link.icon;
+              const isActive = location === link.href;
+              
               return (
                 <Link href={link.href} key={link.href}>
                   <div
                     className={cn(
-                      "flex items-center rounded-lg px-3 py-2 transition-all cursor-pointer",
-                      location === link.href
-                        ? "bg-slate-100 text-primary-900 dark:bg-slate-800 dark:text-primary-50"
-                        : "text-slate-900 hover:text-primary-900 dark:text-slate-50 dark:hover:text-primary-400",
+                      "flex items-center rounded-lg px-3 py-2.5 transition-all cursor-pointer relative group",
+                      isActive
+                        ? "bg-gradient-to-r from-indigo-50 to-purple-50 text-indigo-700 dark:from-indigo-900/30 dark:to-purple-900/30 dark:text-indigo-300"
+                        : "text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800/50",
                       isCollapsed ? "justify-center" : "gap-3"
                     )}
                     title={isCollapsed ? link.label : ""}
                   >
-                    <Icon className="h-4 w-4" />
-                    {!isCollapsed && <span>{link.label}</span>}
+                    <div className={cn(
+                      "flex items-center justify-center",
+                      isActive ? "text-indigo-600 dark:text-indigo-400" : "text-slate-500 dark:text-slate-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-400"
+                    )}>
+                      <Icon className="h-5 w-5" />
+                    </div>
+                    
+                    {!isCollapsed && (
+                      <span className={cn(
+                        "font-medium text-sm",
+                        isActive ? "text-indigo-700 dark:text-indigo-300" : "text-slate-700 dark:text-slate-300"
+                      )}>
+                        {link.label}
+                      </span>
+                    )}
+                    
+                    {isActive && (
+                      <motion.div 
+                        className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-600 dark:bg-indigo-400 rounded-r-full"
+                        layoutId="sidebar-indicator"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ duration: 0.2 }}
+                      />
+                    )}
                   </div>
                 </Link>
               );
@@ -110,27 +142,57 @@ export default function Sidebar() {
             {/* Admin links (only shown if user is admin) */}
             {adminLinks.length > 0 && (
               <>
-                {!isCollapsed && (
-                  <div className="mt-4 mb-2 px-3 text-xs font-semibold text-slate-500">
-                    Admin
-                  </div>
-                )}
+                <div className={cn(
+                  "mt-6 mb-2",
+                  isCollapsed ? "border-t border-slate-200 dark:border-slate-700 pt-4" : ""
+                )}>
+                  {!isCollapsed && (
+                    <div className="px-3 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                      Admin
+                    </div>
+                  )}
+                </div>
                 {adminLinks.map((link) => {
                   const Icon = link.icon;
+                  const isActive = location.startsWith(link.href);
+                  
                   return (
                     <Link href={link.href} key={link.href}>
                       <div
                         className={cn(
-                          "flex items-center rounded-lg px-3 py-2 transition-all cursor-pointer",
-                          location.startsWith(link.href)
-                            ? "bg-slate-100 text-primary-900 dark:bg-slate-800 dark:text-primary-50"
-                            : "text-slate-900 hover:text-primary-900 dark:text-slate-50 dark:hover:text-primary-400",
+                          "flex items-center rounded-lg px-3 py-2.5 transition-all cursor-pointer relative group",
+                          isActive
+                            ? "bg-gradient-to-r from-indigo-50 to-purple-50 text-indigo-700 dark:from-indigo-900/30 dark:to-purple-900/30 dark:text-indigo-300"
+                            : "text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800/50",
                           isCollapsed ? "justify-center" : "gap-3"
                         )}
                         title={isCollapsed ? link.label : ""}
                       >
-                        <Icon className="h-4 w-4" />
-                        {!isCollapsed && <span>{link.label}</span>}
+                        <div className={cn(
+                          "flex items-center justify-center",
+                          isActive ? "text-indigo-600 dark:text-indigo-400" : "text-slate-500 dark:text-slate-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-400"
+                        )}>
+                          <Icon className="h-5 w-5" />
+                        </div>
+                        
+                        {!isCollapsed && (
+                          <span className={cn(
+                            "font-medium text-sm",
+                            isActive ? "text-indigo-700 dark:text-indigo-300" : "text-slate-700 dark:text-slate-300"
+                          )}>
+                            {link.label}
+                          </span>
+                        )}
+                        
+                        {isActive && (
+                          <motion.div 
+                            className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-600 dark:bg-indigo-400 rounded-r-full"
+                            layoutId="sidebar-indicator-admin"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            transition={{ duration: 0.2 }}
+                          />
+                        )}
                       </div>
                     </Link>
                   );
@@ -139,12 +201,14 @@ export default function Sidebar() {
             )}
           </nav>
         </div>
-        <div className="mt-auto border-t border-slate-200 p-4 dark:border-slate-800">
+
+        {/* Logout button */}
+        <div className="mt-auto border-t border-slate-100 dark:border-slate-800 p-4">
           <button
             onClick={handleLogout}
             className={cn(
-              "flex items-center text-sm text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-50",
-              isCollapsed ? "justify-center w-full" : "w-full gap-3"
+              "flex items-center rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800/50 transition-colors w-full",
+              isCollapsed ? "justify-center" : "gap-3"
             )}
             title={isCollapsed ? "Logout" : ""}
           >

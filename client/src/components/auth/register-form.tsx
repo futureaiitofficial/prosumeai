@@ -187,13 +187,25 @@ export default function RegisterForm() {
     
     // Register the user
     registerMutation.mutate(processedData, {
-      onSuccess: () => {
-        // After successful registration, redirect to dashboard or specified redirect URL
-        if (redirectUrl) {
-          window.location.href = redirectUrl;
-        } else {
-          window.location.href = '/dashboard';
+      onSuccess: (userData) => {
+        // Show email verification message
+        if (window.showToast) {
+          window.showToast({
+            title: "Account Created Successfully",
+            description: "Please check your email to verify your account.",
+            variant: "default",
+          });
         }
+        
+        // After successful registration, redirect to dashboard or specified redirect URL
+        // with a slight delay to allow the user to see the toast message
+        setTimeout(() => {
+          if (redirectUrl) {
+            window.location.href = redirectUrl;
+          } else {
+            window.location.href = '/dashboard';
+          }
+        }, 1500);
       },
       onError: () => {
         setIsSubmitting(false);

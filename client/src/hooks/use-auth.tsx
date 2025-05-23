@@ -242,15 +242,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       queryClient.setQueryData(["/api/user"], userData);
       toast({
         title: "Registration successful",
-        description: `Welcome to ${userData.username}!`,
+        description: "Please check your email to verify your account.",
       });
-      // Redirect based on user role or URL parameters
-      if (userData.isAdmin) {
-        setLocation("/admin/dashboard");
-      } else {
-        // Redirect to dashboard with showSubscription parameter for new users
-        setLocation("/dashboard?showSubscription=true");
-      }
+      // Redirect to email verification page
+      setLocation("/verify-email");
     },
     onError: (error: Error) => {
       toast({

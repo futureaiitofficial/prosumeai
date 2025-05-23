@@ -8,15 +8,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-
+import { User, CreditCard, Shield, Loader2, Check, CheckCircle } from "lucide-react";
 
 import BillingDetailsForm from "@/components/checkout/billing-details-form";
-import { Loader2, CreditCard } from "lucide-react";
 import { PaymentService } from "@/services/payment-service";
 import type { BillingDetails } from "@/services/payment-service";
+import { cn } from "@/lib/utils";
 
 // List of countries for billing information display
 interface CountryOption {
@@ -142,125 +143,219 @@ export default function Profile() {
 
   return (
     <DefaultLayout pageTitle="Profile" pageDescription="Manage your personal information and account settings">
-      <div className="grid gap-6">
-        <Card>
-          <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-            <Avatar className="h-20 w-20">
-              <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${user?.username}`} alt={user?.username} />
-              <AvatarFallback>{user?.username?.substring(0, 2).toUpperCase()}</AvatarFallback>
-            </Avatar>
-            <div>
-              <CardTitle>{user?.fullName || user?.username}</CardTitle>
-              <CardDescription>{user?.email}</CardDescription>
+      <div className="grid gap-4 md:gap-6">
+        {/* Profile Header Card - Improved Mobile Layout */}
+        <Card className="overflow-hidden">
+          <CardHeader className="bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20">
+            <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4">
+              <Avatar className="h-16 w-16 sm:h-20 sm:w-20 ring-4 ring-white dark:ring-slate-800 shadow-lg">
+                <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${user?.username}`} alt={user?.username} />
+                <AvatarFallback className="bg-gradient-to-br from-indigo-500 to-purple-600 text-white font-semibold text-lg">
+                  {user?.username?.substring(0, 2).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              <div className="text-center sm:text-left">
+                <CardTitle className="text-xl font-bold">{user?.fullName || user?.username}</CardTitle>
+                <div className="flex items-center justify-center sm:justify-start gap-2 mt-1">
+                  <CardDescription className="text-base">{user?.email}</CardDescription>
+                  {user?.emailVerified && (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className="cursor-help">
+                            <CheckCircle className="h-4 w-4 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-400 transition-colors" />
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Email verified</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
+                </div>
+              </div>
             </div>
           </CardHeader>
         </Card>
 
+        {/* Modern Tab Interface */}
         <Tabs defaultValue={defaultTab} className="w-full" onValueChange={(value) => {
           // Update URL when tab changes
           const url = new URL(window.location.href);
           url.searchParams.set('tab', value);
           window.history.pushState({}, '', url.toString());
         }}>
-          <TabsList className="grid w-full grid-cols-3 mb-4">
-            <TabsTrigger value="personal">Personal Information</TabsTrigger>
-            <TabsTrigger value="billing">Billing Information</TabsTrigger>
-            <TabsTrigger value="security">Security</TabsTrigger>
-          </TabsList>
+          {/* Mobile-First Tab Navigation */}
+          <div className="mb-6">
+            <TabsList className="grid w-full grid-cols-1 sm:grid-cols-3 h-auto p-1 bg-slate-100 dark:bg-slate-800/50 rounded-xl">
+              <TabsTrigger 
+                value="personal" 
+                className={cn(
+                  "flex items-center justify-center gap-2 py-3 px-4 text-sm font-medium rounded-lg transition-all",
+                  "data-[state=active]:bg-white data-[state=active]:text-indigo-700 data-[state=active]:shadow-sm",
+                  "dark:data-[state=active]:bg-slate-900 dark:data-[state=active]:text-indigo-300",
+                  "hover:bg-white/50 dark:hover:bg-slate-800",
+                  "mb-1 sm:mb-0"
+                )}
+              >
+                <User className="h-4 w-4" />
+                <span className="hidden xs:inline">Personal</span>
+                <span className="xs:hidden">Info</span>
+              </TabsTrigger>
+              <TabsTrigger 
+                value="billing"
+                className={cn(
+                  "flex items-center justify-center gap-2 py-3 px-4 text-sm font-medium rounded-lg transition-all",
+                  "data-[state=active]:bg-white data-[state=active]:text-indigo-700 data-[state=active]:shadow-sm",
+                  "dark:data-[state=active]:bg-slate-900 dark:data-[state=active]:text-indigo-300",
+                  "hover:bg-white/50 dark:hover:bg-slate-800",
+                  "mb-1 sm:mb-0"
+                )}
+              >
+                <CreditCard className="h-4 w-4" />
+                <span className="hidden xs:inline">Billing</span>
+                <span className="xs:hidden">Bills</span>
+              </TabsTrigger>
+              <TabsTrigger 
+                value="security"
+                className={cn(
+                  "flex items-center justify-center gap-2 py-3 px-4 text-sm font-medium rounded-lg transition-all",
+                  "data-[state=active]:bg-white data-[state=active]:text-indigo-700 data-[state=active]:shadow-sm",
+                  "dark:data-[state=active]:bg-slate-900 dark:data-[state=active]:text-indigo-300",
+                  "hover:bg-white/50 dark:hover:bg-slate-800"
+                )}
+              >
+                <Shield className="h-4 w-4" />
+                <span className="hidden xs:inline">Security</span>
+                <span className="xs:hidden">Secure</span>
+              </TabsTrigger>
+            </TabsList>
+          </div>
           
-          <TabsContent value="personal">
-            <Card>
+          <TabsContent value="personal" className="mt-0">
+            <Card className="border-none shadow-lg">
               <form onSubmit={handleSubmit}>
-                <CardHeader>
-                  <CardTitle>Personal Information</CardTitle>
+                <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/10 dark:to-indigo-900/10 rounded-t-lg">
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <User className="h-5 w-5 text-indigo-600" />
+                    Personal Information
+                  </CardTitle>
                   <CardDescription>
-                    Update your personal details
+                    Update your personal details and contact information
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor="fullName">Full Name</Label>
-                    <Input
-                      id="fullName"
-                      name="fullName"
-                      value={profileData.fullName}
-                      onChange={handleChange}
-                      placeholder="Your full name"
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="email">Email</Label>
-                    <Input
-                      id="email"
-                      name="email"
-                      type="email"
-                      value={profileData.email}
-                      onChange={handleChange}
-                      disabled
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Email cannot be changed
-                    </p>
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="username">Username</Label>
-                    <Input
-                      id="username"
-                      name="username"
-                      value={profileData.username}
-                      onChange={handleChange}
-                      disabled
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Username cannot be changed
-                    </p>
+                <CardContent className="space-y-6 p-4 md:p-6">
+                  <div className="grid gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="fullName" className="text-sm font-medium">Full Name</Label>
+                      <Input
+                        id="fullName"
+                        name="fullName"
+                        value={profileData.fullName}
+                        onChange={handleChange}
+                        placeholder="Your full name"
+                        className="h-11 rounded-lg border-slate-200 focus:border-indigo-500 focus:ring-indigo-500"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="email" className="text-sm font-medium">Email</Label>
+                      <div className="relative">
+                        <Input
+                          id="email"
+                          name="email"
+                          type="email"
+                          value={profileData.email}
+                          onChange={handleChange}
+                          disabled
+                          className="h-11 rounded-lg bg-slate-50 dark:bg-slate-800/50 pr-10"
+                        />
+                        {user?.emailVerified && (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                                  <Check className="h-4 w-4 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-400 transition-colors" />
+                                </div>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Email verified</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        Email cannot be changed for security reasons
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="username" className="text-sm font-medium">Username</Label>
+                      <Input
+                        id="username"
+                        name="username"
+                        value={profileData.username}
+                        onChange={handleChange}
+                        disabled
+                        className="h-11 rounded-lg bg-slate-50 dark:bg-slate-800/50"
+                      />
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        Username cannot be changed
+                      </p>
+                    </div>
                   </div>
                 </CardContent>
-                <CardFooter>
+                <CardFooter className="bg-slate-50 dark:bg-slate-800/20 rounded-b-lg p-4 md:p-6">
                   <Button
                     type="submit"
                     disabled={updateProfileMutation.isPending}
+                    className="w-full sm:w-auto bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white shadow-md"
                   >
-                    {updateProfileMutation.isPending ? "Saving..." : "Save Changes"}
+                    {updateProfileMutation.isPending ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      "Save Changes"
+                    )}
                   </Button>
                 </CardFooter>
               </form>
             </Card>
           </TabsContent>
           
-          <TabsContent value="billing">
-            <Card className="border-primary/20 shadow-md">
-              <CardHeader className="bg-primary/5">
-                <CardTitle className="flex items-center">
-                  <CreditCard className="h-5 w-5 mr-2 text-primary" />
+          <TabsContent value="billing" className="mt-0">
+            <Card className="border-none shadow-lg">
+              <CardHeader className="bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-900/10 dark:to-teal-900/10 rounded-t-lg">
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <CreditCard className="h-5 w-5 text-emerald-600" />
                   Billing Information
                 </CardTitle>
                 <CardDescription>
                   Manage your billing details for invoices and subscriptions
                 </CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-4 md:p-6">
                 {billingDetailsQuery.isLoading ? (
-                  <div className="flex items-center justify-center py-10">
-                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                  <div className="flex items-center justify-center py-12">
+                    <div className="text-center">
+                      <Loader2 className="h-8 w-8 animate-spin text-indigo-600 mx-auto mb-4" />
+                      <p className="text-sm text-slate-500">Loading billing information...</p>
+                    </div>
                   </div>
                 ) : editingBilling ? (
                   <BillingDetailsForm
                     existingDetails={billingDetailsQuery.data || null}
                     onDetailsSubmitted={(details) => {
                       console.log('Billing details updated, refreshing UI');
-                      // Update the billing details in the cache
                       queryClient.setQueryData(['billingDetails'], details);
-                      // Also invalidate the query to ensure a fresh fetch
                       queryClient.invalidateQueries({ queryKey: ['billingDetails'] });
-                      // Force a refetch to get fresh data
                       billingDetailsQuery.refetch().then(() => {
                         console.log('Billing details refetched successfully');
                       }).catch(err => {
                         console.error('Error refetching billing details:', err);
                       });
                       
-                      // Exit edit mode
                       setEditingBilling(false);
                       
                       toast({
@@ -273,13 +368,12 @@ export default function Profile() {
                 ) : (
                   <div className="space-y-6">
                     {billingDetailsQuery.data ? (
-                      <div className="space-y-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div className="space-y-1">
-                            <h3 className="text-sm font-medium">Full Name</h3>
-                            <p className="text-sm text-muted-foreground">
+                      <div className="space-y-6">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                          <div className="space-y-1 p-4 bg-slate-50 dark:bg-slate-800/30 rounded-lg">
+                            <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Full Name</h3>
+                            <p className="text-sm text-slate-600 dark:text-slate-400">
                               {
-                                // Check if full name is available and not an encrypted string
                                 (billingDetailsQuery.data?.fullName && 
                                  typeof billingDetailsQuery.data?.fullName === 'string' && 
                                  !billingDetailsQuery.data?.fullName.includes(':'))
@@ -288,11 +382,10 @@ export default function Profile() {
                               }
                             </p>
                           </div>
-                          <div className="space-y-1">
-                            <h3 className="text-sm font-medium">Company</h3>
-                            <p className="text-sm text-muted-foreground">
+                          <div className="space-y-1 p-4 bg-slate-50 dark:bg-slate-800/30 rounded-lg">
+                            <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Company</h3>
+                            <p className="text-sm text-slate-600 dark:text-slate-400">
                               {
-                                // Check if company name is available and not an encrypted string
                                 (billingDetailsQuery.data?.companyName && 
                                  typeof billingDetailsQuery.data?.companyName === 'string' && 
                                  !billingDetailsQuery.data?.companyName.includes(':'))
@@ -301,11 +394,10 @@ export default function Profile() {
                               }
                             </p>
                           </div>
-                          <div className="space-y-1">
-                            <h3 className="text-sm font-medium">Address</h3>
-                            <p className="text-sm text-muted-foreground">
+                          <div className="space-y-1 p-4 bg-slate-50 dark:bg-slate-800/30 rounded-lg sm:col-span-2">
+                            <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Address</h3>
+                            <p className="text-sm text-slate-600 dark:text-slate-400">
                               {
-                                // Check if address line 1 is available and not an encrypted string
                                 (billingDetailsQuery.data?.addressLine1 && 
                                  typeof billingDetailsQuery.data?.addressLine1 === 'string' && 
                                  !billingDetailsQuery.data?.addressLine1.includes(':'))
@@ -313,7 +405,6 @@ export default function Profile() {
                                   : 'Address not provided'
                               }<br />
                               {
-                                // Check if address line 2 is available and not an encrypted string
                                 (billingDetailsQuery.data?.addressLine2 && 
                                  typeof billingDetailsQuery.data?.addressLine2 === 'string' && 
                                  !billingDetailsQuery.data?.addressLine2.includes(':')) 
@@ -321,7 +412,6 @@ export default function Profile() {
                                   : null
                               }
                               {
-                                // Display city, state, postal code
                                 (billingDetailsQuery.data?.city && 
                                  billingDetailsQuery.data?.state && 
                                  billingDetailsQuery.data?.postalCode)
@@ -331,19 +421,17 @@ export default function Profile() {
                               {countries.find((c: CountryOption) => c.value === billingDetailsQuery.data?.country)?.label || billingDetailsQuery.data?.country}
                             </p>
                           </div>
-                          <div className="space-y-1">
-                            <h3 className="text-sm font-medium">Contact</h3>
-                            <p className="text-sm text-muted-foreground">
-                              Phone: {
-                                // Check if phone number is available and not an encrypted string
+                          <div className="space-y-1 p-4 bg-slate-50 dark:bg-slate-800/30 rounded-lg sm:col-span-2">
+                            <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Contact Information</h3>
+                            <p className="text-sm text-slate-600 dark:text-slate-400">
+                              <span className="font-medium">Phone:</span> {
                                 (billingDetailsQuery.data?.phoneNumber && 
                                  typeof billingDetailsQuery.data?.phoneNumber === 'string' && 
                                  !billingDetailsQuery.data?.phoneNumber.includes(':'))
                                   ? billingDetailsQuery.data?.phoneNumber
                                   : 'Not provided'
                               }<br />
-                              Tax ID: {
-                                // Check if tax ID is available and not an encrypted string
+                              <span className="font-medium">Tax ID:</span> {
                                 (billingDetailsQuery.data?.taxId && 
                                  typeof billingDetailsQuery.data?.taxId === 'string' && 
                                  !billingDetailsQuery.data?.taxId.includes(':'))
@@ -353,10 +441,10 @@ export default function Profile() {
                             </p>
                           </div>
                         </div>
-                        <div className="flex flex-col sm:flex-row gap-4">
+                        <div className="flex flex-col sm:flex-row gap-3">
                           <Button
                             onClick={() => setEditingBilling(true)}
-                            className="bg-primary hover:bg-primary/90"
+                            className="flex-1 sm:flex-none bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-md"
                           >
                             Update Billing Information
                           </Button>
@@ -364,16 +452,13 @@ export default function Profile() {
                           <Button
                             onClick={async () => {
                               try {
-                                // Clear the cache first
                                 queryClient.removeQueries({ queryKey: ['billingDetails'] });
                                 
-                                // Show loading state
                                 toast({
                                   title: 'Refreshing',
                                   description: 'Fetching latest billing information from the server...'
                                 });
                                 
-                                // Force refresh the billing details from server with a clean cache
                                 const result = await billingDetailsQuery.refetch();
                                 
                                 if (result.isSuccess) {
@@ -394,19 +479,25 @@ export default function Profile() {
                               }
                             }}
                             variant="outline"
+                            className="flex-1 sm:flex-none border-emerald-200 hover:bg-emerald-50 dark:border-emerald-800 dark:hover:bg-emerald-900/20"
                           >
                             Refresh Data
                           </Button>
                         </div>
                       </div>
                     ) : (
-                      <div className="text-center py-8">
-                        <div className="rounded-lg border border-dashed p-8 mb-6">
-                          <p className="text-muted-foreground mb-4">No billing information on file.</p>
-                          <p className="text-muted-foreground mb-4">Adding billing information helps us generate proper invoices for your subscriptions and payments.</p>
+                      <div className="text-center py-12">
+                        <div className="rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-700 p-8 mb-6">
+                          <div className="bg-emerald-100 dark:bg-emerald-900/30 rounded-full p-4 w-16 h-16 mx-auto mb-4">
+                            <CreditCard className="h-8 w-8 text-emerald-600 dark:text-emerald-400" />
+                          </div>
+                          <h3 className="text-lg font-semibold mb-2">No billing information</h3>
+                          <p className="text-slate-600 dark:text-slate-400 mb-6 max-w-md mx-auto">
+                            Adding billing information helps us generate proper invoices for your subscriptions and payments.
+                          </p>
                           <Button 
                             onClick={() => setEditingBilling(true)}
-                            className="bg-primary hover:bg-primary/90"
+                            className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-md px-8"
                             size="lg"
                           >
                             Add Billing Information
@@ -420,48 +511,59 @@ export default function Profile() {
             </Card>
           </TabsContent>
           
-          <TabsContent value="security">
-            <Card>
-              <CardHeader>
-                <CardTitle>Security</CardTitle>
+          <TabsContent value="security" className="mt-0">
+            <Card className="border-none shadow-lg">
+              <CardHeader className="bg-gradient-to-r from-red-50 to-pink-50 dark:from-red-900/10 dark:to-pink-900/10 rounded-t-lg">
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <Shield className="h-5 w-5 text-red-600" />
+                  Security Settings
+                </CardTitle>
                 <CardDescription>
-                  Manage your security preferences
+                  Manage your password and security preferences
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="currentPassword">Current Password</Label>
-                  <Input
-                    id="currentPassword"
-                    type="password"
-                    placeholder="Enter your current password"
-                  />
-                </div>
-                <Separator />
-                <div className="grid gap-2">
-                  <Label htmlFor="newPassword">New Password</Label>
-                  <Input
-                    id="newPassword"
-                    type="password"
-                    placeholder="Enter your new password"
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="confirmPassword">Confirm New Password</Label>
-                  <Input
-                    id="confirmPassword"
-                    type="password"
-                    placeholder="Confirm your new password"
-                  />
+              <CardContent className="space-y-6 p-4 md:p-6">
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="currentPassword" className="text-sm font-medium">Current Password</Label>
+                    <Input
+                      id="currentPassword"
+                      type="password"
+                      placeholder="Enter your current password"
+                      className="h-11 rounded-lg border-slate-200 focus:border-red-500 focus:ring-red-500"
+                    />
+                  </div>
+                  <Separator className="my-6" />
+                  <div className="space-y-2">
+                    <Label htmlFor="newPassword" className="text-sm font-medium">New Password</Label>
+                    <Input
+                      id="newPassword"
+                      type="password"
+                      placeholder="Enter your new password"
+                      className="h-11 rounded-lg border-slate-200 focus:border-red-500 focus:ring-red-500"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="confirmPassword" className="text-sm font-medium">Confirm New Password</Label>
+                    <Input
+                      id="confirmPassword"
+                      type="password"
+                      placeholder="Confirm your new password"
+                      className="h-11 rounded-lg border-slate-200 focus:border-red-500 focus:ring-red-500"
+                    />
+                  </div>
                 </div>
               </CardContent>
-              <CardFooter>
-                <Button type="button">Change Password</Button>
+              <CardFooter className="bg-slate-50 dark:bg-slate-800/20 rounded-b-lg p-4 md:p-6">
+                <Button 
+                  type="button"
+                  className="w-full sm:w-auto bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-700 hover:to-pink-700 text-white shadow-md"
+                >
+                  Change Password
+                </Button>
               </CardFooter>
             </Card>
           </TabsContent>
-          
-
         </Tabs>
       </div>
     </DefaultLayout>

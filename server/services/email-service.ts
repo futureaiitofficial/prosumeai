@@ -1,7 +1,8 @@
 // Import nodemailer using correct ES module syntax
 import * as nodemailer from "nodemailer";
 import { db } from '../config/db';
-import { smtpSettings, brandingSettings } from '@shared/schema';
+import { smtpSettings, brandingSettings, emailTemplates, users } from '@shared/schema';
+import { eq, and } from "drizzle-orm";
 
 // Import the BrandingSettings type from the branding provider
 interface BrandingSettings {
@@ -31,6 +32,18 @@ interface EmailOptions {
     content: Buffer | string;
     contentType?: string;
   }>;
+}
+
+interface EmailTemplateData {
+  templateType: string;
+  variables: Record<string, string | number | boolean | null>;
+}
+
+// Template processor function to replace variables in templates
+function processTemplate(template: string, variables: Record<string, string | number | boolean | null>): string {
+  return template.replace(/{{(\w+)}}/g, (match, variable) => {
+    return variables[variable] !== undefined ? String(variables[variable]) : match;
+  });
 }
 
 // Password reset email template
@@ -327,6 +340,14 @@ export class EmailService {
     return EmailService.instance;
   }
 
+  /**
+   * Get the current branding data
+   * @returns The current branding settings or null if not initialized
+   */
+  public getBrandingData(): BrandingSettings | null {
+    return this.brandingData;
+  }
+
   public async init(): Promise<boolean> {
     try {
       // Load SMTP settings from database
@@ -404,6 +425,10 @@ export class EmailService {
         }
       }
       
+      // Generate Message-ID with domain matching sender email
+      const domain = this.settings.senderEmail.split('@')[1];
+      const messageId = `<${Date.now()}.${Math.random().toString(36).substring(2)}@${domain}>`;
+      
       // Send email
       const info = await this.transporter.sendMail({
         from: `"${this.settings.senderName}" <${this.settings.senderEmail}>`,
@@ -411,10 +436,16 @@ export class EmailService {
         subject: options.subject,
         text: options.text,
         html: options.html,
-        replyTo: options.replyTo,
+        replyTo: options.replyTo || this.settings.senderEmail,
         cc: options.cc,
         bcc: options.bcc,
-        attachments: options.attachments
+        attachments: options.attachments,
+        headers: {
+          'Message-ID': messageId,
+          'X-Mailer': 'ProsumeAI Mailer',
+          'List-Unsubscribe': `<mailto:unsubscribe@${domain}?subject=Unsubscribe>`,
+          'Precedence': 'Bulk'
+        }
       });
       
       console.log('Email sent:', info.messageId);
@@ -425,59 +456,191 @@ export class EmailService {
     }
   }
 
+  /**
+   * Get an email template from the database
+   * @param templateType The type of template to retrieve (e.g., 'welcome', 'password_reset')
+   * @param useDefault Whether to get the default template (true) or any active template (false)
+   */
+  public async getEmailTemplate(templateType: string, useDefault: boolean = true): Promise<any | null> {
+    try {
+      // Create the WHERE condition based on the useDefault parameter
+      const conditions = useDefault
+        ? and(
+            eq(emailTemplates.templateType, templateType),
+            eq(emailTemplates.isDefault, true)
+          )
+        : and(
+            eq(emailTemplates.templateType, templateType),
+            eq(emailTemplates.isActive, true)
+          );
+      
+      // Execute the query with the appropriate conditions
+      const templates = await db
+        .select()
+        .from(emailTemplates)
+        .where(conditions)
+        .limit(1);
+      
+      if (templates.length === 0) {
+        console.warn(`No ${useDefault ? 'default' : 'active'} template found for type: ${templateType}`);
+        return null;
+      }
+      
+      return templates[0];
+    } catch (error) {
+      console.error(`Error fetching email template ${templateType}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Send an email using a template
+   * @param to Recipient email address
+   * @param templateData Template type and variables to replace in the template
+   * @returns Boolean indicating success or failure
+   */
+  public async sendTemplatedEmail(to: string | string[], templateData: EmailTemplateData): Promise<boolean> {
+    try {
+      // Get the template
+      const template = await this.getEmailTemplate(templateData.templateType);
+      
+      if (!template) {
+        console.error(`Template not found for type: ${templateData.templateType}`);
+        return false;
+      }
+      
+      // Ensure branding data is loaded
+      if (!this.brandingData) {
+        await this.init();
+      }
+      
+      // Add branding data to variables
+      const variables = {
+        ...templateData.variables,
+        appName: this.brandingData?.appName || 'atScribe',
+        appTagline: this.brandingData?.appTagline || 'AI-powered resume and career tools',
+        primaryColor: this.brandingData?.primaryColor || '#4f46e5',
+        secondaryColor: this.brandingData?.secondaryColor || '#10b981',
+        accentColor: this.brandingData?.accentColor || '#f97316',
+        footerText: this.brandingData?.footerText || '© 2023 atScribe. All rights reserved.'
+      };
+      
+      // Process the templates
+      const subject = processTemplate(template.subject, variables);
+      const html = processTemplate(template.htmlContent, variables);
+      const text = processTemplate(template.textContent, variables);
+      
+      // Send the email
+      return await this.sendEmail({
+        to,
+        subject,
+        html,
+        text
+      });
+    } catch (error) {
+      console.error('Error sending templated email:', error);
+      return false;
+    }
+  }
+
   // Static helper method for sending emails without needing to call getInstance
   public static async sendEmail(options: EmailOptions): Promise<boolean> {
     const instance = EmailService.getInstance();
     return await instance.sendEmail(options);
   }
   
+  /**
+   * Static helper method for sending templated emails
+   */
+  public static async sendTemplatedEmail(to: string | string[], templateData: EmailTemplateData): Promise<boolean> {
+    const instance = EmailService.getInstance();
+    return await instance.sendTemplatedEmail(to, templateData);
+  }
+  
   // Send a password reset email
   public static async sendPasswordResetEmail(to: string, resetLink: string, username: string): Promise<boolean> {
     const instance = EmailService.getInstance();
     
-    // Ensure branding data is loaded
-    if (!instance.brandingData) {
-      await instance.init();
-    }
-    
-    // Generate HTML with branding
-    const html = getPasswordResetTemplate(username, resetLink, instance.brandingData as BrandingSettings);
-    
-    // Generate plain text version
-    const text = `Hello ${username}, 
-    
+    try {
+      // Try to send using template from database
+      const result = await instance.sendTemplatedEmail(to, {
+        templateType: 'password_reset',
+        variables: {
+          username,
+          resetLink
+        }
+      });
+      
+      if (result) {
+        return true;
+      }
+      
+      // Fallback to hardcoded template if no database template exists
+      console.log('Falling back to hardcoded password reset template');
+      
+      // Ensure branding data is loaded
+      if (!instance.brandingData) {
+        await instance.init();
+      }
+      
+      // Generate HTML with branding
+      const html = getPasswordResetTemplate(username, resetLink, instance.brandingData as BrandingSettings);
+      
+      // Generate plain text version
+      const text = `Hello ${username}, 
+      
 We received a request to reset your password. To proceed with the password reset, please click the following link: ${resetLink}. 
 
 This link will expire in 24 hours.
 
 If you did not request a password reset, please ignore this email or contact support if you have concerns.`;
-    
-    return await instance.sendEmail({
-      to,
-      subject: "Password Reset Request",
-      html,
-      text
-    });
+      
+      return await instance.sendEmail({
+        to,
+        subject: "Password Reset Request",
+        html,
+        text
+      });
+    } catch (error) {
+      console.error('Error sending password reset email:', error);
+      return false;
+    }
   }
   
   // Send a welcome email
   public static async sendWelcomeEmail(to: string, username: string): Promise<boolean> {
     const instance = EmailService.getInstance();
     
-    // Ensure branding data is loaded
-    if (!instance.brandingData) {
-      await instance.init();
-    }
-    
-    // Generate HTML with branding
-    const html = getWelcomeTemplate(username, instance.brandingData as BrandingSettings);
-    
-    // Get app name from branding for subject line
-    const appName = instance.brandingData?.appName || "atScribe";
-    
-    // Generate plain text version
-    const text = `Hello ${username}, 
-    
+    try {
+      // Try to send using template from database
+      const result = await instance.sendTemplatedEmail(to, {
+        templateType: 'welcome',
+        variables: {
+          username
+        }
+      });
+      
+      if (result) {
+        return true;
+      }
+      
+      // Fallback to hardcoded template if no database template exists
+      console.log('Falling back to hardcoded welcome template');
+      
+      // Ensure branding data is loaded
+      if (!instance.brandingData) {
+        await instance.init();
+      }
+      
+      // Generate HTML with branding
+      const html = getWelcomeTemplate(username, instance.brandingData as BrandingSettings);
+      
+      // Get app name from branding for subject line
+      const appName = instance.brandingData?.appName || "atScribe";
+      
+      // Generate plain text version
+      const text = `Hello ${username}, 
+      
 Thank you for joining ${appName}! We're excited to help you create professional resumes and advance your career.
 
 With ${appName}, you can:
@@ -487,12 +650,86 @@ With ${appName}, you can:
 - And much more!
 
 If you have any questions or need assistance, please don't hesitate to contact our support team.`;
-    
-    return await instance.sendEmail({
-      to,
-      subject: `Welcome to ${appName}!`,
-      html,
-      text
+      
+      return await instance.sendEmail({
+        to,
+        subject: `Welcome to ${appName}!`,
+        html,
+        text
+      });
+    } catch (error) {
+      console.error('Error sending welcome email:', error);
+      return false;
+    }
+  }
+  
+  // Send email verification email
+  public static async sendEmailVerificationEmail(to: string, username: string, verificationLink: string): Promise<boolean> {
+    return await EmailService.sendTemplatedEmail(to, {
+      templateType: 'email_verification',
+      variables: {
+        username,
+        verificationLink,
+        appName: EmailService.getInstance().getBrandingData()?.appName || 'atScribe'
+      }
     });
+  }
+  
+  // Send password changed notification
+  public static async sendPasswordChangedEmail(to: string, username: string, resetLink: string): Promise<boolean> {
+    return await EmailService.sendTemplatedEmail(to, {
+      templateType: 'password_changed',
+      variables: {
+        username,
+        resetLink,
+        changeTime: new Date().toLocaleString()
+      }
+    });
+  }
+  
+  // Send login alert email
+  public static async sendLoginAlertEmail(to: string, username: string, loginInfo: {
+    time: string,
+    device: string,
+    location: string,
+    ipAddress: string
+  }, resetLink: string): Promise<boolean> {
+    return await EmailService.sendTemplatedEmail(to, {
+      templateType: 'login_alert',
+      variables: {
+        username,
+        resetLink,
+        loginTime: loginInfo.time,
+        device: loginInfo.device,
+        location: loginInfo.location,
+        ipAddress: loginInfo.ipAddress
+      }
+    });
+  }
+}
+
+/**
+ * Helper function to get user's email by user ID
+ */
+export async function getUserEmailById(userId: number): Promise<string | null> {
+  try {
+    const user = await db.select({ email: users.email }).from(users).where(eq(users.id, userId)).limit(1);
+    return user.length > 0 ? user[0].email : null;
+  } catch (error) {
+    console.error('Error getting user email:', error);
+    return null;
+  }
+}
+
+/**
+ * Helper function to get user's username by user ID
+ */
+export async function getUsernameById(userId: number): Promise<string | null> {
+  try {
+    const user = await db.select({ username: users.username }).from(users).where(eq(users.id, userId)).limit(1);
+    return user.length > 0 ? user[0].username : null;
+  } catch (error) {
+    console.error('Error getting username:', error);
+    return null;
   }
 } 

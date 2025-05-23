@@ -319,6 +319,42 @@ export class ProfessionalTemplate extends BaseTemplate {
               </section>
             ) : null,
             
+            publications: () => data.publications && data.publications.length > 0 ? (
+              <section style={sectionStyle} className="resume-section publications-section">
+                <h2 style={sectionHeaderStyle} className="no-break-after">Publications</h2>
+                {data.publications.map((publication, index) => (
+                  <div key={publication.id || index} style={itemStyle} className="publication-item no-break-inside">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.2rem', width: '100%' }} className="no-break-after">
+                      <div style={{ flex: '1 1 70%' }}>
+                        <h3 style={titleStyle} className="no-break-after">{publication.title}</h3>
+                        <h4 style={{ fontSize: '0.9rem', color: colors.secondary || '#4b5563', margin: 0, padding: 0 }} className="no-break-after">
+                          {publication.publisher}
+                          {publication.authors && ` | ${publication.authors}`}
+                        </h4>
+                      </div>
+                      {publication.publicationDate && (
+                        <div style={{ fontSize: '0.85rem', color: colors.secondary || '#4b5563', textAlign: 'right', marginTop: '0.25rem' }}>
+                          {publication.publicationDate}
+                        </div>
+                      )}
+                    </div>
+                    
+                    {publication.description && (
+                      <p style={{ fontSize: '0.9rem', marginTop: '0.2rem', lineHeight: '1.3', margin: '0.2rem 0 0 0', padding: 0 }} className="no-break-inside">
+                        {publication.description}
+                      </p>
+                    )}
+                    
+                    {publication.url && (
+                      <p style={{ fontSize: '0.85rem', marginTop: '0.2rem', marginBottom: 0, lineHeight: '1.3' }} className="no-break-inside">
+                        <strong>URL/DOI:</strong> {publication.url}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </section>
+            ) : null,
+            
             certifications: () => data.certifications && data.certifications.length > 0 ? (
               <section style={sectionStyle} className="resume-section certifications-section">
                 <h2 style={sectionHeaderStyle} className="no-break-after">Certifications</h2>

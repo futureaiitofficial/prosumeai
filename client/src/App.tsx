@@ -52,6 +52,7 @@ import ResetPasswordPage from '@/pages/reset-password';
 import TermsOfServicePage from '@/pages/terms';
 import PrivacyPolicyPage from '@/pages/privacy';
 import RegisterPage from '@/pages/register';
+import VerifyEmailPage from '@/pages/verify-email';
 import { BrandingProvider } from '@/components/branding/branding-provider';
 
 // Session Recovery component to handle network disconnections
@@ -135,6 +136,7 @@ function Router() {
       <Route path="/register" component={RegisterPage} />
       <Route path="/forgot-password" component={ForgotPasswordPage} />
       <Route path="/reset-password" component={ResetPasswordPage} />
+      <Route path="/verify-email" component={VerifyEmailPage} />
       <Route path="/terms" component={TermsOfServicePage} />
       <Route path="/privacy" component={PrivacyPolicyPage} />
       <ProtectedRoute path="/dashboard" component={Dashboard} />
@@ -156,6 +158,17 @@ function Router() {
       {/* Admin feature routes */}
       <AdminRoute path="/admin/users" component={AdminUsersPage} />
       <AdminRoute path="/admin/templates" component={AdminTemplatesPage} />
+      <AdminRoute 
+  path="/admin/email-templates" 
+  component={() => {
+    const EmailTemplatesPage = React.lazy(() => import('@/pages/admin/email-templates'));
+    return (
+      <Suspense fallback={<div>Loading...</div>}>
+        <EmailTemplatesPage />
+      </Suspense>
+    );
+  }} 
+/>
       <AdminRoute path="/admin/analytics" component={AdminDashboard} />
       <AdminRoute path="/admin/settings" component={AdminSettingsPage} />
       <AdminRoute path="/admin/system-status" component={SystemStatusPage} />

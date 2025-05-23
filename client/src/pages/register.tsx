@@ -4,15 +4,32 @@ import Head from 'next/head';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import RegisterForm from '@/components/auth/register-form';
 import { useToast } from '@/hooks/use-toast';
+import { Toaster } from '@/components/ui/toaster';
 import SharedHeader from '@/components/layouts/shared-header';
 import SharedFooter from '@/components/layouts/SharedFooter';
 import { useBranding } from '@/components/branding/branding-provider';
+
+// Declare global window interface to expose showToast function
+declare global {
+  interface Window {
+    showToast?: (props: { title: string; description: string; variant: "default" | "destructive" }) => void;
+  }
+}
 
 export default function RegisterPage() {
   const branding = useBranding();
   const [location, navigate] = useLocation();
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+
+  // Expose toast function to window for the RegisterForm component
+  useEffect(() => {
+    window.showToast = toast;
+    
+    return () => {
+      delete window.showToast;
+    };
+  }, [toast]);
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -52,6 +69,14 @@ export default function RegisterPage() {
                 </div>
               ) : (
                 <>
+                  <div className="mb-6 p-4 bg-blue-50 border border-blue-100 rounded-md">
+                    <h3 className="text-blue-800 font-medium mb-1">Email Verification Required</h3>
+                    <p className="text-blue-700 text-sm">
+                      After registration, you'll need to verify your email address. 
+                      We'll send you a verification link to ensure your account security.
+                    </p>
+                  </div>
+                  
                   <RegisterForm />
                   
                   <div className="mt-6 pt-6 border-t border-indigo-100 text-center">
@@ -75,6 +100,9 @@ export default function RegisterPage() {
 
       {/* Footer */}
       <SharedFooter />
+      
+      {/* Toast notifications */}
+      <Toaster />
     </div>
   );
 } 

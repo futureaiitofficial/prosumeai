@@ -29,6 +29,9 @@ export const users = pgTable("users", {
   lockoutUntil: timestamp("lockout_until"),
   resetPasswordToken: text("reset_password_token"),
   resetPasswordExpiry: timestamp("reset_password_expiry"),
+  emailVerified: boolean("email_verified").default(false),
+  emailVerificationToken: text("email_verification_token"),
+  emailVerificationExpiry: timestamp("email_verification_expiry"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow()
 });
@@ -111,6 +114,7 @@ export const resumes = pgTable("resumes", {
   // Additional sections
   certifications: jsonb("certifications"),
   projects: jsonb("projects"),
+  publications: jsonb("publications"),
   
   // ATS optimization fields
   keywordsOptimization: text("keywords_optimization"),
@@ -621,6 +625,21 @@ export const smtpSettings = pgTable("smtp_settings", {
   updatedAt: timestamp("updated_at").defaultNow()
 });
 
+// Email Templates Schema
+export const emailTemplates = pgTable("email_templates", {
+  id: serial("id").primaryKey(),
+  templateType: text("template_type").notNull(),
+  name: text("name").notNull(),
+  subject: text("subject").notNull(),
+  htmlContent: text("html_content").notNull(),
+  textContent: text("text_content").notNull(),
+  variables: jsonb("variables"),
+  isDefault: boolean("is_default").default(false),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow()
+});
+
 // Insert Schemas
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -801,6 +820,12 @@ export const insertInvoiceSchema = createInsertSchema(invoices).omit({
   createdAt: true
 });
 
+export const insertEmailTemplateSchema = createInsertSchema(emailTemplates).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type AppSetting = typeof appSettings.$inferSelect;
@@ -869,6 +894,9 @@ export type InsertInvoiceSettings = z.infer<typeof insertInvoiceSettingsSchema>;
 export type Invoice = typeof invoices.$inferSelect;
 export type InsertInvoice = z.infer<typeof insertInvoiceSchema>;
 
+export type EmailTemplate = typeof emailTemplates.$inferSelect;
+export type InsertEmailTemplate = z.infer<typeof insertEmailTemplateSchema>;
+
 // Resume-related type definitions for frontend
 export type WorkExperience = {
   id: string;
@@ -911,6 +939,16 @@ export type Project = {
   endDate: string | null;
   current: boolean;
   url: string | null;
+};
+
+export type Publication = {
+  id: string;
+  title: string;
+  publisher: string;
+  authors: string;
+  publicationDate: string;
+  url: string | null;
+  description: string;
 };
 
 // Job application status history entry

@@ -1,155 +1,159 @@
-import { useAuth } from "@/hooks/use-auth";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Edit, Plus } from "lucide-react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { format } from "date-fns";
-import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Link } from "wouter";
+import { ArrowRight, ChevronRight, Building, Calendar, Clock, Eye, Plus } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { motion } from "framer-motion";
+import { JobApplicationStatus, statusColors } from "@/types/job-application";
 
-interface RecentApplicationsProps {
-  jobApplications: any[];
+interface JobApplication {
+  id: string;
+  jobTitle?: string;
+  company?: string;
+  status?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  location?: string;
 }
 
-const statusColors: Record<string, string> = {
-  applied: "blue",
-  screening: "blue",
-  interview: "yellow",
-  assessment: "green",
-  offer: "orange",
-  rejected: "red",
-  accepted: "emerald",
-};
+interface RecentApplicationsProps {
+  jobApplications: JobApplication[];
+  className?: string;
+}
 
-export default function RecentApplications({ jobApplications }: RecentApplicationsProps) {
-  const { user } = useAuth();
-  const [currentPage, setCurrentPage] = useState(1);
-  const applicationsPerPage = 3;
+export default function RecentApplications({ jobApplications, className }: RecentApplicationsProps) {
+  // Get the most recent 5 applications
+  const recentApplications = [...jobApplications]
+    .sort((a, b) => {
+      const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return dateB - dateA;
+    })
+    .slice(0, 5);
+
+  // Function to format date to readable format
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return "Unknown date";
+    
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric', 
+      year: 'numeric' 
+    });
+  };
   
-  // Sort applications by date (newest first)
-  const sortedApplications = [...jobApplications].sort((a, b) => 
-    new Date(b.appliedAt).getTime() - new Date(a.appliedAt).getTime()
-  );
-  
-  const totalPages = Math.ceil(sortedApplications.length / applicationsPerPage);
-  const paginatedApplications = sortedApplications.slice(
-    (currentPage - 1) * applicationsPerPage,
-    currentPage * applicationsPerPage
-  );
-  
-  const getStatusBadge = (status: string) => {
-    const color = statusColors[status] || "gray";
-    return (
-      <Badge className={`bg-${color}-100 text-${color}-800 dark:bg-${color}-900 dark:text-${color}-300`}>
-        {status.charAt(0).toUpperCase() + status.slice(1)}
-      </Badge>
-    );
+  // Function to get status badge color
+  const getStatusBadgeClass = (status?: string) => {
+    if (!status) return "bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300";
+    
+    const color = statusColors[status] || statusColors.default;
+    
+    switch (color) {
+      case "blue":
+        return "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300";
+      case "purple":
+        return "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300";
+      case "cyan":
+        return "bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-300";
+      case "green":
+        return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300";
+      case "orange":
+        return "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300";
+      case "red":
+        return "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300";
+      case "emerald":
+        return "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300";
+      default:
+        return "bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300";
+    }
   };
   
   return (
-    <Card>
-      <CardContent className="p-6">
+    <Card className={cn("shadow-md", className)}>
+      <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-medium">Recent Applications</h3>
-          <div className="flex space-x-2">
-            <Button variant="outline">
-              <Plus className="mr-1 h-4 w-4" />
-              Add Application
-            </Button>
+          <div>
+            <CardTitle className="text-lg font-semibold">Recent Applications</CardTitle>
+            <CardDescription>Your most recently submitted job applications</CardDescription>
           </div>
+          <Link href="/job-applications">
+            <Button variant="ghost" size="sm" className="text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300">
+              View All
+              <ChevronRight className="ml-1 h-4 w-4" />
+            </Button>
+          </Link>
         </div>
-        <div className="mt-6 overflow-hidden">
-          <table className="w-full border-collapse">
-            <thead>
-              <tr className="border-b border-slate-200 text-left text-sm font-medium text-slate-500 dark:border-slate-800">
-                <th className="pb-3 pl-0">Company</th>
-                <th className="pb-3">Position</th>
-                <th className="pb-3">Applied</th>
-                <th className="pb-3">Status</th>
-                <th className="pb-3 pr-0 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {paginatedApplications.length > 0 ? (
-                paginatedApplications.map((application) => (
-                  <tr key={application.id} className="border-b border-slate-200 text-sm dark:border-slate-800">
-                    <td className="py-3 pl-0">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800">
-                          <span className="font-medium">
-                            {application.company.substring(0, 2).toUpperCase()}
-                          </span>
+      </CardHeader>
+      <CardContent>
+        {recentApplications.length > 0 ? (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 gap-4">
+              {recentApplications.map((application) => (
+                <motion.div
+                  key={application.id}
+                  whileHover={{ y: -2 }}
+                  transition={{ duration: 0.2 }}
+                  className="bg-white dark:bg-slate-900 rounded-lg border border-slate-100 dark:border-slate-800 overflow-hidden shadow-sm hover:shadow-md transition-all"
+                >
+                  <div className="p-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-medium text-slate-900 dark:text-slate-100 truncate">
+                          {application.jobTitle || "Untitled Position"}
+                        </h3>
+                        <div className="flex flex-wrap gap-2 mt-1">
+                          {application.company && (
+                            <div className="flex items-center text-xs text-slate-500 dark:text-slate-400">
+                              <Building className="mr-1 h-3 w-3" />
+                              <span className="truncate">{application.company}</span>
+                            </div>
+                          )}
+                          {application.location && (
+                            <div className="flex items-center text-xs text-slate-500 dark:text-slate-400">
+                              <span className="truncate">{application.location}</span>
+                            </div>
+                          )}
+                          {application.createdAt && (
+                            <div className="flex items-center text-xs text-slate-500 dark:text-slate-400">
+                              <Calendar className="mr-1 h-3 w-3" />
+                              <span>{formatDate(application.createdAt)}</span>
+                            </div>
+                          )}
                         </div>
-                        <span className="font-medium">{application.company}</span>
                       </div>
-                    </td>
-                    <td className="py-3">{application.position}</td>
-                    <td className="py-3">
-                      <span>{format(new Date(application.appliedAt), "MMM d, yyyy")}</span>
-                    </td>
-                    <td className="py-3">
-                      {getStatusBadge(application.status)}
-                    </td>
-                    <td className="py-3 pr-0 text-right">
-                      <Button variant="ghost" size="icon" className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-300">
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={5} className="py-4 text-center text-sm text-slate-500">
-                    No applications found
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-        {jobApplications.length > 0 && (
-          <div className="mt-4 flex items-center justify-between">
-            <p className="text-sm text-slate-500">
-              Showing {paginatedApplications.length} of {jobApplications.length} applications
+                      <div className="flex items-center gap-3">
+                        <Badge className={cn("whitespace-nowrap", getStatusBadgeClass(application.status))}>
+                          {application.status || "Unknown Status"}
+                        </Badge>
+                        <Link href={`/job-applications?id=${application.id}`}>
+                          <Button size="icon" variant="ghost" className="h-8 w-8 rounded-full">
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </Link>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center py-10 text-center">
+            <div className="bg-slate-50 dark:bg-slate-800/50 rounded-full p-4 mb-4">
+              <Building className="h-8 w-8 text-slate-300 dark:text-slate-600" />
+            </div>
+            <h3 className="text-lg font-medium text-slate-700 dark:text-slate-300">No applications yet</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 max-w-md">
+              Start tracking your job applications to see them here
             </p>
-            {totalPages > 1 && (
-              <div className="flex items-center space-x-2">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-8 w-8"
-                  disabled={currentPage === 1}
-                  onClick={() => setCurrentPage(currentPage - 1)}
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-                    <polyline points="15 18 9 12 15 6"></polyline>
-                  </svg>
-                </Button>
-                
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                  <Button
-                    key={page}
-                    variant={page === currentPage ? "default" : "outline"}
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={() => setCurrentPage(page)}
-                  >
-                    <span className="text-sm">{page}</span>
-                  </Button>
-                ))}
-                
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-8 w-8"
-                  disabled={currentPage === totalPages}
-                  onClick={() => setCurrentPage(currentPage + 1)}
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-                    <polyline points="9 18 15 12 9 6"></polyline>
-                  </svg>
-                </Button>
-              </div>
-            )}
+            <Link href="/job-applications">
+              <Button className="mt-4 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700">
+                Add Application
+                <Plus className="ml-2 h-4 w-4" />
+              </Button>
+            </Link>
           </div>
         )}
       </CardContent>

@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Progress } from '@/components/ui/progress';
-import { CreditCard, Check, X, AlertCircle, Calendar, ChevronsUpDown, Sparkles, FileText, InfoIcon, Loader2 } from 'lucide-react';
+import { CreditCard, Check, X, AlertCircle, Calendar, ChevronsUpDown, Sparkles, FileText, InfoIcon, Loader2, Package } from 'lucide-react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
@@ -19,6 +19,7 @@ import { useRegion, UserRegion } from '@/hooks/use-region';
 import { useLocationContext } from '@/hooks/use-location';
 import { SubscriptionInvoices } from '@/components/checkout/subscription-invoices';
 import { PaymentService } from '@/services/payment-service';
+import { cn } from "@/lib/utils";
 
 interface UserSubscription {
   id: number;
@@ -1016,51 +1017,116 @@ const UserSubscriptionPage: React.FC = () => {
       <DefaultLayout pageTitle="Subscription Management" pageDescription="View and manage your subscription details, features, and plans.">
         {isLoading ? (
           <div className="w-full h-64 flex items-center justify-center">
-            <div className="animate-pulse">Loading subscription information...</div>
+            <div className="flex flex-col items-center gap-4">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <div className="text-center">
+                <p className="text-lg font-medium">Loading subscription information...</p>
+                <p className="text-sm text-muted-foreground">Please wait while we fetch your data</p>
+              </div>
+            </div>
           </div>
         ) : (
-          <Tabs value={activeTab} onValueChange={setTab} className="space-y-6">
-            <TabsList className="grid w-full grid-cols-4">
-              <TabsTrigger value="current">{subscription ? 'Current Plan' : 'No Subscription'}</TabsTrigger>
-              <TabsTrigger value="features">Features & Limits</TabsTrigger>
-              <TabsTrigger value="plans">{subscription ? 'Available Plans' : 'Choose a Plan'}</TabsTrigger>
-              <TabsTrigger value="invoices">Invoices</TabsTrigger>
-            </TabsList>
+          <Tabs value={activeTab} onValueChange={setTab} className="space-y-4 md:space-y-6">
+            {/* Mobile-First Tab Navigation */}
+            <div className="mb-6">
+              <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 h-auto p-1 bg-slate-100 dark:bg-slate-800/50 rounded-xl">
+                <TabsTrigger 
+                  value="current"
+                  className={cn(
+                    "flex items-center justify-center gap-2 py-3 px-2 sm:px-4 text-sm font-medium rounded-lg transition-all",
+                    "data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-sm",
+                    "dark:data-[state=active]:bg-slate-900 dark:data-[state=active]:text-blue-300",
+                    "hover:bg-white/50 dark:hover:bg-slate-800",
+                    "mb-1 sm:mb-0"
+                  )}
+                >
+                  <CreditCard className="h-4 w-4" />
+                  <span className="hidden xs:inline">{subscription ? 'Current Plan' : 'No Subscription'}</span>
+                  <span className="xs:hidden">Current</span>
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="features"
+                  className={cn(
+                    "flex items-center justify-center gap-2 py-3 px-2 sm:px-4 text-sm font-medium rounded-lg transition-all",
+                    "data-[state=active]:bg-white data-[state=active]:text-purple-700 data-[state=active]:shadow-sm",
+                    "dark:data-[state=active]:bg-slate-900 dark:data-[state=active]:text-purple-300",
+                    "hover:bg-white/50 dark:hover:bg-slate-800",
+                    "mb-1 sm:mb-0"
+                  )}
+                >
+                  <Sparkles className="h-4 w-4" />
+                  <span className="hidden xs:inline">Features & Limits</span>
+                  <span className="xs:hidden">Features</span>
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="plans"
+                  className={cn(
+                    "flex items-center justify-center gap-2 py-3 px-2 sm:px-4 text-sm font-medium rounded-lg transition-all",
+                    "data-[state=active]:bg-white data-[state=active]:text-green-700 data-[state=active]:shadow-sm",
+                    "dark:data-[state=active]:bg-slate-900 dark:data-[state=active]:text-green-300",
+                    "hover:bg-white/50 dark:hover:bg-slate-800",
+                    "mb-1 sm:mb-0"
+                  )}
+                >
+                  <Package className="h-4 w-4" />
+                  <span className="hidden xs:inline">{subscription ? 'Available Plans' : 'Choose a Plan'}</span>
+                  <span className="xs:hidden">Plans</span>
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="invoices"
+                  className={cn(
+                    "flex items-center justify-center gap-2 py-3 px-2 sm:px-4 text-sm font-medium rounded-lg transition-all",
+                    "data-[state=active]:bg-white data-[state=active]:text-orange-700 data-[state=active]:shadow-sm",
+                    "dark:data-[state=active]:bg-slate-900 dark:data-[state=active]:text-orange-300",
+                    "hover:bg-white/50 dark:hover:bg-slate-800"
+                  )}
+                >
+                  <FileText className="h-4 w-4" />
+                  <span className="hidden xs:inline">Invoices</span>
+                  <span className="xs:hidden">Bills</span>
+                </TabsTrigger>
+              </TabsList>
+            </div>
             
             {/* Current Plan Tab */}
-            <TabsContent value="current">
+            <TabsContent value="current" className="mt-0">
               {subscription ? (
-                <Card className="border-2 border-primary/10">
-                  <CardHeader className="bg-primary/5">
-                    <div className="flex items-center justify-between">
+                <Card className="border-none shadow-lg">
+                  <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/10 dark:to-indigo-900/10 rounded-t-lg">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                       <div>
-                        <CardTitle className="text-2xl flex items-center gap-2">
-                          <CreditCard className="h-6 w-6 text-primary" />
+                        <CardTitle className="text-xl md:text-2xl flex items-center gap-3">
+                          <CreditCard className="h-6 w-6 text-blue-600" />
                           {userPlan?.name || 'Current Subscription'}
                         </CardTitle>
-                        <CardDescription>{userPlan?.description}</CardDescription>
+                        <CardDescription className="mt-1">{userPlan?.description}</CardDescription>
                       </div>
-                      {getStatusBadge(subscription.status)}
+                      <div className="flex justify-start sm:justify-end">
+                        {getStatusBadge(subscription.status)}
+                      </div>
                     </div>
                   </CardHeader>
-                  <CardContent className="pt-6">
+                  <CardContent className="p-4 md:p-6">
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                      <div>
-                        <h3 className="text-lg font-medium mb-2">Subscription Details</h3>
-                        <div className="space-y-2">
+                      <div className="space-y-4">
+                        <h3 className="text-lg font-semibold flex items-center gap-2">
+                          <InfoIcon className="h-5 w-5 text-blue-600" />
+                          Subscription Details
+                        </h3>
+                        <div className="space-y-3 bg-slate-50 dark:bg-slate-800/30 p-4 rounded-lg">
                           <div className="flex justify-between text-sm">
-                            <span className="text-muted-foreground">Plan</span>
-                            <span className="font-medium">
+                            <span className="text-muted-foreground font-medium">Plan</span>
+                            <span className="font-semibold">
                               {userPlan?.name || `Unknown (ID: ${subscription?.planId})`}
                             </span>
                           </div>
                           <div className="flex justify-between text-sm">
-                            <span className="text-muted-foreground">Status</span>
+                            <span className="text-muted-foreground font-medium">Status</span>
                             <span>{getStatusBadge(subscription.status)}</span>
                           </div>
                           <div className="flex justify-between text-sm">
-                            <span className="text-muted-foreground">Billing Cycle</span>
-                            <span className="font-medium">
+                            <span className="text-muted-foreground font-medium">Billing Cycle</span>
+                            <span className="font-semibold">
                               {userPlan?.billingCycle ? 
                                 (userPlan.billingCycle.charAt(0) + userPlan.billingCycle.slice(1).toLowerCase()) : 
                                 'Not specified'
@@ -1068,49 +1134,59 @@ const UserSubscriptionPage: React.FC = () => {
                             </span>
                           </div>
                           <div className="flex justify-between text-sm">
-                            <span className="text-muted-foreground">Auto-renew</span>
-                            <span>{subscription.autoRenew ? 'Yes' : 'No'}</span>
+                            <span className="text-muted-foreground font-medium">Auto-renew</span>
+                            <Badge variant={subscription.autoRenew ? "default" : "outline"}>
+                              {subscription.autoRenew ? 'Yes' : 'No'}
+                            </Badge>
                           </div>
                           <Separator />
                           <div className="flex justify-between text-sm">
-                            <span className="text-muted-foreground">Start Date</span>
-                            <span>{formatDate(subscription.startDate)}</span>
+                            <span className="text-muted-foreground font-medium">Start Date</span>
+                            <span className="font-semibold">{formatDate(subscription.startDate)}</span>
                           </div>
                           <div className="flex justify-between text-sm">
-                            <span className="text-muted-foreground">End Date</span>
-                            <span>{formatDate(subscription.endDate)}</span>
+                            <span className="text-muted-foreground font-medium">End Date</span>
+                            <span className="font-semibold">{formatDate(subscription.endDate)}</span>
                           </div>
                           {hasIncorrectDates && (
-                            <div className="text-xs text-amber-500 text-right mt-1">
-                              Note: Your monthly plan shows an incorrect end date. This is a known issue with some monthly subscriptions. Please contact our support team and reference "monthly subscription date correction" in your message.
+                            <div className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 p-2 rounded text-center">
+                              <AlertCircle className="h-4 w-4 inline mr-1" />
+                              Monthly plan shows incorrect end date. Contact support for correction.
                             </div>
                           )}
                           
                           {/* Add pending change information */}
                           {hasPendingChange && pendingChange && (
                             <>
-                              <Separator className="my-2" />
-                              <div className="bg-amber-50 dark:bg-amber-900/20 p-3 rounded-md border border-amber-200 dark:border-amber-800 mt-3">
-                                <div className="flex items-start">
-                                  <Calendar className="h-4 w-4 text-amber-600 dark:text-amber-400 mr-2 mt-0.5 flex-shrink-0" />
-                                  <div>
-                                    <h4 className="text-sm font-medium text-amber-800 dark:text-amber-300">
+                              <Separator className="my-3" />
+                              <div className="bg-amber-50 dark:bg-amber-900/20 p-4 rounded-lg border border-amber-200 dark:border-amber-800">
+                                <div className="flex items-start gap-3">
+                                  <Calendar className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+                                  <div className="flex-1">
+                                    <h4 className="text-sm font-semibold text-amber-800 dark:text-amber-300">
                                       Scheduled Plan Change
                                     </h4>
                                     <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">
                                       Your subscription will change to{' '}
-                                      <span className="font-medium">{pendingPlanName || `Plan ID: ${pendingChange.pendingPlanChangeTo}`}</span>{' '}
+                                      <span className="font-semibold">{pendingPlanName || `Plan ID: ${pendingChange.pendingPlanChangeTo}`}</span>{' '}
                                       on {formatDate(pendingChange.pendingPlanChangeDate || pendingChange.endDate)}
                                     </p>
-                                    <div className="mt-2">
+                                    <div className="mt-3">
                                       <Button 
                                         variant="outline" 
                                         size="sm"
-                                        className="h-7 text-xs" 
+                                        className="h-8 text-xs bg-white dark:bg-slate-800" 
                                         onClick={() => cancelPendingChangeMutation.mutate()}
                                         disabled={cancelPendingChangeMutation.isPending}
                                       >
-                                        {cancelPendingChangeMutation.isPending ? 'Cancelling...' : 'Cancel Change'}
+                                        {cancelPendingChangeMutation.isPending ? (
+                                          <>
+                                            <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                                            Cancelling...
+                                          </>
+                                        ) : (
+                                          'Cancel Change'
+                                        )}
                                       </Button>
                                     </div>
                                   </div>
@@ -1121,9 +1197,12 @@ const UserSubscriptionPage: React.FC = () => {
                         </div>
                       </div>
                       
-                      <div>
-                        <h3 className="text-lg font-medium mb-2">Feature Usage Summary</h3>
-                        <div className="space-y-3">
+                      <div className="space-y-4">
+                        <h3 className="text-lg font-semibold flex items-center gap-2">
+                          <Sparkles className="h-5 w-5 text-purple-600" />
+                          Feature Usage Summary
+                        </h3>
+                        <div className="space-y-4 bg-slate-50 dark:bg-slate-800/30 p-4 rounded-lg max-h-80 overflow-y-auto">
                           {subscriptionFeaturesWithUsage
                             ?.filter((feature: any) => feature && feature.limitType !== 'BOOLEAN')
                             .map((feature: any) => {
@@ -1136,19 +1215,19 @@ const UserSubscriptionPage: React.FC = () => {
                               const usagePercentage = limitValue > 0 ? (usageValue / limitValue) * 100 : 0;
 
                               return (
-                                <div key={`summary-${feature.featureId || feature.id || Math.random().toString(36).substring(7)}`} className="space-y-1">
+                                <div key={`summary-${feature.featureId || feature.id || Math.random().toString(36).substring(7)}`} className="space-y-2 p-3 bg-white dark:bg-slate-700/50 rounded-lg">
                                   <div className="flex justify-between text-sm">
-                                    <span>{feature.featureName || 'Unknown Feature'}</span>
-                                    <span>
+                                    <span className="font-medium">{feature.featureName || 'Unknown Feature'}</span>
+                                    <span className="text-muted-foreground">
                                       {usageValue} / {limitValue} {isTokenFeature ? 'tokens' : 'uses'}
                                     </span>
                                   </div>
                                   <Progress
                                     value={Math.min(usagePercentage, 100)}
-                                    className={`h-1.5 ${usagePercentage > 80 ? 'bg-red-200 dark:bg-red-900' : ''}`}
+                                    className={`h-2 ${usagePercentage > 80 ? 'bg-red-200 dark:bg-red-900' : ''}`}
                                   />
                                   {feature.resetFrequency && feature.resetFrequency !== 'NEVER' && (
-                                    <div className="text-xs text-muted-foreground text-right">
+                                    <div className="text-xs text-muted-foreground">
                                       Resets {feature.resetFrequency.toLowerCase()}
                                       {feature.nextResetDate && (
                                         <span className="block">Next reset: {formatDate(feature.nextResetDate)}</span>
@@ -1161,8 +1240,8 @@ const UserSubscriptionPage: React.FC = () => {
                           {subscriptionFeaturesWithUsage
                             ?.filter((feature: any) => feature && feature.limitType === 'BOOLEAN')
                             .map((feature: any) => (
-                              <div key={`summary-bool-${feature.featureId || feature.id || Math.random().toString(36).substring(7)}`} className="flex justify-between text-sm border-t pt-2 first:border-t-0 first:pt-0">
-                                <span>{feature.featureName || 'Unknown Feature'}</span>
+                              <div key={`summary-bool-${feature.featureId || feature.id || Math.random().toString(36).substring(7)}`} className="flex justify-between items-center text-sm p-3 bg-white dark:bg-slate-700/50 rounded-lg">
+                                <span className="font-medium">{feature.featureName || 'Unknown Feature'}</span>
                                 <Badge variant={feature.isEnabled ? "default" : "outline"}>
                                   {feature.isEnabled ? 'Enabled' : 'Disabled'}
                                 </Badge>
@@ -1172,18 +1251,21 @@ const UserSubscriptionPage: React.FC = () => {
                       </div>
                     </div>
                   </CardContent>
-                  <CardFooter className="flex justify-between bg-muted/10 border-t">
-                    <div>
+                  <CardFooter className="flex flex-col sm:flex-row sm:justify-between gap-4 bg-slate-50 dark:bg-slate-800/20 rounded-b-lg p-4 md:p-6">
+                    <div className="text-center sm:text-left">
                       {subscription.status === 'ACTIVE' && (
-                        <p className="text-sm text-muted-foreground">Your subscription will {subscription.autoRenew ? 'automatically renew' : 'expire'} on {formatDate(subscription.endDate)}.</p>
+                        <p className="text-sm text-muted-foreground">
+                          Your subscription will {subscription.autoRenew ? 'automatically renew' : 'expire'} on {formatDate(subscription.endDate)}.
+                        </p>
                       )}
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex flex-col sm:flex-row gap-3">
                       {hasIncorrectDates && (
-                        <div className="flex flex-col">
+                        <div className="flex flex-col items-center">
                           <Button 
                             variant="outline"
                             onClick={contactSupportForDates}
+                            className="w-full sm:w-auto"
                           >
                             Contact Support
                           </Button>
@@ -1196,26 +1278,36 @@ const UserSubscriptionPage: React.FC = () => {
                         variant="destructive" 
                         onClick={() => cancelMutation.mutate()} 
                         disabled={subscription.status !== 'ACTIVE' || !subscription.autoRenew || cancelMutation.isPending}
+                        className="w-full sm:w-auto"
                       >
-                        {cancelMutation.isPending ? 'Processing...' : 'Cancel Subscription'}
+                        {cancelMutation.isPending ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Processing...
+                          </>
+                        ) : (
+                          'Cancel Subscription'
+                        )}
                       </Button>
                     </div>
                   </CardFooter>
                 </Card>
               ) : (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  <Card className="border-2 border-primary/10">
-                    <CardHeader className="bg-primary/5">
-                      <CardTitle className="text-2xl flex items-center gap-2">
-                        <CreditCard className="h-6 w-6 text-primary" />
+                  <Card className="border-none shadow-lg">
+                    <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/10 dark:to-indigo-900/10 rounded-t-lg">
+                      <CardTitle className="text-xl md:text-2xl flex items-center gap-3">
+                        <CreditCard className="h-6 w-6 text-blue-600" />
                         No Active Subscription
                       </CardTitle>
                       <CardDescription>Choose a subscription plan to unlock premium features and maximize your experience.</CardDescription>
                     </CardHeader>
-                    <CardContent className="pt-6">
+                    <CardContent className="p-4 md:p-6">
                       <div className="flex flex-col items-center justify-center py-8 text-center">
-                        <Sparkles className="h-16 w-16 text-primary/60 mb-4" />
-                        <h3 className="text-xl font-semibold mb-2">Unlock Premium Features</h3>
+                        <div className="bg-blue-100 dark:bg-blue-900/30 rounded-full p-4 w-16 h-16 mb-4">
+                          <Sparkles className="h-8 w-8 text-blue-600 dark:text-blue-400" />
+                        </div>
+                        <h3 className="text-xl font-bold mb-2">Unlock Premium Features</h3>
                         <p className="text-muted-foreground mb-6 max-w-md">
                           Get started with a subscription to access AI-powered resume building, ATS optimization, and advanced career tools.
                         </p>
@@ -1224,7 +1316,7 @@ const UserSubscriptionPage: React.FC = () => {
                             e.preventDefault();
                             setTab('plans');
                           }}
-                          className="bg-primary hover:bg-primary/90"
+                          className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-md px-8"
                           size="lg"
                         >
                           View Available Plans
@@ -1233,41 +1325,49 @@ const UserSubscriptionPage: React.FC = () => {
                     </CardContent>
                   </Card>
                   
-                  <Card className="border border-muted">
-                    <CardHeader>
+                  <Card className="border-none shadow-lg">
+                    <CardHeader className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/10 dark:to-emerald-900/10 rounded-t-lg">
                       <CardTitle className="text-xl flex items-center gap-2">
                         <Check className="h-5 w-5 text-green-600" />
                         Benefits of Upgrading
                       </CardTitle>
                     </CardHeader>
-                    <CardContent>
-                      <ul className="space-y-3">
-                        <li className="flex items-start">
-                          <Check className="h-5 w-5 text-green-600 mr-2 mt-0.5 flex-shrink-0" />
+                    <CardContent className="p-4 md:p-6">
+                      <ul className="space-y-4">
+                        <li className="flex items-start gap-3">
+                          <div className="bg-green-100 dark:bg-green-900/30 rounded-full p-1 mt-0.5">
+                            <Check className="h-3 w-3 text-green-600 dark:text-green-400" />
+                          </div>
                           <div>
-                            <span className="font-medium">AI-powered resume optimization</span>
-                            <p className="text-sm text-muted-foreground">Get tailored suggestions to improve your resume's ATS compatibility</p>
+                            <span className="font-semibold">AI-powered resume optimization</span>
+                            <p className="text-sm text-muted-foreground mt-1">Get tailored suggestions to improve your resume's ATS compatibility</p>
                           </div>
                         </li>
-                        <li className="flex items-start">
-                          <Check className="h-5 w-5 text-green-600 mr-2 mt-0.5 flex-shrink-0" />
+                        <li className="flex items-start gap-3">
+                          <div className="bg-green-100 dark:bg-green-900/30 rounded-full p-1 mt-0.5">
+                            <Check className="h-3 w-3 text-green-600 dark:text-green-400" />
+                          </div>
                           <div>
-                            <span className="font-medium">Expanded content generation</span>
-                            <p className="text-sm text-muted-foreground">Create more high-quality resumes, cover letters, and applications</p>
+                            <span className="font-semibold">Expanded content generation</span>
+                            <p className="text-sm text-muted-foreground mt-1">Create more high-quality resumes, cover letters, and applications</p>
                           </div>
                         </li>
-                        <li className="flex items-start">
-                          <Check className="h-5 w-5 text-green-600 mr-2 mt-0.5 flex-shrink-0" />
+                        <li className="flex items-start gap-3">
+                          <div className="bg-green-100 dark:bg-green-900/30 rounded-full p-1 mt-0.5">
+                            <Check className="h-3 w-3 text-green-600 dark:text-green-400" />
+                          </div>
                           <div>
-                            <span className="font-medium">Advanced customization</span>
-                            <p className="text-sm text-muted-foreground">Access premium templates and personalization options</p>
+                            <span className="font-semibold">Advanced customization</span>
+                            <p className="text-sm text-muted-foreground mt-1">Access premium templates and personalization options</p>
                           </div>
                         </li>
-                        <li className="flex items-start">
-                          <Check className="h-5 w-5 text-green-600 mr-2 mt-0.5 flex-shrink-0" />
+                        <li className="flex items-start gap-3">
+                          <div className="bg-green-100 dark:bg-green-900/30 rounded-full p-1 mt-0.5">
+                            <Check className="h-3 w-3 text-green-600 dark:text-green-400" />
+                          </div>
                           <div>
-                            <span className="font-medium">Priority support</span>
-                            <p className="text-sm text-muted-foreground">Get faster responses and dedicated assistance</p>
+                            <span className="font-semibold">Priority support</span>
+                            <p className="text-sm text-muted-foreground mt-1">Get faster responses and dedicated assistance</p>
                           </div>
                         </li>
                       </ul>
@@ -1278,6 +1378,7 @@ const UserSubscriptionPage: React.FC = () => {
                             e.preventDefault();
                             setTab('plans');
                           }}
+                          className="w-full border-green-200 hover:bg-green-50 dark:border-green-800 dark:hover:bg-green-900/20"
                         >
                           Compare All Plans
                         </Button>
@@ -1289,65 +1390,177 @@ const UserSubscriptionPage: React.FC = () => {
             </TabsContent>
             
             {/* Features & Limits Tab */}
-            <TabsContent value="features">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Features & Usage Limits</CardTitle>
+            <TabsContent value="features" className="mt-0">
+              <Card className="border-none shadow-lg">
+                <CardHeader className="bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/10 dark:to-pink-900/10 rounded-t-lg">
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <Sparkles className="h-5 w-5 text-purple-600" />
+                    Features & Usage Limits
+                  </CardTitle>
                   <CardDescription>
                     {userPlan 
                       ? `Features available with your ${userPlan.name} subscription`
                       : 'Subscribe to a plan to access these features'}
                   </CardDescription>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="p-4 md:p-6">
                   {combinedFeatures.length > 0 ? (
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Feature</TableHead>
-                          <TableHead>Description</TableHead>
-                          <TableHead>Limit</TableHead>
-                          <TableHead>Reset</TableHead>
-                          <TableHead>Usage</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {combinedFeatures.map((feature: PlanFeature) => (
-                          <TableRow key={feature.featureId || feature.id}>
-                            <TableCell className="font-medium">{feature.featureName}</TableCell>
-                            <TableCell>{feature.description}</TableCell>
-                            <TableCell>
-                              {feature.limitType === 'UNLIMITED' 
-                                ? 'Unlimited' 
-                                : feature.limitType === 'BOOLEAN' 
-                                  ? (feature.isEnabled ? 'Enabled' : 'Disabled')
-                                  : `${feature.limitValue} ${feature.isTokenBased ? 'tokens' : 'uses'}`}
-                            </TableCell>
-                            <TableCell>{feature.resetFrequency}</TableCell>
-                            <TableCell>
-                              {feature.limitType === 'BOOLEAN' 
-                                ? (feature.isEnabled ? 'Enabled' : 'Disabled')
-                                : feature.isTokenBased 
-                                  ? `${feature.aiTokenCount || 0} / ${feature.limitValue || 0}` 
-                                  : `${feature.currentUsage || 0} / ${feature.limitValue || 'Unlimited'}`}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
+                    <div className="space-y-4">
+                      {/* Mobile-First Feature Cards */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {combinedFeatures.map((feature: PlanFeature) => {
+                          const isTokenFeature = feature.isTokenBased === true;
+                          const usageValue = isTokenFeature 
+                            ? (feature.aiTokenCount !== undefined ? feature.aiTokenCount : 0)
+                            : (feature.currentUsage !== undefined ? feature.currentUsage : 0);
+                          const limitValue = feature.limitValue || 0;
+                          const usagePercentage = limitValue > 0 ? (usageValue / limitValue) * 100 : 0;
+
+                          return (
+                            <Card key={feature.featureId || feature.id} className="p-4 bg-slate-50 dark:bg-slate-800/30 border-slate-200 dark:border-slate-700">
+                              <div className="space-y-3">
+                                {/* Feature Header */}
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="flex-1">
+                                    <h3 className="font-semibold text-sm md:text-base text-slate-900 dark:text-slate-100">
+                                      {feature.featureName}
+                                    </h3>
+                                    <p className="text-xs md:text-sm text-muted-foreground mt-1 line-clamp-2">
+                                      {feature.description}
+                                    </p>
+                                  </div>
+                                  <div className="flex flex-col items-end gap-1">
+                                    <Badge variant="outline" className="text-xs">
+                                      {feature.resetFrequency}
+                                    </Badge>
+                                  </div>
+                                </div>
+
+                                {/* Feature Limit & Usage */}
+                                <div className="space-y-2">
+                                  <div className="flex items-center justify-between text-sm">
+                                    <span className="text-muted-foreground font-medium">Limit</span>
+                                    <span className="font-semibold">
+                                      {feature.limitType === 'UNLIMITED' 
+                                        ? <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-300 dark:border-green-800">Unlimited</Badge>
+                                        : feature.limitType === 'BOOLEAN' 
+                                          ? <Badge variant={feature.isEnabled ? "default" : "outline"}>{feature.isEnabled ? 'Enabled' : 'Disabled'}</Badge>
+                                          : `${feature.limitValue} ${feature.isTokenBased ? 'tokens' : 'uses'}`}
+                                    </span>
+                                  </div>
+                                  
+                                  {feature.limitType !== 'BOOLEAN' && feature.limitType !== 'UNLIMITED' && (
+                                    <>
+                                      <div className="flex items-center justify-between text-sm">
+                                        <span className="text-muted-foreground font-medium">Usage</span>
+                                        <span className="font-semibold">
+                                          {isTokenFeature 
+                                            ? `${feature.aiTokenCount || 0} / ${feature.limitValue || 0} tokens` 
+                                            : `${feature.currentUsage || 0} / ${feature.limitValue || 'Unlimited'} uses`}
+                                        </span>
+                                      </div>
+                                      
+                                      {limitValue > 0 && (
+                                        <div className="space-y-1">
+                                          <Progress
+                                            value={Math.min(usagePercentage, 100)}
+                                            className={`h-2 ${usagePercentage > 80 ? 'bg-red-200 dark:bg-red-900' : usagePercentage > 60 ? 'bg-yellow-200 dark:bg-yellow-900' : 'bg-green-200 dark:bg-green-900'}`}
+                                          />
+                                          <div className="flex justify-between text-xs text-muted-foreground">
+                                            <span>{Math.round(usagePercentage)}% used</span>
+                                            {feature.resetFrequency && feature.resetFrequency !== 'NEVER' && (
+                                              <span>Resets {feature.resetFrequency.toLowerCase()}</span>
+                                            )}
+                                          </div>
+                                        </div>
+                                      )}
+                                    </>
+                                  )}
+                                  
+                                  {feature.limitType === 'BOOLEAN' && (
+                                    <div className="flex items-center justify-between text-sm">
+                                      <span className="text-muted-foreground font-medium">Status</span>
+                                      <Badge variant={feature.isEnabled ? "default" : "outline"} className={feature.isEnabled ? "bg-green-100 text-green-800 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-800" : ""}>
+                                        {feature.isEnabled ? 'Enabled' : 'Disabled'}
+                                      </Badge>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </Card>
+                          );
+                        })}
+                      </div>
+
+                      {/* Desktop Table View - Hidden on Mobile */}
+                      <div className="hidden lg:block mt-8">
+                        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                          <InfoIcon className="h-5 w-5 text-purple-600" />
+                          Detailed View
+                        </h3>
+                        <div className="overflow-x-auto bg-white dark:bg-slate-800/30 rounded-lg border border-slate-200 dark:border-slate-700">
+                          <Table>
+                            <TableHeader>
+                              <TableRow className="bg-slate-50 dark:bg-slate-800/50">
+                                <TableHead className="font-semibold">Feature</TableHead>
+                                <TableHead className="font-semibold">Description</TableHead>
+                                <TableHead className="font-semibold">Limit</TableHead>
+                                <TableHead className="font-semibold">Reset</TableHead>
+                                <TableHead className="font-semibold">Usage</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {combinedFeatures.map((feature: PlanFeature) => (
+                                <TableRow key={feature.featureId || feature.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                                  <TableCell className="font-semibold">{feature.featureName}</TableCell>
+                                  <TableCell className="text-sm max-w-xs">{feature.description}</TableCell>
+                                  <TableCell>
+                                    {feature.limitType === 'UNLIMITED' 
+                                      ? <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">Unlimited</Badge>
+                                      : feature.limitType === 'BOOLEAN' 
+                                        ? <Badge variant={feature.isEnabled ? "default" : "outline"}>{feature.isEnabled ? 'Enabled' : 'Disabled'}</Badge>
+                                        : `${feature.limitValue} ${feature.isTokenBased ? 'tokens' : 'uses'}`}
+                                  </TableCell>
+                                  <TableCell>
+                                    <Badge variant="outline" className="text-xs">
+                                      {feature.resetFrequency}
+                                    </Badge>
+                                  </TableCell>
+                                  <TableCell>
+                                    {feature.limitType === 'BOOLEAN' 
+                                      ? <Badge variant={feature.isEnabled ? "default" : "outline"}>{feature.isEnabled ? 'Enabled' : 'Disabled'}</Badge>
+                                      : feature.isTokenBased 
+                                        ? `${feature.aiTokenCount || 0} / ${feature.limitValue || 0}` 
+                                        : `${feature.currentUsage || 0} / ${feature.limitValue || 'Unlimited'}`}
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      </div>
+                    </div>
                   ) : subscription ? (
-                    <div className="py-8 text-center">
-                      <p className="text-muted-foreground">No features available for your current plan.</p>
+                    <div className="py-12 text-center">
+                      <div className="bg-slate-100 dark:bg-slate-800 rounded-full p-4 w-16 h-16 mx-auto mb-4">
+                        <AlertCircle className="h-8 w-8 text-slate-400" />
+                      </div>
+                      <h3 className="text-lg font-semibold mb-2">No features available</h3>
+                      <p className="text-muted-foreground">No features are currently available for your plan.</p>
                     </div>
                   ) : (
-                    <div className="py-8 text-center">
-                      <p className="text-muted-foreground">Subscribe to a plan to see available features.</p>
+                    <div className="py-12 text-center">
+                      <div className="bg-purple-100 dark:bg-purple-900/30 rounded-full p-4 w-16 h-16 mx-auto mb-4">
+                        <Package className="h-8 w-8 text-purple-600 dark:text-purple-400" />
+                      </div>
+                      <h3 className="text-lg font-semibold mb-2">No subscription found</h3>
+                      <p className="text-muted-foreground mb-6">Subscribe to a plan to see available features.</p>
                       <Button 
-                        className="mt-4" 
                         onClick={(e) => {
                           e.preventDefault();
                           setTab('plans');
                         }}
+                        className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white shadow-md"
                       >
                         Browse Plans
                       </Button>
@@ -1358,21 +1571,24 @@ const UserSubscriptionPage: React.FC = () => {
             </TabsContent>
             
             {/* Available Plans Tab */}
-                          <TabsContent value="plans">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="text-sm text-muted-foreground">
-                    {billingCountry ? (
-                      <>Showing prices based on your billing address: {billingRegion === 'INDIA' ? 'India' : billingCountry}</>
-                    ) : userRegion.country ? (
-                      <>Showing prices based on your location: {userRegion.region === 'INDIA' ? 'India' : userRegion.country}</>
-                    ) : (
-                      <>Showing global prices</>
-                    )}
+            <TabsContent value="plans" className="mt-0">
+              <div className="space-y-6">
+                <div className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/10 dark:to-emerald-900/10 p-4 rounded-lg border border-green-200 dark:border-green-800">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm text-green-800 dark:text-green-300">
+                      <span className="font-medium">Price Display: </span>
+                      {billingCountry ? (
+                        <>Showing prices based on your billing address: {billingRegion === 'INDIA' ? 'India' : billingCountry}</>
+                      ) : userRegion.country ? (
+                        <>Showing prices based on your location: {userRegion.region === 'INDIA' ? 'India' : userRegion.country}</>
+                      ) : (
+                        <>Showing global prices</>
+                      )}
+                    </div>
                   </div>
                 </div>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 lg:gap-5">
                   {plans
                     .filter((plan: SubscriptionPlan) => plan && plan.active)
                     .map((plan: SubscriptionPlan) => {
@@ -1383,38 +1599,47 @@ const UserSubscriptionPage: React.FC = () => {
                       const isUpgrade = subscription && plan && getPlanPrice(plan) > getPlanPrice(plans.find((p: SubscriptionPlan) => p && p.id === subscription.planId) || {} as SubscriptionPlan);
                       
                       return (
-                        <Card key={plan.id} className={`flex flex-col h-full transition-all hover:shadow-lg ${isCurrentPlan ? 'border-primary border-2' : ''} ${isPendingPlan ? 'border-amber-500 border-2' : ''} ${plan.isFeatured ? 'shadow-md ring-1 ring-primary/20' : ''}`}>
-                          <CardHeader className={`${isCurrentPlan ? 'bg-primary/5' : ''} ${isPendingPlan ? 'bg-amber-500/5' : ''} ${plan.isFeatured ? 'bg-muted/50' : ''}`}>
-                            <div className="flex flex-wrap gap-2 mb-2">
+                        <Card key={plan.id} className={`flex flex-col h-full transition-all hover:shadow-xl ${isCurrentPlan ? 'border-blue-500 border-2 ring-2 ring-blue-100 dark:ring-blue-900/30' : ''} ${isPendingPlan ? 'border-amber-500 border-2 ring-2 ring-amber-100 dark:ring-amber-900/30' : ''} ${plan.isFeatured ? 'shadow-lg ring-2 ring-green-100 dark:ring-green-900/30 border-green-200 dark:border-green-800' : 'border-slate-200 dark:border-slate-700'}`}>
+                          <CardHeader className={`p-4 md:p-6 ${isCurrentPlan ? 'bg-blue-50 dark:bg-blue-900/10' : ''} ${isPendingPlan ? 'bg-amber-50 dark:bg-amber-900/10' : ''} ${plan.isFeatured ? 'bg-green-50 dark:bg-green-900/10' : ''} rounded-t-lg`}>
+                            <div className="flex flex-wrap gap-2 mb-3">
                               {plan.isFeatured && (
-                                <Badge className="bg-primary">Featured</Badge>
+                                <Badge className="bg-gradient-to-r from-green-600 to-emerald-600 text-white shadow-sm">
+                                  ⭐ Featured
+                                </Badge>
                               )}
                               {isPendingPlan && (
-                                <Badge className="bg-amber-500">Scheduled</Badge>
+                                <Badge className="bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-sm">
+                                  📅 Scheduled
+                                </Badge>
+                              )}
+                              {isCurrentPlan && (
+                                <Badge className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-sm">
+                                  ✓ Current
+                                </Badge>
                               )}
                             </div>
-                            <CardTitle className="text-xl font-bold">{plan.name}</CardTitle>
-                            <CardDescription className="line-clamp-3 min-h-[60px]">{plan.description}</CardDescription>
+                            <CardTitle className="text-lg md:text-xl font-bold">{plan.name}</CardTitle>
+                            <CardDescription className="line-clamp-3 min-h-[60px] text-sm">{plan.description}</CardDescription>
                           </CardHeader>
-                          <CardContent className="pt-4 flex-grow min-h-[360px]">
-                            <div className="mb-3 text-center">
-                              <p className="text-2xl font-bold">
+                          <CardContent className="pt-4 flex-grow min-h-[280px] p-4 md:p-6">
+                            <div className="mb-4 text-center p-4 bg-slate-50 dark:bg-slate-800/30 rounded-lg">
+                              <p className="text-2xl md:text-3xl font-bold text-slate-900 dark:text-slate-100">
                                 {getPriceDisplay(plan)}
                               </p>
                               <p className="text-sm text-muted-foreground">per {plan?.billingCycle ? plan.billingCycle.toLowerCase() : 'month'}</p>
                             </div>
                             
-                            <Separator className="my-2" />
+                            <Separator className="my-4" />
                             
-                            <div className="space-y-1.5">
+                            <div className="space-y-2 max-h-48 overflow-y-auto">
                               {allFeaturesByPlan[plan.id] && allFeaturesByPlan[plan.id].length > 0 ? (
                                 <>
-                                  {allFeaturesByPlan[plan.id].slice(0, 10).map((feature: any, index: number) => (
+                                  {allFeaturesByPlan[plan.id].slice(0, 8).map((feature: any, index: number) => (
                                     <div key={index} className="flex items-start">
                                       {feature.limitType === 'BOOLEAN' && !feature.isEnabled ? (
-                                        <X className="h-4 w-4 text-red-600 mr-2 mt-0.5 flex-shrink-0" />
+                                        <X className="h-4 w-4 text-red-500 mt-0.5 flex-shrink-0" />
                                       ) : (
-                                        <Check className="h-4 w-4 text-green-600 mr-2 mt-0.5 flex-shrink-0" />
+                                        <Check className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
                                       )}
                                       <span className="text-sm">
                                         {feature.featureName || feature.name || 'Unnamed Feature'}
@@ -1424,39 +1649,48 @@ const UserSubscriptionPage: React.FC = () => {
                                           </span>
                                         )}
                                         {feature.limitType === 'UNLIMITED' && (
-                                          <span className="text-xs text-muted-foreground ml-1">
+                                          <span className="text-xs text-green-600 ml-1 font-medium">
                                             (Unlimited)
                                           </span>
                                         )}
                                       </span>
                                     </div>
                                   ))}
-                                  {allFeaturesByPlan[plan.id].length > 10 && (
-                                                                          <div className="mt-1 text-center">
+                                  {allFeaturesByPlan[plan.id].length > 8 && (
+                                    <div className="mt-2 text-center">
                                       <Button 
                                         variant="link" 
                                         size="sm" 
-                                        className="text-xs h-6 p-0"
-                                                                                  onClick={(e) => {
-                                            e.preventDefault();
-                                            setTab('features');
-                                          }}
+                                        className="text-xs h-6 p-0 text-muted-foreground hover:text-foreground"
+                                        onClick={(e) => {
+                                          e.preventDefault();
+                                          setTab('features');
+                                        }}
                                       >
-                                        +{allFeaturesByPlan[plan.id].length - 10} more features
+                                        +{allFeaturesByPlan[plan.id].length - 8} more features
                                       </Button>
                                     </div>
                                   )}
                                 </>
                               ) : (
-                                <div className="text-sm text-muted-foreground">No features available for this plan. (Plan ID: {plan.id})</div>
+                                <div className="text-sm text-muted-foreground text-center py-4">
+                                  No features available for this plan. (Plan ID: {plan.id})
+                                </div>
                               )}
                             </div>
                           </CardContent>
-                          <CardFooter className="mt-auto pt-4">
+                          <CardFooter className="mt-auto pt-4 p-4 md:p-6">
                             <Button 
-                              className="w-full transition-all font-medium"
-                              size="sm"
-                              variant={isCurrentPlan ? "outline" : isPendingPlan ? "secondary" : plan.isFeatured ? "default" : "outline"}
+                              className={`w-full transition-all font-medium h-12 ${
+                                isCurrentPlan 
+                                  ? 'bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-300' 
+                                  : isPendingPlan 
+                                    ? 'bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-300' 
+                                    : plan.isFeatured 
+                                      ? 'bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white shadow-md' 
+                                      : 'bg-gradient-to-r from-slate-600 to-slate-700 hover:from-slate-700 hover:to-slate-800 text-white'
+                              }`}
+                              size="lg"
                               onClick={() => {
                                 if (!isCurrentPlan && !isPendingPlan) {
                                   // For new users with no subscription, always use handleUpgrade
@@ -1469,14 +1703,19 @@ const UserSubscriptionPage: React.FC = () => {
                                   }
                                 }
                               }}
-                              disabled={isCurrentPlan || isPendingPlan || upgradeMutation.isPending || downgradeMutation.isPending}
+                              disabled={isCurrentPlan || isPendingPlan || upgradeMutation.isPending || downgradeMutation.isPending || isChangingPlan}
                             >
                               {isCurrentPlan 
-                                ? 'Current Plan' 
+                                ? '✓ Current Plan' 
                                 : isPendingPlan
-                                  ? `Scheduled`
-                                  : upgradeMutation.isPending || downgradeMutation.isPending
-                                    ? 'Processing...' 
+                                  ? `📅 Scheduled`
+                                  : (upgradeMutation.isPending || downgradeMutation.isPending || isChangingPlan)
+                                    ? (
+                                      <>
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        Processing...
+                                      </>
+                                    ) 
                                     : plan.isFreemium 
                                       ? 'Select Free Plan' 
                                       : subscription 
@@ -1495,23 +1734,36 @@ const UserSubscriptionPage: React.FC = () => {
             </TabsContent>
             
             {/* Invoices Tab */}
-            <TabsContent value="invoices">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <FileText className="h-5 w-5" />
+            <TabsContent value="invoices" className="mt-0">
+              <Card className="border-none shadow-lg">
+                <CardHeader className="bg-gradient-to-r from-orange-50 to-red-50 dark:from-orange-900/10 dark:to-red-900/10 rounded-t-lg">
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <FileText className="h-5 w-5 text-orange-600" />
                     Billing History
                   </CardTitle>
                   <CardDescription>
                     View and download your invoices and payment history
                   </CardDescription>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="p-4 md:p-6">
                   {subscriptionData ? (
                     <SubscriptionInvoices subscriptionId={subscriptionData.id.toString()} />
                   ) : (
-                    <div className="text-center py-10 text-muted-foreground">
-                      <p>No subscription found. Subscribe to a plan to view billing history.</p>
+                    <div className="text-center py-12">
+                      <div className="bg-orange-100 dark:bg-orange-900/30 rounded-full p-4 w-16 h-16 mx-auto mb-4">
+                        <FileText className="h-8 w-8 text-orange-600 dark:text-orange-400" />
+                      </div>
+                      <h3 className="text-lg font-semibold mb-2">No subscription found</h3>
+                      <p className="text-muted-foreground mb-6">Subscribe to a plan to view billing history.</p>
+                      <Button 
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setTab('plans');
+                        }}
+                        className="bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 text-white shadow-md"
+                      >
+                        Browse Plans
+                      </Button>
                     </div>
                   )}
                 </CardContent>

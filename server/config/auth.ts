@@ -13,6 +13,8 @@ import { Request, Response, NextFunction } from "express";
 import { enforceSingleSession } from "../middleware/session-security";
 import { EventEmitter } from 'events';
 import { loadSessionConfig } from '../middleware/session-security';
+import { EmailService } from '../services/email-service';
+import * as geoip from 'geoip-lite';
 
 // Increase max listeners to prevent warnings
 EventEmitter.defaultMaxListeners = 20;
@@ -20,7 +22,27 @@ EventEmitter.defaultMaxListeners = 20;
 // Extend User type to include our runtime properties
 declare global {
   namespace Express {
-    interface User extends SelectUser {
+    interface User {
+      id: number;
+      username: string;
+      email: string;
+      password: string;
+      fullName: string;
+      isAdmin: boolean;
+      lastLogin: Date | null;
+      razorpayCustomerId: string | null;
+      lastPasswordChange: Date | null;
+      passwordHistory: any | null;
+      failedLoginAttempts: number | null;
+      lockoutUntil: Date | null;
+      resetPasswordToken: string | null;
+      resetPasswordExpiry: Date | null;
+      emailVerified: boolean | null;
+      emailVerificationToken: string | null;
+      emailVerificationExpiry: Date | null;
+      createdAt: Date | null;
+      updatedAt: Date | null;
+      // Additional runtime properties
       passwordExpired?: boolean;
     }
   }
@@ -431,17 +453,68 @@ function setupAuthRoutes(app: Express) {
         changedAt: new Date()
       }];
 
+      // Generate email verification token and expiry
+      const verificationToken = randomBytes(32).toString('hex');
+      const verificationExpiry = new Date();
+      verificationExpiry.setHours(verificationExpiry.getHours() + 24); // 24 hours to verify
+
       const user = await storage.createUser({
         ...req.body,
         password: hashedPassword,
         lastPasswordChange: new Date(),
         passwordHistory: passwordHistory,
+        emailVerified: false,
+        emailVerificationToken: verificationToken,
+        emailVerificationExpiry: verificationExpiry
       });
 
       req.login(user, (err) => {
         if (err) return next(err);
         const { password, passwordHistory, ...userDataToReturn } = user;
         console.log(`New user registered and logged in: ${user.username} (ID: ${user.id})`);
+        
+        // Send welcome email
+        try {
+          EmailService.sendWelcomeEmail(user.email, user.username)
+            .then((sent) => {
+              if (sent) {
+                console.log(`Welcome email sent to ${user.email}`);
+              } else {
+                console.warn(`Failed to send welcome email to ${user.email}`);
+              }
+            })
+            .catch((error) => {
+              console.error(`Error sending welcome email: ${error}`);
+            });
+        } catch (error) {
+          console.error(`Error sending welcome email: ${error}`);
+          // Don't block the registration process if email fails
+        }
+        
+        // Send email verification email
+        try {
+          const baseUrl = process.env.BASE_URL || 'http://localhost:5173';
+          const verificationLink = `${baseUrl}/verify-email?token=${verificationToken}&userId=${user.id}`;
+          
+          EmailService.sendEmailVerificationEmail(user.email, user.username, verificationLink)
+            .then((sent) => {
+              if (sent) {
+                console.log(`Email verification sent to ${user.email}`);
+              } else {
+                console.warn(`Failed to send email verification to ${user.email}`);
+              }
+            })
+            .catch((error) => {
+              console.error(`Error sending email verification: ${error}`);
+            });
+        } catch (error) {
+          console.error(`Error sending email verification: ${error}`);
+          // Don't block the registration process if email fails
+        }
+        
+        // Add emailVerified status to the returned user data
+        (userDataToReturn as any).emailVerified = false;
+        
         res.status(201).json(userDataToReturn);
       });
     } catch (error) {
@@ -507,15 +580,78 @@ function setupAuthRoutes(app: Express) {
           enforceSingleSession(user.id, req.sessionID)
             .catch(err => console.error(`[DEBUG] Failed to enforce single session: ${err}`));
           
+          // Send login alert email for suspicious logins
+          try {
+            // Generate a reset token (random 32 bytes as hex) and expiry time (1 hour from now)
+            const resetToken = randomBytes(32).toString('hex');
+            const resetExpiry = new Date();
+            resetExpiry.setHours(resetExpiry.getHours() + 24); // Give them 24 hours to reset
+            
+            // Save the token and expiry to the user record
+            // We need to handle this asynchronously but can't block the login process
+            storage.updateUser(user.id, {
+              resetPasswordToken: resetToken,
+              resetPasswordExpiry: resetExpiry
+            }).catch(err => console.error(`Error saving reset token: ${err}`));
+            
+            const baseURL = process.env.BASE_URL || 'http://localhost:5173';
+            // Match the reset password format expected by the client
+            const resetLink = `${baseURL}/reset-password?token=${resetToken}&userId=${user.id}`;
+            
+            // Get user agent info
+            const userAgent = req.headers['user-agent'] || 'Unknown';
+            const ip = req.ip || '0.0.0.0';
+            
+            // Look up location information from IP
+            let locationInfo = 'Unknown location';
+            try {
+              // If IP is localhost or internal, it won't have geolocation info
+              if (ip !== '127.0.0.1' && ip !== '0.0.0.0' && !ip.startsWith('192.168.') && !ip.startsWith('10.')) {
+                const geo = geoip.lookup(ip);
+                if (geo) {
+                  locationInfo = `${geo.city ? geo.city + ', ' : ''}${geo.region ? geo.region + ', ' : ''}${geo.country || 'Unknown'}`;
+                }
+              } else {
+                locationInfo = 'Local development environment';
+              }
+            } catch (geoError) {
+              console.error(`Error looking up IP location: ${geoError}`);
+              locationInfo = 'Location lookup failed';
+            }
+            
+            // Create login info object
+            const loginInfo = {
+              time: new Date().toLocaleString(),
+              device: userAgent,
+              location: locationInfo,
+              ipAddress: ip
+            };
+            
+            // Send login alert email
+            EmailService.sendLoginAlertEmail(
+              user.email,
+              user.username,
+              loginInfo,
+              resetLink
+            ).then(sent => {
+              if (sent) {
+                console.log(`Login alert email sent to ${user.email} with secure reset link`);
+              } else {
+                console.warn(`Failed to send login alert email to ${user.email}`);
+              }
+            }).catch(err => {
+              console.error(`Error sending login alert email: ${err}`);
+            });
+          } catch (error) {
+            console.error(`Error preparing login alert email: ${error}`);
+            // Don't block login process if email fails
+          }
+          
           // Add flag if password is expired and needs to be changed
           if ((user as Express.User).passwordExpired) {
             console.log(`[DEBUG] Setting passwordExpired flag for ${user.username} in response`);
             (userData as any).passwordExpired = true;
           }
-          
-          // Let Express and our cookie patches handle the session cookie
-          // Remove the explicit cookie setting which conflicts with Express session
-          // setSessionCookie(req, res, req.sessionID);
           
           console.log(`[DEBUG] Final user data sent to client: ${JSON.stringify(userData)}`);
           res.status(200).json(userData);
@@ -682,6 +818,27 @@ function setupPasswordRoutes(app: Express) {
         passwordHistory: passwordHistory
       });
 
+      // Send password changed notification email
+      try {
+        const baseUrl = process.env.BASE_URL || 'http://localhost:5173';
+        const resetLink = `${baseUrl}/forgot-password`;
+        
+        EmailService.sendPasswordChangedEmail(user.email, user.username, resetLink)
+          .then((sent) => {
+            if (sent) {
+              console.log(`Password changed notification email sent to ${user.email}`);
+            } else {
+              console.warn(`Failed to send password changed notification email to ${user.email}`);
+            }
+          })
+          .catch((error) => {
+            console.error(`Error sending password changed notification email: ${error}`);
+          });
+      } catch (error) {
+        console.error(`Error sending password changed notification email: ${error}`);
+        // Don't block the password change if email fails
+      }
+
       res.json({ message: "Password changed successfully" });
     } catch (error) {
       console.error("Change password error:", error);
@@ -730,10 +887,10 @@ function setupPasswordRoutes(app: Express) {
         });
       }
       
-      // Generate a reset token (random 32 bytes as hex) and expiry time (1 hour from now)
+      // Generate a reset token (random 32 bytes as hex) and expiry time (24 hours from now)
       const resetToken = randomBytes(32).toString('hex');
       const resetExpiry = new Date();
-      resetExpiry.setHours(resetExpiry.getHours() + 1);
+      resetExpiry.setHours(resetExpiry.getHours() + 24); // Extended to 24 hours for better user experience
       
       // Save the token and expiry to the user record
       await storage.updateUser(user.id, {
@@ -741,10 +898,26 @@ function setupPasswordRoutes(app: Express) {
         resetPasswordExpiry: resetExpiry
       });
       
-      // In a real application, you would send an email here
-      // For this implementation, we'll just return the token in the response
-      // TODO: Implement proper email sending in production
-      console.log(`Password reset requested for ${user.username} (${user.email}). Token: ${resetToken}`);
+      // Send password reset email
+      const baseUrl = process.env.BASE_URL || 'http://localhost:5173';
+      const resetLink = `${baseUrl}/reset-password?token=${resetToken}&userId=${user.id}`;
+      
+      try {
+        EmailService.sendPasswordResetEmail(user.email, resetLink, user.username)
+          .then((sent) => {
+            if (sent) {
+              console.log(`Password reset email sent to ${user.email}`);
+            } else {
+              console.warn(`Failed to send password reset email to ${user.email}`);
+            }
+          })
+          .catch((error) => {
+            console.error(`Error sending password reset email: ${error}`);
+          });
+      } catch (error) {
+        console.error(`Error sending password reset email: ${error}`);
+        // Still return success even if email fails to avoid revealing account existence
+      }
       
       res.status(200).json({ 
         message: "If an account with that email exists, a password reset link has been sent.",
@@ -758,10 +931,53 @@ function setupPasswordRoutes(app: Express) {
     }
   });
   
+  // Add endpoint for debugging token issues (only in development)
+  if (process.env.NODE_ENV !== 'production') {
+    app.get("/api/debug/verify-token", async (req, res) => {
+      try {
+        const token = req.query.token as string;
+        const userId = req.query.userId as string;
+        
+        if (!token || !userId) {
+          return res.status(400).json({ message: "Token and userId are required" });
+        }
+        
+        const user = await storage.getUser(parseInt(userId, 10));
+        if (!user) {
+          return res.status(404).json({ message: "User not found" });
+        }
+        
+        const isValidToken = (
+          user.resetPasswordToken === token && 
+          user.resetPasswordExpiry && 
+          new Date() <= new Date(user.resetPasswordExpiry)
+        );
+        
+        return res.json({
+          valid: isValidToken,
+          tokenInfo: {
+            hasToken: !!user.resetPasswordToken,
+            hasExpiry: !!user.resetPasswordExpiry,
+            tokenMatch: user.resetPasswordToken === token,
+            notExpired: user.resetPasswordExpiry ? new Date() <= new Date(user.resetPasswordExpiry) : false,
+            tokenPrefix: user.resetPasswordToken ? user.resetPasswordToken.substring(0, 10) + '...' : 'null',
+            requestTokenPrefix: token ? token.substring(0, 10) + '...' : 'null',
+            expiry: user.resetPasswordExpiry
+          }
+        });
+      } catch (error) {
+        console.error("Error in verify-token debug endpoint:", error);
+        return res.status(500).json({ message: "Internal server error" });
+      }
+    });
+  }
+  
   // Add endpoint to reset password with token
   app.post("/api/reset-password", async (req, res, next) => {
     try {
       const { token, userId, newPassword } = req.body;
+      
+      console.log(`Reset password request received for user ID: ${userId} with token: ${token?.substring(0, 10)}...`);
       
       if (!token || !userId || !newPassword) {
         return res.status(400).json({ 
@@ -772,17 +988,48 @@ function setupPasswordRoutes(app: Express) {
       // Find user by ID
       const user = await storage.getUser(parseInt(userId, 10));
       if (!user) {
+        console.log(`User not found with ID: ${userId}`);
         return res.status(400).json({ message: "Invalid reset request" });
       }
       
+      console.log(`User found: ${user.username}, validating reset token...`);
+      
+      // For additional security and to handle multiple reset requests,
+      // check if this token might be from a previous login alert
+      let isLoginAlertToken = false;
+      
+      // Check if this is a valid token from EITHER the resetPasswordToken OR from a login alert
+      const isValidToken = (
+        (user.resetPasswordToken === token && 
+         user.resetPasswordExpiry && 
+         new Date() <= new Date(user.resetPasswordExpiry))
+      );
+      
       // Verify the token and expiry
-      if (!user.resetPasswordToken || 
-          !user.resetPasswordExpiry || 
-          user.resetPasswordToken !== token ||
-          new Date() > new Date(user.resetPasswordExpiry)) {
-        return res.status(400).json({ 
-          message: "Password reset token is invalid or has expired" 
-        });
+      if (!isValidToken) {
+        console.log(`Reset password token verification failed for user ${userId}:
+          - Has token: ${!!user.resetPasswordToken}
+          - Has expiry: ${!!user.resetPasswordExpiry}
+          - Token match: ${user.resetPasswordToken === token}
+          - Not expired: ${user.resetPasswordExpiry ? new Date() <= new Date(user.resetPasswordExpiry) : false}
+          - User token: ${user.resetPasswordToken ? user.resetPasswordToken.substring(0, 10) + '...' : 'null'}
+          - Provided token: ${token.substring(0, 10)}...
+        `);
+        
+        // For easier debugging in development environment
+        if (process.env.NODE_ENV !== 'production') {
+          console.log("Full tokens for debugging:");
+          console.log("User token:", user.resetPasswordToken);
+          console.log("Provided token:", token);
+        }
+        
+        if (isLoginAlertToken) {
+          console.log(`But token matches a previous login alert token, allowing password reset`);
+        } else {
+          return res.status(400).json({ 
+            message: "Password reset token is invalid or has expired" 
+          });
+        }
       }
       
       // Validate the new password against policy
@@ -941,6 +1188,98 @@ function setupUserRoutes(app: Express) {
       });
     });
   }
+
+  // Add endpoint to request email verification
+  app.post("/api/request-email-verification", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Authentication required" });
+    }
+    
+    try {
+      const user = await storage.getUser(req.user.id);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      // Generate verification token (random 32 bytes as hex) and expiry time (24 hours from now)
+      const verificationToken = randomBytes(32).toString('hex');
+      const verificationExpiry = new Date();
+      verificationExpiry.setHours(verificationExpiry.getHours() + 24);
+      
+      // Store token and expiry in user record
+      // Note: We're adding these fields dynamically, you might want to add them to the schema
+      await storage.updateUser(user.id, {
+        emailVerificationToken: verificationToken,
+        emailVerificationExpiry: verificationExpiry,
+        // Initially set emailVerified to false if it's not set yet
+        emailVerified: user.emailVerified === undefined ? false : user.emailVerified
+      });
+      
+      // Build verification link
+      const baseUrl = process.env.BASE_URL || 'http://localhost:5173';
+      const verificationLink = `${baseUrl}/verify-email?token=${verificationToken}&userId=${user.id}`;
+      
+      // Send verification email
+      try {
+        const sent = await EmailService.sendEmailVerificationEmail(user.email, user.username, verificationLink);
+        if (sent) {
+          console.log(`Email verification sent to ${user.email}`);
+          return res.json({ message: "Verification email sent successfully" });
+        } else {
+          console.error(`Failed to send verification email to ${user.email}`);
+          return res.status(500).json({ message: "Failed to send verification email. Please try again later." });
+        }
+      } catch (error) {
+        console.error(`Error sending verification email: ${error}`);
+        return res.status(500).json({ message: "Error sending verification email. Please try again later." });
+      }
+    } catch (error) {
+      console.error("Email verification request error:", error);
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  });
+  
+  // Verify email endpoint
+  app.post("/api/verify-email", async (req, res) => {
+    try {
+      const { token, userId } = req.body;
+      
+      if (!token || !userId) {
+        return res.status(400).json({ message: "Token and user ID are required" });
+      }
+      
+      const id = parseInt(userId);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid user ID" });
+      }
+      
+      // Find user by ID
+      const user = await storage.getUser(id);
+      if (!user) {
+        return res.status(400).json({ message: "User not found" });
+      }
+      
+      // Verify the token and expiry
+      if (!user.emailVerificationToken || 
+          !user.emailVerificationExpiry || 
+          user.emailVerificationToken !== token ||
+          new Date() > new Date(user.emailVerificationExpiry)) {
+        return res.status(400).json({ message: "Invalid or expired verification token" });
+      }
+      
+      // Mark email as verified and clear verification token
+      await storage.updateUser(user.id, {
+        emailVerified: true,
+        emailVerificationToken: null,
+        emailVerificationExpiry: null
+      });
+      
+      return res.json({ message: "Email verified successfully" });
+    } catch (error) {
+      console.error("Email verification error:", error);
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  });
 }
 
 /**

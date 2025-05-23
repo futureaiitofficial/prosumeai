@@ -102,7 +102,7 @@ export default function ResumePreview({ data, hideDownloadButton = false }: Resu
         for (const key in obj) {
           if (obj.hasOwnProperty(key)) {
             // Handle dates
-            if ((key === 'startDate' || key === 'endDate' || key === 'date') && obj[key] === null) {
+            if ((key === 'startDate' || key === 'endDate' || key === 'date' || key === 'publicationDate') && obj[key] === null) {
               result[key] = '';
             } 
             // Handle achievements arrays to ensure bullet points
@@ -178,7 +178,7 @@ export default function ResumePreview({ data, hideDownloadButton = false }: Resu
         ? data.summary.substring(0, MAX_SUMMARY_CHARS - 3) + "..."
         : data.summary,
       formatDate: formatDate, // Add formatDate function to the data for templates that need it
-      sectionOrder: data.sectionOrder || ["summary", "workExperience", "education", "skills", "projects", "certifications"] // Ensure sectionOrder exists with default fallback
+      sectionOrder: data.sectionOrder || ["summary", "workExperience", "education", "skills", "projects", "publications", "certifications"] // Ensure sectionOrder exists with default fallback
     };
   }, [data]);
 

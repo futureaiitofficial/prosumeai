@@ -32,6 +32,7 @@ import { exec } from "child_process";
 import { promisify } from "util";
 import { registerPaymentGatewayAdminRoutes } from './admin/payment-gateway-routes';
 import { registerSmtpRoutes } from './admin/smtp-routes';
+import { registerEmailTemplateRoutes } from './admin/email-template-routes';
 import { SubscriptionService } from "../../services/subscription-service";
 import { fileURLToPath } from "url";
 import { TaxService } from '../../services/tax-service';
@@ -96,6 +97,9 @@ export function registerAdminRoutes(app: Express) {
   
   // Register SMTP settings routes
   registerSmtpRoutes(app);
+  
+  // Register Email Template routes
+  registerEmailTemplateRoutes(app);
   
   // Debug endpoint - available without admin check to help troubleshoot admin access
   app.get("/api/admin/debug", (req: Request, res: Response) => {

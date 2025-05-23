@@ -3,6 +3,7 @@ import { Loader2 } from "lucide-react";
 import { Route, Redirect, useLocation } from "wouter";
 import { useEffect, useState } from "react";
 import { queryClient } from "./queryClient";
+import { VerificationGate } from "@/components/auth/verification-gate";
 
 export function ProtectedRoute({
   path,
@@ -104,7 +105,11 @@ export function ProtectedRoute({
 
         // Allow authenticated users or those with valid sessions to access protected routes
         if (user || sessionValid === true) {
-          return <Component />;
+          return (
+            <VerificationGate>
+              <Component />
+            </VerificationGate>
+          );
         }
         
         // Fallback loading state while waiting for session check

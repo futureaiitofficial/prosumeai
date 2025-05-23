@@ -24,7 +24,8 @@ import {
   Plus,
   Eye,
   X,
-  Sparkles
+  Sparkles,
+  Book
 } from "lucide-react";
 import Header from "@/components/layouts/header";
 import { motion } from "framer-motion";
@@ -44,6 +45,7 @@ import ResumePreview from "@/components/resume-builder/resume-preview";
 import ATSScore from "@/components/resume-builder/ats-score";
 import TemplateSelection from "@/components/resume-builder/template-selection";
 import SectionReorder from "@/components/resume-builder/section-reorder";
+import PublicationsForm from "@/components/resume-builder/publications-form";
 
 // Import the new download button component
 import ResumeDownloadButton from "@/components/resume-download-button";
@@ -369,6 +371,17 @@ interface Project {
   url: string | null;
 }
 
+// Define publication interface
+interface Publication {
+  id: string;
+  title: string;
+  publisher: string;
+  authors: string;
+  publicationDate: string | null;
+  url: string | null;
+  description: string;
+}
+
 // Define the resume data interface
 interface ResumeData {
   title: string;
@@ -391,6 +404,7 @@ interface ResumeData {
   softSkills: string[];
   certifications: Certification[];
   projects: Project[];
+  publications: Publication[];
   useSkillCategories: boolean;
   sectionOrder: string[];
   keywordsFeedback?: {
@@ -441,14 +455,15 @@ const initialResumeData: ResumeData = {
   // Additional sections
   certifications: [],
   projects: [],
+  publications: [],
   useSkillCategories: false,
   
   // Default section order
-  sectionOrder: ["summary", "workExperience", "education", "skills", "projects", "certifications"]
+  sectionOrder: ["summary", "workExperience", "education", "skills", "projects", "publications", "certifications"]
 };
 
 // Resume builder steps
-type BuilderStep = "template" | "import-option" | "job-description" | "personal-info" | "employment-history" | "summary" | "education" | "skills" | "projects" | "certifications" | "section-order" | "download";
+type BuilderStep = "template" | "import-option" | "job-description" | "personal-info" | "employment-history" | "summary" | "education" | "skills" | "projects" | "publications" | "certifications" | "section-order" | "download";
 
 // Create a new AI helpers file to contain the content generation functions
 export default function ResumeBuilder() {
@@ -460,7 +475,7 @@ export default function ResumeBuilder() {
   const [isLoading, setIsLoading] = useState(true);
   
   // Define steps array to ensure consistency
-  const BUILDER_STEPS: BuilderStep[] = ["template", "import-option", "job-description", "personal-info", "employment-history", "summary", "education", "skills", "projects", "certifications", "section-order", "download"];
+  const BUILDER_STEPS: BuilderStep[] = ["template", "import-option", "job-description", "personal-info", "employment-history", "summary", "education", "skills", "projects", "publications", "certifications", "section-order", "download"];
   
   // Change from activeSection to currentStep for consistency with cover letter builder
   const [currentStep, setCurrentStep] = useState<BuilderStep>("template");
@@ -568,6 +583,11 @@ export default function ResumeBuilder() {
         endDate: formatDateField(proj.endDate)
       }));
 
+      const processedPublications = (resumeData.publications || []).map((pub: Publication) => ({
+        ...pub,
+        publicationDate: formatDateField(pub.publicationDate)
+      }));
+
       const dataToSave = {
         ...resumeData,
         // Ensure arrays are initialized and dates are properly formatted
@@ -578,7 +598,8 @@ export default function ResumeBuilder() {
         workExperience: processedWorkExperience,
         education: processedEducation,
         certifications: processedCertifications,
-        projects: processedProjects
+        projects: processedProjects,
+        publications: processedPublications
       };
       
       if (resumeId) {
@@ -654,7 +675,7 @@ export default function ResumeBuilder() {
       }
       
       // Prepare default section order if needed
-      const defaultSectionOrder = ["summary", "workExperience", "education", "skills", "projects", "certifications"];
+      const defaultSectionOrder = ["summary", "workExperience", "education", "skills", "projects", "publications", "certifications"];
       const ensuredSectionOrder = Array.isArray(data.sectionOrder) && data.sectionOrder.length > 0 
         ? data.sectionOrder 
         : defaultSectionOrder;
@@ -741,6 +762,9 @@ export default function ResumeBuilder() {
         
       case "projects":
         return <ProjectsForm data={resumeData} updateData={handleComponentUpdate} />;
+        
+      case "publications":
+        return <PublicationsForm data={resumeData} updateData={handleComponentUpdate} />;
         
       case "certifications":
         return <CertificationsForm data={resumeData} updateData={handleComponentUpdate} />;
@@ -904,6 +928,7 @@ export default function ResumeBuilder() {
                 { id: "education", label: "Education", icon: <GraduationCap className="h-4 w-4" /> },
                 { id: "skills", label: "Skills", icon: <ListTodo className="h-4 w-4" /> },
                 { id: "projects", label: "Projects", icon: <Code className="h-4 w-4" /> },
+                { id: "publications", label: "Publications", icon: <Book className="h-4 w-4" /> },
                 { id: "certifications", label: "Certifications", icon: <Award className="h-4 w-4" /> },
                 { id: "section-order", label: "Section Order", icon: <Sparkles className="h-4 w-4" /> },
                 { id: "download", label: "Download", icon: <DownloadIcon className="h-4 w-4" /> },
@@ -1005,6 +1030,7 @@ export default function ResumeBuilder() {
                 { id: "education", label: "Education" },
                 { id: "skills", label: "Skills" },
                 { id: "projects", label: "Projects" },
+                { id: "publications", label: "Pub" },
                 { id: "certifications", label: "Certs" },
                 { id: "section-order", label: "Order" },
                 { id: "download", label: "Download" },

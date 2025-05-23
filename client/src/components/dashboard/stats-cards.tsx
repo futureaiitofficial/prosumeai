@@ -1,105 +1,89 @@
-import { Card } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { 
-  Clipboard, 
-  CalendarCheck, 
-  File, 
-  FileText,
-  TrendingUp
+  CheckCircle2, 
+  Clock, 
+  XCircle, 
+  FileText, 
+  Briefcase, 
+  BarChart3,
+  TrendingUp,
+  Users
 } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
-import { useAuth } from "@/hooks/use-auth";
+import { cn } from "@/lib/utils";
 
-interface StatsCardsProps {
-  jobApplications: any[];
+interface JobApplication {
+  id: string;
+  status?: string;
 }
 
-const StatCard = ({ 
-  title, 
-  value, 
-  icon: Icon, 
-  change, 
-  changeText 
-}: { 
-  title: string;
-  value: number | string;
-  icon: React.ElementType;
-  change?: "up" | "down" | null;
-  changeText?: string;
-}) => {
-  return (
-    <Card className="p-4">
-      <div className="flex items-center justify-between space-x-2">
-        <h3 className="text-sm font-medium text-slate-500 dark:text-slate-400">{title}</h3>
-        <Icon className="h-4 w-4 text-primary-500" />
-      </div>
-      <div className="mt-2">
-        <p className="text-2xl font-bold">{value}</p>
-        {changeText && (
-          <p className={`text-xs ${change === 'up' ? 'text-green-500' : change === 'down' ? 'text-red-500' : 'text-slate-500'}`}>
-            {change === 'up' && (
-              <TrendingUp className="inline h-3 w-3 mr-1" />
-            )}
-            <span>{changeText}</span>
-          </p>
-        )}
-      </div>
-    </Card>
-  );
-};
+interface StatsCardsProps {
+  jobApplications: JobApplication[];
+  className?: string;
+}
 
-export default function StatsCards({ jobApplications }: StatsCardsProps) {
-  const { user } = useAuth();
+export default function StatsCards({ jobApplications, className }: StatsCardsProps) {
+  // Calculate stats from job applications
+  const totalApplications = jobApplications.length;
+  const interviewCount = jobApplications.filter(app => 
+    app.status === 'INTERVIEW' || app.status === 'TECHNICAL_INTERVIEW'
+  ).length;
+  const rejectedCount = jobApplications.filter(app => 
+    app.status === 'REJECTED'
+  ).length;
+  const pendingCount = jobApplications.filter(app => 
+    app.status === 'APPLIED' || app.status === 'SUBMITTED'
+  ).length;
   
-  const { data: resumes = [] } = useQuery({
-    queryKey: ["/api/resumes"],
-    enabled: !!user,
-  });
-  
-  const { data: coverLetters = [] } = useQuery({
-    queryKey: ["/api/cover-letters"],
-    enabled: !!user,
-  });
-  
-  // Filter applications by status
-  const activeApplications = jobApplications.filter(app => 
-    !['rejected', 'accepted'].includes(app.status)
-  );
-  
-  const interviewApplications = jobApplications.filter(app => 
-    app.status === 'interview'
-  );
-  
+  const stats = [
+    {
+      title: "Total Applications",
+      value: totalApplications,
+      icon: Briefcase,
+      color: "bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
+      iconColor: "text-blue-600 dark:text-blue-400"
+    },
+    {
+      title: "Interviews",
+      value: interviewCount,
+      icon: Users,
+      color: "bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-300",
+      iconColor: "text-green-600 dark:text-green-400"
+    },
+    {
+      title: "Pending",
+      value: pendingCount,
+      icon: Clock,
+      color: "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
+      iconColor: "text-amber-600 dark:text-amber-400"
+    },
+    {
+      title: "Rejected",
+      value: rejectedCount,
+      icon: XCircle,
+      color: "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-300",
+      iconColor: "text-red-600 dark:text-red-400"
+    },
+  ];
+
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      <StatCard 
-        title="Active Applications" 
-        value={activeApplications.length}
-        icon={Clipboard}
-        change="up"
-        changeText={activeApplications.length > 0 ? `${activeApplications.length} in progress` : 'No active applications'} 
-      />
-      
-      <StatCard 
-        title="Interviews" 
-        value={interviewApplications.length}
-        icon={CalendarCheck}
-        change={interviewApplications.length > 0 ? "up" : null}
-        changeText={interviewApplications.length > 0 ? `${interviewApplications.length} scheduled` : 'No interviews scheduled'} 
-      />
-      
-      <StatCard 
-        title="Resumes" 
-        value={resumes.length}
-        icon={File}
-        changeText={resumes.length > 0 ? "Last updated 2 days ago" : 'No resumes created'} 
-      />
-      
-      <StatCard 
-        title="Cover Letters" 
-        value={coverLetters.length}
-        icon={FileText}
-        changeText={coverLetters.length > 0 ? "Templates ready to use" : 'No cover letters created'} 
-      />
+    <div className={cn("grid gap-4 grid-cols-2 md:grid-cols-4", className)}>
+      {stats.map((stat, index) => (
+        <Card key={index} className="overflow-hidden border-0 shadow-md">
+          <CardContent className="p-0">
+            <div className="flex flex-col h-full">
+              <div className={cn("p-4 flex items-center justify-between", stat.color)}>
+                <h3 className="font-medium text-sm">{stat.title}</h3>
+                <stat.icon className={cn("h-5 w-5", stat.iconColor)} />
+              </div>
+              <div className="bg-white dark:bg-slate-900 p-4 flex-1 flex items-center justify-center">
+                <span className="text-3xl font-bold text-slate-900 dark:text-slate-50">
+                  {stat.value}
+                </span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      ))}
     </div>
   );
 }

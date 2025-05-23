@@ -82,10 +82,10 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
   const navigationItems: NavigationItem[] = [
     { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
     { name: "Templates", href: "/admin/templates", icon: FileText },
+    { name: "Email Templates", href: "/admin/email-templates", icon: Mail },
     { name: "Users", href: "/admin/users", icon: Users },
     { name: "Backups", href: "/admin/backups", icon: Database },
     { name: "API Keys", href: "/admin/api-keys", icon: Key },
-    { name: "Email Templates", href: "/admin/email-templates", icon: Mail },
     { name: "Integrations", href: "/admin/integrations", icon: Plug2 },
     { name: "Payment Gateways", href: "/admin/payment", icon: DollarSign },
     { name: "Security", href: "/admin/security", icon: Shield },

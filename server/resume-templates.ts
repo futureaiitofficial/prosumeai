@@ -65,7 +65,8 @@ export function generateProfessionalTemplate(resumeData: any): string {
     technicalSkills = [],
     softSkills = [],
     certifications = [],
-    projects = []
+    projects = [],
+    publications = []
   } = resumeData;
 
   // Format work experience
@@ -117,6 +118,24 @@ ${technologies ? `\\resumeItemListStart
 \\resumeItem{Technologies used: ${escapeLatex(technologies)}}
 \\resumeItemListEnd` : ''}`;
 }).join('\n')}
+\\resumeSubHeadingListEnd`
+    : '';
+
+  // Format publications
+  const publicationsSection = publications.length 
+    ? `\\section{Publications}
+\\resumeSubHeadingList
+${publications.map((pub: any) => 
+  `\\resumeSubheading
+{${escapeLatex(pub.title || '')}} {${formatLatexDate(pub.publicationDate)}}
+{${escapeLatex(pub.publisher || '')}${pub.authors ? ` | ${escapeLatex(pub.authors)}` : ''}} {}
+${pub.description ? `\\resumeItemListStart
+\\resumeItem{${escapeLatex(pub.description)}}
+${pub.url ? `\\resumeItem{URL/DOI: ${escapeLatex(pub.url)}}` : ''}
+\\resumeItemListEnd` : (pub.url ? `\\resumeItemListStart
+\\resumeItem{URL/DOI: ${escapeLatex(pub.url)}}
+\\resumeItemListEnd` : '')}`
+).join('\n')}
 \\resumeSubHeadingListEnd`
     : '';
 
@@ -247,6 +266,8 @@ ${educationSection}
 
 ${projectsSection}
 
+${publicationsSection}
+
 ${certificationsSection}
 
 \\end{document}`;
@@ -272,7 +293,8 @@ export function generateModernTemplate(resumeData: any): string {
     technicalSkills = [],
     softSkills = [],
     certifications = [],
-    projects = []
+    projects = [],
+    publications = []
   } = resumeData;
 
   // Combine location elements
@@ -348,6 +370,33 @@ ${projects.map((project: any) => {
 }).join('\n')}
 \\resumeSubHeadingListEnd
 \\vspace{-8.5mm}
+`
+    : '';
+
+  // Format publications
+  const publicationsSection = publications.length 
+    ? `\\cvsection{\\textbf{Publications}}
+\\resumeSubHeadingListStart
+${publications.map((pub: any) => 
+  `    \\resumeSubheading
+      {${escapeLatex(pub.title || '')}}{${formatLatexDate(pub.publicationDate)}}
+      {${escapeLatex(pub.publisher || '')}${pub.authors ? ` | ${escapeLatex(pub.authors)}` : ''}}{}
+      ${pub.description ? 
+      `\\vspace{-2.0mm}
+      \\resumeItemListStart
+        \\item {${escapeLatex(pub.description)}}
+        ${pub.url ? `\\item {URL/DOI: ${escapeLatex(pub.url)}}` : ''}
+      \\resumeItemListEnd
+      
+      \\vspace{-3.0mm}` : (pub.url ? `\\vspace{-2.0mm}
+      \\resumeItemListStart
+        \\item {URL/DOI: ${escapeLatex(pub.url)}}
+      \\resumeItemListEnd
+      
+      \\vspace{-3.0mm}` : '')}`
+).join('\n')}
+\\resumeSubHeadingListEnd
+\\vspace{-5.5mm}
 `
     : '';
 
@@ -506,6 +555,8 @@ ${educationSection}
 ${projectsSection}
 
 ${workExperienceSection}
+
+${publicationsSection}
 
 ${allSkillsSection}
 

@@ -367,6 +367,46 @@ export class MinimalistAtsTemplate extends BaseTemplate {
             </section>
           ) : null,
           
+          publications: () => data.publications && data.publications.length > 0 ? (
+            <section style={sectionStyle} className="resume-section publications-section">
+              <h2 style={sectionHeaderStyle} className="no-break-after">Publications</h2>
+              {data.publications.map((publication, index) => (
+                <div key={publication.id || index} style={itemStyle} className="publication-item no-break-inside">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.1rem', width: '100%' }} className="no-break-after">
+                    <div>
+                      <h3 style={titleStyle} className="no-break-after">{publication.title}</h3>
+                      <p style={{ fontSize: '0.95rem', margin: '0 0 0.2rem 0', padding: 0 }} className="no-break-after">
+                        <strong>{publication.publisher}</strong>{publication.authors ? ` | ${publication.authors}` : ''}
+                      </p>
+                    </div>
+                    {publication.publicationDate && (
+                      <div style={{ fontSize: '0.95rem', color: colors.secondary || '#666666', textAlign: 'right' }}>
+                        {publication.publicationDate}
+                      </div>
+                    )}
+                  </div>
+                  
+                  {publication.description && (
+                    <p style={{ fontSize: '0.95rem', lineHeight: '1.4', margin: '0.3rem 0', padding: 0 }} className="no-break-inside">
+                      {publication.description}
+                    </p>
+                  )}
+                  
+                  {publication.url && (
+                    <a 
+                      href={publication.url} 
+                      target="_blank" 
+                      rel="noopener noreferrer" 
+                      style={projectLinkStyle}
+                    >
+                      {publication.url}
+                    </a>
+                  )}
+                </div>
+              ))}
+            </section>
+          ) : null,
+          
           certifications: () => data.certifications && data.certifications.length > 0 ? (
             <section style={sectionStyle} className="resume-section certifications-section">
               <h2 style={sectionHeaderStyle} className="no-break-after">Certifications</h2>
