@@ -47,7 +47,12 @@ export default function SharedHeader({ isLandingPage = false, forceBackground = 
         {/* Desktop Navigation */}
         <nav className="hidden md:flex space-x-8">
           {isLandingPage ? (
-            <a href="#features" className="text-white hover:text-blue-400 transition-colors">Features</a>
+            <button 
+              onClick={() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })}
+              className="text-white hover:text-blue-400 transition-colors bg-transparent border-0 p-0 cursor-pointer"
+            >
+              Features
+            </button>
           ) : (
             <Link href="/#features" className="text-white hover:text-blue-400 transition-colors">
               Features
@@ -115,13 +120,15 @@ export default function SharedHeader({ isLandingPage = false, forceBackground = 
           >
             <nav className="flex flex-col space-y-3">
               {isLandingPage ? (
-                <a 
-                  href="#features" 
+                <button 
+                  onClick={() => {
+                    document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' });
+                    handleNavLinkClick();
+                  }}
                   className="text-white hover:text-blue-400 transition-colors py-2 px-2 border-b border-indigo-800/50 w-full text-left"
-                  onClick={handleNavLinkClick}
                 >
                   Features
-                </a>
+                </button>
               ) : (
                 <Link href="/#features" className="text-white hover:text-blue-400 transition-colors py-2 px-2 border-b border-indigo-800/50 w-full text-left" onClick={handleNavLinkClick}>
                   Features

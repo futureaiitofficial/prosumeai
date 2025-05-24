@@ -192,6 +192,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     onSuccess: (userData) => {
       console.log("[AUTH DEBUG] Login success, user data:", userData);
       console.log("[AUTH DEBUG] passwordExpired flag in response:", (userData as any).passwordExpired);
+      console.log("[AUTH DEBUG] requiresTwoFactor flag in response:", (userData as any).requiresTwoFactor);
       
       queryClient.setQueryData(["/api/user"], userData);
       
@@ -203,6 +204,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           description: "Your password has expired. Please reset it now.",
         });
         setLocation("/change-password");
+        return;
+      }
+      
+      // Check if 2FA verification is required
+      if ((userData as any).requiresTwoFactor === true) {
+        console.log("[AUTH DEBUG] 2FA required, redirecting to verification");
+        // Store user ID to maintain context across verification
+        localStorage.setItem('pendingTwoFactorUserId', userData.id.toString());
+        localStorage.setItem('pendingTwoFactorMethod', (userData as any).twoFactorMethod || 'EMAIL');
+        
+        toast({
+          title: "Verification required",
+          description: "Please complete two-factor authentication to continue.",
+        });
+        
+        setLocation("/verify-2fa");
         return;
       }
       

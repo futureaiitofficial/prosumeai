@@ -36,6 +36,7 @@ import ApiKeysPage from "@/pages/admin/api-keys";
 import { LocationProvider } from "./hooks/use-location";
 import AdminSubscriptionsPage from "@/pages/admin/subscriptions";
 import UserSubscriptionPage from "@/pages/user/subscription";
+import UserSettingsPage from "@/pages/user/settings";
 import CheckoutPage from "@/pages/checkout";
 import { AdminPaymentPage } from '@/components/admin/AdminPaymentPage';
 import LandingPage from '@/pages/landing';
@@ -54,6 +55,7 @@ import PrivacyPolicyPage from '@/pages/privacy';
 import RegisterPage from '@/pages/register';
 import VerifyEmailPage from '@/pages/verify-email';
 import { BrandingProvider } from '@/components/branding/branding-provider';
+import VerifyTwoFactorPage from '@/pages/verify-2fa';
 
 // Session Recovery component to handle network disconnections
 function SessionRecovery() {
@@ -137,6 +139,7 @@ function Router() {
       <Route path="/forgot-password" component={ForgotPasswordPage} />
       <Route path="/reset-password" component={ResetPasswordPage} />
       <Route path="/verify-email" component={VerifyEmailPage} />
+      <Route path="/verify-2fa" component={VerifyTwoFactorPage} />
       <Route path="/terms" component={TermsOfServicePage} />
       <Route path="/privacy" component={PrivacyPolicyPage} />
       <ProtectedRoute path="/dashboard" component={Dashboard} />
@@ -149,6 +152,7 @@ function Router() {
       <ProtectedRoute path="/preview-generator" component={PreviewGenerator} />
       <ProtectedRoute path="/keyword-generator" component={KeywordGenerator} />
       <ProtectedRoute path="/user/subscription" component={() => <UserSubscriptionPage />} />
+      <ProtectedRoute path="/user/settings" component={() => <UserSettingsPage />} />
       <Route path="/checkout" component={() => <CheckoutPage />} />
       
       {/* Admin Routes */}

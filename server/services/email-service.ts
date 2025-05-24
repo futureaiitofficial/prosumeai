@@ -706,6 +706,114 @@ If you have any questions or need assistance, please don't hesitate to contact o
       }
     });
   }
+
+  /**
+   * Send a 2FA verification code email
+   * @param to Email address
+   * @param username Username
+   * @param code Verification code
+   * @param expiryMinutes Code expiry in minutes
+   * @returns Success or failure
+   */
+  public static async sendTwoFactorCodeEmail(to: string, username: string, code: string, expiryMinutes: number = 10): Promise<boolean> {
+    const instance = EmailService.getInstance();
+    
+    try {
+      // Try to send using template from database
+      const result = await instance.sendTemplatedEmail(to, {
+        templateType: 'two_factor_code',
+        variables: {
+          username,
+          code,
+          expiryMinutes
+        }
+      });
+      
+      if (result) {
+        return true;
+      }
+      
+      // Fallback to hardcoded template if no database template exists
+      console.log('Falling back to hardcoded 2FA code template');
+      
+      // Ensure branding data is loaded
+      if (!instance.brandingData) {
+        await instance.init();
+      }
+      
+      // Get branding colors
+      const primaryColor = instance.brandingData?.primaryColor || '#4f46e5';
+      const appName = instance.brandingData?.appName || "atScribe";
+      
+      // Generate HTML for verification code email
+      const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Two-Factor Authentication Code</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; padding: 0; line-height: 1.6; color: #333; }
+    .container { width: 100%; max-width: 600px; margin: 0 auto; padding: 20px; }
+    .header { background-color: ${primaryColor}; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0; }
+    .content { background-color: #f9fafb; padding: 20px; border-radius: 0 0 5px 5px; border: 1px solid #e5e7eb; border-top: none; }
+    .code { font-size: 32px; font-weight: bold; text-align: center; margin: 20px 0; letter-spacing: 5px; color: ${primaryColor}; }
+    .footer { margin-top: 20px; text-align: center; font-size: 12px; color: #6b7280; }
+    .warning { background-color: #fee2e2; border: 1px solid #fecaca; padding: 10px; border-radius: 5px; margin: 20px 0; color: #ef4444; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Two-Factor Authentication</h1>
+    </div>
+    <div class="content">
+      <p>Hello ${username},</p>
+      <p>You are receiving this email because you are attempting to log in to your ${appName} account or complete a secure action that requires verification. To proceed, please use the following verification code:</p>
+      
+      <div class="code">${code}</div>
+      
+      <p>This code will expire in ${expiryMinutes} minutes.</p>
+      
+      <div class="warning">
+        <strong>Important Security Notice:</strong> If you did not request this code, please ignore this email and consider changing your password immediately.
+      </div>
+      
+      <p>Thank you for keeping your account secure!</p>
+    </div>
+    <div class="footer">
+      <p>This is an automated message, please do not reply to this email.</p>
+    </div>
+  </div>
+</body>
+</html>`;
+      
+      // Generate plain text version
+      const text = `Hello ${username},
+
+You are receiving this email because you are attempting to log in to your ${appName} account or complete a secure action that requires verification. To proceed, please use the following verification code:
+
+${code}
+
+This code will expire in ${expiryMinutes} minutes.
+
+IMPORTANT SECURITY NOTICE: If you did not request this code, please ignore this email and consider changing your password immediately.
+
+Thank you for keeping your account secure!
+
+This is an automated message, please do not reply to this email.`;
+      
+      return await instance.sendEmail({
+        to,
+        subject: "Your Two-Factor Authentication Code",
+        html,
+        text
+      });
+    } catch (error) {
+      console.error('Error sending 2FA verification code email:', error);
+      return false;
+    }
+  }
 }
 
 /**

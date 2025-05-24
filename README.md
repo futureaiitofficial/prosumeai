@@ -15,6 +15,7 @@ ATScribe is a comprehensive job application management platform that empowers jo
 - [AI Features](#ai-features)
 - [Contributing](#contributing)
 - [License](#license)
+- [Two-Factor Authentication (2FA) System](#two-factor-authentication-2fa-system)
 
 ## Features
 
@@ -335,3 +336,71 @@ Configure the cookie system with these environment variables:
 - `COOKIE_SECRET` - Secret for signed cookies (defaults to SESSION_SECRET)
 - `SESSION_SECRET` - Secret for session cookies
 - `SESSION_MAX_AGE` - Maximum age for session cookies
+
+## Two-Factor Authentication (2FA) System
+
+### Overview
+
+The ProsumeAI platform includes a comprehensive two-factor authentication (2FA) system that provides an additional layer of security for user accounts. The system supports multiple authentication methods and includes a policy-based enforcement mechanism.
+
+### Features
+
+- **Multiple Authentication Methods**
+  - Email-based verification codes
+  - Authenticator app integration (TOTP)
+  - Backup recovery codes
+
+- **Admin Controls**
+  - Organization-wide 2FA policy management
+  - Option to enforce 2FA for admins or all users
+  - User 2FA status monitoring and management
+  - Ability to reset 2FA for users if needed
+
+- **User Experience**
+  - Simple setup wizard for each authentication method
+  - "Remember this device" functionality
+  - Recovery options for account access
+
+### Technical Implementation
+
+#### Database Schema
+
+The system uses the following tables:
+
+- `user_two_factor`: Stores user 2FA preferences and status
+- `two_factor_email`: Manages email-based verification
+- `two_factor_authenticator`: Stores authenticator app configuration 
+- `two_factor_backup_codes`: Maintains backup recovery codes
+- `two_factor_policy`: Controls organization-wide settings
+- `two_factor_remembered_devices`: Handles "remember this device" tokens
+
+#### Authentication Flow
+
+1. User logs in with username/password
+2. If 2FA is enabled, the system redirects to verification
+3. User provides the verification code from their preferred method
+4. On successful verification, the user gains access to their account
+
+#### Security Considerations
+
+- Tokens expire after a short period (10 minutes for email codes)
+- Backup codes are single-use only
+- Device recognition is time-limited based on policy settings
+- Admins can enforce 2FA based on organization requirements
+
+### API Endpoints
+
+The system provides REST API endpoints for both user and admin operations:
+
+- User endpoints for setup, verification, and management
+- Admin endpoints for policy management and user monitoring
+
+### Dependencies
+
+- QR code generation for authenticator app setup
+- TOTP (Time-based One-Time Password) algorithm implementation
+- Email delivery service for verification codes
+
+### Integration
+
+The 2FA system integrates with the existing authentication system and user management functionality within ProsumeAI.

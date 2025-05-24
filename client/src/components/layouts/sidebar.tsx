@@ -13,7 +13,8 @@ import {
   ChevronRight,
   Settings,
   Sparkles,
-  CreditCard
+  CreditCard,
+  Cog
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useSidebar } from "@/hooks/use-sidebar";
@@ -47,13 +48,19 @@ export default function Sidebar() {
     logoutMutation.mutate();
   };
 
-  const links = [
+  // Main navigation links
+  const mainLinks = [
     { href: "/dashboard", label: "Dashboard", icon: Home },
     { href: "/resumes", label: "Resumes", icon: File },
     { href: "/cover-letters", label: "Cover Letters", icon: FileText },
     { href: "/job-applications", label: "Job Applications", icon: Clipboard },
     { href: "/keyword-generator", label: "Keyword Generator", icon: Sparkles },
+  ];
+  
+  // Account related links
+  const accountLinks = [
     { href: "/user/subscription", label: "Subscription", icon: CreditCard },
+    { href: "/user/settings", label: "Settings", icon: Settings },
     { href: "/profile", label: "Profile", icon: User },
   ];
   
@@ -92,8 +99,8 @@ export default function Sidebar() {
         {/* Navigation Links */}
         <div className="flex-1 overflow-auto py-6">
           <nav className="grid gap-1 px-3">
-            {/* Regular navigation links */}
-            {links.map((link) => {
+            {/* Main navigation links */}
+            {mainLinks.map((link) => {
               const Icon = link.icon;
               const isActive = location === link.href;
               
@@ -129,6 +136,65 @@ export default function Sidebar() {
                       <motion.div 
                         className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-600 dark:bg-indigo-400 rounded-r-full"
                         layoutId="sidebar-indicator"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ duration: 0.2 }}
+                      />
+                    )}
+                  </div>
+                </Link>
+              );
+            })}
+            
+            {/* Account section */}
+            <div className={cn(
+              "mt-6 mb-2",
+              isCollapsed ? "border-t border-slate-200 dark:border-slate-700 pt-4" : ""
+            )}>
+              {!isCollapsed && (
+                <div className="px-3 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  Account
+                </div>
+              )}
+            </div>
+            
+            {/* Account links */}
+            {accountLinks.map((link) => {
+              const Icon = link.icon;
+              const isActive = location === link.href;
+              
+              return (
+                <Link href={link.href} key={link.href}>
+                  <div
+                    className={cn(
+                      "flex items-center rounded-lg px-3 py-2.5 transition-all cursor-pointer relative group",
+                      isActive
+                        ? "bg-gradient-to-r from-indigo-50 to-purple-50 text-indigo-700 dark:from-indigo-900/30 dark:to-purple-900/30 dark:text-indigo-300"
+                        : "text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800/50",
+                      isCollapsed ? "justify-center" : "gap-3"
+                    )}
+                    title={isCollapsed ? link.label : ""}
+                  >
+                    <div className={cn(
+                      "flex items-center justify-center",
+                      isActive ? "text-indigo-600 dark:text-indigo-400" : "text-slate-500 dark:text-slate-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-400"
+                    )}>
+                      <Icon className="h-5 w-5" />
+                    </div>
+                    
+                    {!isCollapsed && (
+                      <span className={cn(
+                        "font-medium text-sm",
+                        isActive ? "text-indigo-700 dark:text-indigo-300" : "text-slate-700 dark:text-slate-300"
+                      )}>
+                        {link.label}
+                      </span>
+                    )}
+                    
+                    {isActive && (
+                      <motion.div 
+                        className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-600 dark:bg-indigo-400 rounded-r-full"
+                        layoutId="sidebar-indicator-account"
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         transition={{ duration: 0.2 }}

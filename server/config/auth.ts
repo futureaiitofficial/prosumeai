@@ -551,7 +551,7 @@ function setupAuthRoutes(app: Express) {
         return res.status(401).json({ message: info?.message || "Invalid username or password" });
       }
       
-      req.login(user, (err) => {
+      req.login(user, async (err) => {
         if (err) {
           console.error("[DEBUG] Session login error:", err);
           return next(err);
@@ -563,7 +563,7 @@ function setupAuthRoutes(app: Express) {
         console.log(`[DEBUG] Session ID after login: ${req.sessionID}`);
         
         // Save session to ensure cookie is set
-        req.session.save((err) => {
+        req.session.save(async (err) => {
           if (err) {
             console.error("[DEBUG] Error saving session:", err);
             return next(err);
@@ -651,6 +651,40 @@ function setupAuthRoutes(app: Express) {
           if ((user as Express.User).passwordExpired) {
             console.log(`[DEBUG] Setting passwordExpired flag for ${user.username} in response`);
             (userData as any).passwordExpired = true;
+          }
+          
+          // Check if 2FA is enabled for this user
+          try {
+            const TwoFactorService = (await import('../services/two-factor-service')).default;
+            const twoFactorEnabled = await TwoFactorService.isEnabled(user.id);
+            
+            if (twoFactorEnabled) {
+              // If 2FA is enabled, include this info in response
+              const preferredMethod = await TwoFactorService.getPreferredMethod(user.id);
+              
+              console.log(`[DEBUG] User ${user.username} has 2FA enabled with method: ${preferredMethod}`);
+              
+              // Add 2FA flag to the response
+              (userData as any).requiresTwoFactor = true;
+              (userData as any).twoFactorMethod = preferredMethod;
+              
+              // Check if device is remembered via cookie
+              if (req.cookies['2fa_remember'] && req.body.deviceId) {
+                const deviceRemembered = await TwoFactorService.isDeviceRemembered(
+                  user.id, 
+                  req.body.deviceId, 
+                  req.cookies['2fa_remember']
+                );
+                
+                if (deviceRemembered) {
+                  console.log(`[DEBUG] Device is remembered for user ${user.username}, skipping 2FA`);
+                  (userData as any).requiresTwoFactor = false;
+                }
+              }
+            }
+          } catch (error) {
+            console.error(`[DEBUG] Error checking 2FA status:`, error);
+            // Continue with login even if 2FA check fails
           }
           
           console.log(`[DEBUG] Final user data sent to client: ${JSON.stringify(userData)}`);
@@ -1078,6 +1112,27 @@ function setupPasswordRoutes(app: Express) {
         resetPasswordToken: null,
         resetPasswordExpiry: null
       });
+      
+      // Send password changed notification email
+      try {
+        const baseUrl = process.env.BASE_URL || 'http://localhost:5173';
+        const resetLink = `${baseUrl}/forgot-password`;
+        
+        EmailService.sendPasswordChangedEmail(user.email, user.username, resetLink)
+          .then((sent) => {
+            if (sent) {
+              console.log(`Password reset notification email sent to ${user.email}`);
+            } else {
+              console.warn(`Failed to send password reset notification email to ${user.email}`);
+            }
+          })
+          .catch((error) => {
+            console.error(`Error sending password reset notification email: ${error}`);
+          });
+      } catch (error) {
+        console.error(`Error sending password reset notification email: ${error}`);
+        // Don't block the password reset process if email fails
+      }
       
       res.json({ message: "Password has been reset successfully" });
     } catch (error) {

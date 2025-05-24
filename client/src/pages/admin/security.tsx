@@ -8,7 +8,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Spinner } from '@/components/ui/spinner';
 import { AdminLayout } from '@/components/admin/layout';
 import { Separator } from '@/components/ui/separator';
-import { AlertCircle, Check, Shield, Database, Key, LockKeyhole, Clock, Users } from 'lucide-react';
+import { AlertCircle, Check, Shield, Database, Key, LockKeyhole, Clock, Users, ShieldCheck } from 'lucide-react';
 import axios from 'axios';
 import { 
   Table, 
@@ -18,6 +18,7 @@ import {
   TableHeader, 
   TableRow 
 } from '@/components/ui/table';
+import { TwoFactorSettings } from '@/components/admin/settings/TwoFactorSettings';
 
 // Type definitions
 type EncryptionFieldConfig = {
@@ -316,7 +317,7 @@ export default function AdminSecurityPage() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="encryption" className="flex items-center gap-2">
               <LockKeyhole size={16} />
               <span>Data Encryption</span>
@@ -332,6 +333,10 @@ export default function AdminSecurityPage() {
             <TabsTrigger value="freemium" className="flex items-center gap-2">
               <Users size={16} />
               <span>Freemium Restrictions</span>
+            </TabsTrigger>
+            <TabsTrigger value="two-factor" className="flex items-center gap-2">
+              <ShieldCheck size={16} />
+              <span>Two-Factor Authentication</span>
             </TabsTrigger>
           </TabsList>
 
@@ -952,6 +957,24 @@ export default function AdminSecurityPage() {
                     <Spinner className="h-8 w-8" />
                   </div>
                 )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Two-Factor Authentication Tab */}
+          <TabsContent value="two-factor">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <ShieldCheck size={18} />
+                  <span>Two-Factor Authentication</span>
+                </CardTitle>
+                <CardDescription>
+                  Configure two-factor authentication settings
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <TwoFactorSettings />
               </CardContent>
             </Card>
           </TabsContent>

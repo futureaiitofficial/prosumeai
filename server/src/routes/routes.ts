@@ -17,6 +17,7 @@ import { registerUserRoutes } from "./user-routes";
 import { registerPaymentRoutes } from "./payment-routes";
 import { registerTaxRoutes } from "./tax-routes";
 import { registerTaxAdminRoutes } from "./tax-admin-routes";
+import { registerTwoFactorRoutes, checkTwoFactorRequired } from "./two-factor-routes";
 import { 
   sessionTimeoutMiddleware, 
   regenerateSessionAfterLogin, 
@@ -42,6 +43,9 @@ export function registerRoutes(app: express.Express): Server {
   // Apply login-specific middleware
   app.use('/api/login', regenerateSessionAfterLogin);
   app.post('/api/login', postLoginSessionHandler);
+  
+  // Apply 2FA required check middleware
+  app.use(checkTwoFactorRequired);
   
   // API routes
   app.get('/api/health', (req, res) => {
@@ -98,6 +102,7 @@ export function registerRoutes(app: express.Express): Server {
   registerUserRoutes(app);
   registerTaxRoutes(app);
   registerTaxAdminRoutes(app);
+  registerTwoFactorRoutes(app);
 
   // Add debug cookie endpoint (available in all environments)
   app.get('/api/debug/cookies', (req, res) => {

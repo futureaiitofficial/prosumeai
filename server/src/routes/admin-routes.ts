@@ -33,6 +33,7 @@ import { promisify } from "util";
 import { registerPaymentGatewayAdminRoutes } from './admin/payment-gateway-routes';
 import { registerSmtpRoutes } from './admin/smtp-routes';
 import { registerEmailTemplateRoutes } from './admin/email-template-routes';
+import { registerTwoFactorAdminRoutes } from './admin/two-factor-routes';
 import { SubscriptionService } from "../../services/subscription-service";
 import { fileURLToPath } from "url";
 import { TaxService } from '../../services/tax-service';
@@ -100,6 +101,9 @@ export function registerAdminRoutes(app: Express) {
   
   // Register Email Template routes
   registerEmailTemplateRoutes(app);
+  
+  // Register Two Factor Authentication routes
+  registerTwoFactorAdminRoutes(app);
   
   // Debug endpoint - available without admin check to help troubleshoot admin access
   app.get("/api/admin/debug", (req: Request, res: Response) => {

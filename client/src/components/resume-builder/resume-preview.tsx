@@ -23,8 +23,9 @@ const formatDate = (dateString: string) => {
 // Truncate summary to max characters
 const MAX_SUMMARY_CHARS = 300;
 
-// Register templates immediately
-registerTemplates();
+// REMOVE: Don't register templates at the module level
+// This causes recursive imports and stack overflow
+// registerTemplates();
 
 export default function ResumePreview({ data, hideDownloadButton = false }: ResumePreviewProps) {
   // Add zoom control
@@ -33,6 +34,15 @@ export default function ResumePreview({ data, hideDownloadButton = false }: Resu
   const [isMobile, setIsMobile] = useState(false);
   // Track if dark mode is enabled
   const [isDarkMode, setIsDarkMode] = useState(false);
+  
+  // Register templates on mount instead of at module level
+  useEffect(() => {
+    try {
+      registerTemplates();
+    } catch (error) {
+      console.error("Error registering templates in ResumePreview:", error);
+    }
+  }, []);
   
   // Listen for window resize to adjust UI for mobile/desktop
   useEffect(() => {

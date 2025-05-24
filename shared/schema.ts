@@ -897,6 +897,138 @@ export type InsertInvoice = z.infer<typeof insertInvoiceSchema>;
 export type EmailTemplate = typeof emailTemplates.$inferSelect;
 export type InsertEmailTemplate = z.infer<typeof insertEmailTemplateSchema>;
 
+// Two Factor Authentication Schemas
+export const twoFactorMethodEnum = pgEnum('two_factor_method', [
+  'EMAIL',
+  'AUTHENTICATOR_APP'
+]);
+
+export const userTwoFactor = pgTable("user_two_factor", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  enabled: boolean("enabled").default(false).notNull(),
+  preferredMethod: twoFactorMethodEnum("preferred_method"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow()
+}, (table) => {
+  return {
+    userIdx: unique().on(table.userId)
+  };
+});
+
+export const twoFactorBackupCodes = pgTable("two_factor_backup_codes", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  code: text("code").notNull(),
+  used: boolean("used").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow()
+}, (table) => {
+  return {
+    uniqueCode: unique().on(table.userId, table.code)
+  };
+});
+
+export const twoFactorEmail = pgTable("two_factor_email", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  email: text("email").notNull(),
+  token: text("token"),
+  tokenExpiresAt: timestamp("token_expires_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow()
+}, (table) => {
+  return {
+    userIdx: unique().on(table.userId)
+  };
+});
+
+export const twoFactorAuthenticator = pgTable("two_factor_authenticator", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  secret: text("secret").notNull(),
+  recoveryCodes: jsonb("recovery_codes"),
+  verified: boolean("verified").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow()
+}, (table) => {
+  return {
+    userIdx: unique().on(table.userId)
+  };
+});
+
+export const twoFactorPolicy = pgTable("two_factor_policy", {
+  id: serial("id").primaryKey(),
+  enforceForAdmins: boolean("enforce_for_admins").default(false).notNull(),
+  enforceForAllUsers: boolean("enforce_for_all_users").default(false).notNull(),
+  allowedMethods: jsonb("allowed_methods").default(["EMAIL", "AUTHENTICATOR_APP"]).notNull(),
+  rememberDeviceDays: integer("remember_device_days").default(30).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow()
+});
+
+export const twoFactorRememberedDevices = pgTable("two_factor_remembered_devices", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  deviceIdentifier: text("device_identifier").notNull(),
+  token: text("token").notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow()
+}, (table) => {
+  return {
+    uniqueDevice: unique().on(table.userId, table.deviceIdentifier)
+  };
+});
+
+// Insert Schemas for 2FA
+export const insertUserTwoFactorSchema = createInsertSchema(userTwoFactor).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+
+export const insertTwoFactorBackupCodesSchema = createInsertSchema(twoFactorBackupCodes).omit({
+  id: true,
+  createdAt: true
+});
+
+export const insertTwoFactorEmailSchema = createInsertSchema(twoFactorEmail).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+
+export const insertTwoFactorAuthenticatorSchema = createInsertSchema(twoFactorAuthenticator).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+
+export const insertTwoFactorPolicySchema = createInsertSchema(twoFactorPolicy).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+
+export const insertTwoFactorRememberedDevicesSchema = createInsertSchema(twoFactorRememberedDevices).omit({
+  id: true,
+  createdAt: true
+});
+
+// Type definitions for 2FA
+export type UserTwoFactor = typeof userTwoFactor.$inferSelect;
+export type TwoFactorBackupCode = typeof twoFactorBackupCodes.$inferSelect;
+export type TwoFactorEmail = typeof twoFactorEmail.$inferSelect;
+export type TwoFactorAuthenticator = typeof twoFactorAuthenticator.$inferSelect;
+export type TwoFactorPolicy = typeof twoFactorPolicy.$inferSelect;
+export type TwoFactorRememberedDevice = typeof twoFactorRememberedDevices.$inferSelect;
+
+export type InsertUserTwoFactor = z.infer<typeof insertUserTwoFactorSchema>;
+export type InsertTwoFactorBackupCode = z.infer<typeof insertTwoFactorBackupCodesSchema>;
+export type InsertTwoFactorEmail = z.infer<typeof insertTwoFactorEmailSchema>;
+export type InsertTwoFactorAuthenticator = z.infer<typeof insertTwoFactorAuthenticatorSchema>;
+export type InsertTwoFactorPolicy = z.infer<typeof insertTwoFactorPolicySchema>;
+export type InsertTwoFactorRememberedDevice = z.infer<typeof insertTwoFactorRememberedDevicesSchema>;
+
 // Resume-related type definitions for frontend
 export type WorkExperience = {
   id: string;
