@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "node start-dev.js",
     "dev:tunnel": "node tunnel-dev.js",
+    "dev:serveo": "node serveo-dev.js",
     "dev:client": "vite --config vite.config.ts",
     "dev:server": "tsx watch server/index.ts",
     "build": "node build-prod.js",
@@ -52,7 +53,9 @@
     "check:parsing": "node server/scripts/check-parsing-dependencies.js",
     "install:parsing": "node server/scripts/install-parsing-deps.js",
     "seed:tax": "tsx server/scripts/seed-tax-settings.ts",
-    "fix-invoices": "tsx server/scripts/fix-existing-invoices.ts"
+    "fix-invoices": "tsx server/scripts/fix-existing-invoices.ts",
+    "db:studio": "node run-drizzle-studio.js",
+    "drizzle:studio": "node db-studio.js"
   },
   "dependencies": {
     "@adyen/api-library": "^26.1.0",
@@ -225,7 +228,6 @@
     "esbuild": "^0.25.0",
     "jest": "^29.7.0",
     "jest-environment-jsdom": "^29.7.0",
-    "localtunnel": "^2.0.2",
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.14",
     "ts-jest": "^29.3.1",

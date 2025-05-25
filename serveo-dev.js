@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 
 /**
- * Tunnel startup script for ProsumeAI
- * This script starts both the client and server with localtunnel
+ * Serveo tunnel startup script for ProsumeAI
+ * This script starts both the client and server with Serveo for better performance
+ * Serveo works over SSH and doesn't require any additional software installation
  */
 
 import { spawn } from 'child_process';
@@ -10,7 +11,6 @@ import { dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
 import dotenv from 'dotenv';
-import localtunnel from 'localtunnel';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -98,10 +98,45 @@ const checkPorts = async () => {
   });
 };
 
+// Kill any existing SSH tunnel processes
+const killSSHTunnels = async () => {
+  return new Promise((resolve) => {
+    console.log('Checking for existing SSH tunnels...');
+    const killSSHProcess = spawn('pgrep', ['-f', 'ssh -R'], { 
+      stdio: 'pipe',
+      shell: true 
+    });
+
+    killSSHProcess.stdout.on('data', (data) => {
+      const pids = data.toString().trim().split('\n');
+      if (pids.length > 0 && pids[0] !== '') {
+        console.log(`Found ${pids.length} SSH tunnel processes, killing them...`);
+        pids.forEach(pid => {
+          try {
+            process.kill(parseInt(pid), 'SIGTERM');
+            console.log(`Killed SSH tunnel process ${pid}`);
+          } catch (err) {
+            console.log(`Failed to kill process: ${err.message}`);
+          }
+        });
+      } else {
+        console.log('No SSH tunnel processes found.');
+      }
+    });
+
+    killSSHProcess.on('close', () => {
+      resolve();
+    });
+  });
+};
+
 // Start the main process
-const startTunnelServer = async () => {
+const startServeoServer = async () => {
   // First kill any Drizzle Studio instances
   await killDrizzleStudio();
+  
+  // Kill any existing SSH tunnels
+  await killSSHTunnels();
   
   // Then check and kill processes on required ports
   await checkPorts();
@@ -113,7 +148,7 @@ const startTunnelServer = async () => {
     dotenv.config({ path: envPath });
   }
 
-  console.log('Starting ProsumeAI in tunnel mode...');
+  console.log('Starting ProsumeAI in Serveo tunnel mode...');
 
   // Set the tunnel environment variable
   const tunnelEnv = {
@@ -158,69 +193,110 @@ const startTunnelServer = async () => {
   }, 2000);
 
   // Give the client some time to start
-  await new Promise(resolve => setTimeout(resolve, 5000));
+  await new Promise(resolve => setTimeout(resolve, 3000));
 
-  // Start the tunnel
+  // Start Serveo SSH tunnel
   try {
-    console.log('Starting localtunnel...');
-    const tunnel = await localtunnel({ port: 5173 });
+    console.log('Starting Serveo SSH tunnel...');
     
-    console.log(`\n---------------------------------------`);
-    console.log(`🚇 Tunnel URL: ${tunnel.url}`);
-    console.log(`---------------------------------------\n`);
+    // Create the SSH tunnel to Serveo
+    const serveoProcess = spawn('ssh', ['-R', '80:localhost:5173', 'serveo.net'], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      shell: false
+    });
     
-    // Handle tunnel close
-    tunnel.on('close', () => {
-      console.log('Tunnel closed');
+    let serveoUrl = null;
+    
+    // Parse the output to get the Serveo URL
+    serveoProcess.stdout.on('data', (data) => {
+      const output = data.toString();
+      console.log(`Serveo: ${output}`);
+      
+      // Extract the URL from the Serveo output
+      if (output.includes('Forwarding HTTP traffic from')) {
+        const match = output.match(/https?:\/\/([a-zA-Z0-9-]+\.serveo\.net)/);
+        if (match && match[0]) {
+          serveoUrl = match[0];
+          console.log(`\n---------------------------------------`);
+          console.log(`🚇 Serveo Tunnel URL: ${serveoUrl}`);
+          console.log(`---------------------------------------\n`);
+        }
+      }
+    });
+    
+    serveoProcess.stderr.on('data', (data) => {
+      console.error(`Serveo error: ${data}`);
+    });
+    
+    // Handle Serveo process errors
+    serveoProcess.on('error', (error) => {
+      console.error('Failed to start Serveo tunnel:', error);
+    });
+    
+    // Periodically check and kill any Drizzle Studio instances
+    const drizzleKillInterval = setInterval(async () => {
+      await killDrizzleStudio();
+    }, 30000); // Check less frequently (every 30 seconds)
+
+    // Handle process exit
+    process.on('SIGINT', () => {
+      console.log('Shutting down Serveo tunnel and servers...');
+      clearInterval(drizzleKillInterval);
+      serveoProcess.kill();
       clientProcess.kill('SIGINT');
       serverProcess.kill('SIGINT');
       process.exit(0);
     });
+
+    // Log any errors
+    clientProcess.on('error', (error) => {
+      console.error('Client process error:', error);
+    });
+
+    serverProcess.on('error', (error) => {
+      console.error('Server process error:', error);
+    });
+
+    // Handle process exit
+    clientProcess.on('exit', (code) => {
+      console.log(`Client process exited with code ${code}`);
+      clearInterval(drizzleKillInterval);
+      serveoProcess.kill();
+    });
+
+    serverProcess.on('exit', (code) => {
+      console.log(`Server process exited with code ${code}`);
+      clearInterval(drizzleKillInterval);
+      serveoProcess.kill();
+    });
+    
+    // Handle Serveo process exit
+    serveoProcess.on('exit', (code) => {
+      console.log(`Serveo process exited with code ${code}`);
+      // Don't exit the main process if Serveo exits, try to restart it
+      if (code !== 0) {
+        console.log('Attempting to restart Serveo tunnel...');
+        // Simple restart attempt by creating a new process
+        const newServeoProcess = spawn('ssh', ['-R', '80:localhost:5173', 'serveo.net'], {
+          stdio: 'inherit',
+          shell: false
+        });
+        newServeoProcess.on('error', (error) => {
+          console.error('Failed to restart Serveo tunnel:', error);
+        });
+      }
+    });
     
   } catch (err) {
-    console.error('Failed to start tunnel:', err);
+    console.error('Failed to start Serveo tunnel:', err);
     clientProcess.kill('SIGINT');
     serverProcess.kill('SIGINT');
     process.exit(1);
   }
-
-  // Periodically check and kill any Drizzle Studio instances
-  const drizzleKillInterval = setInterval(async () => {
-    await killDrizzleStudio();
-  }, 10000);
-
-  // Handle process exit
-  process.on('SIGINT', () => {
-    console.log('Shutting down tunnel and servers...');
-    clearInterval(drizzleKillInterval);
-    clientProcess.kill('SIGINT');
-    serverProcess.kill('SIGINT');
-    process.exit(0);
-  });
-
-  // Log any errors
-  clientProcess.on('error', (error) => {
-    console.error('Client process error:', error);
-  });
-
-  serverProcess.on('error', (error) => {
-    console.error('Server process error:', error);
-  });
-
-  // Handle process exit
-  clientProcess.on('exit', (code) => {
-    console.log(`Client process exited with code ${code}`);
-    clearInterval(drizzleKillInterval);
-  });
-
-  serverProcess.on('exit', (code) => {
-    console.log(`Server process exited with code ${code}`);
-    clearInterval(drizzleKillInterval);
-  });
 };
 
 // Start the process
-startTunnelServer().catch(err => {
-  console.error('Error in tunnel server:', err);
+startServeoServer().catch(err => {
+  console.error('Error in Serveo server:', err);
   process.exit(1);
 }); 

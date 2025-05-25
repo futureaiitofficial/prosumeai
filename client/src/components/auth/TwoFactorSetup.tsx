@@ -24,6 +24,7 @@ interface TwoFactorStatus {
   required: boolean;
   backupCodes?: string[];
   appName: string;
+  twoFactorMethod?: string;
 }
 
 interface BackupCode {
@@ -66,17 +67,32 @@ export default function TwoFactorSetup({ className }: TwoFactorSetupProps) {
     fetchTwoFactorStatus();
   }, []);
 
+  // Ensure setup tab is not accessible when 2FA is enabled
+  useEffect(() => {
+    if (status?.enabled && activeTab === 'setup') {
+      setActiveTab('status');
+    }
+  }, [status, activeTab]);
+
   const fetchTwoFactorStatus = async () => {
     try {
       setLoading(true);
       const response = await axios.get('/api/two-factor/status');
-      setStatus(response.data);
       
-      // If 2FA is already set up, set active tab to status
-      if (response.data.enabled) {
+      // Make sure we capture the twoFactorMethod from the API response
+      const statusData: TwoFactorStatus = {
+        ...response.data,
+        // If preferredMethod exists but twoFactorMethod doesn't, use preferredMethod as fallback
+        twoFactorMethod: response.data.twoFactorMethod || response.data.preferredMethod
+      };
+      
+      setStatus(statusData);
+      
+      // If 2FA is already set up, always set active tab to status
+      if (statusData.enabled) {
         setActiveTab('status');
-      } else {
-        // Otherwise, suggest a setup method
+      } else if (activeTab !== 'backup-codes') {
+        // Only set to setup if not already on backup codes and 2FA is not enabled
         setActiveTab('setup');
       }
     } catch (error) {
@@ -265,15 +281,21 @@ export default function TwoFactorSetup({ className }: TwoFactorSetupProps) {
   return (
     <div className={cn("space-y-6", className)}>
       <Tabs value={activeTab} onValueChange={(value) => {
+        // If trying to access setup tab when 2FA is enabled, redirect to status
+        if (value === 'setup' && status?.enabled) {
+          setActiveTab('status');
+          return;
+        }
+        
         setActiveTab(value);
         // Reset selected method when navigating to setup tab
         if (value === 'setup') {
           setSelectedMethod(null);
         }
       }} className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className={`grid w-full grid-cols-${status?.enabled ? '2' : '3'}`}>
           <TabsTrigger value="status">Status</TabsTrigger>
-          <TabsTrigger value="setup">Setup</TabsTrigger>
+          {!status?.enabled && <TabsTrigger value="setup">Setup</TabsTrigger>}
           <TabsTrigger value="backup-codes">Backup Codes</TabsTrigger>
         </TabsList>
         
@@ -370,6 +392,37 @@ export default function TwoFactorSetup({ className }: TwoFactorSetupProps) {
                               Primary
                             </div>
                           )}
+                        </div>
+                      )}
+                      
+                      {!status?.emailSetup && !status?.authenticatorSetup && status?.enabled && status?.twoFactorMethod && (
+                        <div className="flex items-center gap-3 p-3 rounded-md bg-slate-50 dark:bg-slate-800/50">
+                          <div className={`${status.twoFactorMethod === 'EMAIL' ? 'bg-blue-100 dark:bg-blue-900/30' : 'bg-purple-100 dark:bg-purple-900/30'} p-2 rounded-full`}>
+                            {status.twoFactorMethod === 'EMAIL' ? (
+                              <Mail className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                            ) : (
+                              <KeyRound className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                            )}
+                          </div>
+                          <div className="space-y-0.5 flex-1">
+                            <div className="font-medium text-sm">
+                              {status.twoFactorMethod === 'EMAIL' 
+                                ? 'Email Verification' 
+                                : status.twoFactorMethod === 'AUTHENTICATOR_APP'
+                                  ? 'Authenticator App'
+                                  : 'Two-Factor Authentication'}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {status.twoFactorMethod === 'EMAIL'
+                                ? 'Verification codes will be sent to your email'
+                                : status.twoFactorMethod === 'AUTHENTICATOR_APP'
+                                  ? 'Generate codes with your authenticator app'
+                                  : 'Active authentication method'}
+                            </div>
+                          </div>
+                          <div className="px-2 py-0.5 text-xs bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300 rounded-full">
+                            Active
+                          </div>
                         </div>
                       )}
                     </div>

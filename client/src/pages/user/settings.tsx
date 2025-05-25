@@ -1,4 +1,4 @@
-import { useState, lazy, Suspense } from "react";
+import { useState, lazy, Suspense, useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import DefaultLayout from "@/components/layouts/default-layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,8 +20,15 @@ export default function UserSettings() {
   const { user } = useAuth();
   const { toast } = useToast();
   
-  // Get tab from URL query parameter or default to security
-  const [activeTab, setActiveTab] = useState<string>('security');
+  // Parse URL query parameter to get initial tab or default to security
+  const [activeTab, setActiveTab] = useState<string>(() => {
+    // Get tab from URL if available
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('tab') || 'security';
+    }
+    return 'security';
+  });
   
   // Query to fetch billing details
   const billingDetailsQuery = useQuery({
@@ -118,6 +125,11 @@ export default function UserSettings() {
                     >
                       <Fingerprint className="h-4 w-4" />
                       <span>Two-Factor Auth</span>
+                      {user && typeof user === 'object' && 'requiresTwoFactor' in user && (user as {requiresTwoFactor?: boolean}).requiresTwoFactor && (
+                        <span className="ml-auto px-1.5 py-0.5 text-xs bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300 rounded-full">
+                          On
+                        </span>
+                      )}
                     </button>
                     
                     <button
