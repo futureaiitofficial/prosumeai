@@ -524,7 +524,356 @@ export function registerAdminRoutes(app: Express) {
       res.status(500).json({ message: 'Failed to fetch dashboard data' });
     }
   });
-  
+
+  // Get revenue analytics
+  app.get('/api/admin/analytics/revenue', requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const { timeframe = '12', currency = 'all', period = 'monthly' } = req.query;
+      const months = parseInt(timeframe as string) || 12;
+
+      // Calculate date range
+      const endDate = new Date();
+      const startDate = new Date();
+      
+      if (period === 'yearly') {
+        startDate.setFullYear(startDate.getFullYear() - months);
+      } else {
+        startDate.setMonth(startDate.getMonth() - months);
+      }
+
+      // Build currency filter condition
+      let currencyCondition;
+      if (currency === 'USD') {
+        currencyCondition = eq(paymentTransactions.currency, 'USD');
+      } else if (currency === 'INR') {
+        currencyCondition = eq(paymentTransactions.currency, 'INR');
+      } else {
+        // For 'all', include both currencies
+        currencyCondition = or(
+          eq(paymentTransactions.currency, 'USD'),
+          eq(paymentTransactions.currency, 'INR')
+        );
+      }
+
+      // Create the date format SQL expression
+      const dateFormatSql = period === 'yearly' 
+        ? sql`TO_CHAR(${paymentTransactions.createdAt}, 'YYYY')`
+        : sql`TO_CHAR(${paymentTransactions.createdAt}, 'YYYY-MM')`;
+
+      // Get monthly or yearly revenue data grouped by currency
+      const monthlyRevenueQuery = db
+        .select({
+          period: dateFormatSql.as('period'),
+          currency: paymentTransactions.currency,
+          total: sql`SUM(CAST(${paymentTransactions.amount} AS DECIMAL))`.as('total'),
+          count: sql`COUNT(*)`.as('count')
+        })
+        .from(paymentTransactions)
+        .where(
+          and(
+            eq(paymentTransactions.status, 'COMPLETED'),
+            gte(paymentTransactions.createdAt, startDate),
+            lte(paymentTransactions.createdAt, endDate),
+            currencyCondition
+          )
+        )
+        .groupBy(dateFormatSql, paymentTransactions.currency)
+        .orderBy(dateFormatSql);
+
+      const monthlyRevenue = await monthlyRevenueQuery;
+
+      // Get total revenue by currency with date filter
+      const totalRevenueQuery = db
+        .select({
+          currency: paymentTransactions.currency,
+          total: sql`SUM(CAST(${paymentTransactions.amount} AS DECIMAL))`.as('total'),
+          count: sql`COUNT(*)`.as('count')
+        })
+        .from(paymentTransactions)
+        .where(
+          and(
+            eq(paymentTransactions.status, 'COMPLETED'),
+            gte(paymentTransactions.createdAt, startDate),
+            lte(paymentTransactions.createdAt, endDate),
+            currencyCondition
+          )
+        )
+        .groupBy(paymentTransactions.currency);
+
+      const totalRevenue = await totalRevenueQuery;
+
+      // Get top subscription plans by revenue with currency filter
+      const topPlansQuery = db
+        .select({
+          planId: userSubscriptions.planId,
+          planName: subscriptionPlans.name,
+          totalRevenue: sql`SUM(CAST(${paymentTransactions.amount} AS DECIMAL))`.as('totalRevenue'),
+          subscriptionCount: sql`COUNT(DISTINCT ${userSubscriptions.id})`.as('subscriptionCount'),
+          currency: paymentTransactions.currency
+        })
+        .from(paymentTransactions)
+        .innerJoin(userSubscriptions, eq(paymentTransactions.subscriptionId, userSubscriptions.id))
+        .innerJoin(subscriptionPlans, eq(userSubscriptions.planId, subscriptionPlans.id))
+        .where(
+          and(
+            eq(paymentTransactions.status, 'COMPLETED'),
+            gte(paymentTransactions.createdAt, startDate),
+            lte(paymentTransactions.createdAt, endDate),
+            currencyCondition
+          )
+        )
+        .groupBy(userSubscriptions.planId, subscriptionPlans.name, paymentTransactions.currency)
+        .orderBy(sql`SUM(CAST(${paymentTransactions.amount} AS DECIMAL)) DESC`)
+        .limit(20);
+
+      const topPlans = await topPlansQuery;
+
+      // Calculate monthly recurring revenue (MRR) with currency filter
+      const currentPeriod = period === 'yearly' 
+        ? new Date().getFullYear().toString()
+        : new Date().toISOString().slice(0, 7);
+        
+      const mrrDateCondition = period === 'yearly'
+        ? sql`TO_CHAR(${paymentTransactions.createdAt}, 'YYYY') = ${currentPeriod}`
+        : sql`TO_CHAR(${paymentTransactions.createdAt}, 'YYYY-MM') = ${currentPeriod}`;
+
+      const mrrQuery = db
+        .select({
+          currency: paymentTransactions.currency,
+          mrr: sql`SUM(CASE WHEN ${subscriptionPlans.billingCycle} = 'MONTHLY' THEN CAST(${paymentTransactions.amount} AS DECIMAL) WHEN ${subscriptionPlans.billingCycle} = 'YEARLY' THEN CAST(${paymentTransactions.amount} AS DECIMAL) / 12 ELSE 0 END)`.as('mrr')
+        })
+        .from(paymentTransactions)
+        .innerJoin(userSubscriptions, eq(paymentTransactions.subscriptionId, userSubscriptions.id))
+        .innerJoin(subscriptionPlans, eq(userSubscriptions.planId, subscriptionPlans.id))
+        .where(
+          and(
+            eq(paymentTransactions.status, 'COMPLETED'),
+            mrrDateCondition,
+            currencyCondition
+          )
+        )
+        .groupBy(paymentTransactions.currency);
+
+      const mrr = await mrrQuery;
+
+      // Format the response
+      const response = {
+        summary: {
+          totalRevenue: totalRevenue.reduce((acc, item) => {
+            acc[item.currency] = {
+              amount: parseFloat(item.total as string) || 0,
+              transactions: parseInt(item.count as string) || 0
+            };
+            return acc;
+          }, {} as Record<string, { amount: number; transactions: number }>),
+          mrr: mrr.reduce((acc, item) => {
+            acc[item.currency] = parseFloat(item.mrr as string) || 0;
+            return acc;
+          }, {} as Record<string, number>)
+        },
+        monthlyRevenue: monthlyRevenue.reduce((acc, item) => {
+          const key = `${item.period}-${item.currency}`;
+          acc[key] = {
+            month: item.period,
+            currency: item.currency,
+            amount: parseFloat(item.total as string) || 0,
+            transactions: parseInt(item.count as string) || 0
+          };
+          return acc;
+        }, {} as Record<string, any>),
+        topPlans: topPlans.map(plan => ({
+          planId: plan.planId,
+          planName: plan.planName,
+          totalRevenue: parseFloat(plan.totalRevenue as string) || 0,
+          subscriptionCount: parseInt(plan.subscriptionCount as string) || 0,
+          currency: plan.currency
+        })),
+        filters: {
+          period: period as string,
+          currency: currency as string,
+          timeframe: months
+        }
+      };
+
+      res.json(response);
+    } catch (error) {
+      console.error('Error getting revenue analytics:', error);
+      res.status(500).json({ message: 'Failed to fetch revenue analytics' });
+    }
+  });
+
+  // Get user activity analytics
+  app.get('/api/admin/analytics/user-activity', requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const { timeframe = '30' } = req.query;
+      const days = parseInt(timeframe as string) || 30;
+
+      // Calculate date range
+      const endDate = new Date();
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - days);
+
+      // Get daily user registrations
+      const dailyRegistrationsQuery = db
+        .select({
+          date: sql`DATE(${users.createdAt})`.as('date'),
+          registrations: sql`COUNT(*)`.as('registrations')
+        })
+        .from(users)
+        .where(
+          and(
+            gte(users.createdAt, startDate),
+            lte(users.createdAt, endDate)
+          )
+        )
+        .groupBy(sql`DATE(${users.createdAt})`)
+        .orderBy(sql`DATE(${users.createdAt})`);
+
+      const dailyRegistrations = await dailyRegistrationsQuery;
+
+      // Get daily login activity (approximated by lastLogin updates)
+      const dailyLoginsQuery = db
+        .select({
+          date: sql`DATE(${users.lastLogin})`.as('date'),
+          logins: sql`COUNT(*)`.as('logins')
+        })
+        .from(users)
+        .where(
+          and(
+            isNotNull(users.lastLogin),
+            gte(users.lastLogin, startDate),
+            lte(users.lastLogin, endDate)
+          )
+        )
+        .groupBy(sql`DATE(${users.lastLogin})`)
+        .orderBy(sql`DATE(${users.lastLogin})`);
+
+      const dailyLogins = await dailyLoginsQuery;
+
+      // Get resume creation activity
+      const dailyResumesQuery = db
+        .select({
+          date: sql`DATE(${resumes.createdAt})`.as('date'),
+          resumes: sql`COUNT(*)`.as('resumes')
+        })
+        .from(resumes)
+        .where(
+          and(
+            gte(resumes.createdAt, startDate),
+            lte(resumes.createdAt, endDate)
+          )
+        )
+        .groupBy(sql`DATE(${resumes.createdAt})`)
+        .orderBy(sql`DATE(${resumes.createdAt})`);
+
+      const dailyResumes = await dailyResumesQuery;
+
+      // Get cover letter creation activity
+      const dailyCoverLettersQuery = db
+        .select({
+          date: sql`DATE(${coverLetters.createdAt})`.as('date'),
+          coverLetters: sql`COUNT(*)`.as('coverLetters')
+        })
+        .from(coverLetters)
+        .where(
+          and(
+            gte(coverLetters.createdAt, startDate),
+            lte(coverLetters.createdAt, endDate)
+          )
+        )
+        .groupBy(sql`DATE(${coverLetters.createdAt})`)
+        .orderBy(sql`DATE(${coverLetters.createdAt})`);
+
+      const dailyCoverLetters = await dailyCoverLettersQuery;
+
+      // Get subscription activity
+      const dailySubscriptionsQuery = db
+        .select({
+          date: sql`DATE(${userSubscriptions.createdAt})`.as('date'),
+          subscriptions: sql`COUNT(*)`.as('subscriptions')
+        })
+        .from(userSubscriptions)
+        .where(
+          and(
+            gte(userSubscriptions.createdAt, startDate),
+            lte(userSubscriptions.createdAt, endDate)
+          )
+        )
+        .groupBy(sql`DATE(${userSubscriptions.createdAt})`)
+        .orderBy(sql`DATE(${userSubscriptions.createdAt})`);
+
+      const dailySubscriptions = await dailySubscriptionsQuery;
+
+      // Get current active users (users who logged in within the last 7 days)
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      
+      const [activeUsersResult] = await db
+        .select({ count: sql`COUNT(*)` })
+        .from(users)
+        .where(
+          and(
+            isNotNull(users.lastLogin),
+            gte(users.lastLogin, sevenDaysAgo)
+          )
+        );
+
+      const activeUsers = parseInt(activeUsersResult?.count as string) || 0;
+
+      // Create a complete date range for consistent charting
+      const dateRange: string[] = [];
+      for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+        dateRange.push(d.toISOString().split('T')[0]);
+      }
+
+      // Combine all daily data
+      const dailyActivity = dateRange.map(date => {
+        const registrations = dailyRegistrations.find(r => r.date === date)?.registrations || 0;
+        const logins = dailyLogins.find(l => l.date === date)?.logins || 0;
+        const resumesCreated = dailyResumes.find(r => r.date === date)?.resumes || 0;
+        const coverLettersCreated = dailyCoverLetters.find(c => c.date === date)?.coverLetters || 0;
+        const subscriptionsCreated = dailySubscriptions.find(s => s.date === date)?.subscriptions || 0;
+
+        return {
+          date,
+          registrations: parseInt(registrations as string) || 0,
+          logins: parseInt(logins as string) || 0,
+          resumes: parseInt(resumesCreated as string) || 0,
+          coverLetters: parseInt(coverLettersCreated as string) || 0,
+          subscriptions: parseInt(subscriptionsCreated as string) || 0,
+          totalActivity: (parseInt(registrations as string) || 0) + 
+                        (parseInt(logins as string) || 0) + 
+                        (parseInt(resumesCreated as string) || 0) + 
+                        (parseInt(coverLettersCreated as string) || 0) + 
+                        (parseInt(subscriptionsCreated as string) || 0)
+        };
+      });
+
+      // Calculate period totals
+      const periodTotals = {
+        registrations: dailyActivity.reduce((sum, day) => sum + day.registrations, 0),
+        logins: dailyActivity.reduce((sum, day) => sum + day.logins, 0),
+        resumes: dailyActivity.reduce((sum, day) => sum + day.resumes, 0),
+        coverLetters: dailyActivity.reduce((sum, day) => sum + day.coverLetters, 0),
+        subscriptions: dailyActivity.reduce((sum, day) => sum + day.subscriptions, 0),
+        activeUsers
+      };
+
+      res.json({
+        summary: periodTotals,
+        dailyActivity,
+        timeframe: {
+          days,
+          startDate: startDate.toISOString().split('T')[0],
+          endDate: endDate.toISOString().split('T')[0]
+        }
+      });
+    } catch (error) {
+      console.error('Error getting user activity analytics:', error);
+      res.status(500).json({ message: 'Failed to fetch user activity analytics' });
+    }
+  });
+
   // Get all users
   app.get('/api/admin/users', async (req: Request, res: Response) => {
     try {

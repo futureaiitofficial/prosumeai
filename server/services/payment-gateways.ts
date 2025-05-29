@@ -1278,6 +1278,9 @@ class RazorpayGateway implements PaymentGateway {
       const correctCurrency = targetRegion === 'INDIA' ? 'INR' : 'USD';
       const hasCurrencyMismatch = payment.currency !== correctCurrency;
       
+      // Declare correctedAmount here so it's available for the notification section
+      let correctedAmount = (payment.amount / 100).toString(); // Default: use original amount
+      
       if (hasCurrencyMismatch) {
         console.error(`Currency mismatch detected for payment ${payment.id}!`);
         console.error(`User country: ${userCountry}, User region: ${targetRegion}`);
@@ -1288,8 +1291,6 @@ class RazorpayGateway implements PaymentGateway {
         console.log(`Overriding currency for payment ${payment.id} from ${payment.currency} to ${correctCurrency}`);
         
         // ADDITIONAL FIX: Also correct the amount when changing from INR to USD or vice versa
-        let correctedAmount = (payment.amount / 100).toString(); // Default: use original amount
-        
         if (finalPricingData) {
           // If we're fixing the currency, we should also fix the amount to match the correct plan price
           correctedAmount = finalPricingData.price.toString();
@@ -1661,6 +1662,9 @@ class RazorpayGateway implements PaymentGateway {
       const correctCurrency = targetRegion === 'INDIA' ? 'INR' : 'USD';
       const hasCurrencyMismatch = payment.currency !== correctCurrency;
       
+      // Declare correctedAmount here so it's available for the notification section
+      let correctedAmount = (payment.amount / 100).toString(); // Default: use original amount
+      
       if (hasCurrencyMismatch) {
         console.error(`Currency mismatch detected for subscription renewal payment ${payment.id}!`);
         console.error(`User country: ${userCountry}, User region: ${targetRegion}`);
@@ -1671,8 +1675,6 @@ class RazorpayGateway implements PaymentGateway {
         console.log(`Overriding currency for subscription renewal payment ${payment.id} from ${payment.currency} to ${correctCurrency}`);
         
         // ADDITIONAL FIX: Also correct the amount when changing from INR to USD or vice versa
-        let correctedAmount = (payment.amount / 100).toString(); // Default: use original amount
-        
         if (finalPricingData) {
           // If we're fixing the currency, we should also fix the amount to match the correct plan price
           correctedAmount = finalPricingData.price.toString();

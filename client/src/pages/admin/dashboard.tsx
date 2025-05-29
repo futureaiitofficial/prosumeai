@@ -6,6 +6,8 @@ import { Redirect } from "wouter";
 import { AdminLayout } from "@/components/admin/layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ResponsiveBar } from "@nivo/bar";
 import { ResponsiveLine } from "@nivo/line";
 import { ResponsivePie } from "@nivo/pie";
@@ -15,21 +17,14 @@ import {
   CreditCard, 
   DollarSign, 
   TrendingUp,
-  Download,
-  BarChart,
   ArrowUpRight,
-  ArrowDownRight,
-  Calendar,
-  Clock,
   Loader2,
-  Database,
-  Server,
   Activity,
-  AlertCircle
+  Filter
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { getQueryFn } from "@/lib/queryClient";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import React from "react";
 
 // Define interface for stats data
 interface DashboardStats {
@@ -37,125 +32,84 @@ interface DashboardStats {
     total: number;
     recentRegistrations: number;
   };
-  revenue: {
-    usd: number;
-    inr: number;
-  };
-  topPlans: {
-    planId: number;
-    planName: string;
-    count: number;
-  }[];
   aiStats: {
     totalTokens: number;
   };
-  featureStats: Record<string, number>;
 }
 
-// Define interface for server status data
-interface ServerStatusData {
-  status: string;
-  timestamp: string;
-  system: {
-    platform: string;
-    architecture: string;
-    cpus: number;
-    totalMemory: number;
-    freeMemory: number;
-    uptime: number;
-    load: number[];
-    nodeVersion: string;
-    nodeEnv: string;
-  };
-  database: {
-    connected: boolean;
-    error: string | null;
-  };
-  users: {
-    total: number;
-    active: number;
-    admins: number;
-    totalResumes: number;
-    totalCoverLetters: number;
-    totalJobApplications: number;
-  };
-  session: {
-    isAuthenticated: boolean;
-    sessionID: string;
-    cookie: {
-      maxAge: number;
-      httpOnly: boolean;
-      secure: boolean;
-      sameSite: string;
-    };
-  };
-  rateLimiter: {
-    enabled: boolean;
-    windowMs: number;
-    max: number;
-  };
-  cookieManager: {
-    enabled: boolean;
-    settings: {
-      prefix: string;
-      secure: boolean;
-      sameSite: string;
-    };
-  };
+interface StatsCardProps {
+  title: string;
+  value: string | number;
+  icon: React.ReactNode;
+  description?: string;
 }
+
+const StatsCard = ({ title, value, icon, description }: StatsCardProps) => (
+  <Card>
+    <CardContent className="pt-6">
+      <div className="flex items-center">
+        {icon}
+        <div className="ml-2">
+          <p className="text-sm font-medium text-muted-foreground">{title}</p>
+          <div className="text-2xl font-bold">{value}</div>
+          {description && <p className="text-xs text-muted-foreground">{description}</p>}
+        </div>
+      </div>
+    </CardContent>
+  </Card>
+);
 
 export default function AdminDashboard() {
   const { user } = useAuth();
   const { isAdmin, isLoading: adminCheckLoading } = useAdmin();
   const branding = useBranding();
   const [activeTab, setActiveTab] = useState("overview");
+  const [stats, setStats] = useState({ users: 0, resumes: 0, coverLetters: 0, applications: 0 });
+  const [statsLoading, setStatsLoading] = useState(true);
   
-  // Add missing state declarations
-  const [stats, setStats] = useState<{
-    users: number;
-    resumes: number;
-    coverLetters: number;
-    applications: number;
-  }>({
-    users: 0,
-    resumes: 0,
-    coverLetters: 0,
-    applications: 0
-  });
-  const [statsLoading, setStatsLoading] = useState(false);
-  
-  // Simplified server status state
-  const [serverStatusError, setServerStatusError] = useState<string | null>(null);
-  
-  // Fetch admin dashboard stats
-  const { data: dashboardStats, isLoading: dashboardStatsLoading, error: statsError } = useQuery<DashboardStats>({
+  // Revenue filter states
+  const [revenueTimeframe, setRevenueTimeframe] = useState("12");
+  const [revenuePeriod, setRevenuePeriod] = useState("monthly"); // monthly or yearly
+  const [revenueCurrency, setRevenueCurrency] = useState("all"); // all, USD, INR
+
+  // Fetch dashboard stats using React Query
+  const { data: dashboardStats, isLoading: dashboardStatsLoading } = useQuery<DashboardStats>({
     queryKey: ["/api/admin/dashboard"],
     queryFn: getQueryFn({ on401: "throw" }),
-    refetchInterval: 300000, // Refresh every 5 minutes
+    enabled: !!user && isAdmin,
   });
-  
-  // Add state for server status data from API - fix endpoint to match what system-status.tsx uses
-  const { data: serverStatus, isLoading: serverStatusLoading, error: serverStatusQueryError } = useQuery<ServerStatusData>({
-    queryKey: ["/api/admin/server-status"], // Changed from /api/admin/status to /api/admin/server-status
-    queryFn: getQueryFn({ on401: "throw" }),
-    refetchInterval: 60000 // Refresh every minute
+
+  // Fetch revenue analytics with filters
+  const { data: revenueAnalytics, isLoading: revenueLoading } = useQuery({
+    queryKey: ["/api/admin/analytics/revenue", { 
+      timeframe: revenueTimeframe, 
+      period: revenuePeriod,
+      currency: revenueCurrency 
+    }],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        timeframe: revenueTimeframe,
+        period: revenuePeriod,
+        currency: revenueCurrency
+      });
+      const response = await fetch(`/api/admin/analytics/revenue?${params}`, { credentials: 'include' });
+      if (!response.ok) throw new Error('Failed to fetch revenue analytics');
+      return response.json();
+    },
+    enabled: !!user && isAdmin,
   });
-  
-  // Update error state when query error changes
-  useEffect(() => {
-    if (serverStatusQueryError) {
-      // Just convert any error to a string to avoid type issues
-      setServerStatusError(
-        serverStatusQueryError instanceof Error 
-          ? serverStatusQueryError.message 
-          : "Failed to fetch server status"
-      );
-      console.error("Server status error:", serverStatusQueryError);
-    } else {
-      setServerStatusError(null);
-    }
-  }, [serverStatusQueryError]);
-  
+
+  // Fetch user activity analytics
+  const { data: userActivityAnalytics, isLoading: activityLoading } = useQuery({
+    queryKey: ["/api/admin/analytics/user-activity", { timeframe: "30" }],
+    queryFn: async () => {
+      const response = await fetch('/api/admin/analytics/user-activity?timeframe=30', { credentials: 'include' });
+      if (!response.ok) throw new Error('Failed to fetch user activity analytics');
+      return response.json();
+    },
+    enabled: !!user && isAdmin,
+  });
+
   const fetchStats = useCallback(async () => {
     if (!user || !isAdmin) return;
     
@@ -217,92 +171,80 @@ export default function AdminDashboard() {
   if (!adminCheckLoading && !isAdmin) {
     return <Redirect to="/" />;
   }
-  
-  // Format uptime to human-readable format
-  const formatUptime = (seconds: number) => {
-    const days = Math.floor(seconds / 86400);
-    const hours = Math.floor((seconds % 86400) / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
+
+  // Transform revenue data for charts
+  const revenueData = React.useMemo(() => {
+    if (!revenueAnalytics?.monthlyRevenue) return [];
     
-    return `${days}d ${hours}h ${minutes}m`;
-  };
-  
-  // Format bytes to human-readable format
-  const formatBytes = (bytes: number) => {
-    const gigabytes = bytes / (1024 * 1024 * 1024);
-    return `${gigabytes.toFixed(2)} GB`;
-  };
-  
-  // Calculate memory usage percentage
-  const getMemoryUsagePercent = () => {
-    if (!serverStatus?.system) return 0;
+    const monthlyData: Record<string, { month: string; usd: number; inr: number }> = {};
     
-    const totalMemory = serverStatus?.system?.totalMemory || 0;
-    const freeMemory = serverStatus?.system?.freeMemory || 0;
+    Object.values(revenueAnalytics.monthlyRevenue).forEach((item: any) => {
+      const date = new Date(item.month + '-01');
+      const month = revenuePeriod === 'yearly' 
+        ? date.getFullYear().toString()
+        : date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+      
+      if (!monthlyData[month]) {
+        monthlyData[month] = { month, usd: 0, inr: 0 };
+      }
+      monthlyData[month][item.currency.toLowerCase() as 'usd' | 'inr'] = item.amount;
+    });
+
+    let data = Object.values(monthlyData).sort((a, b) => a.month.localeCompare(b.month));
     
-    if (totalMemory === 0) return 0;
+    // If yearly, group by year
+    if (revenuePeriod === 'yearly') {
+      const yearlyData: Record<string, { month: string; usd: number; inr: number }> = {};
+      
+      data.forEach(item => {
+        const year = item.month;
+        if (!yearlyData[year]) {
+          yearlyData[year] = { month: year, usd: 0, inr: 0 };
+        }
+        yearlyData[year].usd += item.usd;
+        yearlyData[year].inr += item.inr;
+      });
+      
+      data = Object.values(yearlyData).sort((a, b) => a.month.localeCompare(b.month));
+    }
     
-    const used = totalMemory - freeMemory;
-    return Math.round((used / totalMemory) * 100);
-  };
-  
-  // Mock data for charts
-  const revenueData = [
-    { month: "Jan", revenue: 1200 },
-    { month: "Feb", revenue: 1380 },
-    { month: "Mar", revenue: 1520 },
-    { month: "Apr", revenue: 1740 },
-    { month: "May", revenue: 2050 },
-    { month: "Jun", revenue: 1890 },
-    { month: "Jul", revenue: 2300 },
-  ];
-  
-  const userActivityData = [
-    {
-      id: "user activity",
-      data: [
-        { x: "Mon", y: 24 },
-        { x: "Tue", y: 18 },
-        { x: "Wed", y: 35 },
-        { x: "Thu", y: 27 },
-        { x: "Fri", y: 42 },
-        { x: "Sat", y: 15 },
-        { x: "Sun", y: 12 },
-      ],
-    },
-  ];
-  
+    return data;
+  }, [revenueAnalytics, revenuePeriod]);
+
+  // Determine chart keys based on currency filter
+  const chartKeys = React.useMemo(() => {
+    if (revenueCurrency === 'USD') return ['usd'];
+    if (revenueCurrency === 'INR') return ['inr'];
+    return ['usd', 'inr'];
+  }, [revenueCurrency]);
+
+  // Chart colors based on selected currencies
+  const chartColors = React.useMemo(() => {
+    if (revenueCurrency === 'USD') return ['#3b82f6'];
+    if (revenueCurrency === 'INR') return ['#f59e0b'];
+    return ['#3b82f6', '#f59e0b'];
+  }, [revenueCurrency]);
+
+  // Transform user activity data for charts
+  const userActivityData = React.useMemo(() => {
+    if (!userActivityAnalytics?.dailyActivity) return [{ id: "user activity", data: [] }];
+    
+    const last7Days = userActivityAnalytics.dailyActivity.slice(-7);
+    const chartData = last7Days.map((day: any) => ({
+      x: new Date(day.date).toLocaleDateString('en-US', { weekday: 'short' }),
+      y: day.totalActivity
+    }));
+
+    return [{ id: "user activity", data: chartData }];
+  }, [userActivityAnalytics]);
+
+  // Document distribution data from actual stats
   const documentDistributionData = [
     { id: "resumes", label: "Resumes", value: stats.resumes || 0, color: "hsl(210, 70%, 50%)" },
     { id: "coverLetters", label: "Cover Letters", value: stats.coverLetters || 0, color: "hsl(40, 70%, 50%)" },
     { id: "applications", label: "Applications", value: stats.applications || 0, color: "hsl(120, 70%, 50%)" },
   ];
-  
-  const DashboardError = () => (
-    <Alert variant="destructive">
-      <AlertCircle className="h-4 w-4" />
-      <AlertTitle>Error</AlertTitle>
-      <AlertDescription>
-        {serverStatusError || (statsError instanceof Error ? statsError.message : "Failed to load dashboard data")}
-      </AlertDescription>
-    </Alert>
-  );
-  
-  const StatsCard = ({ title, value, icon, description }: { title: string; value: string | number; icon: React.ReactNode; description?: string }) => (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium">
-          {title}
-        </CardTitle>
-        {icon}
-      </CardHeader>
-      <CardContent>
-        <div className="text-2xl font-bold">{value}</div>
-        {description && <p className="text-xs text-muted-foreground">{description}</p>}
-      </CardContent>
-    </Card>
-  );
-  
+
   return (
     <AdminLayout>
       <div className="flex items-center justify-between mb-6">
@@ -328,64 +270,142 @@ export default function AdminDashboard() {
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             <StatsCard 
               title="Total Users" 
-              value={statsLoading ? "Loading..." : dashboardStats?.userStats.total || 0}
+              value={dashboardStatsLoading ? "Loading..." : dashboardStats?.userStats.total || 0}
               icon={<Users className="h-4 w-4 text-muted-foreground" />}
             />
             <StatsCard 
               title="Recent Signups" 
-              value={statsLoading ? "Loading..." : dashboardStats?.userStats.recentRegistrations || 0}
+              value={dashboardStatsLoading ? "Loading..." : dashboardStats?.userStats.recentRegistrations || 0}
               icon={<ArrowUpRight className="h-4 w-4 text-green-500" />}
               description="Last 7 days"
             />
             <StatsCard 
-              title="AI Tokens Used" 
-              value={statsLoading ? "Loading..." : (dashboardStats?.aiStats?.totalTokens || 0).toLocaleString()}
+              title="Active Users" 
+              value={activityLoading ? "Loading..." : userActivityAnalytics?.summary?.activeUsers || 0}
               icon={<Activity className="h-4 w-4 text-muted-foreground" />}
+              description="Last 7 days"
             />
           </div>
+
+          {/* Revenue Summary Cards */}
+          {revenueAnalytics?.summary && (
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+              {Object.entries(revenueAnalytics.summary.totalRevenue).map(([currency, data]: [string, any]) => (
+                <Card key={currency}>
+                  <CardContent className="pt-6">
+                    <div className="flex items-center">
+                      <DollarSign className="h-4 w-4 text-green-500" />
+                      <div className="ml-2">
+                        <p className="text-sm font-medium text-muted-foreground">
+                          Total Revenue ({currency.toUpperCase()})
+                        </p>
+                        <div className="text-2xl font-bold">
+                          {currency === 'USD' ? '$' : '₹'}{data.amount.toLocaleString()}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {data.transactions} transactions
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+              
+              {Object.entries(revenueAnalytics.summary.mrr).map(([currency, mrr]: [string, any]) => (
+                <Card key={`mrr-${currency}`}>
+                  <CardContent className="pt-6">
+                    <div className="flex items-center">
+                      <TrendingUp className="h-4 w-4 text-blue-500" />
+                      <div className="ml-2">
+                        <p className="text-sm font-medium text-muted-foreground">
+                          MRR ({currency.toUpperCase()})
+                        </p>
+                        <div className="text-2xl font-bold">
+                          {currency === 'USD' ? '$' : '₹'}{mrr.toLocaleString()}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Monthly recurring
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
           
           {/* Charts and Tables */}
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
             <Card className="col-span-4">
               <CardHeader>
                 <CardTitle>Revenue Overview</CardTitle>
-                <CardDescription>Monthly revenue for the current year</CardDescription>
+                <CardDescription>Monthly revenue by currency (last 12 months)</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="h-[300px]">
-                  <ResponsiveBar
-                    data={revenueData}
-                    keys={["revenue"]}
-                    indexBy="month"
-                    margin={{ top: 20, right: 30, bottom: 50, left: 60 }}
-                    padding={0.3}
-                    valueScale={{ type: "linear" }}
-                    colors={{ scheme: "accent" }}
-                    axisBottom={{
-                      tickSize: 5,
-                      tickPadding: 5,
-                      tickRotation: 0,
-                      legend: "Month",
-                      legendPosition: "middle",
-                      legendOffset: 40,
-                    }}
-                    axisLeft={{
-                      tickSize: 5,
-                      tickPadding: 5,
-                      tickRotation: 0,
-                      legend: "Revenue ($)",
-                      legendPosition: "middle",
-                      legendOffset: -50,
-                    }}
-                    labelSkipWidth={12}
-                    labelSkipHeight={12}
-                    labelTextColor={{ from: "color", modifiers: [["darker", 1.6]] }}
-                    animate={true}
-                  />
+                  {revenueLoading ? (
+                    <div className="flex items-center justify-center h-full">
+                      <Loader2 className="h-8 w-8 animate-spin" />
+                    </div>
+                  ) : (
+                    <ResponsiveBar
+                      data={revenueData.slice(-12)} // Show last 12 months for overview
+                      keys={["usd", "inr"]}
+                      indexBy="month"
+                      margin={{ top: 20, right: 110, bottom: 50, left: 60 }}
+                      padding={0.3}
+                      valueScale={{ type: "linear" }}
+                      colors={["#3b82f6", "#f59e0b"]}
+                      axisBottom={{
+                        tickSize: 5,
+                        tickPadding: 5,
+                        tickRotation: 0,
+                        legend: "Month",
+                        legendPosition: "middle",
+                        legendOffset: 40,
+                      }}
+                      axisLeft={{
+                        tickSize: 5,
+                        tickPadding: 5,
+                        tickRotation: 0,
+                        legend: "Revenue",
+                        legendPosition: "middle",
+                        legendOffset: -50,
+                      }}
+                      labelSkipWidth={12}
+                      labelSkipHeight={12}
+                      labelTextColor={{ from: "color", modifiers: [["darker", 1.6]] }}
+                      legends={[
+                        {
+                          dataFrom: 'keys',
+                          anchor: 'bottom-right',
+                          direction: 'column',
+                          justify: false,
+                          translateX: 120,
+                          translateY: 0,
+                          itemsSpacing: 2,
+                          itemWidth: 100,
+                          itemHeight: 20,
+                          itemDirection: 'left-to-right',
+                          itemOpacity: 0.85,
+                          symbolSize: 20,
+                          effects: [
+                            {
+                              on: 'hover',
+                              style: {
+                                itemOpacity: 1
+                              }
+                            }
+                          ]
+                        }
+                      ]}
+                      animate={true}
+                    />
+                  )}
                 </div>
               </CardContent>
             </Card>
-            
+
             <Card className="col-span-3">
               <CardHeader>
                 <CardTitle>Document Distribution</CardTitle>
@@ -393,11 +413,9 @@ export default function AdminDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="h-[300px]">
-                  {documentDistributionData.every(item => item.value === 0) ? (
-                    <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
-                      <FileText className="h-16 w-16 mb-4 opacity-20" />
-                      <p className="text-lg font-medium">No documents created yet</p>
-                      <p className="text-sm">Document statistics will appear here when users create resumes, cover letters, or applications</p>
+                  {statsLoading ? (
+                    <div className="flex items-center justify-center h-full">
+                      <Loader2 className="h-8 w-8 animate-spin" />
                     </div>
                   ) : (
                     <ResponsivePie
@@ -417,246 +435,9 @@ export default function AdminDashboard() {
                       arcLinkLabelsColor={{ from: "color" }}
                       animate={true}
                       transitionMode="startAngle"
-                      defs={[
-                        {
-                          id: "dots",
-                          type: "patternDots",
-                          background: "inherit",
-                          color: "rgba(255, 255, 255, 0.3)",
-                          size: 4,
-                          padding: 1,
-                          stagger: true,
-                        },
-                        {
-                          id: "lines",
-                          type: "patternLines",
-                          background: "inherit",
-                          color: "rgba(255, 255, 255, 0.3)",
-                          rotation: -45,
-                          lineWidth: 6,
-                          spacing: 10,
-                        },
-                      ]}
-                      fill={[
-                        { match: { id: "resumes" }, id: "dots" },
-                        { match: { id: "coverLetters" }, id: "lines" },
-                      ]}
-                      legends={[
-                        {
-                          anchor: "bottom",
-                          direction: "row",
-                          translateY: 30,
-                          itemWidth: 100,
-                          itemHeight: 20,
-                          itemTextColor: "#999",
-                          symbolSize: 12,
-                          symbolShape: "circle",
-                          effects: [
-                            {
-                              on: "hover",
-                              style: {
-                                itemTextColor: "#000",
-                              },
-                            },
-                          ],
-                        },
-                      ]}
                     />
                   )}
                 </div>
-              </CardContent>
-            </Card>
-          </div>
-          
-          {/* Recent Activity and Status */}
-          <div className="grid gap-6 md:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle>Recent Activity</CardTitle>
-                <CardDescription>Latest user and system activities</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex items-start gap-4">
-                    <div className="bg-primary/10 p-2 rounded-full">
-                      <Users className="h-4 w-4 text-primary" />
-                    </div>
-                    <div className="flex-1 space-y-1">
-                      <p className="text-sm font-medium">New user registered</p>
-                      <p className="text-xs text-muted-foreground">A new user created an account</p>
-                      <div className="flex items-center text-xs text-muted-foreground">
-                        <Clock className="mr-1 h-3 w-3" />
-                        <span>10 minutes ago</span>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-start gap-4">
-                    <div className="bg-blue-100 p-2 rounded-full">
-                      <FileText className="h-4 w-4 text-blue-600" />
-                    </div>
-                    <div className="flex-1 space-y-1">
-                      <p className="text-sm font-medium">Resume generated</p>
-                      <p className="text-xs text-muted-foreground">User created a new resume</p>
-                      <div className="flex items-center text-xs text-muted-foreground">
-                        <Clock className="mr-1 h-3 w-3" />
-                        <span>1 hour ago</span>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-start gap-4">
-                    <div className="bg-amber-100 p-2 rounded-full">
-                      <Download className="h-4 w-4 text-amber-600" />
-                    </div>
-                    <div className="flex-1 space-y-1">
-                      <p className="text-sm font-medium">Template downloaded</p>
-                      <p className="text-xs text-muted-foreground">User downloaded a template</p>
-                      <div className="flex items-center text-xs text-muted-foreground">
-                        <Clock className="mr-1 h-3 w-3" />
-                        <span>3 hours ago</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
-                <div>
-                  <CardTitle>System Status</CardTitle>
-                  <CardDescription>Current system status and resources</CardDescription>
-                </div>
-                {serverStatusLoading ? (
-                  <div className="animate-spin">
-                    <Loader2 className="h-4 w-4 text-muted-foreground" />
-                  </div>
-                ) : null}
-              </CardHeader>
-              <CardContent>
-                {serverStatusError ? (
-                  <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
-                    <h3 className="font-medium text-sm mb-1">Error Loading System Status</h3>
-                    <p className="text-xs">{serverStatusError}</p>
-                    <p className="text-xs mt-2">Try refreshing the page or check server logs for more details.</p>
-                  </div>
-                ) : serverStatus ? (
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className={`h-2.5 w-2.5 rounded-full ${serverStatus?.database?.connected ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                        <span className="font-medium">Database</span>
-                      </div>
-                      <span className={`text-sm font-medium ${serverStatus?.database?.connected ? 'text-green-500' : 'text-red-500'}`}>
-                        {serverStatus?.database?.connected ? 'Operational' : 'Disconnected'}
-                      </span>
-                    </div>
-                    
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="h-2.5 w-2.5 rounded-full bg-green-500"></div>
-                        <span className="font-medium">API Services</span>
-                      </div>
-                      <span className="text-sm text-green-500 font-medium">Operational</span>
-                    </div>
-                    
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="h-2.5 w-2.5 rounded-full bg-green-500"></div>
-                        <span className="font-medium">Authentication</span>
-                      </div>
-                      <span className="text-sm text-green-500 font-medium">
-                        {serverStatus?.session?.isAuthenticated ? 'Operational' : 'Issue Detected'}
-                      </span>
-                    </div>
-                    
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className={`h-2.5 w-2.5 rounded-full ${serverStatus?.cookieManager?.enabled ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
-                        <span className="font-medium">Cookie Manager</span>
-                      </div>
-                      <span className={`text-sm font-medium ${serverStatus?.cookieManager?.enabled ? 'text-green-500' : 'text-yellow-500'}`}>
-                        {serverStatus?.cookieManager?.enabled ? 'Operational' : 'Limited'}
-                      </span>
-                    </div>
-                    
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className={`h-2.5 w-2.5 rounded-full ${serverStatus?.rateLimiter?.enabled ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
-                        <span className="font-medium">Rate Limiter</span>
-                      </div>
-                      <span className={`text-sm font-medium ${serverStatus?.rateLimiter?.enabled ? 'text-green-500' : 'text-yellow-500'}`}>
-                        {serverStatus?.rateLimiter?.enabled ? 'Active' : 'Disabled'}
-                      </span>
-                    </div>
-                    
-                    <div className="pt-4">
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="flex items-center gap-1">
-                            <Server className="h-3 w-3" />
-                            <span>Server Load</span>
-                          </span>
-                          <span>
-                            {serverStatus?.system?.load?.[0]?.toFixed(2) || '0.00'} 
-                            <span className="text-xs text-muted-foreground ml-1">(1m avg)</span>
-                          </span>
-                        </div>
-                        <div className="h-2 w-full rounded-full bg-gray-200">
-                          <div 
-                            className={`h-2 rounded-full ${
-                              (serverStatus?.system?.load?.[0] || 0) > 3 
-                                ? 'bg-red-500' 
-                                : (serverStatus?.system?.load?.[0] || 0) > 1.5 
-                                  ? 'bg-yellow-500' 
-                                  : 'bg-green-500'
-                            }`} 
-                            style={{ width: `${Math.min(100, (serverStatus?.system?.load?.[0] || 0) * 10)}%` }}
-                          ></div>
-                        </div>
-                      </div>
-                      
-                      <div className="space-y-2 mt-4">
-                        <div className="flex items-center justify-between text-sm">
-                          <span>Memory Usage</span>
-                          <span>{getMemoryUsagePercent()}%</span>
-                        </div>
-                        <div className="h-2 w-full rounded-full bg-gray-200">
-                          <div 
-                            className={`h-2 rounded-full ${
-                              getMemoryUsagePercent() > 80 
-                                ? 'bg-red-500' 
-                                : getMemoryUsagePercent() > 60 
-                                  ? 'bg-yellow-500' 
-                                  : 'bg-green-500'
-                            }`}
-                            style={{ width: `${getMemoryUsagePercent()}%` }}
-                          ></div>
-                        </div>
-                      </div>
-                      
-                      <div className="mt-4 flex flex-col text-xs text-muted-foreground">
-                        <div className="flex justify-between">
-                          <span>Platform:</span>
-                          <span>{serverStatus?.system?.platform || 'Unknown'} ({serverStatus?.system?.architecture || 'Unknown'})</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Uptime:</span>
-                          <span>{formatUptime(serverStatus?.system?.uptime || 0)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Node:</span>
-                          <span>{serverStatus?.system?.nodeVersion || 'Unknown'} ({serverStatus?.system?.nodeEnv || 'Unknown'})</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-center py-6">
-                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                  </div>
-                )}
               </CardContent>
             </Card>
           </div>
@@ -665,94 +446,277 @@ export default function AdminDashboard() {
         <TabsContent value="activity" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>User Activity</CardTitle>
-              <CardDescription>Weekly user activity trends</CardDescription>
+              <CardTitle>User Activity Trends</CardTitle>
+              <CardDescription>Daily user activity over the last 7 days</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="h-[400px]">
-                <ResponsiveLine
-                  data={userActivityData}
-                  margin={{ top: 20, right: 20, bottom: 50, left: 60 }}
-                  xScale={{ type: "point" }}
-                  yScale={{ type: "linear", min: "auto", max: "auto", stacked: false, reverse: false }}
-                  curve="cardinal"
-                  axisTop={null}
-                  axisRight={null}
-                  axisBottom={{
-                    tickSize: 5,
-                    tickPadding: 5,
-                    tickRotation: 0,
-                    legend: "Day of Week",
-                    legendOffset: 36,
-                    legendPosition: "middle",
-                  }}
-                  axisLeft={{
-                    tickSize: 5,
-                    tickPadding: 5,
-                    tickRotation: 0,
-                    legend: "Actions",
-                    legendOffset: -40,
-                    legendPosition: "middle",
-                  }}
-                  colors={{ scheme: "accent" }}
-                  pointSize={10}
-                  pointColor={{ theme: "background" }}
-                  pointBorderWidth={2}
-                  pointBorderColor={{ from: "serieColor" }}
-                  pointLabel="y"
-                  pointLabelYOffset={-12}
-                  useMesh={true}
-                  animate={true}
-                />
+                {activityLoading ? (
+                  <div className="flex items-center justify-center h-full">
+                    <Loader2 className="h-8 w-8 animate-spin" />
+                  </div>
+                ) : (
+                  <ResponsiveLine
+                    data={userActivityData}
+                    margin={{ top: 20, right: 20, bottom: 50, left: 60 }}
+                    xScale={{ type: "point" }}
+                    yScale={{ type: "linear", min: "auto", max: "auto", stacked: false, reverse: false }}
+                    curve="cardinal"
+                    axisTop={null}
+                    axisRight={null}
+                    axisBottom={{
+                      tickSize: 5,
+                      tickPadding: 5,
+                      tickRotation: 0,
+                      legend: "Day of Week",
+                      legendOffset: 36,
+                      legendPosition: "middle",
+                    }}
+                    axisLeft={{
+                      tickSize: 5,
+                      tickPadding: 5,
+                      tickRotation: 0,
+                      legend: "Total Activity",
+                      legendOffset: -40,
+                      legendPosition: "middle",
+                    }}
+                    colors={{ scheme: "accent" }}
+                    pointSize={10}
+                    pointColor={{ theme: "background" }}
+                    pointBorderWidth={2}
+                    pointBorderColor={{ from: "serieColor" }}
+                    pointLabel="y"
+                    pointLabelYOffset={-12}
+                    useMesh={true}
+                    animate={true}
+                  />
+                )}
               </div>
             </CardContent>
           </Card>
+
+          {/* Activity Summary Cards */}
+          {userActivityAnalytics?.summary && (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="flex items-center">
+                    <Users className="h-4 w-4 text-blue-500" />
+                    <div className="ml-2">
+                      <p className="text-sm font-medium text-muted-foreground">New Registrations</p>
+                      <div className="text-2xl font-bold">{userActivityAnalytics.summary.registrations}</div>
+                      <p className="text-xs text-muted-foreground">Last 30 days</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="flex items-center">
+                    <FileText className="h-4 w-4 text-green-500" />
+                    <div className="ml-2">
+                      <p className="text-sm font-medium text-muted-foreground">Resumes Created</p>
+                      <div className="text-2xl font-bold">{userActivityAnalytics.summary.resumes}</div>
+                      <p className="text-xs text-muted-foreground">Last 30 days</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="flex items-center">
+                    <CreditCard className="h-4 w-4 text-purple-500" />
+                    <div className="ml-2">
+                      <p className="text-sm font-medium text-muted-foreground">New Subscriptions</p>
+                      <div className="text-2xl font-bold">{userActivityAnalytics.summary.subscriptions}</div>
+                      <p className="text-xs text-muted-foreground">Last 30 days</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
         </TabsContent>
         
         <TabsContent value="revenue" className="space-y-6">
+          {/* Revenue Filter Controls */}
           <Card>
             <CardHeader>
-              <CardTitle>Revenue Analysis</CardTitle>
-              <CardDescription>Monthly revenue breakdown</CardDescription>
+              <CardTitle className="flex items-center gap-2">
+                <Filter className="h-5 w-5" />
+                Revenue Filters
+              </CardTitle>
+              <CardDescription>
+                Customize your revenue analysis view
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="h-[400px]">
-                <ResponsiveBar
-                  data={revenueData}
-                  keys={["revenue"]}
-                  indexBy="month"
-                  margin={{ top: 20, right: 20, bottom: 50, left: 60 }}
-                  padding={0.3}
-                  valueScale={{ type: "linear" }}
-                  colors={{ scheme: "accent" }}
-                  borderWidth={1}
-                  borderColor={{ from: "color", modifiers: [["darker", 1.6]] }}
-                  axisTop={null}
-                  axisRight={null}
-                  axisBottom={{
-                    tickSize: 5,
-                    tickPadding: 5,
-                    tickRotation: 0,
-                    legend: "Month",
-                    legendPosition: "middle",
-                    legendOffset: 36,
-                  }}
-                  axisLeft={{
-                    tickSize: 5,
-                    tickPadding: 5,
-                    tickRotation: 0,
-                    legend: "Revenue ($)",
-                    legendPosition: "middle",
-                    legendOffset: -40,
-                  }}
-                  labelSkipWidth={12}
-                  labelSkipHeight={12}
-                  labelTextColor={{ from: "color", modifiers: [["darker", 1.6]] }}
-                  animate={true}
-                />
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Time Period</label>
+                  <Select value={revenuePeriod} onValueChange={setRevenuePeriod}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select period" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="monthly">Monthly View</SelectItem>
+                      <SelectItem value="yearly">Yearly View</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Currency</label>
+                  <Select value={revenueCurrency} onValueChange={setRevenueCurrency}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select currency" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Currencies</SelectItem>
+                      <SelectItem value="USD">USD Only</SelectItem>
+                      <SelectItem value="INR">INR Only</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Timeframe</label>
+                  <Select value={revenueTimeframe} onValueChange={setRevenueTimeframe}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select timeframe" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="6">Last 6 {revenuePeriod === 'yearly' ? 'Years' : 'Months'}</SelectItem>
+                      <SelectItem value="12">Last 12 {revenuePeriod === 'yearly' ? 'Years' : 'Months'}</SelectItem>
+                      <SelectItem value="24">Last 24 {revenuePeriod === 'yearly' ? 'Years' : 'Months'}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </CardContent>
           </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Revenue Analysis</CardTitle>
+              <CardDescription>
+                {revenuePeriod === 'yearly' ? 'Yearly' : 'Monthly'} revenue breakdown
+                {revenueCurrency !== 'all' && ` - ${revenueCurrency} only`}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[400px]">
+                {revenueLoading ? (
+                  <div className="flex items-center justify-center h-full">
+                    <Loader2 className="h-8 w-8 animate-spin" />
+                  </div>
+                ) : (
+                  <ResponsiveBar
+                    data={revenueData}
+                    keys={chartKeys}
+                    indexBy="month"
+                    margin={{ top: 20, right: 110, bottom: 50, left: 80 }}
+                    padding={0.3}
+                    valueScale={{ type: "linear" }}
+                    colors={chartColors}
+                    borderWidth={1}
+                    borderColor={{ from: "color", modifiers: [["darker", 1.6]] }}
+                    axisTop={null}
+                    axisRight={null}
+                    axisBottom={{
+                      tickSize: 5,
+                      tickPadding: 5,
+                      tickRotation: 0,
+                      legend: revenuePeriod === 'yearly' ? 'Year' : 'Month',
+                      legendPosition: "middle",
+                      legendOffset: 36,
+                    }}
+                    axisLeft={{
+                      tickSize: 5,
+                      tickPadding: 5,
+                      tickRotation: 0,
+                      legend: "Revenue",
+                      legendPosition: "middle",
+                      legendOffset: -60,
+                    }}
+                    labelSkipWidth={12}
+                    labelSkipHeight={12}
+                    labelTextColor={{ from: "color", modifiers: [["darker", 1.6]] }}
+                    legends={revenueCurrency === 'all' ? [
+                      {
+                        dataFrom: 'keys',
+                        anchor: 'bottom-right',
+                        direction: 'column',
+                        justify: false,
+                        translateX: 120,
+                        translateY: 0,
+                        itemsSpacing: 2,
+                        itemWidth: 100,
+                        itemHeight: 20,
+                        itemDirection: 'left-to-right',
+                        itemOpacity: 0.85,
+                        symbolSize: 20,
+                        effects: [
+                          {
+                            on: 'hover',
+                            style: {
+                              itemOpacity: 1
+                            }
+                          }
+                        ]
+                      }
+                    ] : []}
+                    animate={true}
+                  />
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Top Plans Revenue */}
+          {revenueAnalytics?.topPlans && revenueAnalytics.topPlans.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Top Performing Plans</CardTitle>
+                <CardDescription>
+                  Subscription plans by revenue
+                  {revenueCurrency !== 'all' && ` - ${revenueCurrency} only`}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {revenueAnalytics.topPlans
+                    .filter((plan: any) => revenueCurrency === 'all' || plan.currency === revenueCurrency)
+                    .slice(0, 5)
+                    .map((plan: any, index: number) => (
+                    <div key={`${plan.planId}-${plan.currency}`} className="flex items-center justify-between p-4 rounded-lg bg-slate-50 dark:bg-slate-800/50">
+                      <div className="flex items-center space-x-3">
+                        <div className="bg-primary/10 text-primary rounded-full w-8 h-8 flex items-center justify-center text-sm font-medium">
+                          {index + 1}
+                        </div>
+                        <div>
+                          <h4 className="font-medium">{plan.planName}</h4>
+                          <p className="text-sm text-muted-foreground">
+                            {plan.subscriptionCount} subscriptions
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-bold">
+                          {plan.currency === 'USD' ? '$' : '₹'}{plan.totalRevenue.toLocaleString()}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {plan.currency}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
       </Tabs>
     </AdminLayout>
