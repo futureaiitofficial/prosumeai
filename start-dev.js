@@ -29,7 +29,7 @@ const clientProcess = spawn('npx', ['vite', '--config', path.join(__dirname, 'vi
   env: {
     ...process.env,
     NODE_ENV: 'development',
-    VITE_API_URL: 'http://localhost:4000'
+    VITE_API_URL: 'http://localhost:3000'
   },
   stdio: 'inherit'
 });
@@ -40,6 +40,7 @@ const serverProcess = spawn('npx', ['tsx', 'server/index.ts'], {
   env: {
     ...process.env,
     NODE_ENV: 'development',
+    PORT: '3000',
     DATABASE_URL: process.env.DATABASE_URL || 'postgres://raja:raja@localhost:5432/prosumeai'
   },
   stdio: 'inherit'

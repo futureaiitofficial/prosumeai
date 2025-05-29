@@ -5,6 +5,7 @@ import { eq, and } from 'drizzle-orm';
 import Razorpay from 'razorpay';
 import crypto from 'crypto';
 import { TaxService } from './tax-service';
+import { adminNotificationService } from './admin-notification-service';
 
 // Utility function to decrypt API keys
 export function decryptApiKey(encryptedKey: string): string {
@@ -1365,6 +1366,28 @@ class RazorpayGateway implements PaymentGateway {
       }
       
       console.log('Processed successful payment for subscription:', subscription[0].id);
+      
+      // Notify admins about successful payment
+      try {
+        const userData = await db.select()
+          .from(users)
+          .where(eq(users.id, subscription[0].userId))
+          .limit(1);
+          
+        if (userData.length > 0) {
+          await adminNotificationService.notifyPaymentReceived({
+            userId: subscription[0].userId,
+            userName: userData[0].fullName || userData[0].username,
+            amount: hasCurrencyMismatch ? correctedAmount : (payment.amount / 100).toString(),
+            currency: hasCurrencyMismatch ? correctCurrency : payment.currency,
+            transactionId: payment.id,
+            planName: planData.length > 0 ? planData[0].name : 'Unknown Plan'
+          });
+        }
+      } catch (notificationError) {
+        console.error('Failed to send admin notification for successful payment:', notificationError);
+        // Don't fail the payment processing if notification fails
+      }
     } catch (error) {
       console.error('Error handling successful Razorpay payment:', error);
       throw error;
@@ -1396,25 +1419,34 @@ class RazorpayGateway implements PaymentGateway {
           status: 'FAILED'
         })
         .onConflictDoNothing();
-        
-      // If this is for a renewal, put subscription in grace period
-      const now = new Date();
-      const endDate = new Date(subscription[0].endDate);
       
-      if (endDate < now && subscription[0].status === 'ACTIVE') {
-        // Set grace period for 7 days
-        const gracePeriodEnd = new Date();
-        gracePeriodEnd.setDate(gracePeriodEnd.getDate() + 7);
-        
-        await db.update(userSubscriptions)
-          .set({ 
-            status: 'GRACE_PERIOD',
-            gracePeriodEnd,
-            updatedAt: now
-          })
-          .where(eq(userSubscriptions.id, subscription[0].id));
+      console.log('Processed failed payment for subscription:', subscription[0].id);
+      
+      // Notify admins about failed payment
+      try {
+        const userData = await db.select()
+          .from(users)
+          .where(eq(users.id, subscription[0].userId))
+          .limit(1);
           
-        console.log('Subscription moved to grace period:', subscription[0].id);
+        const planData = await db.select()
+          .from(subscriptionPlans)
+          .where(eq(subscriptionPlans.id, subscription[0].planId))
+          .limit(1);
+          
+        if (userData.length > 0) {
+          await adminNotificationService.notifyPaymentFailed({
+            userId: subscription[0].userId,
+            userName: userData[0].fullName || userData[0].username,
+            amount: (payment.amount / 100).toString(),
+            currency: payment.currency,
+            reason: payment.error_description || 'Payment failed',
+            planName: planData.length > 0 ? planData[0].name : 'Unknown Plan'
+          });
+        }
+      } catch (notificationError) {
+        console.error('Failed to send admin notification for failed payment:', notificationError);
+        // Don't fail the payment processing if notification fails
       }
     } catch (error) {
       console.error('Error handling failed Razorpay payment:', error);

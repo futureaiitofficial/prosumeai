@@ -8,6 +8,10 @@ import { Router } from 'express';
 // Add the import for feature access middleware
 import { requireFeatureAccess, trackFeatureUsage } from '../../middleware/feature-access';
 import { withEncryption } from '../../middleware/index';
+import { NotificationService } from "../../services/notification-service";
+
+// Initialize notification service
+const notificationService = new NotificationService();
 
 const router = Router();
 
@@ -139,6 +143,25 @@ export function registerJobApplicationRoutes(app: express.Express) {
       // Create job application
       const newApplication = await storage.createJobApplication(applicationData);
       
+      // Create notification for job application creation
+      try {
+        await notificationService.createNotification({
+          recipientId: req.user.id,
+          type: 'job_application_created',
+          category: 'job_application',
+          data: { 
+            jobTitle: newApplication.jobTitle,
+            company: newApplication.company,
+            userName: req.user.username || req.user.fullName,
+            applicationId: newApplication.id,
+            status: newApplication.status
+          }
+        });
+      } catch (notificationError) {
+        console.error('Failed to create job application notification:', notificationError);
+        // Don't fail the request if notification fails
+      }
+      
       res.status(201).json(newApplication);
     } catch (error: any) {
       console.error('Error in POST /api/job-applications:', error);
@@ -205,6 +228,25 @@ export function registerJobApplicationRoutes(app: express.Express) {
       
       if (!updatedApplication) {
         return res.status(500).json({ message: "Failed to update job application" });
+      }
+      
+      // Create notification for job application update
+      try {
+        await notificationService.createNotification({
+          recipientId: req.user.id,
+          type: 'job_application_updated',
+          category: 'job_application',
+          data: { 
+            jobTitle: updatedApplication.jobTitle,
+            company: updatedApplication.company,
+            userName: req.user.username || req.user.fullName,
+            applicationId: updatedApplication.id,
+            status: updatedApplication.status
+          }
+        });
+      } catch (notificationError) {
+        console.error('Failed to create job application update notification:', notificationError);
+        // Don't fail the request if notification fails
       }
       
       res.json(updatedApplication);
@@ -312,6 +354,31 @@ export function registerJobApplicationRoutes(app: express.Express) {
       
       if (!updatedApplication) {
         return res.status(500).json({ message: "Failed to update job application status" });
+      }
+      
+      // Create notification for status change (important events only)
+      try {
+        const shouldNotify = ['interview', 'offer', 'rejected', 'accepted'].includes(status.toLowerCase());
+        if (shouldNotify) {
+          await notificationService.createNotification({
+            recipientId: req.user.id,
+            type: 'job_application_updated',
+            category: 'job_application',
+            data: { 
+              jobTitle: updatedApplication.jobTitle,
+              company: updatedApplication.company,
+              userName: req.user.username || req.user.fullName,
+              applicationId: updatedApplication.id,
+              status: updatedApplication.status,
+              statusChange: true,
+              previousStatus: existingApplication.status,
+              newStatus: status
+            }
+          });
+        }
+      } catch (notificationError) {
+        console.error('Failed to create status change notification:', notificationError);
+        // Don't fail the request if notification fails
       }
       
       res.json(updatedApplication);

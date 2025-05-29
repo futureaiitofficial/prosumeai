@@ -46,13 +46,13 @@ export default defineConfig({
     proxy: {
       // Proxy API requests to the backend server
       '/api': {
-        target: 'http://localhost:4000',
+        target: 'http://localhost:3000',
         changeOrigin: true,
         secure: false,
       },
       // Proxy authentication requests
       '/auth': {
-        target: 'http://localhost:4000',
+        target: 'http://localhost:3000',
         changeOrigin: true,
         secure: false,
       }
@@ -72,7 +72,7 @@ export default defineConfig({
   define: {
     'process.env': {
       NODE_ENV: JSON.stringify(process.env.NODE_ENV),
-      API_URL: JSON.stringify('http://localhost:4000'),
+      API_URL: JSON.stringify('http://localhost:3000'),
       // Add any other environment variables your client code needs access to
       IS_TUNNEL: JSON.stringify(isTunnel),
     },

@@ -13,6 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { NotificationDropdown } from "@/components/ui/notification-dropdown";
 
 export default function Header() {
   const { user, logoutMutation } = useAuth();
@@ -82,15 +83,9 @@ export default function Header() {
             <span className="sr-only">Toggle theme</span>
           </Button>
           
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="h-9 w-9 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 relative"
-          >
-            <Bell className="h-4 w-4" />
-            <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-indigo-600"></span>
-            <span className="sr-only">Notifications</span>
-          </Button>
+          {user && (
+            <NotificationDropdown className="h-9 w-9 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800" />
+          )}
           
           {user && (
             <DropdownMenu>

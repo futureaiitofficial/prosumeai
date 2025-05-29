@@ -36,18 +36,35 @@ export default function VerifyEmailPage() {
             
             if (response.status === 200) {
               setStatus('success');
-              setMessage('Your email has been successfully verified! You can now use all features of your account.');
+              // Handle different success messages
+              const successMessage = response.data?.message || 'Your email has been successfully verified! You can now use all features of your account.';
+              setMessage(successMessage);
               
               // Show success toast
               toast({
                 title: "Email Verified",
-                description: "Your email address has been successfully verified.",
+                description: response.data?.message === "Email is already verified" 
+                  ? "Your email is already verified." 
+                  : "Your email address has been successfully verified.",
                 variant: "default",
               });
               return;
             }
           } catch (error: any) {
             console.error('Error verifying email:', error);
+            
+            // Special handling for already verified case
+            if (error.response?.data?.message === "Email is already verified") {
+              setStatus('success');
+              setMessage('Your email is already verified! You can now use all features of your account.');
+              toast({
+                title: "Email Already Verified",
+                description: "Your email address is already verified.",
+                variant: "default",
+              });
+              return;
+            }
+            
             setStatus('error');
             setMessage(error.response?.data?.message || 'Failed to verify your email. The link may have expired or is invalid.');
             

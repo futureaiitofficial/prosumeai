@@ -56,6 +56,10 @@ import RegisterPage from '@/pages/register';
 import VerifyEmailPage from '@/pages/verify-email';
 import { BrandingProvider } from '@/components/branding/branding-provider';
 import VerifyTwoFactorPage from '@/pages/verify-2fa';
+import { NotificationProvider } from '@/contexts/notification-context';
+import NotificationsPage from '@/pages/user/notifications';
+import AdminNotificationsPage from '@/pages/admin/notifications/index';
+import CreateNotificationPage from '@/pages/admin/notifications/create';
 
 // Session Recovery component to handle network disconnections
 function SessionRecovery() {
@@ -153,6 +157,7 @@ function Router() {
       <ProtectedRoute path="/keyword-generator" component={KeywordGenerator} />
       <ProtectedRoute path="/user/subscription" component={() => <UserSubscriptionPage />} />
       <ProtectedRoute path="/user/settings" component={() => <UserSettingsPage />} />
+      <ProtectedRoute path="/notifications" component={NotificationsPage} />
       <Route path="/checkout" component={() => <CheckoutPage />} />
       
       {/* Admin Routes */}
@@ -183,6 +188,8 @@ function Router() {
       <AdminRoute path="/admin/tools" component={AdminToolsPage} />
       <AdminRoute path="/admin/security" component={AdminSecurityPage} />
       <AdminRoute path="/admin/tax" component={() => <AdminTaxPage />} />
+      <AdminRoute path="/admin/notifications" component={AdminNotificationsPage} />
+      <AdminRoute path="/admin/notifications/create" component={CreateNotificationPage} />
       
       <Route component={NotFound} />
     </Switch>
@@ -196,9 +203,11 @@ export default function App() {
         <BrandingProvider>
           <LocationProvider>
             <SidebarProvider>
-              <SessionRecovery />
-              <Router />
-              <Toaster />
+              <NotificationProvider>
+                <SessionRecovery />
+                <Router />
+                <Toaster />
+              </NotificationProvider>
             </SidebarProvider>
           </LocationProvider>
         </BrandingProvider>

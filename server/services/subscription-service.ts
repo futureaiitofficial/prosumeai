@@ -2,6 +2,12 @@ import { db } from '../config/db';
 import { userSubscriptions, subscriptionPlans, paymentTransactions, planPricing, featureUsage, planFeatures as planFeaturesTable, userBillingDetails, PaymentGatewayEnum, planChangeTypeEnum, paymentGatewayConfigs, appSettings } from '@shared/schema';
 import { eq, and, desc, gt, lt, isNotNull, isNull, lte } from 'drizzle-orm';
 import { getPaymentGatewayForUser, getPaymentGatewayByName } from './payment-gateways';
+import { NotificationService } from './notification-service';
+import { adminNotificationService } from './admin-notification-service';
+import { storage } from '../config/storage';
+
+// Initialize notification service
+const notificationService = new NotificationService();
 
 // Necessary to avoid type errors with targetRegion
 type RegionType = 'INDIA' | 'GLOBAL';
@@ -376,6 +382,26 @@ export const SubscriptionService = {
       }
       
       console.log(`Free plan ${planId} activated for user ${userId} with subscription ID ${subscription[0].id}`);
+      
+      // Create notification for free plan activation
+      try {
+        await notificationService.createNotification({
+          recipientId: userId,
+          type: 'subscription_activated',
+          category: 'subscription',
+          data: { 
+            planName: plan[0].name,
+            planId: planId,
+            subscriptionId: subscription[0].id,
+            planType: 'free',
+            activationType: 'freemium_activation'
+          }
+        });
+      } catch (notificationError) {
+        console.error('Failed to create free plan activation notification:', notificationError);
+        // Don't fail the request if notification fails
+      }
+      
       return subscription[0];
     } catch (error: any) {
       console.error(`Error activating free plan ${planId} for user ${userId}:`, error);
@@ -1511,6 +1537,40 @@ export const SubscriptionService = {
 
         const message = `Your subscription to the ${plan[0].name} plan has been activated successfully.`;
         
+        // Create notification for paid plan activation
+        try {
+          // Get user data for admin notification
+          const userData = await storage.getUser(userId);
+          
+          await notificationService.createNotification({
+            recipientId: userId,
+            type: 'subscription_activated',
+            category: 'subscription',
+            data: { 
+              planName: plan[0].name,
+              planId: planId,
+              subscriptionId: subscription[0].id,
+              planType: 'paid',
+              activationType: 'paid_activation',
+              amount: pricing.length ? pricing[0].price : '0.00',
+              currency: actualCurrency
+            }
+          });
+          
+          // Notify admins about new subscription
+          await adminNotificationService.notifyNewSubscription({
+            userId: userId,
+            userName: userData?.fullName || userData?.username || 'Unknown User',
+            planName: plan[0].name,
+            amount: pricing.length ? pricing[0].price : '0.00',
+            currency: actualCurrency,
+            subscriptionId: subscription[0].id
+          });
+        } catch (notificationError) {
+          console.error('Failed to create paid plan activation notification:', notificationError);
+          // Don't fail the request if notification fails
+        }
+        
         return {
           subscription: subscription[0],
           transaction: transaction[0],
@@ -1597,6 +1657,24 @@ export const SubscriptionService = {
         })
         .where(eq(userSubscriptions.id, subscription[0].id))
         .returning();
+
+      // Create notification for subscription cancellation
+      try {
+        await notificationService.createNotification({
+          recipientId: userId,
+          type: 'subscription_cancelled',
+          category: 'subscription',
+          data: { 
+            subscriptionId: subscription[0].id,
+            planId: subscription[0].planId,
+            cancelDate: new Date().toISOString(),
+            willEndAt: subscription[0].endDate
+          }
+        });
+      } catch (notificationError) {
+        console.error('Failed to create subscription cancellation notification:', notificationError);
+        // Don't fail the request if notification fails
+      }
 
       return updatedSubscription[0];
     } catch (error) {
@@ -1973,13 +2051,46 @@ export const SubscriptionService = {
     try {
       console.log(`Sending ${type} notification to user ${userId}:`, data);
       
-      // Here you would integrate with your notification system
-      // Example:
-      // await notificationService.send({
-      //   userId,
-      //   type: `subscription_${type}`,
-      //   data
-      // });
+      // Create notification using the notification service
+      let notificationType: string;
+      let title: string;
+      let message: string;
+      
+      switch (type) {
+        case 'renewal':
+          notificationType = 'subscription_renewed';
+          title = 'Subscription Renewed';
+          message = `Your subscription has been renewed successfully.`;
+          break;
+        case 'grace_period':
+          notificationType = 'subscription_grace_period';
+          title = 'Subscription Grace Period';
+          message = `Your subscription has expired but you have ${data.gracePeriodDays || 7} days of grace period.`;
+          break;
+        case 'expiration':
+          notificationType = 'subscription_expired';
+          title = 'Subscription Expired';
+          message = `Your subscription has expired. Please renew to continue using premium features.`;
+          break;
+        default:
+          notificationType = 'custom_notification';
+          title = 'Subscription Update';
+          message = `Your subscription status has been updated.`;
+      }
+      
+      await notificationService.createNotification({
+        recipientId: userId,
+        type: notificationType as any,
+        category: 'subscription',
+        title,
+        message,
+        data: {
+          subscriptionId: data.subscriptionId,
+          planId: data.planId,
+          notificationType: type,
+          ...data
+        }
+      });
       
       return { success: true };
     } catch (error) {

@@ -15,9 +15,14 @@ import { EventEmitter } from 'events';
 import { loadSessionConfig } from '../middleware/session-security';
 import { EmailService } from '../services/email-service';
 import * as geoip from 'geoip-lite';
+import { NotificationService } from "../services/notification-service";
+import { adminNotificationService } from "../services/admin-notification-service";
 
 // Increase max listeners to prevent warnings
 EventEmitter.defaultMaxListeners = 20;
+
+// Initialize notification service
+const notificationService = new NotificationService();
 
 // Extend User type to include our runtime properties
 declare global {
@@ -468,10 +473,23 @@ function setupAuthRoutes(app: Express) {
         emailVerificationExpiry: verificationExpiry
       });
 
-      req.login(user, (err) => {
+      req.login(user, async (err) => {
         if (err) return next(err);
         const { password, passwordHistory, ...userDataToReturn } = user;
         console.log(`New user registered and logged in: ${user.username} (ID: ${user.id})`);
+        
+        // Notify admins about new user registration
+        try {
+          await adminNotificationService.notifyNewUserRegistration({
+            id: user.id,
+            username: user.username,
+            email: user.email,
+            fullName: user.fullName || user.username
+          });
+        } catch (notificationError) {
+          console.error('Failed to send admin notification for new user registration:', notificationError);
+          // Don't fail the registration if notification fails
+        }
         
         // Send welcome email
         try {
@@ -779,6 +797,52 @@ function setupAuthRoutes(app: Express) {
   // Add remaining auth routes...
   setupPasswordRoutes(app);
   setupUserRoutes(app);
+
+  // Add a debug endpoint to check session status (disable in production)
+  if (process.env.NODE_ENV !== 'production') {
+    app.get("/api/debug/session", (req, res) => {
+      res.json({
+        isAuthenticated: req.isAuthenticated(),
+        user: req.user ? { 
+          id: req.user.id, 
+          username: req.user.username,
+          email: req.user.email 
+        } : null,
+        sessionID: req.sessionID,
+        // Don't expose the full session for security reasons
+        sessionExists: !!req.session
+      });
+    });
+    
+    // Debug endpoint to check email verification status
+    app.get("/api/debug/email-verification/:userId", async (req, res) => {
+      try {
+        const userId = parseInt(req.params.userId);
+        if (isNaN(userId)) {
+          return res.status(400).json({ message: "Invalid user ID" });
+        }
+        
+        const user = await storage.getUser(userId);
+        if (!user) {
+          return res.status(404).json({ message: "User not found" });
+        }
+        
+        res.json({
+          userId: user.id,
+          username: user.username,
+          email: user.email,
+          emailVerified: user.emailVerified,
+          hasVerificationToken: !!user.emailVerificationToken,
+          verificationTokenPrefix: user.emailVerificationToken?.substring(0, 10) + '...' || null,
+          verificationExpiry: user.emailVerificationExpiry,
+          tokenExpired: user.emailVerificationExpiry ? new Date() > new Date(user.emailVerificationExpiry) : null
+        });
+      } catch (error) {
+        console.error("Error in email verification debug endpoint:", error);
+        return res.status(500).json({ message: "Internal server error" });
+      }
+    });
+  }
 }
 
 // Extract password-related routes to a separate function
@@ -851,6 +915,23 @@ function setupPasswordRoutes(app: Express) {
         lastPasswordChange: new Date(),
         passwordHistory: passwordHistory
       });
+
+      // Create notification for password change
+      try {
+        await notificationService.createNotification({
+          recipientId: req.user.id,
+          type: 'password_reset',
+          category: 'account',
+          data: { 
+            userName: req.user.username || req.user.fullName,
+            changeType: 'manual_change',
+            timestamp: new Date().toISOString()
+          }
+        });
+      } catch (notificationError) {
+        console.error('Failed to create password change notification:', notificationError);
+        // Don't fail the request if notification fails
+      }
 
       // Send password changed notification email
       try {
@@ -1113,6 +1194,23 @@ function setupPasswordRoutes(app: Express) {
         resetPasswordExpiry: null
       });
       
+      // Create notification for password reset
+      try {
+        await notificationService.createNotification({
+          recipientId: user.id,
+          type: 'password_reset',
+          category: 'account',
+          data: { 
+            userName: user.username || user.fullName,
+            changeType: 'token_reset',
+            timestamp: new Date().toISOString()
+          }
+        });
+      } catch (notificationError) {
+        console.error('Failed to create password reset notification:', notificationError);
+        // Don't fail the request if notification fails
+      }
+      
       // Send password changed notification email
       try {
         const baseUrl = process.env.BASE_URL || 'http://localhost:5173';
@@ -1227,23 +1325,6 @@ function setupUserRoutes(app: Express) {
     }
   });
   
-  // Add a debug endpoint to check session status (disable in production)
-  if (process.env.NODE_ENV !== 'production') {
-    app.get("/api/debug/session", (req, res) => {
-      res.json({
-        isAuthenticated: req.isAuthenticated(),
-        user: req.user ? { 
-          id: req.user.id, 
-          username: req.user.username,
-          email: req.user.email 
-        } : null,
-        sessionID: req.sessionID,
-        // Don't expose the full session for security reasons
-        sessionExists: !!req.session
-      });
-    });
-  }
-
   // Add endpoint to request email verification
   app.post("/api/request-email-verification", async (req, res) => {
     if (!req.isAuthenticated()) {
@@ -1299,28 +1380,61 @@ function setupUserRoutes(app: Express) {
     try {
       const { token, userId } = req.body;
       
+      console.log(`[EMAIL VERIFICATION] Request received - Token: ${token?.substring(0, 10)}..., UserId: ${userId}`);
+      
       if (!token || !userId) {
+        console.log(`[EMAIL VERIFICATION] Missing parameters - Token: ${!!token}, UserId: ${!!userId}`);
         return res.status(400).json({ message: "Token and user ID are required" });
       }
       
       const id = parseInt(userId);
       if (isNaN(id)) {
+        console.log(`[EMAIL VERIFICATION] Invalid user ID: ${userId}`);
         return res.status(400).json({ message: "Invalid user ID" });
       }
       
       // Find user by ID
       const user = await storage.getUser(id);
       if (!user) {
+        console.log(`[EMAIL VERIFICATION] User not found with ID: ${id}`);
         return res.status(400).json({ message: "User not found" });
       }
       
+      console.log(`[EMAIL VERIFICATION] User found: ${user.username} (${user.email})`);
+      console.log(`[EMAIL VERIFICATION] Email already verified: ${user.emailVerified}`);
+      console.log(`[EMAIL VERIFICATION] Stored token: ${user.emailVerificationToken?.substring(0, 10)}...`);
+      console.log(`[EMAIL VERIFICATION] Token expiry: ${user.emailVerificationExpiry}`);
+      console.log(`[EMAIL VERIFICATION] Current time: ${new Date()}`);
+      
+      // If user is already verified, clear any remaining tokens and return success
+      if (user.emailVerified === true) {
+        console.log(`[EMAIL VERIFICATION] User ${user.username} is already verified, clearing tokens`);
+        await storage.updateUser(user.id, {
+          emailVerificationToken: null,
+          emailVerificationExpiry: null
+        });
+        return res.json({ message: "Email is already verified" });
+      }
+      
       // Verify the token and expiry
-      if (!user.emailVerificationToken || 
-          !user.emailVerificationExpiry || 
-          user.emailVerificationToken !== token ||
-          new Date() > new Date(user.emailVerificationExpiry)) {
+      const hasToken = !!user.emailVerificationToken;
+      const hasExpiry = !!user.emailVerificationExpiry;
+      const tokenMatches = user.emailVerificationToken === token;
+      const notExpired = user.emailVerificationExpiry ? new Date() <= new Date(user.emailVerificationExpiry) : false;
+      
+      console.log(`[EMAIL VERIFICATION] Token validation:
+        - Has token: ${hasToken}
+        - Has expiry: ${hasExpiry}
+        - Token matches: ${tokenMatches}
+        - Not expired: ${notExpired}
+      `);
+      
+      if (!hasToken || !hasExpiry || !tokenMatches || !notExpired) {
+        console.log(`[EMAIL VERIFICATION] Token validation failed for user ${user.username}`);
         return res.status(400).json({ message: "Invalid or expired verification token" });
       }
+      
+      console.log(`[EMAIL VERIFICATION] Token validation successful, marking email as verified`);
       
       // Mark email as verified and clear verification token
       await storage.updateUser(user.id, {
@@ -1329,6 +1443,7 @@ function setupUserRoutes(app: Express) {
         emailVerificationExpiry: null
       });
       
+      console.log(`[EMAIL VERIFICATION] Email verified successfully for user ${user.username}`);
       return res.json({ message: "Email verified successfully" });
     } catch (error) {
       console.error("Email verification error:", error);

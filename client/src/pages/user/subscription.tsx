@@ -81,10 +81,60 @@ const UserSubscriptionPage: React.FC = () => {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<'current' | 'features' | 'plans' | 'invoices'>('current');
   const [pendingPlanName, setPendingPlanName] = useState<string | null>(null);
-  const [pendingChangeLoading, setPendingChangeLoading] = useState(false);
   const [isChangingPlan, setIsChangingPlan] = useState(false);
   const [location] = useLocation();
+  const [expandedPlans, setExpandedPlans] = useState<Set<number>>(new Set());
   
+  // Function to format token counts with "K" for thousands
+  const formatTokenCount = (count: number | string): string => {
+    if (typeof count === 'string') {
+      count = parseInt(count, 10);
+    }
+    
+    if (isNaN(count)) return '0 tokens';
+    
+    if (count >= 1000) {
+      return `${(count / 1000).toLocaleString(undefined, { maximumFractionDigits: 1 })}K tokens`;
+    }
+    
+    return `${count} tokens`;
+  };
+
+  // Function to format feature value display
+  const getFeatureValueDisplay = (feature: PlanFeature): string => {
+    // For token-related features, format with K and add "tokens"
+    if (feature.featureName.toLowerCase().includes('token') || 
+        feature.featureName.toLowerCase().includes('generation') || 
+        feature.featureName.toLowerCase().includes('ai')) {
+      return formatTokenCount(feature.limitValue);
+    }
+    
+    // Special handling for Resume, Cover Letter, and Job Application counts
+    if (feature.featureName.includes('Resume') && feature.limitType === 'COUNT') {
+      return feature.limitValue === 1 ? '1 resume' : `${feature.limitValue} resumes`;
+    }
+    
+    if (feature.featureName.includes('Cover letter') && feature.limitType === 'COUNT') {
+      return feature.limitValue === 1 ? '1 cover letter' : `${feature.limitValue} cover letters`;
+    }
+    
+    if (feature.featureName.includes('Job Application') && feature.limitType === 'COUNT') {
+      return feature.limitValue === 1 ? '1 application' : `${feature.limitValue} applications`;
+    }
+    
+    // For other COUNT features
+    if (feature.limitType === 'COUNT') {
+      return feature.limitValue.toString();
+    }
+    
+    // For UNLIMITED features
+    if (feature.limitType === 'UNLIMITED') {
+      return 'Unlimited';
+    }
+    
+    return '';
+  };
+
   // Use location context for regional preferences
   const locationContext = useLocationContext();
   
@@ -1012,6 +1062,19 @@ const UserSubscriptionPage: React.FC = () => {
     enabled: activeTab === 'invoices'
   });
 
+  // Function to toggle plan feature expansion
+  const togglePlanExpansion = (planId: number) => {
+    setExpandedPlans(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(planId)) {
+        newSet.delete(planId);
+      } else {
+        newSet.add(planId);
+      }
+      return newSet;
+    });
+  };
+
   return (
     <ErrorBoundary>
       <DefaultLayout pageTitle="Subscription Management" pageDescription="View and manage your subscription details, features, and plans.">
@@ -1219,7 +1282,7 @@ const UserSubscriptionPage: React.FC = () => {
                                   <div className="flex justify-between text-sm">
                                     <span className="font-medium">{feature.featureName || 'Unknown Feature'}</span>
                                     <span className="text-muted-foreground">
-                                      {usageValue} / {limitValue} {isTokenFeature ? 'tokens' : 'uses'}
+                                      {usageValue} / {isTokenFeature ? formatTokenCount(limitValue) : `${limitValue} uses`}
                                     </span>
                                   </div>
                                   <Progress
@@ -1445,7 +1508,7 @@ const UserSubscriptionPage: React.FC = () => {
                                         ? <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-300 dark:border-green-800">Unlimited</Badge>
                                         : feature.limitType === 'BOOLEAN' 
                                           ? <Badge variant={feature.isEnabled ? "default" : "outline"}>{feature.isEnabled ? 'Enabled' : 'Disabled'}</Badge>
-                                          : `${feature.limitValue} ${feature.isTokenBased ? 'tokens' : 'uses'}`}
+                                          : getFeatureValueDisplay(feature)}
                                     </span>
                                   </div>
                                   
@@ -1455,7 +1518,7 @@ const UserSubscriptionPage: React.FC = () => {
                                         <span className="text-muted-foreground font-medium">Usage</span>
                                         <span className="font-semibold">
                                           {isTokenFeature 
-                                            ? `${feature.aiTokenCount || 0} / ${feature.limitValue || 0} tokens` 
+                                            ? `${feature.aiTokenCount || 0} / ${formatTokenCount(feature.limitValue || 0)}` 
                                             : `${feature.currentUsage || 0} / ${feature.limitValue || 'Unlimited'} uses`}
                                         </span>
                                       </div>
@@ -1519,7 +1582,7 @@ const UserSubscriptionPage: React.FC = () => {
                                       ? <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">Unlimited</Badge>
                                       : feature.limitType === 'BOOLEAN' 
                                         ? <Badge variant={feature.isEnabled ? "default" : "outline"}>{feature.isEnabled ? 'Enabled' : 'Disabled'}</Badge>
-                                        : `${feature.limitValue} ${feature.isTokenBased ? 'tokens' : 'uses'}`}
+                                        : getFeatureValueDisplay(feature)}
                                   </TableCell>
                                   <TableCell>
                                     <Badge variant="outline" className="text-xs">
@@ -1530,7 +1593,7 @@ const UserSubscriptionPage: React.FC = () => {
                                     {feature.limitType === 'BOOLEAN' 
                                       ? <Badge variant={feature.isEnabled ? "default" : "outline"}>{feature.isEnabled ? 'Enabled' : 'Disabled'}</Badge>
                                       : feature.isTokenBased 
-                                        ? `${feature.aiTokenCount || 0} / ${feature.limitValue || 0}` 
+                                        ? `${feature.aiTokenCount || 0} / ${formatTokenCount(feature.limitValue || 0)}` 
                                         : `${feature.currentUsage || 0} / ${feature.limitValue || 'Unlimited'}`}
                                   </TableCell>
                                 </TableRow>
@@ -1631,10 +1694,14 @@ const UserSubscriptionPage: React.FC = () => {
                             
                             <Separator className="my-4" />
                             
-                            <div className="space-y-2 max-h-48 overflow-y-auto">
+                            <div className={`space-y-2 overflow-y-auto transition-all duration-200 ${expandedPlans.has(plan.id) ? 'max-h-96' : 'max-h-48'}`}>
                               {allFeaturesByPlan[plan.id] && allFeaturesByPlan[plan.id].length > 0 ? (
                                 <>
-                                  {allFeaturesByPlan[plan.id].slice(0, 8).map((feature: any, index: number) => (
+                                  {/* Show either first 8 features or all features based on expansion state */}
+                                  {(expandedPlans.has(plan.id) 
+                                    ? allFeaturesByPlan[plan.id] 
+                                    : allFeaturesByPlan[plan.id].slice(0, 8)
+                                  ).map((feature: any, index: number) => (
                                     <div key={index} className="flex items-start">
                                       {feature.limitType === 'BOOLEAN' && !feature.isEnabled ? (
                                         <X className="h-4 w-4 text-red-500 mt-0.5 flex-shrink-0" />
@@ -1645,7 +1712,7 @@ const UserSubscriptionPage: React.FC = () => {
                                         {feature.featureName || feature.name || 'Unnamed Feature'}
                                         {feature.limitType === 'COUNT' && feature.limitValue && (
                                           <span className="text-xs text-muted-foreground ml-1">
-                                            ({feature.limitValue})
+                                            ({getFeatureValueDisplay(feature)})
                                           </span>
                                         )}
                                         {feature.limitType === 'UNLIMITED' && (
@@ -1656,6 +1723,7 @@ const UserSubscriptionPage: React.FC = () => {
                                       </span>
                                     </div>
                                   ))}
+                                  {/* Show expand/collapse button if there are more than 8 features */}
                                   {allFeaturesByPlan[plan.id].length > 8 && (
                                     <div className="mt-2 text-center">
                                       <Button 
@@ -1664,10 +1732,12 @@ const UserSubscriptionPage: React.FC = () => {
                                         className="text-xs h-6 p-0 text-muted-foreground hover:text-foreground"
                                         onClick={(e) => {
                                           e.preventDefault();
-                                          setTab('features');
+                                          togglePlanExpansion(plan.id);
                                         }}
                                       >
-                                        +{allFeaturesByPlan[plan.id].length - 8} more features
+                                        {expandedPlans.has(plan.id) 
+                                          ? 'Show less features' 
+                                          : `+${allFeaturesByPlan[plan.id].length - 8} more features`}
                                       </Button>
                                     </div>
                                   )}

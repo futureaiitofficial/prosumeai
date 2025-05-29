@@ -4,6 +4,10 @@ import { requireUser } from "../../middleware/auth";
 import { requireFeatureAccess, trackFeatureUsage } from "../../middleware/feature-access";
 import { withEncryption } from "../../middleware/index";
 import { type InsertCoverLetter } from "@shared/schema";
+import { NotificationService } from "../../services/notification-service";
+
+// Initialize notification service
+const notificationService = new NotificationService();
 
 /**
  * Register cover letter routes
@@ -120,6 +124,25 @@ export function registerCoverLetterRoutes(app: express.Express) {
         const newCoverLetter = await storage.createCoverLetter(coverLetterData);
         console.log('Successfully created new cover letter with ID:', newCoverLetter.id);
         
+        // Create notification for cover letter creation
+        try {
+          await notificationService.createNotification({
+            recipientId: req.user.id,
+            type: 'cover_letter_created',
+            category: 'cover_letter',
+            data: { 
+              coverLetterTitle: newCoverLetter.title,
+              userName: req.user.username || req.user.fullName,
+              coverLetterId: newCoverLetter.id,
+              jobTitle: newCoverLetter.jobTitle,
+              company: newCoverLetter.company
+            }
+          });
+        } catch (notificationError) {
+          console.error('Failed to create cover letter notification:', notificationError);
+          // Don't fail the request if notification fails
+        }
+        
         res.status(201).json(newCoverLetter);
       } catch (error: any) {
         console.error('Error in POST /api/cover-letters:', error);
@@ -166,6 +189,28 @@ export function registerCoverLetterRoutes(app: express.Express) {
       
       if (!updatedCoverLetter) {
         return res.status(500).json({ message: "Failed to update cover letter" });
+      }
+      
+      // Create notification for cover letter update
+      try {
+        await notificationService.createNotification({
+          recipientId: req.user.id,
+          type: 'custom_notification',
+          category: 'cover_letter',
+          title: 'Cover Letter Updated',
+          message: `Your cover letter "${updatedCoverLetter.title}" has been updated successfully.`,
+          data: { 
+            coverLetterTitle: updatedCoverLetter.title,
+            userName: req.user.username || req.user.fullName,
+            coverLetterId: updatedCoverLetter.id,
+            jobTitle: updatedCoverLetter.jobTitle,
+            company: updatedCoverLetter.company,
+            action: 'updated'
+          }
+        });
+      } catch (notificationError) {
+        console.error('Failed to create cover letter update notification:', notificationError);
+        // Don't fail the request if notification fails
       }
       
       res.json(updatedCoverLetter);

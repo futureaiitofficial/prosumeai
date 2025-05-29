@@ -29,7 +29,9 @@ import {
   Plug2,
   Shield,
   LucideIcon,
-  Wrench
+  Wrench,
+  User,
+  ArrowLeft
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
@@ -42,6 +44,7 @@ import {
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
+import { NotificationDropdown } from "@/components/ui/notification-dropdown";
 
 interface NavigationItem {
   name: string;
@@ -50,7 +53,7 @@ interface NavigationItem {
 }
 
 export function AdminLayout({ children }: { children: React.ReactNode }) {
-  const [location] = useLocation();
+  const [location, setLocation] = useLocation();
   const { user, logoutMutation } = useAuth();
   const { isCollapsed, toggleCollapsed, isMobileOpen, toggleMobileOpen } = useSidebar();
   const branding = useBranding();
@@ -84,6 +87,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
     { name: "Templates", href: "/admin/templates", icon: FileText },
     { name: "Email Templates", href: "/admin/email-templates", icon: Mail },
     { name: "Users", href: "/admin/users", icon: Users },
+    { name: "Notifications", href: "/admin/notifications", icon: Bell },
     { name: "Backups", href: "/admin/backups", icon: Database },
     { name: "API Keys", href: "/admin/api-keys", icon: Key },
     { name: "Integrations", href: "/admin/integrations", icon: Plug2 },
@@ -95,6 +99,10 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
     { name: "Tools", href: "/admin/tools", icon: Wrench },
     { name: "Settings", href: "/admin/settings", icon: Settings },
   ];
+
+  const logout = () => {
+    logoutMutation.mutate();
+  };
 
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50 dark:bg-gray-900">
@@ -202,7 +210,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
               <DropdownMenuSeparator />
               <DropdownMenuItem 
                 className="text-red-600 focus:bg-red-50 dark:focus:bg-red-950"
-                onClick={() => logoutMutation.mutate()}
+                onClick={logout}
               >
                 <LogOut className="mr-2 h-4 w-4" />
                 <span>Logout</span>
@@ -282,7 +290,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
           <Button 
             variant="ghost" 
             size="icon"
-            onClick={() => logoutMutation.mutate()}
+            onClick={logout}
             className="text-red-600"
           >
             <LogOut className="h-5 w-5" />
@@ -318,80 +326,31 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
 
           {/* Actions */}
           <div className="ml-auto flex items-center gap-4">
+            <NotificationDropdown />
+            
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="relative">
-                  <Bell className="h-5 w-5" />
-                  <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-medium text-white">
-                    3
-                  </span>
+                <Button variant="ghost" size="icon">
+                  <User className="h-5 w-5" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-80">
-                <DropdownMenuLabel>Notifications</DropdownMenuLabel>
+              <DropdownMenuContent align="end">
+                <DropdownMenuLabel>Admin Menu</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <div className="max-h-80 overflow-y-auto">
-                  <div className="p-3 text-sm border-b border-gray-100 dark:border-gray-800">
-                    <div className="flex items-start gap-4">
-                      <span className="rounded-full bg-blue-100 p-2">
-                        <Users className="h-4 w-4 text-blue-600" />
-                      </span>
-                      <div>
-                        <p className="font-medium">New user registered</p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                          A new user just created an account.
-                        </p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                          2 minutes ago
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="p-3 text-sm border-b border-gray-100 dark:border-gray-800">
-                    <div className="flex items-start gap-4">
-                      <span className="rounded-full bg-green-100 p-2">
-                        <CreditCard className="h-4 w-4 text-green-600" />
-                      </span>
-                      <div>
-                        <p className="font-medium">Payment successful</p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                          New subscription payment processed.
-                        </p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                          15 minutes ago
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="p-3 text-sm">
-                    <div className="flex items-start gap-4">
-                      <span className="rounded-full bg-red-100 p-2">
-                        <FileText className="h-4 w-4 text-red-600" />
-                      </span>
-                      <div>
-                        <p className="font-medium">New template added</p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                          A new resume template has been added.
-                        </p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                          1 hour ago
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                <DropdownMenuItem onClick={() => setLocation('/admin')}>
+                  Dashboard
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setLocation('/dashboard')}>
+                  <ArrowLeft className="mr-2 h-4 w-4" />
+                  Back to App
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <div className="p-2 text-center">
-                  <Button variant="ghost" size="sm" className="w-full">
-                    View all notifications
-                  </Button>
-                </div>
+                <DropdownMenuItem onClick={logout}>
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Logout
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-
-            <Button variant="ghost" size="icon">
-              <HelpCircle className="h-5 w-5" />
-            </Button>
           </div>
         </header>
 

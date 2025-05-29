@@ -85,3 +85,11 @@
 [2025-05-24T06:10:48.389Z] Database connection closed
 [2025-05-24T06:15:31.953Z] Database connection closed
 [2025-05-25T02:03:57.073Z] Database connection closed
+[2025-05-29T03:03:58.591Z] Database connection closed
+[2025-05-29T03:05:36.711Z] Database connection closed
+[2025-05-29T03:38:48.830Z] Database connection closed
+[2025-05-29T03:40:47.508Z] Uncaught exception: listen EADDRINUSE: address already in use 0.0.0.0:3000
+[2025-05-29T03:40:56.122Z] Uncaught exception: write EIO
+[2025-05-29T03:47:05.302Z] Database connection closed
+[2025-05-29T03:57:39.364Z] Database connection closed
+[2025-05-29T04:28:54.717Z] Uncaught exception: listen EADDRINUSE: address already in use 0.0.0.0:3000

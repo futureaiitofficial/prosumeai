@@ -17,6 +17,7 @@ import {
   Wrench,
   Shield,
   Receipt,
+  Bell,
 } from "lucide-react";
 
 export default function AdminPage() {
@@ -122,6 +123,13 @@ export function AdminDashboardPage() {
       icon: <ListIcon className="h-5 w-5" />,
       href: "/admin/subscriptions",
       color: "bg-cyan-500"
+    },
+    {
+      title: "Notifications",
+      description: "Manage system notifications and templates",
+      icon: <Bell className="h-5 w-5" />,
+      href: "/admin/notifications",
+      color: "bg-orange-500"
     },
     {
       title: "Tax Settings",

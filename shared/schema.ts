@@ -897,6 +897,170 @@ export type InsertInvoice = z.infer<typeof insertInvoiceSchema>;
 export type EmailTemplate = typeof emailTemplates.$inferSelect;
 export type InsertEmailTemplate = z.infer<typeof insertEmailTemplateSchema>;
 
+// ============= Notification System Schemas =============
+
+// Notification enums
+export const notificationTypeEnum = pgEnum('notification_type', [
+  'resume_created',
+  'resume_downloaded',
+  'resume_shared',
+  'cover_letter_created',
+  'job_application_created',
+  'job_application_updated',
+  'subscription_created',
+  'subscription_activated',
+  'subscription_renewed',
+  'subscription_cancelled',
+  'subscription_grace_period',
+  'subscription_expiring',
+  'subscription_expired',
+  'password_reset',
+  'account_update',
+  'system_announcement',
+  'custom_notification',
+  'new_user_registered',
+  'new_subscription',
+  'payment_received',
+  'payment_failed',
+  'account_deletion',
+  'support_request',
+  'server_error',
+  'security_alert',
+  'admin_action_required'
+]);
+
+export const notificationCategoryEnum = pgEnum('notification_category', [
+  'account',
+  'resume',
+  'cover_letter',
+  'job_application',
+  'subscription',
+  'system',
+  'security',
+  'payment',
+  'admin'
+]);
+
+export const notificationPriorityEnum = pgEnum('notification_priority', [
+  'low',
+  'normal',
+  'high'
+]);
+
+// Notifications table
+export const notifications = pgTable("notifications", {
+  id: serial("id").primaryKey(),
+  recipientId: integer("recipient_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  type: notificationTypeEnum("type").notNull(),
+  title: text("title").notNull(),
+  message: text("message").notNull(),
+  data: jsonb("data").default({}),
+  isRead: boolean("is_read").notNull().default(false),
+  isSystem: boolean("is_system").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  expiresAt: timestamp("expires_at"),
+  priority: notificationPriorityEnum("priority").notNull().default('normal'),
+  category: notificationCategoryEnum("category").notNull(),
+  action: jsonb("action")
+});
+
+// Notification preferences table
+export const notificationPreferences = pgTable("notification_preferences", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  enableEmailNotifications: boolean("enable_email_notifications").notNull().default(true),
+  enablePushNotifications: boolean("enable_push_notifications").notNull().default(true),
+  enableInAppNotifications: boolean("enable_in_app_notifications").notNull().default(true),
+  enableSoundNotifications: boolean("enable_sound_notifications").notNull().default(true),
+  soundVolume: decimal("sound_volume", { precision: 3, scale: 2 }).notNull().default('0.30'),
+  accountNotifications: boolean("account_notifications").notNull().default(true),
+  resumeNotifications: boolean("resume_notifications").notNull().default(true),
+  coverLetterNotifications: boolean("cover_letter_notifications").notNull().default(true),
+  jobApplicationNotifications: boolean("job_application_notifications").notNull().default(true),
+  subscriptionNotifications: boolean("subscription_notifications").notNull().default(true),
+  systemNotifications: boolean("system_notifications").notNull().default(true),
+  dailyDigest: boolean("daily_digest").notNull().default(false),
+  weeklyDigest: boolean("weekly_digest").notNull().default(false),
+  quietHoursEnabled: boolean("quiet_hours_enabled").notNull().default(false),
+  quietHoursStart: text("quiet_hours_start").default('22:00'),
+  quietHoursEnd: text("quiet_hours_end").default('08:00'),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow()
+}, (table) => {
+  return {
+    userIdx: unique().on(table.userId)
+  };
+});
+
+// Notification templates table
+export const notificationTemplates = pgTable("notification_templates", {
+  id: serial("id").primaryKey(),
+  type: notificationTypeEnum("type").notNull(),
+  titleTemplate: text("title_template").notNull(),
+  messageTemplate: text("message_template").notNull(),
+  emailSubjectTemplate: text("email_subject_template"),
+  emailBodyTemplate: text("email_body_template"),
+  isActive: boolean("is_active").notNull().default(true),
+  variables: jsonb("variables").default([]),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow()
+}, (table) => {
+  return {
+    typeIdx: unique().on(table.type)
+  };
+});
+
+// Insert schemas for notifications
+export const insertNotificationSchema = createInsertSchema(notifications).omit({
+  id: true,
+  createdAt: true
+});
+
+export const insertNotificationPreferencesSchema = createInsertSchema(notificationPreferences).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+
+export const insertNotificationTemplateSchema = createInsertSchema(notificationTemplates).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+
+// Type definitions for notifications
+export type Notification = typeof notifications.$inferSelect;
+export type NotificationPreferences = typeof notificationPreferences.$inferSelect;
+export type NotificationTemplate = typeof notificationTemplates.$inferSelect;
+
+export type InsertNotification = z.infer<typeof insertNotificationSchema>;
+export type InsertNotificationPreferences = z.infer<typeof insertNotificationPreferencesSchema>;
+export type InsertNotificationTemplate = z.infer<typeof insertNotificationTemplateSchema>;
+
+// Notification types for the frontend
+export type NotificationAction = {
+  type: 'link' | 'button';
+  label: string;
+  url?: string;
+  payload?: Record<string, any>;
+};
+
+export interface NotificationData {
+  id: number;
+  recipientId: number;
+  type: string;
+  title: string;
+  message: string;
+  data?: Record<string, any>;
+  isRead: boolean;
+  isSystem: boolean;
+  createdAt: string;
+  expiresAt?: string;
+  priority: 'low' | 'normal' | 'high';
+  category: string;
+  action?: NotificationAction;
+}
+
 // Two Factor Authentication Schemas
 export const twoFactorMethodEnum = pgEnum('two_factor_method', [
   'EMAIL',

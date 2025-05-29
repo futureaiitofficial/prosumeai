@@ -18,6 +18,7 @@ import { registerPaymentRoutes } from "./payment-routes";
 import { registerTaxRoutes } from "./tax-routes";
 import { registerTaxAdminRoutes } from "./tax-admin-routes";
 import { registerTwoFactorRoutes, checkTwoFactorRequired } from "./two-factor-routes";
+import notificationRouter from "./notification-routes";
 import { 
   sessionTimeoutMiddleware, 
   regenerateSessionAfterLogin, 
@@ -87,6 +88,9 @@ export function registerRoutes(app: express.Express): Server {
   
   // Register AI router directly (it exports a router)
   app.use('/api/ai', aiRouter);
+  
+  // Register notification routes
+  app.use('/api', notificationRouter);
   
   // Register other routes by calling their registration functions
   registerAIResumeRoutes(app);

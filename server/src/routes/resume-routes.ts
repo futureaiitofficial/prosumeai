@@ -4,6 +4,10 @@ import { requireUser } from "../../middleware/auth";
 import { requireFeatureAccess, trackFeatureUsage } from "../../middleware/feature-access";
 import { withEncryption } from "../../middleware/index";
 import { type InsertResume } from "@shared/schema";
+import { NotificationService } from "../../services/notification-service";
+
+// Initialize notification service
+const notificationService = new NotificationService();
 
 /**
  * Register resume routes
@@ -102,6 +106,23 @@ export function registerResumeRoutes(app: express.Express) {
         // Create resume
         const newResume = await storage.createResume(resumeData);
         
+        // Create notification for resume creation
+        try {
+          await notificationService.createNotification({
+            recipientId: req.user.id,
+            type: 'resume_created',
+            category: 'resume',
+            data: { 
+              resumeTitle: newResume.title,
+              userName: req.user.username || req.user.fullName,
+              resumeId: newResume.id
+            }
+          });
+        } catch (notificationError) {
+          console.error('Failed to create resume notification:', notificationError);
+          // Don't fail the request if notification fails
+        }
+        
         res.status(201).json(newResume);
       } catch (error: any) {
         console.error('Error in POST /api/resumes:', error);
@@ -141,13 +162,35 @@ export function registerResumeRoutes(app: express.Express) {
       }
       
       // Prevent updating userId
-      const { userId, ...updateData } = req.body;
+      const { userId, isAutoSave, ...updateData } = req.body;
       
       // Update the resume
       const updatedResume = await storage.updateResume(resumeId, updateData);
       
       if (!updatedResume) {
         return res.status(500).json({ message: "Failed to update resume" });
+      }
+      
+      // Only create notification for significant manual saves, not auto-saves
+      if (!isAutoSave) {
+        try {
+          await notificationService.createNotification({
+            recipientId: req.user.id,
+            type: 'custom_notification',
+            category: 'resume',
+            title: 'Resume Updated',
+            message: `Your resume "${updatedResume.title}" has been updated successfully.`,
+            data: { 
+              resumeTitle: updatedResume.title,
+              userName: req.user.username || req.user.fullName,
+              resumeId: updatedResume.id,
+              action: 'updated'
+            }
+          });
+        } catch (notificationError) {
+          console.error('Failed to create resume update notification:', notificationError);
+          // Don't fail the request if notification fails
+        }
       }
       
       res.json(updatedResume);

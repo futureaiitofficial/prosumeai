@@ -146,6 +146,17 @@ export class DatabaseStorage implements IStorage {
      return db.select().from(users); // Return as is
   }
   
+  // Get admin users only
+  async getAdminUsers(): Promise<User[]> {
+    try {
+      const adminUsers = await db.select().from(users).where(eq(users.isAdmin, true));
+      return adminUsers;
+    } catch (error) {
+      console.error("Error fetching admin users:", error);
+      return [];
+    }
+  }
+  
   // User statistics methods
   async getUserStatistics(): Promise<any> {
     try {

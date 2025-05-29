@@ -512,7 +512,7 @@ export default function ResumeBuilder() {
   
   // Update resume mutation
   const updateResumeMutation = useMutation({
-    mutationFn: async (data: ResumeData & { id: number }) => {
+    mutationFn: async (data: ResumeData & { id: number; isAutoSave?: boolean }) => {
       const res = await apiRequest(
         "PATCH", 
         `/api/resumes/${data.id}`, 
@@ -520,12 +520,15 @@ export default function ResumeBuilder() {
       );
       return await res.json();
     },
-    onSuccess: () => {
+    onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/resumes"] });
-      toast({
-        title: "Resume Updated",
-        description: "Your resume has been updated successfully.",
-      });
+      // Only show toast for manual saves, not auto-saves
+      if (!variables.isAutoSave) {
+        toast({
+          title: "Resume Updated",
+          description: "Your resume has been updated successfully.",
+        });
+      }
     },
     onError: (error: Error) => {
       if (!handleSubscriptionError(error, toast)) {
@@ -548,7 +551,7 @@ export default function ResumeBuilder() {
   };
   
   // Save resume (create or update)
-  const saveResume = () => {
+  const saveResume = (isAutoSave: boolean = false) => {
     try {
       // Helper function to ensure dates are strings
       const formatDateField = (dateValue: any) => {
@@ -603,7 +606,7 @@ export default function ResumeBuilder() {
       };
       
       if (resumeId) {
-        updateResumeMutation.mutate({ ...dataToSave, id: resumeId });
+        updateResumeMutation.mutate({ ...dataToSave, id: resumeId, isAutoSave });
       } else {
         createResumeMutation.mutate(dataToSave);
       }
@@ -615,6 +618,11 @@ export default function ResumeBuilder() {
         variant: "destructive",
       });
     }
+  };
+  
+  // Auto-save function (silent save)
+  const autoSaveResume = () => {
+    saveResume(true);
   };
   
   // Handle form field updates
@@ -700,8 +708,8 @@ export default function ResumeBuilder() {
 
   // Navigate to next section
   const navigateToNext = () => {
-    // Save current state before navigating
-    saveResume();
+    // Save current state before navigating (auto-save)
+    autoSaveResume();
     
     const currentIndex = BUILDER_STEPS.indexOf(currentStep);
     if (currentIndex < BUILDER_STEPS.length - 1) {
@@ -711,8 +719,8 @@ export default function ResumeBuilder() {
 
   // Navigate to previous section
   const navigateToPrevious = () => {
-    // Save current state before navigating
-    saveResume();
+    // Save current state before navigating (auto-save)
+    autoSaveResume();
     
     const currentIndex = BUILDER_STEPS.indexOf(currentStep);
     if (currentIndex > 0) {
@@ -1002,7 +1010,7 @@ export default function ResumeBuilder() {
               <Button
                 variant="outline" 
                 size="sm"
-                onClick={saveResume}
+                onClick={() => saveResume(false)}
                 disabled={createResumeMutation.isPending || updateResumeMutation.isPending}
                 className="h-9 flex items-center"
               >

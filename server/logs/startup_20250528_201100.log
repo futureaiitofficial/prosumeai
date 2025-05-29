@@ -1,0 +1,101 @@
+[2025-05-29T03:11:00.433Z] === Razorpay Invoice Auto-Sync Started ===
+[2025-05-29T03:11:00.433Z] Process ID: 39008
+[2025-05-29T03:11:00.433Z] Current directory: /Users/raja/Development/ProsumeAI/server
+[2025-05-29T03:11:00.433Z] Log file: /Users/raja/Development/ProsumeAI/server/logs/auto_sync_2025-05-29_03_11.log
+[2025-05-29T03:11:00.433Z] Sync interval: 900 seconds
+[2025-05-29T03:11:00.433Z] Starting invoice synchronization...
+[2025-05-29T03:11:00.433Z] Running sync script: /Users/raja/Development/ProsumeAI/server/scripts/sync-subscription-invoices.ts
+[2025-05-29T03:11:00.433Z] Executing command: cd /Users/raja/Development/ProsumeAI/server && npx tsx /Users/raja/Development/ProsumeAI/server/scripts/sync-subscription-invoices.ts
+[2025-05-29T03:11:08.612Z] [STDOUT] Using database connection: postgres://***:***@localhost:5432/prosumeai
+[2025-05-29T03:11:08.612Z] [STDOUT] Starting subscription invoice synchronization...
+[2025-05-29T03:11:08.612Z] [STDOUT] Database schema validated successfully
+[2025-05-29T03:11:08.612Z] [STDOUT] Found 5 active Razorpay subscriptions to sync
+[2025-05-29T03:11:08.612Z] [STDOUT] Processing subscription 20 with Razorpay ID: sub_QUxcCis3igdqUA
+[2025-05-29T03:11:08.612Z] [STDOUT] Retrieved and decrypted razorpay key
+[2025-05-29T03:11:08.612Z] [STDOUT] Razorpay initialized successfully
+[2025-05-29T03:11:08.612Z] [STDOUT] Subscription 20 has 1 existing transactions
+[2025-05-29T03:11:08.612Z] [STDOUT] Razorpay initialization in progress, waiting...
+[2025-05-29T03:11:08.612Z] [STDOUT] Retrieved and decrypted razorpay key
+[2025-05-29T03:11:08.612Z] [STDOUT] Razorpay initialized successfully
+[2025-05-29T03:11:08.612Z] [STDOUT] Fetching invoices for subscription ID: sub_QUxcCis3igdqUA
+[2025-05-29T03:11:08.613Z] [STDOUT] Found 0 invoices for subscription: sub_QUxcCis3igdqUA
+[2025-05-29T03:11:08.613Z] [STDOUT] Found 0 invoices for subscription sub_QUxcCis3igdqUA
+[2025-05-29T03:11:08.613Z] [STDOUT] Processing subscription 24 with Razorpay ID: sub_QV05DCrgh3A2rL
+[2025-05-29T03:11:08.613Z] [STDOUT] Subscription 24 has 1 existing transactions
+[2025-05-29T03:11:08.613Z] [STDOUT] Fetching invoices for subscription ID: sub_QV05DCrgh3A2rL
+[2025-05-29T03:11:08.613Z] [STDOUT] Found 1 invoices for subscription: sub_QV05DCrgh3A2rL
+[2025-05-29T03:11:08.613Z] [STDOUT] Transaction for payment pay_QV05q44fHQzL1q already exists in database (1 records), skipping
+[2025-05-29T03:11:08.613Z] [STDOUT] Found 1 invoices for subscription sub_QV05DCrgh3A2rL
+[2025-05-29T03:11:08.613Z] [STDOUT] Processing subscription 25 with Razorpay ID: sub_QV1W0JNq2cOk7s
+[2025-05-29T03:11:08.613Z] [STDOUT] Subscription 25 has 2 existing transactions
+[2025-05-29T03:11:08.613Z] [STDOUT] Fetching invoices for subscription ID: sub_QV1W0JNq2cOk7s
+[2025-05-29T03:11:08.613Z] [STDOUT] Found 1 invoices for subscription: sub_QV1W0JNq2cOk7s
+[2025-05-29T03:11:08.613Z] [STDOUT] Transaction for payment pay_QV1WoyCgCY23iO already exists in database (2 records), skipping
+[2025-05-29T03:11:08.613Z] [STDOUT] Found 1 invoices for subscription sub_QV1W0JNq2cOk7s
+[2025-05-29T03:11:08.613Z] [STDOUT] Processing subscription 32 with Razorpay ID: sub_QXLTRuyAqwP5ms
+[2025-05-29T03:11:08.613Z] [STDOUT] Subscription 32 has 1 existing transactions
+[2025-05-29T03:11:08.613Z] [STDOUT] Fetching invoices for subscription ID: sub_QXLTRuyAqwP5ms
+[2025-05-29T03:11:08.613Z] [STDOUT] Found 1 invoices for subscription: sub_QXLTRuyAqwP5ms
+[2025-05-29T03:11:08.613Z] [STDOUT] Transaction for payment pay_QXLV7TsvCnTkvR already exists in database (1 records), skipping
+[2025-05-29T03:11:08.613Z] [STDOUT] Found 1 invoices for subscription sub_QXLTRuyAqwP5ms
+[2025-05-29T03:11:08.613Z] [STDOUT] Processing subscription 34 with Razorpay ID: sub_QXOKLuEFjSU4Ko
+[2025-05-29T03:11:08.613Z] [STDOUT] Subscription 34 has 1 existing transactions
+[2025-05-29T03:11:08.613Z] [STDOUT] Fetching invoices for subscription ID: sub_QXOKLuEFjSU4Ko
+[2025-05-29T03:11:08.613Z] [STDOUT] Found 1 invoices for subscription: sub_QXOKLuEFjSU4Ko
+[2025-05-29T03:11:08.613Z] [STDOUT] Transaction for payment pay_QXOKdNQ3l8lNIY already exists in database (1 records), skipping
+[2025-05-29T03:11:08.613Z] [STDOUT] Found 1 invoices for subscription sub_QXOKLuEFjSU4Ko
+[2025-05-29T03:11:08.613Z] [STDOUT] Subscription invoice synchronization complete!
+[2025-05-29T03:11:08.613Z] [STDOUT] Processed 5 subscriptions
+[2025-05-29T03:11:08.613Z] [STDOUT] Success: 5, Errors: 0
+[2025-05-29T03:11:08.613Z] [STDOUT] Added 0 new transactions
+[2025-05-29T03:11:08.613Z] [STDOUT] Script execution completed
+[2025-05-29T03:11:08.613Z] Synchronization completed successfully
+[2025-05-29T03:11:08.613Z] Next sync scheduled in 900 seconds
+[2025-05-29T03:26:00.470Z] Starting invoice synchronization...
+[2025-05-29T03:26:00.471Z] Running sync script: /Users/raja/Development/ProsumeAI/server/scripts/sync-subscription-invoices.ts
+[2025-05-29T03:26:00.472Z] Executing command: cd /Users/raja/Development/ProsumeAI/server && npx tsx /Users/raja/Development/ProsumeAI/server/scripts/sync-subscription-invoices.ts
+[2025-05-29T03:26:06.061Z] [STDOUT] Using database connection: postgres://***:***@localhost:5432/prosumeai
+[2025-05-29T03:26:06.061Z] [STDOUT] Starting subscription invoice synchronization...
+[2025-05-29T03:26:06.061Z] [STDOUT] Found 5 active Razorpay subscriptions to sync
+[2025-05-29T03:26:06.061Z] [STDOUT] Processing subscription 20 with Razorpay ID: sub_QUxcCis3igdqUA
+[2025-05-29T03:26:06.061Z] [STDOUT] Database schema validated successfully
+[2025-05-29T03:26:06.061Z] [STDOUT] Retrieved and decrypted razorpay key
+[2025-05-29T03:26:06.061Z] [STDOUT] Razorpay initialized successfully
+[2025-05-29T03:26:06.061Z] [STDOUT] Retrieved and decrypted razorpay key
+[2025-05-29T03:26:06.061Z] [STDOUT] Razorpay initialized successfully
+[2025-05-29T03:26:06.061Z] [STDOUT] Subscription 20 has 1 existing transactions
+[2025-05-29T03:26:06.061Z] [STDOUT] Fetching invoices for subscription ID: sub_QUxcCis3igdqUA
+[2025-05-29T03:26:06.061Z] [STDOUT] Found 0 invoices for subscription: sub_QUxcCis3igdqUA
+[2025-05-29T03:26:06.061Z] [STDOUT] Found 0 invoices for subscription sub_QUxcCis3igdqUA
+[2025-05-29T03:26:06.061Z] [STDOUT] Processing subscription 24 with Razorpay ID: sub_QV05DCrgh3A2rL
+[2025-05-29T03:26:06.061Z] [STDOUT] Subscription 24 has 1 existing transactions
+[2025-05-29T03:26:06.061Z] [STDOUT] Fetching invoices for subscription ID: sub_QV05DCrgh3A2rL
+[2025-05-29T03:26:06.061Z] [STDOUT] Found 1 invoices for subscription: sub_QV05DCrgh3A2rL
+[2025-05-29T03:26:06.061Z] [STDOUT] Transaction for payment pay_QV05q44fHQzL1q already exists in database (1 records), skipping
+[2025-05-29T03:26:06.061Z] [STDOUT] Found 1 invoices for subscription sub_QV05DCrgh3A2rL
+[2025-05-29T03:26:06.061Z] [STDOUT] Processing subscription 25 with Razorpay ID: sub_QV1W0JNq2cOk7s
+[2025-05-29T03:26:06.061Z] [STDOUT] Subscription 25 has 2 existing transactions
+[2025-05-29T03:26:06.061Z] [STDOUT] Fetching invoices for subscription ID: sub_QV1W0JNq2cOk7s
+[2025-05-29T03:26:06.062Z] [STDOUT] Found 1 invoices for subscription: sub_QV1W0JNq2cOk7s
+[2025-05-29T03:26:06.062Z] [STDOUT] Transaction for payment pay_QV1WoyCgCY23iO already exists in database (2 records), skipping
+[2025-05-29T03:26:06.062Z] [STDOUT] Found 1 invoices for subscription sub_QV1W0JNq2cOk7s
+[2025-05-29T03:26:06.062Z] [STDOUT] Processing subscription 32 with Razorpay ID: sub_QXLTRuyAqwP5ms
+[2025-05-29T03:26:06.062Z] [STDOUT] Subscription 32 has 1 existing transactions
+[2025-05-29T03:26:06.062Z] [STDOUT] Fetching invoices for subscription ID: sub_QXLTRuyAqwP5ms
+[2025-05-29T03:26:06.062Z] [STDOUT] Found 1 invoices for subscription: sub_QXLTRuyAqwP5ms
+[2025-05-29T03:26:06.062Z] [STDOUT] Transaction for payment pay_QXLV7TsvCnTkvR already exists in database (1 records), skipping
+[2025-05-29T03:26:06.062Z] [STDOUT] Found 1 invoices for subscription sub_QXLTRuyAqwP5ms
+[2025-05-29T03:26:06.062Z] [STDOUT] Processing subscription 34 with Razorpay ID: sub_QXOKLuEFjSU4Ko
+[2025-05-29T03:26:06.062Z] [STDOUT] Subscription 34 has 1 existing transactions
+[2025-05-29T03:26:06.062Z] [STDOUT] Fetching invoices for subscription ID: sub_QXOKLuEFjSU4Ko
+[2025-05-29T03:26:06.062Z] [STDOUT] Found 1 invoices for subscription: sub_QXOKLuEFjSU4Ko
+[2025-05-29T03:26:06.062Z] [STDOUT] Transaction for payment pay_QXOKdNQ3l8lNIY already exists in database (1 records), skipping
+[2025-05-29T03:26:06.062Z] [STDOUT] Found 1 invoices for subscription sub_QXOKLuEFjSU4Ko
+[2025-05-29T03:26:06.062Z] [STDOUT] Subscription invoice synchronization complete!
+[2025-05-29T03:26:06.062Z] [STDOUT] Processed 5 subscriptions
+[2025-05-29T03:26:06.062Z] [STDOUT] Success: 5, Errors: 0
+[2025-05-29T03:26:06.062Z] [STDOUT] Added 0 new transactions
+[2025-05-29T03:26:06.062Z] [STDOUT] Script execution completed
+[2025-05-29T03:26:06.062Z] Synchronization completed successfully
+[2025-05-29T03:26:06.062Z] Next sync scheduled in 900 seconds
+[2025-05-29T03:38:48.830Z] Received SIGINT, shutting down...
