@@ -63,6 +63,26 @@ interface PlanFeature {
   featureDescription?: string;
 }
 
+interface PaymentTransaction {
+  id: number;
+  userId: number;
+  subscriptionId?: number;
+  amount: string;
+  currency: string;
+  gateway: string;
+  gatewayTransactionId: string;
+  status: 'PENDING' | 'COMPLETED' | 'FAILED' | 'REFUNDED';
+  refundAmount?: string;
+  refundReason?: string;
+  metadata?: any;
+  createdAt: string;
+  updatedAt: string;
+  // Enhanced fields from API
+  userName?: string;
+  userEmail?: string;
+  planName?: string;
+}
+
 function customFormatCurrency(amount: number, currency: string) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(amount);
 }
@@ -122,6 +142,14 @@ const SubscriptionManagement: React.FC = () => {
   const [gstRate, setGstRate] = useState<number>(18);
   const [isLoadingTaxRate, setIsLoadingTaxRate] = useState<boolean>(false);
 
+  // Transaction state
+  const [transactions, setTransactions] = useState<PaymentTransaction[]>([]);
+  const [loadingTransactions, setLoadingTransactions] = useState(false);
+  const [refundingTransactionId, setRefundingTransactionId] = useState<number | null>(null);
+  const [refundDialogOpen, setRefundDialogOpen] = useState(false);
+  const [selectedTransactionForRefund, setSelectedTransactionForRefund] = useState<PaymentTransaction | null>(null);
+  const [refundAmount, setRefundAmount] = useState<string>('');
+  const [refundReason, setRefundReason] = useState<string>('');
 
   const downloadTransactionInvoice = async (transactionId: number) => {
     try {
@@ -238,6 +266,9 @@ const SubscriptionManagement: React.FC = () => {
         });
         
         setPlanFeatures(enhancedPlanFeatures);
+
+        // Also fetch transactions
+        await fetchTransactions();
       } catch (error) {
         console.error(error);
         toast({
@@ -801,6 +832,82 @@ const SubscriptionManagement: React.FC = () => {
     );
   };
 
+  // Fetch transactions function
+  const fetchTransactions = async () => {
+    setLoadingTransactions(true);
+    try {
+      const response = await axios.get('/api/admin/payment-transactions');
+      setTransactions(response.data);
+    } catch (error) {
+      console.error('Error fetching transactions:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load transactions",
+        variant: "destructive"
+      });
+    } finally {
+      setLoadingTransactions(false);
+    }
+  };
+
+  // Handle refund function
+  const handleRefund = async () => {
+    if (!selectedTransactionForRefund || !refundAmount) {
+      toast({
+        title: "Error",
+        description: "Please fill in all required fields",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      setRefundingTransactionId(selectedTransactionForRefund.id);
+      
+      const refundData = {
+        amount: parseFloat(refundAmount),
+        notes: {
+          reason: refundReason || 'Admin initiated refund',
+          admin_refund: true,
+          refund_date: new Date().toISOString()
+        }
+      };
+
+      await axios.post(`/api/payments/${selectedTransactionForRefund.gatewayTransactionId}/refund`, refundData);
+      
+      toast({
+        title: "Success",
+        description: "Refund has been initiated successfully",
+      });
+
+      // Refresh transactions list
+      await fetchTransactions();
+      
+      // Close dialog and reset state
+      setRefundDialogOpen(false);
+      setSelectedTransactionForRefund(null);
+      setRefundAmount('');
+      setRefundReason('');
+    } catch (error: any) {
+      console.error('Error processing refund:', error);
+      toast({
+        title: "Error",
+        description: error.response?.data?.message || "Failed to process refund",
+        variant: "destructive"
+      });
+    } finally {
+      setRefundingTransactionId(null);
+    }
+  };
+
+  // Open refund dialog
+  const openRefundDialog = (transaction: PaymentTransaction) => {
+    setSelectedTransactionForRefund(transaction);
+    setRefundAmount(transaction.amount); // Default to full amount
+    setRefundReason('');
+    setRefundDialogOpen(true);
+  };
+
   if (loading) {
     return (
       <div className="w-full h-96 flex items-center justify-center">
@@ -814,10 +921,11 @@ const SubscriptionManagement: React.FC = () => {
       <h1 className="text-2xl font-bold">Subscription Management</h1>
       <Toaster />
       <Tabs defaultValue="plans" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 mb-4">
+        <TabsList className="grid w-full grid-cols-4 mb-4">
           <TabsTrigger value="plans">Subscription Plans</TabsTrigger>
           <TabsTrigger value="features">Features</TabsTrigger>
           <TabsTrigger value="plan-features">Plan Features</TabsTrigger>
+          <TabsTrigger value="transactions">Transactions</TabsTrigger>
         </TabsList>
         <TabsContent value="plans" className="space-y-4">
           <Card>
@@ -1457,6 +1565,174 @@ const SubscriptionManagement: React.FC = () => {
               </Table>
             </CardContent>
           </Card>
+        </TabsContent>
+        
+        <TabsContent value="transactions" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Payment Transactions</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loadingTransactions ? (
+                <div className="w-full h-32 flex items-center justify-center">
+                  <div className="text-muted-foreground">Loading transactions...</div>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>ID</TableHead>
+                      <TableHead>User</TableHead>
+                      <TableHead>Amount</TableHead>
+                      <TableHead>Currency</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Gateway</TableHead>
+                      <TableHead>Transaction ID</TableHead>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {transactions.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={9} className="text-center text-muted-foreground">
+                          No transactions found
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      transactions.map(transaction => (
+                        <TableRow key={transaction.id}>
+                          <TableCell>{transaction.id}</TableCell>
+                          <TableCell>
+                            <div>
+                              <div className="font-medium">User #{transaction.userId}</div>
+                              {transaction.userEmail && (
+                                <div className="text-sm text-muted-foreground">{transaction.userEmail}</div>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div>
+                              <div className="font-medium">{customFormatCurrency(parseFloat(transaction.amount), transaction.currency)}</div>
+                              {transaction.refundAmount && (
+                                <div className="text-sm text-red-600">
+                                  Refunded: {customFormatCurrency(parseFloat(transaction.refundAmount), transaction.currency)}
+                                </div>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>{transaction.currency}</TableCell>
+                          <TableCell>
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                              transaction.status === 'COMPLETED' ? 'bg-green-100 text-green-800' :
+                              transaction.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
+                              transaction.status === 'FAILED' ? 'bg-red-100 text-red-800' :
+                              transaction.status === 'REFUNDED' ? 'bg-blue-100 text-blue-800' :
+                              'bg-gray-100 text-gray-800'
+                            }`}>
+                              {transaction.status}
+                            </span>
+                          </TableCell>
+                          <TableCell className="uppercase">{transaction.gateway}</TableCell>
+                          <TableCell>
+                            <span className="font-mono text-xs">{transaction.gatewayTransactionId}</span>
+                          </TableCell>
+                          <TableCell>
+                            {new Date(transaction.createdAt).toLocaleDateString()}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex space-x-2">
+                              {transaction.status === 'COMPLETED' && !transaction.refundAmount && (
+                                <Button 
+                                  variant="outline" 
+                                  size="sm" 
+                                  onClick={() => openRefundDialog(transaction)}
+                                  disabled={refundingTransactionId === transaction.id}
+                                >
+                                  {refundingTransactionId === transaction.id ? 'Processing...' : 'Refund'}
+                                </Button>
+                              )}
+                              {transaction.refundReason && (
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm"
+                                  onClick={() => {
+                                    toast({
+                                      title: "Refund Details",
+                                      description: transaction.refundReason,
+                                    });
+                                  }}
+                                >
+                                  View Details
+                                </Button>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Refund Dialog */}
+          <Dialog open={refundDialogOpen} onOpenChange={setRefundDialogOpen}>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>Process Refund</DialogTitle>
+              </DialogHeader>
+              {selectedTransactionForRefund && (
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Transaction ID: {selectedTransactionForRefund.id}</p>
+                    <p className="text-sm text-muted-foreground">Gateway ID: {selectedTransactionForRefund.gatewayTransactionId}</p>
+                    <p className="text-sm text-muted-foreground">
+                      Original Amount: {customFormatCurrency(parseFloat(selectedTransactionForRefund.amount), selectedTransactionForRefund.currency)}
+                    </p>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Refund Amount</label>
+                    <Input
+                      type="number"
+                      value={refundAmount}
+                      onChange={(e) => setRefundAmount(e.target.value)}
+                      placeholder="Enter refund amount"
+                      step="0.01"
+                      min="0"
+                      max={selectedTransactionForRefund.amount}
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Maximum: {customFormatCurrency(parseFloat(selectedTransactionForRefund.amount), selectedTransactionForRefund.currency)}
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Refund Reason</label>
+                    <Input
+                      value={refundReason}
+                      onChange={(e) => setRefundReason(e.target.value)}
+                      placeholder="Enter reason for refund"
+                    />
+                  </div>
+
+                  <div className="flex justify-end space-x-2">
+                    <Button variant="outline" onClick={() => setRefundDialogOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button 
+                      onClick={handleRefund}
+                      disabled={!refundAmount || refundingTransactionId === selectedTransactionForRefund.id}
+                    >
+                      {refundingTransactionId === selectedTransactionForRefund.id ? 'Processing...' : 'Process Refund'}
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </DialogContent>
+          </Dialog>
         </TabsContent>
       </Tabs>
     </div>

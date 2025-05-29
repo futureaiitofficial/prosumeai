@@ -46,6 +46,14 @@ export interface PaymentGateway {
   processWebhook(req: Request): Promise<any>;
   getSubscriptionDetails(subscriptionId: string): Promise<any>;
   fetchInvoicesForSubscription(subscriptionId: string): Promise<any>;
+  // Add refund methods
+  createRefund(paymentId: string, amount?: number, options?: {
+    notes?: Record<string, any>;
+    receipt?: string;
+    speed?: 'normal' | 'optimum';
+  }): Promise<any>;
+  fetchRefund(refundId: string): Promise<any>;
+  fetchRefundsForPayment(paymentId: string): Promise<any>;
 }
 
 // Factory to get the appropriate payment gateway based on user region
@@ -177,142 +185,18 @@ class RazorpayGateway implements PaymentGateway {
           key_secret: keySecret
         });
         this.initialized = true;
-        console.log('Razorpay initialized successfully');
+        console.log('Razorpay initialized successfully with full API support');
       } else {
         console.error('Could not initialize Razorpay: Missing credentials');
-        this.initializeMockRazorpay();
+        throw new Error('Razorpay credentials not found');
       }
     } catch (error) {
       console.error('Error initializing Razorpay:', error);
-      this.initializeMockRazorpay();
+      this.initialized = false;
+      throw error;
     } finally {
       this.initializing = false;
     }
-  }
-
-  private initializeMockRazorpay() {
-    console.warn('Using mock Razorpay implementation');
-    this.razorpay = {
-      orders: {
-        create: async (options: any) => {
-          console.log('Creating Razorpay order:', options);
-          return { id: `razorpay_order_${Date.now()}` };
-        },
-        all: async (options: any) => {
-          console.log('Listing Razorpay orders with options:', options);
-          return { items: [] };
-        }
-      },
-      payments: {
-        fetch: async (paymentId: string) => {
-          console.log('Fetching Razorpay payment:', paymentId);
-          return { status: 'captured' };
-        }
-      },
-      plans: {
-        create: async (options: any) => {
-          console.log('Creating Razorpay plan:', options);
-          return { 
-            id: `plan_mock_${Date.now()}`,
-            item: {
-              name: options.item.name,
-              amount: options.item.amount,
-              currency: options.item.currency
-            },
-            period: options.period,
-            interval: options.interval
-          };
-        },
-        all: async (options: any) => {
-          console.log('Listing Razorpay plans with options:', options);
-          return { items: [] };
-        }
-      },
-      customers: {
-        create: async (options: any) => {
-          console.log('Creating Razorpay customer:', options);
-          return { 
-            id: `cust_mock_${Date.now()}`,
-            name: options.name,
-            email: options.email,
-            contact: options.contact
-          };
-        },
-        fetch: async (customerId: string) => {
-          console.log('Fetching Razorpay customer:', customerId);
-          return { 
-            id: customerId,
-            name: 'Mock Customer',
-            email: 'mock@example.com'
-          };
-        },
-        all: async (options: any) => {
-          console.log('Listing Razorpay customers with options:', options);
-          return { items: [] };
-        }
-      },
-      subscriptions: {
-        create: async (options: any) => {
-          console.log('Creating Razorpay subscription:', options);
-          return { 
-            id: `sub_mock_${Date.now()}`,
-            plan_id: options.plan_id,
-            customer_id: options.customer_id,
-            status: 'created',
-            current_end: new Date().getTime() + (30 * 24 * 60 * 60 * 1000), // 30 days from now
-            total_count: options.total_count || 12,
-            quantity: options.quantity || 1,
-            notes: options.notes || {}
-          };
-        },
-        cancel: async (subscriptionId: string, options: any = {}) => {
-          console.log('Cancelling Razorpay subscription:', subscriptionId, 'with options:', options);
-          return { 
-            id: subscriptionId, 
-            status: 'cancelled',
-            cancel_at_cycle_end: options?.cancel_at_cycle_end === 1
-          };
-        },
-        update: async (subscriptionId: string, options: any) => {
-          console.log('Updating Razorpay subscription:', subscriptionId, 'with options:', options);
-          return {
-            id: subscriptionId,
-            plan_id: options.plan_id || `plan_mock_${Date.now()}`,
-            status: 'active',
-            schedule_change_at: options.schedule_change_at || 'now',
-            customer_notify: options.customer_notify || 0,
-            quantity: options.quantity || 1,
-            remaining_count: options.remaining_count,
-            start_at: options.start_at,
-            notes: options.notes || {}
-          };
-        },
-        fetch: async (subscriptionId: string) => {
-          console.log('Fetching Razorpay subscription:', subscriptionId);
-          return { 
-            id: subscriptionId,
-            plan_id: `plan_mock_${Date.now()}`,
-            status: 'active',
-            current_end: new Date().getTime() + (30 * 24 * 60 * 60 * 1000), // 30 days from now
-            customer_id: `cust_mock_${Date.now()}`
-          };
-        },
-        all: async (options: any) => {
-          console.log('Listing Razorpay subscriptions with options:', options);
-          return { items: [] };
-        }
-      },
-      invoices: {
-        all: async (options: any) => {
-          console.log('Listing Razorpay invoices with options:', options);
-          return { 
-            count: 0, 
-            items: []
-          };
-        }
-      }
-    } as any;
-    this.initialized = true;
   }
 
   // Ensure Razorpay is initialized
@@ -335,34 +219,18 @@ class RazorpayGateway implements PaymentGateway {
       });
     }
     
-    // If still not initialized, try initializing mock as fallback
+    // If still not initialized, throw error
     if (!this.initialized || !this.razorpay) {
-      console.warn('Razorpay still not initialized after waiting, using mock implementation');
-      this.initializeMockRazorpay();
+      throw new Error('Razorpay not properly initialized. Please check your API credentials.');
     }
     
-    return !!this.razorpay;
+    return true;
   }
 
   async getSubscriptionDetails(subscriptionId: string): Promise<any> {
-    const isInitialized = await this.ensureInitialized();
-    
-    if (!isInitialized || !this.razorpay) {
-      console.error('Razorpay not properly initialized, falling back to mock implementation');
-      this.initializeMockRazorpay();
-    }
+    await this.ensureInitialized();
     
     try {
-      if (!this.razorpay?.subscriptions?.fetch) {
-        console.warn('Razorpay subscriptions API not available, using mock implementation');
-        // Return mock subscription with a default plan ID
-        return {
-          id: subscriptionId,
-          plan_id: `plan_mock_${Date.now()}`,
-          status: 'active'
-        };
-      }
-      
       // Fetch subscription details from Razorpay
       console.log(`Fetching subscription details for ID: ${subscriptionId}`);
       const subscription = await this.razorpay.subscriptions.fetch(subscriptionId);
@@ -371,12 +239,7 @@ class RazorpayGateway implements PaymentGateway {
       return subscription;
     } catch (error) {
       console.error(`Error fetching subscription details for ID ${subscriptionId}:`, error);
-      // Return a mock response instead of throwing an error to keep the payment flow working
-      return {
-        id: subscriptionId,
-        plan_id: `plan_error_${Date.now()}`,
-        status: 'unknown'
-      };
+      throw error;
     }
   }
 
@@ -1170,6 +1033,23 @@ class RazorpayGateway implements PaymentGateway {
           
         case 'subscription.resumed':
           await this.handleSubscriptionResumed(event.payload.subscription.entity);
+          break;
+          
+        // Add refund webhook handlers
+        case 'refund.created':
+          await this.handleRefundCreated(event.payload.refund.entity, event.payload.payment?.entity);
+          break;
+          
+        case 'refund.processed':
+          await this.handleRefundProcessed(event.payload.refund.entity, event.payload.payment?.entity);
+          break;
+          
+        case 'refund.failed':
+          await this.handleRefundFailed(event.payload.refund.entity, event.payload.payment?.entity);
+          break;
+          
+        case 'refund.speed_changed':
+          await this.handleRefundSpeedChanged(event.payload.refund.entity, event.payload.payment?.entity);
           break;
           
         default:
@@ -2371,6 +2251,469 @@ class RazorpayGateway implements PaymentGateway {
     } catch (error) {
       console.error('Error fixing plan mappings:', error);
       return false;
+    }
+  }
+
+  // Add refund methods
+  async createRefund(paymentId: string, amount?: number, options?: {
+    notes?: Record<string, any>;
+    receipt?: string;
+    speed?: 'normal' | 'optimum';
+  }): Promise<any> {
+    try {
+      await this.ensureInitialized();
+      
+      console.log(`Creating refund for payment ${paymentId}, amount: ${amount || 'full'}`);
+      
+      // First, try to fetch the payment details to debug
+      try {
+        console.log(`Fetching payment details for ${paymentId} to check refundability...`);
+        const payment = await this.razorpay.payments.fetch(paymentId);
+        console.log(`Payment details:`, {
+          id: payment.id,
+          amount: payment.amount,
+          currency: payment.currency,
+          status: payment.status,
+          captured: payment.captured,
+          refund_status: payment.refund_status,
+          amount_refunded: payment.amount_refunded,
+          international: payment.international
+        });
+        
+        // Check if this is a USD payment in test mode
+        if (payment.currency === 'USD' && payment.international) {
+          console.warn(`Warning: USD international payment detected. Refunds may not be supported in test mode.`);
+        }
+        
+        // Check existing refunds
+        try {
+          // Use the correct API structure for fetching refunds
+          const existingRefunds = await this.razorpay.refunds.all({ payment_id: paymentId });
+          console.log(`Found ${existingRefunds.count || 0} existing refunds for payment ${paymentId}`);
+          
+          if (existingRefunds.items && existingRefunds.items.length > 0) {
+            const totalRefunded = existingRefunds.items.reduce((sum: number, refund: any) => sum + refund.amount, 0);
+            console.log(`Total already refunded: ${totalRefunded} (out of ${payment.amount})`);
+          }
+        } catch (refundFetchError: any) {
+          console.log('Could not fetch existing refunds:', refundFetchError.message);
+        }
+        
+      } catch (paymentFetchError: any) {
+        console.error(`Error fetching payment ${paymentId}:`, paymentFetchError.message);
+        throw new Error(`Payment ${paymentId} not found or cannot be accessed: ${paymentFetchError.message}`);
+      }
+      
+      const refundData: any = {};
+      
+      if (amount) {
+        // Convert to smallest currency unit (paise/cents) - amount is passed in dollars/rupees
+        const amountInSmallestUnit = Math.round(amount * 100);
+        console.log(`REFUND AMOUNT CONVERSION: ${amount} (rupees/dollars) -> ${amountInSmallestUnit} (paise/cents)`);
+        refundData.amount = amountInSmallestUnit;
+      }
+      
+      if (options?.notes) {
+        refundData.notes = options.notes;
+      }
+      
+      if (options?.receipt) {
+        refundData.receipt = options.receipt;
+      }
+      
+      if (options?.speed) {
+        refundData.speed = options.speed;
+      }
+      
+      console.log('Refund data being sent to Razorpay:', refundData);
+      
+      // Use the correct Razorpay SDK method: payments.refund()
+      const refund = await this.razorpay.payments.refund(paymentId, refundData);
+      
+      console.log(`Refund created successfully: ${refund.id}`);
+      
+      // Handle subscription cancellation after refund is created
+      await this.cancelRelatedSubscription(paymentId, refund);
+      
+      return refund;
+    } catch (error: any) {
+      console.error('Error creating Razorpay refund:', error);
+      
+      // Provide specific error message for USD test mode limitation
+      if (error.error && error.error.code === 'BAD_REQUEST_ERROR' && 
+          error.error.description === 'invalid request sent') {
+        throw new Error(
+          'Refund failed. This may be due to currency or test mode limitations. ' +
+          'USD international payments may not support refunds in test mode. ' +
+          'Please contact support or try with INR payments.'
+        );
+      }
+      
+      throw error;
+    }
+  }
+
+  async fetchRefund(refundId: string): Promise<any> {
+    try {
+      await this.ensureInitialized();
+      // Fetch specific refund - use the payments API
+      return await this.razorpay.refunds.fetch(refundId);
+    } catch (error) {
+      console.error('Error fetching Razorpay refund:', error);
+      throw error;
+    }
+  }
+
+  async fetchRefundsForPayment(paymentId: string): Promise<any> {
+    try {
+      await this.ensureInitialized();
+      // Use a different approach - fetch refunds using the refunds.all() with payment_id filter
+      return await this.razorpay.refunds.all({ payment_id: paymentId });
+    } catch (error) {
+      console.error('Error fetching Razorpay refunds:', error);
+      throw error;
+    }
+  }
+
+  // Helper method to cancel subscription when refund is processed
+  private async cancelRelatedSubscription(paymentId: string, refund: any): Promise<void> {
+    try {
+      // Find the transaction associated with this payment
+      const transaction = await db.select()
+        .from(paymentTransactions)
+        .where(eq(paymentTransactions.gatewayTransactionId, paymentId))
+        .limit(1);
+      
+      if (!transaction.length) {
+        console.log(`No transaction found for payment ${paymentId}`);
+        return;
+      }
+      
+      // If this transaction has a subscription, cancel it
+      if (transaction[0].subscriptionId) {
+        const subscription = await db.select()
+          .from(userSubscriptions)
+          .where(eq(userSubscriptions.id, transaction[0].subscriptionId))
+          .limit(1);
+          
+        if (subscription.length > 0 && subscription[0].paymentReference) {
+          // Cancel the subscription in Razorpay
+          try {
+            await this.cancelSubscription(subscription[0].paymentReference);
+            
+            // Update subscription status in our database
+            await db.update(userSubscriptions)
+              .set({
+                status: 'CANCELLED',
+                cancelDate: new Date(),
+                autoRenew: false,
+                updatedAt: new Date()
+              })
+              .where(eq(userSubscriptions.id, subscription[0].id));
+              
+            console.log(`Cancelled subscription ${subscription[0].paymentReference} due to refund ${refund.id}`);
+          } catch (cancelError) {
+            console.error(`Failed to cancel subscription ${subscription[0].paymentReference}:`, cancelError);
+            // Don't throw error here - refund is more important than subscription cancellation
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error cancelling related subscription:', error);
+      // Don't throw error here - refund is more important than subscription cancellation
+    }
+  }
+
+  // Refund webhook handlers
+  private async handleRefundCreated(refund: any, payment?: any) {
+    try {
+      console.log(`Processing refund.created for refund ${refund.id}`);
+      
+      // Find the transaction in our database
+      const transaction = await db.select()
+        .from(paymentTransactions)
+        .where(eq(paymentTransactions.gatewayTransactionId, refund.payment_id))
+        .limit(1);
+      
+      if (!transaction.length) {
+        console.log(`No transaction found for payment ${refund.payment_id}`);
+        return;
+      }
+      
+      // Get user's billing details to determine correct currency handling
+      const userBillingInfo = await db.select()
+        .from(userBillingDetails)
+        .where(eq(userBillingDetails.userId, transaction[0].userId))
+        .limit(1);
+        
+      const userCountry = userBillingInfo.length > 0 ? userBillingInfo[0].country : 'US';
+      const expectedCurrency = userCountry === 'IN' ? 'INR' : 'USD';
+      
+      // Convert refund amount to decimal format based on currency
+      const refundAmountDecimal = (refund.amount / 100).toString();
+      
+      // Handle currency mismatch if needed
+      let correctedRefundAmount = refundAmountDecimal;
+      if (refund.currency !== expectedCurrency) {
+        console.warn(`Currency mismatch in refund: Expected ${expectedCurrency}, got ${refund.currency}`);
+        // For now, keep the original amount but log the mismatch
+        correctedRefundAmount = refundAmountDecimal;
+      }
+      
+      // Update transaction status to REFUNDED
+      await db.update(paymentTransactions)
+        .set({
+          status: 'REFUNDED',
+          refundAmount: correctedRefundAmount,
+          refundReason: `Refund created: ${refund.id}. Amount: ${correctedRefundAmount} ${refund.currency}. Speed: ${refund.speed_requested || 'normal'}`,
+          metadata: {
+            ...(transaction[0].metadata as any || {}),
+            refund: {
+              id: refund.id,
+              amount: correctedRefundAmount,
+              currency: refund.currency,
+              expectedCurrency: expectedCurrency,
+              speed: refund.speed_requested,
+              createdAt: new Date().toISOString(),
+              status: 'created'
+            }
+          },
+          updatedAt: new Date()
+        })
+        .where(eq(paymentTransactions.id, transaction[0].id));
+      
+      console.log(`Transaction ${transaction[0].id} marked as REFUNDED with amount ${correctedRefundAmount} ${refund.currency}`);
+      
+      // Notify user and admin about refund
+      const user = await db.select()
+        .from(users)
+        .where(eq(users.id, transaction[0].userId))
+        .limit(1);
+      
+      if (user.length > 0) {
+        // Create user notification
+        const { NotificationService } = await import('./notification-service');
+        const notificationService = new NotificationService();
+        await notificationService.createNotification({
+          recipientId: transaction[0].userId,
+          type: 'payment_refunded',
+          category: 'payment',
+          title: 'Refund Initiated',
+          message: `Your refund of ${correctedRefundAmount} ${refund.currency} has been initiated and will be processed soon.`,
+          data: {
+            refundId: refund.id,
+            amount: correctedRefundAmount,
+            currency: refund.currency,
+            transactionId: transaction[0].id,
+            expectedCurrency: expectedCurrency
+          }
+        });
+        
+        // Notify admin
+        await adminNotificationService.notifyPaymentReceived({
+          userId: transaction[0].userId,
+          userName: user[0].fullName || user[0].username,
+          amount: correctedRefundAmount,
+          currency: refund.currency,
+          transactionId: refund.id,
+          planName: `Refund Initiated - ${expectedCurrency} user`
+        });
+      }
+    } catch (error) {
+      console.error('Error handling refund created:', error);
+      throw error;
+    }
+  }
+
+  private async handleRefundProcessed(refund: any, payment?: any) {
+    try {
+      console.log(`Processing refund.processed for refund ${refund.id}`);
+      
+      // Find the transaction and update final status
+      const transaction = await db.select()
+        .from(paymentTransactions)
+        .where(eq(paymentTransactions.gatewayTransactionId, refund.payment_id))
+        .limit(1);
+      
+      if (!transaction.length) {
+        console.log(`No transaction found for payment ${refund.payment_id}`);
+        return;
+      }
+      
+      // Get user's billing details for currency validation
+      const userBillingInfo = await db.select()
+        .from(userBillingDetails)
+        .where(eq(userBillingDetails.userId, transaction[0].userId))
+        .limit(1);
+        
+      const userCountry = userBillingInfo.length > 0 ? userBillingInfo[0].country : 'US';
+      const expectedCurrency = userCountry === 'IN' ? 'INR' : 'USD';
+      
+      // Update with processed status and ARN if available
+      const existingMetadata = transaction[0].metadata as any || {};
+      const updatedMetadata = {
+        ...existingMetadata,
+        refund: {
+          ...(existingMetadata.refund || {}),
+          id: refund.id,
+          status: 'processed',
+          processedAt: new Date().toISOString(),
+          arn: refund.acquirer_data?.arn,
+          speed: refund.speed_processed,
+          currency: refund.currency,
+          expectedCurrency: expectedCurrency
+        }
+      };
+      
+      const updateData: any = {
+        refundReason: `Refund processed: ${refund.id}. Amount: ${refund.amount / 100} ${refund.currency}. ARN: ${refund.acquirer_data?.arn || 'N/A'}`,
+        metadata: updatedMetadata,
+        updatedAt: new Date()
+      };
+      
+      await db.update(paymentTransactions)
+        .set(updateData)
+        .where(eq(paymentTransactions.id, transaction[0].id));
+      
+      // Notify user about successful processing
+      const { NotificationService } = await import('./notification-service');
+      const notificationService = new NotificationService();
+      await notificationService.createNotification({
+        recipientId: transaction[0].userId,
+        type: 'payment_refunded',
+        category: 'payment',
+        title: 'Refund Completed',
+        message: `Your refund of ${refund.amount / 100} ${refund.currency} has been successfully processed.`,
+        data: {
+          refundId: refund.id,
+          amount: refund.amount / 100,
+          currency: refund.currency,
+          arn: refund.acquirer_data?.arn,
+          transactionId: transaction[0].id,
+          expectedCurrency: expectedCurrency
+        }
+      });
+      
+      console.log(`Refund ${refund.id} marked as processed`);
+    } catch (error) {
+      console.error('Error handling refund processed:', error);
+      throw error;
+    }
+  }
+
+  private async handleRefundFailed(refund: any, payment?: any) {
+    try {
+      console.log(`Processing refund.failed for refund ${refund.id}`);
+      
+      // Find the transaction and revert status
+      const transaction = await db.select()
+        .from(paymentTransactions)
+        .where(eq(paymentTransactions.gatewayTransactionId, refund.payment_id))
+        .limit(1);
+      
+      if (!transaction.length) {
+        console.log(`No transaction found for payment ${refund.payment_id}`);
+        return;
+      }
+      
+      // Get user's billing details for currency information
+      const userBillingInfo = await db.select()
+        .from(userBillingDetails)
+        .where(eq(userBillingDetails.userId, transaction[0].userId))
+        .limit(1);
+        
+      const userCountry = userBillingInfo.length > 0 ? userBillingInfo[0].country : 'US';
+      const expectedCurrency = userCountry === 'IN' ? 'INR' : 'USD';
+      
+      // Revert to COMPLETED status since refund failed
+      await db.update(paymentTransactions)
+        .set({
+          status: 'COMPLETED',
+          refundReason: `Refund failed: ${refund.id}. Amount: ${refund.amount / 100} ${refund.currency}. Reason: ${refund.error_description || 'Unknown error'}`,
+          refundAmount: null,
+          metadata: {
+            ...(transaction[0].metadata as any || {}),
+            refund: {
+              id: refund.id,
+              status: 'failed',
+              failedAt: new Date().toISOString(),
+              error: refund.error_description,
+              currency: refund.currency,
+              expectedCurrency: expectedCurrency
+            }
+          },
+          updatedAt: new Date()
+        })
+        .where(eq(paymentTransactions.id, transaction[0].id));
+      
+      // Notify user about failed refund
+      const { NotificationService } = await import('./notification-service');
+      const notificationService = new NotificationService();
+      await notificationService.createNotification({
+        recipientId: transaction[0].userId,
+        type: 'payment_refund_failed',
+        category: 'payment',
+        priority: 'high',
+        title: 'Refund Failed',
+        message: `Your refund of ${refund.amount / 100} ${refund.currency} could not be processed. Please contact support.`,
+        data: {
+          refundId: refund.id,
+          amount: refund.amount / 100,
+          currency: refund.currency,
+          error: refund.error_description,
+          transactionId: transaction[0].id,
+          expectedCurrency: expectedCurrency
+        }
+      });
+      
+      console.log(`Refund ${refund.id} marked as failed`);
+    } catch (error) {
+      console.error('Error handling refund failed:', error);
+      throw error;
+    }
+  }
+
+  private async handleRefundSpeedChanged(refund: any, payment?: any) {
+    try {
+      console.log(`Processing refund.speed_changed for refund ${refund.id}`);
+      
+      // Find the transaction and update metadata
+      const transaction = await db.select()
+        .from(paymentTransactions)
+        .where(eq(paymentTransactions.gatewayTransactionId, refund.payment_id))
+        .limit(1);
+      
+      if (!transaction.length) {
+        console.log(`No transaction found for payment ${refund.payment_id}`);
+        return;
+      }
+      
+      const existingMetadata = transaction[0].metadata as any || {};
+      const updatedMetadata = {
+        ...existingMetadata,
+        refund: {
+          ...(existingMetadata.refund || {}),
+          id: refund.id,
+          speedChanged: {
+            from: refund.speed_requested,
+            to: refund.speed_processed,
+            changedAt: new Date().toISOString()
+          }
+        }
+      };
+      
+      await db.update(paymentTransactions)
+        .set({
+          metadata: updatedMetadata,
+          refundReason: `Refund speed changed: ${refund.id}. From ${refund.speed_requested} to ${refund.speed_processed}`,
+          updatedAt: new Date()
+        })
+        .where(eq(paymentTransactions.id, transaction[0].id));
+      
+      console.log(`Refund ${refund.id} speed changed from ${refund.speed_requested} to ${refund.speed_processed}`);
+    } catch (error) {
+      console.error('Error handling refund speed changed:', error);
+      throw error;
     }
   }
 }

@@ -34,6 +34,7 @@ import { registerPaymentGatewayAdminRoutes } from './admin/payment-gateway-route
 import { registerSmtpRoutes } from './admin/smtp-routes';
 import { registerEmailTemplateRoutes } from './admin/email-template-routes';
 import { registerTwoFactorAdminRoutes } from './admin/two-factor-routes';
+import { registerContactRoutes } from './contact-routes';
 import { SubscriptionService } from "../../services/subscription-service";
 import { fileURLToPath } from "url";
 import { TaxService } from '../../services/tax-service';
@@ -104,6 +105,9 @@ export function registerAdminRoutes(app: Express) {
   
   // Register Two Factor Authentication routes
   registerTwoFactorAdminRoutes(app);
+  
+  // Register Contact routes
+  registerContactRoutes(app);
   
   // Debug endpoint - available without admin check to help troubleshoot admin access
   app.get("/api/admin/debug", (req: Request, res: Response) => {

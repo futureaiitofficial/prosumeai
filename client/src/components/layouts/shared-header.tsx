@@ -83,7 +83,7 @@ export default function SharedHeader({ isLandingPage = false, forceBackground = 
               <Link href="/auth" className="px-4 py-2 text-white hover:text-blue-200 transition-colors">
                 Login
               </Link>
-              <Link href="/pricing" className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md transition-colors">
+              <Link href="/register" className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md transition-colors">
                 Sign Up
               </Link>
             </>
@@ -159,7 +159,7 @@ export default function SharedHeader({ isLandingPage = false, forceBackground = 
                   <Link href="/auth" className="flex-1 px-4 py-2 text-white hover:text-blue-200 transition-colors border border-indigo-700 rounded-md text-center" onClick={handleNavLinkClick}>
                     Login
                   </Link>
-                  <Link href="/pricing" className="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md transition-colors text-center" onClick={handleNavLinkClick}>
+                  <Link href="/register" className="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md transition-colors text-center" onClick={handleNavLinkClick}>
                     Sign Up
                   </Link>
                 </div>

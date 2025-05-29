@@ -28,6 +28,7 @@ import { registerPaymentRoutes } from './src/routes/payment-routes';
 import { registerSubscriptionRoutes } from './src/routes/subscription-routes';
 import { registerTaxRoutes } from './src/routes/tax-routes';
 import { registerTaxAdminRoutes } from './src/routes/tax-admin-routes';
+import os from 'os';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -51,12 +52,30 @@ let isShuttingDown = false;
 
 const app = express();
 
+// Function to get local network IP addresses
+function getLocalNetworkIPs() {
+  const ips = ['http://localhost:3000', 'http://localhost:5173', 'http://127.0.0.1:3000', 'http://127.0.0.1:5173'];
+  const interfaces = os.networkInterfaces();
+  
+  for (const name of Object.keys(interfaces)) {
+    for (const iface of interfaces[name] || []) {
+      // Skip internal (loopback) and non-IPv4 addresses
+      if (iface.family === 'IPv4' && !iface.internal) {
+        ips.push(`http://${iface.address}:3000`);
+        ips.push(`http://${iface.address}:5173`);
+      }
+    }
+  }
+  
+  return ips;
+}
+
 // Configure and use CORS middleware
 app.use(cors({
   origin: process.env.CORS_ORIGIN || 
     (process.env.NODE_ENV === 'production' 
       ? (process.env.CORS_ORIGIN === '*' ? true : true) // Allow specified origin or any origin in production
-      : ['http://localhost:3000', 'http://localhost:5173', 'http://127.0.0.1:3000', 'http://127.0.0.1:5173']),
+      : getLocalNetworkIPs()), // Include network IPs in development
   credentials: true, // Required for cookies
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Cache-Control', 'Pragma', 'Accept'],

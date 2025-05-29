@@ -1268,4 +1268,147 @@ export function registerPaymentRoutes(app: express.Express) {
       });
     }
   });
+
+  // Add refund endpoints
+  // Create a refund
+  app.post('/api/payments/:paymentId/refund', requireAdmin, async (req, res) => {
+    try {
+      const { paymentId } = req.params;
+      const { amount, reason, notes, speed = 'normal' } = req.body;
+      
+      console.log(`Admin ${req.user?.username} creating refund for payment ${paymentId}:`, { 
+        requestedAmount: amount, 
+        amountType: typeof amount,
+        reason, 
+        speed 
+      });
+      
+      // Find the payment transaction
+      const transaction = await db.select()
+        .from(paymentTransactions)
+        .where(eq(paymentTransactions.gatewayTransactionId, paymentId))
+        .limit(1);
+      
+      if (!transaction.length) {
+        return res.status(404).json({ message: 'Payment not found' });
+      }
+      
+      console.log(`Original transaction amount: ${transaction[0].amount} ${transaction[0].currency}`);
+      
+      // Check if already refunded
+      if (transaction[0].status === 'REFUNDED') {
+        return res.status(400).json({ message: 'Payment already refunded' });
+      }
+      
+      // CRITICAL: Validate refund amount
+      if (amount && amount <= 0) {
+        return res.status(400).json({ message: 'Refund amount must be positive' });
+      }
+      
+      // Convert transaction amount to number for comparison
+      const originalAmount = parseFloat(transaction[0].amount);
+      
+      if (amount && amount > originalAmount) {
+        return res.status(400).json({ 
+          message: `Refund amount (${amount}) cannot exceed original payment amount (${originalAmount})` 
+        });
+      }
+      
+      console.log(`REFUND VALIDATION: Original=${originalAmount}, Requested=${amount || 'FULL'}, Currency=${transaction[0].currency}`);
+      
+      // Get payment gateway and create refund
+      const gateway = getPaymentGatewayByName('razorpay');
+      const refundOptions = {
+        notes: { 
+          reason: reason || 'Admin initiated refund',
+          admin_user: req.user?.username || 'Unknown',
+          transaction_id: transaction[0].id.toString(),
+          original_amount: originalAmount.toString(),
+          requested_amount: amount ? amount.toString() : 'full',
+          currency: transaction[0].currency,
+          ...notes 
+        },
+        speed: speed as 'normal' | 'optimum',
+        receipt: `refund_${transaction[0].id}_${Date.now()}`
+      };
+      
+      const refund = await gateway.createRefund(paymentId, amount, refundOptions);
+      
+      res.json({
+        success: true,
+        refund: {
+          id: refund.id,
+          amount: refund.amount / 100,
+          currency: refund.currency,
+          status: refund.status,
+          speed: refund.speed_requested,
+          paymentId: refund.payment_id,
+          createdAt: refund.created_at
+        }
+      });
+    } catch (error: any) {
+      console.error('Error creating refund:', error);
+      res.status(500).json({ 
+        message: 'Failed to create refund', 
+        error: error.message,
+        details: error.response?.data || error.error || 'Unknown error'
+      });
+    }
+  });
+  
+  // Get refund details
+  app.get('/api/refunds/:refundId', requireAdmin, async (req, res) => {
+    try {
+      const { refundId } = req.params;
+      
+      const gateway = getPaymentGatewayByName('razorpay');
+      const refund = await gateway.fetchRefund(refundId);
+      
+      res.json({
+        id: refund.id,
+        amount: refund.amount / 100,
+        currency: refund.currency,
+        status: refund.status,
+        speed: refund.speed_processed,
+        paymentId: refund.payment_id,
+        createdAt: refund.created_at,
+        notes: refund.notes
+      });
+    } catch (error: any) {
+      console.error('Error fetching refund:', error);
+      res.status(500).json({ 
+        message: 'Failed to fetch refund', 
+        error: error.message 
+      });
+    }
+  });
+  
+  // Get refunds for a payment
+  app.get('/api/payments/:paymentId/refunds', requireAdmin, async (req, res) => {
+    try {
+      const { paymentId } = req.params;
+      
+      const gateway = getPaymentGatewayByName('razorpay');
+      const refunds = await gateway.fetchRefundsForPayment(paymentId);
+      
+      res.json({
+        count: refunds.count,
+        refunds: refunds.items.map((refund: any) => ({
+          id: refund.id,
+          amount: refund.amount / 100,
+          currency: refund.currency,
+          status: refund.status,
+          speed: refund.speed_processed,
+          createdAt: refund.created_at,
+          notes: refund.notes
+        }))
+      });
+    } catch (error: any) {
+      console.error('Error fetching refunds:', error);
+      res.status(500).json({ 
+        message: 'Failed to fetch refunds', 
+        error: error.message 
+      });
+    }
+  });
 } 

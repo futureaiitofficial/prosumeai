@@ -13,7 +13,6 @@ import SharedFooter from '@/components/layouts/SharedFooter';
 import { useBranding } from '@/components/branding/branding-provider';
 import { useAuth } from '@/hooks/use-auth';
 import { useRegion } from '@/hooks/use-region';
-import { PaymentService } from '@/services/payment-service';
 
 // Reuse the interfaces from the subscription page
 interface SubscriptionPlan {
@@ -149,19 +148,6 @@ const PricingPage: React.FC = () => {
     
     // Default fallback to plan price
     return formatCurrency(parseFloat(plan.price || '0'));
-  };
-
-  const handlePlanSelection = (plan: SubscriptionPlan) => {
-    // Store the selected plan ID for reference in subscription page
-    sessionStorage.setItem('selectedPlanId', plan.id.toString());
-    
-    if (user) {
-      // If logged in, redirect to subscription page
-      navigate('/user/subscription');
-    } else {
-      // If not logged in, redirect to register page first with redirect param
-      navigate('/register?redirect=/user/subscription');
-    }
   };
 
   // Function to format token counts with "K" for thousands
@@ -301,6 +287,66 @@ const PricingPage: React.FC = () => {
         </div>
       </div>
       
+      {/* How to Get Started Section */}
+      <div className="bg-gradient-to-r from-indigo-50 to-blue-50 py-12 md:py-16 border-b border-indigo-100">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-8">
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-indigo-100 rounded-full mb-4">
+              <svg className="w-8 h-8 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+              </svg>
+            </div>
+            <h2 className="text-2xl md:text-3xl font-bold text-indigo-900 mb-4">
+              Ready to Get Started?
+            </h2>
+            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+              Choose your perfect plan in just a few simple steps
+            </p>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
+            <div className="bg-white rounded-xl p-6 shadow-sm border border-indigo-100 text-center group hover:shadow-lg transition-all duration-300">
+              <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:bg-green-200 transition-colors">
+                <span className="text-2xl font-bold text-green-600">1</span>
+              </div>
+              <h3 className="text-lg font-semibold text-gray-800 mb-2">Register for Free</h3>
+              <p className="text-gray-600 text-sm">
+                Create your account with no credit card required. Get instant access to our platform.
+              </p>
+            </div>
+            
+            <div className="bg-white rounded-xl p-6 shadow-sm border border-indigo-100 text-center group hover:shadow-lg transition-all duration-300">
+              <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:bg-blue-200 transition-colors">
+                <span className="text-2xl font-bold text-blue-600">2</span>
+              </div>
+              <h3 className="text-lg font-semibold text-gray-800 mb-2">Explore the Platform</h3>
+              <p className="text-gray-600 text-sm">
+                Try our free features and see how our AI-powered tools can help your job search.
+              </p>
+            </div>
+            
+            <div className="bg-white rounded-xl p-6 shadow-sm border border-indigo-100 text-center group hover:shadow-lg transition-all duration-300">
+              <div className="w-12 h-12 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:bg-indigo-200 transition-colors">
+                <span className="text-2xl font-bold text-indigo-600">3</span>
+              </div>
+              <h3 className="text-lg font-semibold text-gray-800 mb-2">Choose Your Plan</h3>
+              <p className="text-gray-600 text-sm">
+                Go to <span className="font-medium text-indigo-600">Dashboard → Subscription</span> to select the plan that fits your needs.
+              </p>
+            </div>
+          </div>
+          
+          <div className="mt-8 text-center">
+            <div className="inline-flex items-center px-4 py-2 bg-indigo-100 text-indigo-800 rounded-full text-sm font-medium">
+              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+              </svg>
+              You can upgrade or change plans anytime from your dashboard
+            </div>
+          </div>
+        </div>
+      </div>
+      
       {/* Main Content */}
       <div className="bg-white py-12 md:py-16 lg:py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -374,15 +420,6 @@ const PricingPage: React.FC = () => {
                           )}
                         </div>
                       </CardContent>
-                      <CardFooter className="mt-auto pb-6 px-6">
-                        <Button 
-                          className={`w-full py-6 group-hover:scale-105 transition-transform ${plan.isFeatured ? "bg-indigo-600 hover:bg-indigo-700" : plan.isFreemium ? "bg-green-600 hover:bg-green-700" : "border-2 border-indigo-200 text-indigo-700 hover:border-indigo-300 hover:bg-indigo-50"}`}
-                          variant={plan.isFeatured ? "default" : "outline"}
-                          onClick={() => handlePlanSelection(plan)}
-                        >
-                          {plan.isFreemium ? 'Sign Up for Free' : 'Get Started'}
-                        </Button>
-                      </CardFooter>
                     </Card>
                   );
                 })}
@@ -662,7 +699,7 @@ const PricingPage: React.FC = () => {
               </Button>
             ) : (
               <Button 
-                onClick={() => navigate('/register?redirect=/user/subscription')} 
+                onClick={() => navigate('/register')} 
                 className="px-8 py-6 bg-green-600 hover:bg-green-700 shadow-lg hover:shadow-xl rounded-lg font-medium transition-all duration-300 text-lg group flex-1 max-w-xs mx-auto sm:mx-0"
               >
                 <div>

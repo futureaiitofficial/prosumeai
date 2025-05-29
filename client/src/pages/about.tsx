@@ -55,7 +55,7 @@ export default function AboutPage() {
               The AI-powered platform designed to help students and professionals land interviews at top companies with stunning resumes and personalized cover letters.
             </p>
             <div className="flex flex-col sm:flex-row justify-center gap-4">
-              <Link href="/pricing">
+              <Link href="/register">
                 <a className="px-8 py-4 bg-indigo-500 hover:bg-indigo-600 text-white font-medium rounded-md transition-colors inline-block text-lg">
                   Get Started For Free
                 </a>
@@ -350,7 +350,7 @@ export default function AboutPage() {
             Be among the first to experience {branding.appName}'s powerful AI tools designed to help you create winning resumes and land your dream job.
           </p>
           <div className="flex flex-col sm:flex-row justify-center gap-4">
-            <Link href="/pricing">
+            <Link href="/register">
               <a className="px-6 md:px-8 py-3 bg-white hover:bg-indigo-50 text-indigo-600 font-medium rounded-md transition-colors inline-block">
                 Start For Free
               </a>

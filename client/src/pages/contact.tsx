@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import SharedHeader from '@/components/layouts/shared-header';
 import SharedFooter from '@/components/layouts/SharedFooter';
@@ -11,9 +11,43 @@ export default function ContactPage() {
     email: '',
     subject: '',
     message: '',
+    website: '', // Honeypot field
+    mathAnswer: ''
   });
+  const [mathQuestion, setMathQuestion] = useState('');
+  const [formTimestamp, setFormTimestamp] = useState<number>(0);
   const [formStatus, setFormStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
+  const [errorMessage, setErrorMessage] = useState('');
   const formRef = useRef<HTMLFormElement>(null);
+
+  // Load math captcha when component mounts
+  useEffect(() => {
+    loadMathCaptcha();
+  }, []);
+
+  const loadMathCaptcha = async () => {
+    try {
+      const response = await fetch('/api/contact/captcha', {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        }
+      });
+      const data = await response.json();
+      if (data.question) {
+        setMathQuestion(data.question);
+        // Set form timestamp when captcha is loaded
+        if (data.timestamp) {
+          setFormTimestamp(data.timestamp);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load captcha:', error);
+      setMathQuestion('What is 5 + 3?'); // Fallback question
+      setFormTimestamp(Date.now());
+    }
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -23,19 +57,84 @@ export default function ContactPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormStatus('submitting');
+    setErrorMessage('');
     
-    // Simulate form submission
     try {
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      setFormStatus('success');
-      // Reset form
-      setFormState({ name: '', email: '', subject: '', message: '' });
-      // After 3 seconds, reset the form status
-      setTimeout(() => setFormStatus('idle'), 3000);
+      // Convert mathAnswer to number and add timestamp
+      const submitData = {
+        ...formState,
+        mathAnswer: parseInt(formState.mathAnswer) || 0,
+        formTimestamp: formTimestamp
+      };
+
+      const response = await fetch('/api/contact', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify(submitData),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setFormStatus('success');
+        // Reset form
+        setFormState({ 
+          name: '', 
+          email: '', 
+          subject: '', 
+          message: '', 
+          website: '', 
+          mathAnswer: '' 
+        });
+        // Load new captcha for next submission
+        loadMathCaptcha();
+        // After 5 seconds, reset the form status
+        setTimeout(() => setFormStatus('idle'), 5000);
+      } else {
+        // Handle different error types
+        console.error('Contact form error:', data);
+        setFormStatus('error');
+        
+        // Set specific error messages based on error type
+        switch (data.error) {
+          case 'TOO_MANY_REQUESTS':
+            setErrorMessage('Too many submissions. Please wait 15 minutes before trying again.');
+            break;
+          case 'CAPTCHA_FAILED':
+            setErrorMessage('Math verification failed. Please check your answer and try again.');
+            loadMathCaptcha(); // Load new captcha
+            break;
+          case 'VALIDATION_ERROR':
+            setErrorMessage(data.message || 'Please check your input and try again.');
+            break;
+          case 'SUSPICIOUS_CONTENT':
+            setErrorMessage('Your message contains content that cannot be processed. Please revise and try again.');
+            break;
+          case 'TOO_FAST':
+            setErrorMessage('Please take your time filling out the form.');
+            break;
+          default:
+            setErrorMessage(data.message || 'Something went wrong. Please try again.');
+        }
+        
+        // After 5 seconds, reset the form status
+        setTimeout(() => {
+          setFormStatus('idle');
+          setErrorMessage('');
+        }, 5000);
+      }
     } catch (error) {
+      console.error('Network error:', error);
       setFormStatus('error');
-      // After 3 seconds, reset the form status
-      setTimeout(() => setFormStatus('idle'), 3000);
+      setErrorMessage('Network error. Please check your connection and try again.');
+      // After 5 seconds, reset the form status
+      setTimeout(() => {
+        setFormStatus('idle');
+        setErrorMessage('');
+      }, 5000);
     }
   };
 
@@ -118,6 +217,7 @@ export default function ContactPage() {
                       className="w-full px-4 py-3 rounded-md border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
                       placeholder="John Doe"
                       required
+                      maxLength={100}
                     />
                   </div>
                   
@@ -132,9 +232,21 @@ export default function ContactPage() {
                       className="w-full px-4 py-3 rounded-md border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
                       placeholder="john.doe@example.com"
                       required
+                      maxLength={254}
                     />
                   </div>
                 </div>
+
+                {/* Honeypot field - hidden from users */}
+                <input
+                  type="text"
+                  name="website"
+                  value={formState.website}
+                  onChange={handleChange}
+                  style={{ display: 'none' }}
+                  tabIndex={-1}
+                  autoComplete="off"
+                />
                 
                 <div>
                   <label htmlFor="subject" className="block text-sm font-medium text-slate-700 mb-1">Subject</label>
@@ -166,7 +278,57 @@ export default function ContactPage() {
                     className="w-full px-4 py-3 rounded-md border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
                     placeholder="How can we help you?"
                     required
+                    minLength={10}
+                    maxLength={5000}
                   ></textarea>
+                  <div className="text-xs text-slate-500 mt-1">
+                    {formState.message.length}/5000 characters (minimum 10)
+                  </div>
+                </div>
+
+                {/* Math Captcha */}
+                <div>
+                  <label htmlFor="mathAnswer" className="block text-sm font-medium text-slate-700 mb-1">
+                    Security Verification
+                  </label>
+                  <div className="bg-indigo-50 border border-indigo-200 rounded-md p-3 mb-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
+                        </svg>
+                        <span className="text-indigo-800 font-medium">
+                          {mathQuestion || 'Loading security question...'}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={loadMathCaptcha}
+                        className="text-indigo-600 hover:text-indigo-800 p-1 rounded transition-colors"
+                        title="Refresh security question"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                  <input
+                    type="number"
+                    id="mathAnswer"
+                    name="mathAnswer"
+                    value={formState.mathAnswer}
+                    onChange={handleChange}
+                    className="w-full px-4 py-3 rounded-md border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+                    placeholder="Enter your answer"
+                    required
+                    min="0"
+                    max="50"
+                    disabled={!mathQuestion || mathQuestion === 'Loading security question...'}
+                  />
+                  <div className="text-xs text-slate-500 mt-1">
+                    Please solve this simple math problem to verify you're human
+                  </div>
                 </div>
                 
                 <div>
@@ -190,9 +352,17 @@ export default function ContactPage() {
                     <motion.div 
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
-                      className="mt-4 p-3 bg-green-100 border border-green-300 text-green-800 rounded-md"
+                      className="mt-4 p-4 bg-green-100 border border-green-300 text-green-800 rounded-md"
                     >
-                      <p className="text-center font-medium">Message sent successfully! We'll get back to you soon.</p>
+                      <div className="flex items-center">
+                        <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"></path>
+                        </svg>
+                        <div>
+                          <p className="font-medium">Message sent successfully!</p>
+                          <p className="text-sm">We'll get back to you within 24 hours. Check your email for a confirmation.</p>
+                        </div>
+                      </div>
                     </motion.div>
                   )}
                   
@@ -200,9 +370,19 @@ export default function ContactPage() {
                     <motion.div 
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
-                      className="mt-4 p-3 bg-red-100 border border-red-300 text-red-800 rounded-md"
+                      className="mt-4 p-4 bg-red-100 border border-red-300 text-red-800 rounded-md"
                     >
-                      <p className="text-center font-medium">Something went wrong. Please try again later.</p>
+                      <div className="flex items-center">
+                        <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd"></path>
+                        </svg>
+                        <div>
+                          <p className="font-medium">Unable to send message</p>
+                          <p className="text-sm">
+                            {errorMessage || 'Please try again later or contact us directly at support@atscribe.com'}
+                          </p>
+                        </div>
+                      </div>
                     </motion.div>
                   )}
                 </div>

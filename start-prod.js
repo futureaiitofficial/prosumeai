@@ -41,8 +41,8 @@ if (!process.env.SESSION_SECRET) {
   process.env.SESSION_SECRET = '5021472849459a3e98f7fde1f6221f5593e5f9b8970c4470304c289e523e4669';
 }
 
-// Start the server using node (not tsx/ts-node) to avoid TypeScript compilation issues
-const serverProcess = spawn('node', ['--es-module-specifier-resolution=node', 'dist/index.js'], {
+// Start the server using tsx to handle TypeScript files directly
+const serverProcess = spawn('npx', ['tsx', 'server/index.ts'], {
   cwd: __dirname,
   env: {
     ...process.env,

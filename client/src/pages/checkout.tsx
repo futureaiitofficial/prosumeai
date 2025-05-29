@@ -545,7 +545,7 @@ export function CheckoutPage() {
       });
       setShowBillingReview(true);
     }
-  }, [billingInfo, selectedPlan, currentStep, showBillingReview, isEditing]);
+  }, [currentStep, showBillingReview, billingInfo]);
 
   // Add a debug effect to log state changes for easier troubleshooting
   useEffect(() => {
@@ -561,7 +561,7 @@ export function CheckoutPage() {
     if (billingInfo && planId && !paymentIntent) {
       initPaymentIntent();
     }
-  }, [billingInfo, planId]);
+  }, [billingInfo, planId, paymentIntent]);
 
   // Add loading state specifically for payment details
   const [paymentDetailsLoading, setPaymentDetailsLoading] = useState(false);
@@ -592,7 +592,7 @@ export function CheckoutPage() {
   };
 
   // Create payment intent after billing details are submitted or if they already exist
-  const initPaymentIntent = async () => {
+  const initPaymentIntent = useCallback(async () => {
     // Set payment loading state to true
     setPaymentDetailsLoading(true);
     setPaymentError('');
@@ -638,7 +638,7 @@ export function CheckoutPage() {
       // Always set loading to false when done
       setPaymentDetailsLoading(false);
     }
-  };
+  }, [planId, toast]);
 
   const handleBillingCancel = () => {
     // Reset editing flag

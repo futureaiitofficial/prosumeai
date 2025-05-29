@@ -117,4 +117,11 @@ declare global {
       role?: string;
     }
   }
+}
+
+// Extend express-session to include custom session data
+declare module 'express-session' {
+  interface SessionData {
+    mathCaptchaAnswer?: number;
+  }
 } 

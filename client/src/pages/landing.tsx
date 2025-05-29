@@ -17,29 +17,31 @@ export default function LandingPage() {
   const [isReady, setIsReady] = useState(false);
   const isButtonsInView = useInView(heroButtonsRef, { once: false });
 
-  // Initialize scroll tracking
+  // Simplified scroll tracking with throttling
   const { scrollYProgress } = useScroll({
     target: containerRef,
     offset: ["start start", "end end"]
   });
   
-  // Improved spring animation for scroll progress - reduced stiffness for smoother motion
+  // Reduced spring animation complexity
   const smoothScrollYProgress = useSpring(scrollYProgress, {
-    stiffness: 50, // Reduced from 100
-    damping: 20, // Reduced from 30
-    restDelta: 0.0005 // Smaller value for more precision
+    stiffness: 100,
+    damping: 30,
+    restDelta: 0.001
   });
 
-  // Effect for tracking scroll position and adding smooth scroll behavior to the document
+  // Optimized scroll handler with throttling
   useEffect(() => {
-    // Add smooth scroll behavior to the entire document
-    document.documentElement.style.scrollBehavior = 'smooth';
+    let ticking = false;
     
     const handleScroll = () => {
-      // Use requestAnimationFrame for better performance
-      requestAnimationFrame(() => {
-        setScrollY(window.scrollY);
-      });
+      if (!ticking) {
+        requestAnimationFrame(() => {
+          setScrollY(window.scrollY);
+          ticking = false;
+        });
+        ticking = true;
+      }
     };
     
     window.addEventListener('scroll', handleScroll, { passive: true });
@@ -47,76 +49,56 @@ export default function LandingPage() {
     
     return () => {
       window.removeEventListener('scroll', handleScroll);
-      // Reset scroll behavior when component unmounts
-      document.documentElement.style.scrollBehavior = 'auto';
     };
   }, []);
 
-  // Optimized parallax values with reduced computation
-  const y1 = useTransform(smoothScrollYProgress, [0, 1], [0, -200]); // Reduced distance
-  const y2 = useTransform(smoothScrollYProgress, [0, 1], [0, -150]); // Reduced distance
-  const y3 = useTransform(smoothScrollYProgress, [0, 1], [0, -80]); // Reduced distance
-  const scale1 = useParallaxScale(smoothScrollYProgress, [0, 0.3], [1, 0.9]); // Less scaling
-  const opacity1 = useParallaxOpacity(smoothScrollYProgress, [0, 0.3], [1, 0]);
-  const opacity2 = useParallaxOpacity(smoothScrollYProgress, [0.1, 0.4], [0, 1]);
-  const heroOpacity = useParallaxOpacity(scrollYProgress, [0, 0.3], [1, 0]);
-  const rotate1 = useParallaxRotate(smoothScrollYProgress, 5); // Reduced rotation
-  const rotate2 = useParallaxRotate(smoothScrollYProgress, -3); // Reduced rotation
+  // Simplified parallax values with reduced computation
+  const heroOpacity = useTransform(scrollYProgress, [0, 0.3], [1, 0]);
+  const heroScale = useTransform(scrollYProgress, [0, 0.3], [1, 0.95]);
 
-  // Calculate dynamic hero size with smaller range
-  const heroMinHeight = useTransform(
-    smoothScrollYProgress,
-    [0, 0.2],
-    ['100vh', '85vh']
-  );
-
-  // Section animations - reduced motion for better performance
+  // Simplified section animations
   const sectionAnimationProps = {
-    initial: { opacity: 0, y: 30 }, // Less movement
+    initial: { opacity: 0, y: 20 },
     whileInView: { opacity: 1, y: 0 },
-    viewport: { once: true, margin: "-50px" }, // Smaller margin
-    transition: { duration: 0.6, ease: [0.25, 0.1, 0.25, 1.0] } // Shorter duration
+    viewport: { once: true, margin: "-50px" },
+    transition: { duration: 0.6, ease: "easeOut" }
   };
 
-  // Hero button animations - simplified for better performance
+  // Optimized button animations
   const buttonVariants = {
-    hidden: { opacity: 0, y: 15 }, // Less movement
+    hidden: { opacity: 0, y: 10 },
     visible: (i: number) => ({
       opacity: 1,
       y: 0,
       transition: {
-        delay: i * 0.15 + 0.4, // Reduced delays
-        duration: 0.6, // Shorter duration
-        ease: [0.25, 0.1, 0.25, 1.0]
+        delay: i * 0.1 + 0.3,
+        duration: 0.5,
+        ease: "easeOut"
       }
     }),
     hover: { 
-      scale: 1.03, // Reduced scale
-      boxShadow: "0 8px 20px -5px rgba(79, 70, 229, 0.4)", // Smaller shadow
+      scale: 1.02,
       transition: { 
         type: "spring", 
-        stiffness: 300, // Reduced stiffness
-        damping: 15
+        stiffness: 400, 
+        damping: 25
       }
     },
-    tap: { 
-      scale: 0.98,
-      boxShadow: "0 5px 10px -5px rgba(79, 70, 229, 0.4)", // Smaller shadow
-    }
+    tap: { scale: 0.98 }
   };
 
-  // Floating blobs animation - simpler and smoother
+  // Simplified floating animation
   const floatingAnimation = {
-    y: [0, -15, 0], // Reduced movement range
+    y: [0, -10, 0],
     transition: {
-      duration: 8, // Slower for smoother effect
+      duration: 6,
       repeat: Infinity,
       repeatType: "reverse" as const,
       ease: "easeInOut"
     }
   };
 
-  // Helper function for smooth scrolling to elements
+  // Helper function for smooth scrolling
   const scrollToElement = (elementId: string) => {
     const element = document.getElementById(elementId);
     if (element) {
@@ -133,37 +115,27 @@ export default function LandingPage() {
 
       {/* Hero Section with Enhanced Gradient Background */}
       <motion.section 
-        className="relative flex items-center justify-center bg-gradient-to-b from-indigo-950 via-indigo-900 to-purple-900 overflow-hidden pt-20"
-        style={{ minHeight: heroMinHeight }}
+        className="relative flex items-center justify-center bg-gradient-to-b from-indigo-950 via-indigo-900 to-purple-900 overflow-hidden pt-20 min-h-screen"
+        style={{ 
+          opacity: heroOpacity,
+          scale: heroScale
+        }}
       >
-        {/* Animated background grid */}
-        <motion.div 
+        {/* Simplified animated background grid */}
+        <div 
           className="absolute inset-0 bg-grid-pattern opacity-10"
           style={{ 
-            scale: scale1,
-            rotate: rotate1
+            transform: `translateY(${scrollY * 0.1}px)`
           }}
-          animate={{ backgroundPosition: ["0px 0px", "100px 100px"] }}
-          transition={{ 
-            duration: 30, // Slower for smoother effect
-            ease: "linear", 
-            repeat: Infinity, 
-            repeatType: "reverse" 
-          }}
-        ></motion.div>
+        ></div>
         
-        {/* Animated floating blobs with enhanced parallax - reduced number of animations */}
+        {/* Simplified floating blobs */}
         <motion.div 
-          className="absolute w-[600px] h-[600px] rounded-full bg-indigo-500/20 blur-3xl -left-64 -top-64"
-          style={{ y: useTransform(smoothScrollYProgress, [0, 1], [0, -100]) }}
+          className="absolute w-[400px] h-[400px] rounded-full bg-indigo-500/20 blur-3xl -left-32 -top-32"
           animate={floatingAnimation}
         ></motion.div>
         <motion.div 
-          className="absolute w-[500px] h-[500px] rounded-full bg-purple-500/20 blur-3xl -right-32 top-64"
-          style={{ 
-            y: useTransform(smoothScrollYProgress, [0, 1], [0, -120]),
-            rotate: rotate2
-          }}
+          className="absolute w-[300px] h-[300px] rounded-full bg-purple-500/20 blur-3xl -right-16 top-32"
           animate={{
             ...floatingAnimation,
             transition: { ...floatingAnimation.transition, delay: 1 }
@@ -241,7 +213,7 @@ export default function LandingPage() {
                 whileTap="tap"
                 className="w-full sm:w-auto flex"
               >
-                <Link href="/pricing">
+                <Link href="/register">
                   <a className="inline-flex items-center justify-center px-8 py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-md transition-all duration-300 shadow-lg shadow-indigo-600/30 w-full h-[56px] sm:w-auto min-w-[180px]">
                     <span className="flex items-center">
                       <span>Get Started Free</span>
@@ -282,26 +254,16 @@ export default function LandingPage() {
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.2 }}
-            style={{ 
-              y: useTransform(smoothScrollYProgress, [0, 0.5], [0, 60]), // Less movement for better performance
-              scale: useTransform(smoothScrollYProgress, [0, 0.5], [1, 0.95]),
-              rotate: useParallaxRotate(smoothScrollYProgress, 1) // Reduced rotation
-            }}
             className="lg:w-1/2 w-full max-w-md lg:max-w-none mx-auto z-10"
           >
             <div className="relative">
               <motion.div 
                 className="absolute -inset-0.5 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-lg blur opacity-30"
                 animate={{ 
-                  opacity: [0.2, 0.3, 0.2], // Reduced range for smoother animation
-                  background: [
-                    "linear-gradient(to right, #6366f1, #a855f7)",
-                    "linear-gradient(to right, #8b5cf6, #ec4899)",
-                    "linear-gradient(to right, #6366f1, #a855f7)"
-                  ]
+                  opacity: [0.2, 0.3, 0.2]
                 }}
                 transition={{ 
-                  duration: 10, // Slower for smoother effect
+                  duration: 8,
                   repeat: Infinity,
                   repeatType: "reverse" 
                 }}
@@ -312,7 +274,7 @@ export default function LandingPage() {
                   scale: 1.01,
                   boxShadow: "0 20px 40px -10px rgba(79, 70, 229, 0.4)"
                 }}
-                transition={{ type: "spring", stiffness: 200, damping: 20 }}
+                transition={{ type: "spring", stiffness: 300, damping: 30 }}
               >
                 <img 
                   src="/images/dashboard-preview.svg" 
@@ -329,13 +291,6 @@ export default function LandingPage() {
             </div>
           </motion.div>
         </div>
-        
-        <motion.div 
-          className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-slate-50 to-transparent"
-          style={{ 
-            opacity: useTransform(smoothScrollYProgress, [0, 0.1], [0, 1]) 
-          }}
-        ></motion.div>
       </motion.section>
 
       {/* Key Features Overview */}
@@ -466,10 +421,8 @@ export default function LandingPage() {
         {...sectionAnimationProps}
       >
         <motion.div 
-          className="absolute -left-64 top-0 w-[500px] h-[500px] rounded-full bg-indigo-100 blur-3xl opacity-50"
-          style={{ 
-            y: useTransform(smoothScrollYProgress, [0.2, 0.4], [50, -50]) // Reduced range
-          }}
+          className="absolute -left-32 top-0 w-[300px] h-[300px] rounded-full bg-indigo-100 blur-3xl opacity-50"
+          animate={floatingAnimation}
         ></motion.div>
         
         <div className="container mx-auto px-4 relative z-10">
@@ -527,11 +480,8 @@ export default function LandingPage() {
                 initial={{ opacity: 0, scale: 0.95 }}
                 whileInView={{ opacity: 1, scale: 1 }}
                 viewport={{ once: true }}
-                transition={{ duration: 0.3 }} // Faster animation
+                transition={{ duration: 0.5 }}
                 className="bg-white p-6 rounded-lg shadow-md border border-slate-100 col-span-2 hover:shadow-xl transition-all duration-300"
-                style={{
-                  y: useTransform(smoothScrollYProgress, [0.25, 0.35], [30, 0]) // Reduced movement
-                }}
               >
                 <h3 className="text-lg font-semibold text-indigo-700 mb-3">ATS Score Optimization</h3>
                 <div className="bg-indigo-50 rounded-lg p-4 mb-3">
@@ -539,7 +489,7 @@ export default function LandingPage() {
                     <span className="text-sm font-medium text-slate-700">Current Score</span>
                     <span className="text-indigo-600 font-bold">85%</span>
                   </div>
-                  <div className="will-change-transform w-full bg-slate-200 rounded-full h-2.5">
+                  <div className="w-full bg-slate-200 rounded-full h-2.5">
                     <div className="bg-indigo-600 h-2.5 rounded-full" style={{ width: '85%' }}></div>
                   </div>
                 </div>
@@ -550,11 +500,8 @@ export default function LandingPage() {
                 initial={{ opacity: 0, scale: 0.95 }}
                 whileInView={{ opacity: 1, scale: 1 }}
                 viewport={{ once: true }}
-                transition={{ duration: 0.3, delay: 0.1 }} // Faster with shorter delay
+                transition={{ duration: 0.5, delay: 0.1 }}
                 className="bg-white p-6 rounded-lg shadow-md border border-slate-100 col-span-2 hover:shadow-xl transition-all duration-300"
-                style={{
-                  y: useTransform(smoothScrollYProgress, [0.25, 0.35], [15, -15]) // Reduced movement
-                }}
               >
                 <h3 className="text-lg font-semibold text-indigo-700 mb-3">Keywords Extracted</h3>
                 <div className="flex flex-wrap gap-2 mb-3">
@@ -562,7 +509,12 @@ export default function LandingPage() {
                   <span className="px-2 py-1 bg-indigo-100 text-indigo-800 rounded-full text-xs font-medium">TypeScript</span>
                   <span className="px-2 py-1 bg-indigo-100 text-indigo-800 rounded-full text-xs font-medium">UI/UX</span>
                   <span className="px-2 py-1 bg-indigo-100 text-indigo-800 rounded-full text-xs font-medium">Frontend</span>
-                  <span className="px-2 py-1 bg-indigo-100 text-indigo-800 rounded-full text-xs font-medium">Responsive</span>
+                  <span className="px-2 py-1 bg-indigo-100 text-indigo-800 rounded-full text-xs font-medium">CSS</span>
+                  <span className="px-2 py-1 bg-indigo-100 text-indigo-800 rounded-full text-xs font-medium">Agile</span>
+                  <span className="px-2 py-1 bg-indigo-100 text-indigo-800 rounded-full text-xs font-medium">Tailwind</span>
+                  <span className="px-2 py-1 bg-indigo-100 text-indigo-800 rounded-full text-xs font-medium">Jest</span>
+                  <span className="px-2 py-1 bg-indigo-100 text-indigo-800 rounded-full text-xs font-medium">Git</span>
+                  <span className="px-2 py-1 bg-indigo-100 text-indigo-800 rounded-full text-xs font-medium">API</span>
                 </div>
                 <p className="text-sm text-slate-600">Intelligent keyword extraction from job descriptions, displayed as a visual word cloud.</p>
               </motion.div>
@@ -591,28 +543,25 @@ export default function LandingPage() {
         {...sectionAnimationProps}
       >
         <motion.div 
-          className="absolute -right-64 -top-64 w-[500px] h-[500px] rounded-full bg-purple-500/20 blur-3xl"
-          style={{ 
-            y: useTransform(smoothScrollYProgress, [0.8, 1], [0, -50]), // Reduced movement
-            x: useTransform(smoothScrollYProgress, [0.8, 1], [0, -30]) // Reduced movement
-          }}
+          className="absolute -right-32 -top-32 w-[300px] h-[300px] rounded-full bg-purple-500/20 blur-3xl"
+          animate={floatingAnimation}
         ></motion.div>
         
         <motion.div 
-          className="absolute -left-64 -bottom-64 w-[600px] h-[600px] rounded-full bg-indigo-500/20 blur-3xl"
-          style={{ 
-            y: useTransform(smoothScrollYProgress, [0.8, 1], [0, 50]), // Reduced movement
-            x: useTransform(smoothScrollYProgress, [0.8, 1], [0, -30]) // Reduced movement
+          className="absolute -left-32 -bottom-32 w-[400px] h-[400px] rounded-full bg-indigo-500/20 blur-3xl"
+          animate={{
+            ...floatingAnimation,
+            transition: { ...floatingAnimation.transition, delay: 2 }
           }}
         ></motion.div>
         
         <div className="container mx-auto px-4 text-center relative z-10">
           <motion.div 
             className="max-w-3xl mx-auto"
-            initial={{ opacity: 0, y: 20 }} // Reduced movement
+            initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            transition={{ duration: 0.5 }} // Faster animation
+            transition={{ duration: 0.6 }}
           >
             <h2 className="text-3xl md:text-4xl font-bold text-white mb-6">
               Begin Your Job Search Journey Today
@@ -628,26 +577,21 @@ export default function LandingPage() {
                 whileTap="tap"
                 className="w-full sm:w-auto flex"
               >
-                <Link href="/pricing">
-                  <a className="inline-flex items-center justify-center px-8 py-4 bg-white hover:bg-indigo-50 text-indigo-600 font-medium text-lg rounded-md transition-all duration-300 shadow-lg shadow-indigo-600/30 w-full h-[56px] sm:w-auto min-w-[180px]">
-                    <motion.span
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ duration: 0.3, delay: 0.4 }} // Faster with shorter delay
-                      className="mr-2"
-                    >
-                      Get Started Free
-                    </motion.span>
-                    <motion.svg 
-                      className="w-5 h-5" 
-                      animate={{ x: [0, 5, 0] }}
-                      transition={{ duration: 2, repeat: Infinity, repeatType: "reverse", repeatDelay: 3 }} // Slower for less jank
-                      fill="none" 
-                      stroke="currentColor" 
-                      viewBox="0 0 24 24"
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path>
-                    </motion.svg>
+                <Link href="/register">
+                  <a className="inline-flex items-center justify-center px-8 py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-md transition-all duration-300 shadow-lg shadow-indigo-600/30 w-full h-[56px] sm:w-auto min-w-[180px]">
+                    <span className="flex items-center">
+                      <span>Get Started Free</span>
+                      <motion.svg 
+                        className="w-5 h-5 ml-2" 
+                        animate={{ x: [0, 5, 0] }}
+                        transition={{ duration: 1.5, repeat: Infinity, repeatType: "reverse", repeatDelay: 2 }}
+                        fill="none" 
+                        stroke="currentColor" 
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path>
+                      </motion.svg>
+                    </span>
                   </a>
                 </Link>
               </motion.div>
@@ -658,47 +602,47 @@ export default function LandingPage() {
                 whileTap="tap"
                 className="w-full sm:w-auto flex"
               >
-                <a href="/pricing" className="inline-flex items-center justify-center px-8 py-4 bg-transparent border-2 border-white hover:bg-white/10 text-white font-medium text-lg rounded-md transition-all duration-300 w-full h-[56px] sm:w-auto min-w-[180px]">
-                  View Pricing
+                <a href="/register" className="inline-flex items-center justify-center px-8 py-4 bg-transparent border-2 border-white hover:bg-white/10 text-white font-medium text-lg rounded-md transition-all duration-300 w-full h-[56px] sm:w-auto min-w-[180px]">
+                  Sign Up
                 </a>
               </motion.div>
             </div>
             <div className="mt-10 md:mt-12 grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-8">
               <motion.div 
-                initial={{ opacity: 0, y: 15 }} // Reduced movement
+                initial={{ opacity: 0, y: 15 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ duration: 0.3 }} // Faster animation
+                transition={{ duration: 0.5 }}
                 className="bg-white/10 backdrop-blur-sm p-4 rounded-lg"
               >
                 <h3 className="text-white font-semibold mb-1">Student-Friendly</h3>
                 <p className="text-indigo-200 text-sm">Affordable pricing for students</p>
               </motion.div>
               <motion.div 
-                initial={{ opacity: 0, y: 15 }} // Reduced movement
+                initial={{ opacity: 0, y: 15 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ duration: 0.3, delay: 0.05 }} // Faster with shorter delay
+                transition={{ duration: 0.5, delay: 0.1 }}
                 className="bg-white/10 backdrop-blur-sm p-4 rounded-lg"
               >
                 <h3 className="text-white font-semibold mb-1">ATS-Optimized</h3>
                 <p className="text-indigo-200 text-sm">Get past the digital gatekeepers</p>
               </motion.div>
               <motion.div 
-                initial={{ opacity: 0, y: 15 }} // Reduced movement
+                initial={{ opacity: 0, y: 15 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ duration: 0.3, delay: 0.1 }} // Faster with shorter delay
+                transition={{ duration: 0.5, delay: 0.2 }}
                 className="bg-white/10 backdrop-blur-sm p-4 rounded-lg"
               >
                 <h3 className="text-white font-semibold mb-1">Secure</h3>
                 <p className="text-indigo-200 text-sm">End-to-end data encryption</p>
               </motion.div>
               <motion.div 
-                initial={{ opacity: 0, y: 15 }} // Reduced movement
+                initial={{ opacity: 0, y: 15 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ duration: 0.3, delay: 0.15 }} // Faster with shorter delay
+                transition={{ duration: 0.5, delay: 0.3 }}
                 className="bg-white/10 backdrop-blur-sm p-4 rounded-lg"
               >
                 <h3 className="text-white font-semibold mb-1">Advanced AI</h3>
@@ -791,7 +735,7 @@ export default function LandingPage() {
                   <span className="text-slate-700 text-sm md:text-base">Multiple export formats with perfect formatting</span>
                 </li>
               </ul>
-              <Link href="/pricing">
+              <Link href="/register">
                 <a className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-md transition-colors inline-block">
                   Create Your Cover Letter
                 </a>
@@ -881,7 +825,7 @@ export default function LandingPage() {
                 <p className="text-indigo-200 mb-6">
                   Our intuitive Kanban board interface gives you a visual overview of all your applications at different stages, helping you stay organized and focused on your job search goals.
                 </p>
-                <Link href="/pricing">
+                <Link href="/register">
                   <a className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-md transition-colors inline-block text-sm">
                     Start Tracking Applications
                   </a>
@@ -950,7 +894,7 @@ export default function LandingPage() {
                 <div className="bg-slate-50 p-4 rounded-lg border border-slate-100">
                   <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center mb-3 text-indigo-600">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2V7a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
                     </svg>
                   </div>
                   <h3 className="text-slate-900 font-semibold mb-1">Data Encryption</h3>
@@ -1119,7 +1063,7 @@ export default function LandingPage() {
                   <span className="text-slate-700 text-sm md:text-base">Smart suggestions to incorporate keywords naturally</span>
                 </li>
               </ul>
-              <Link href="/pricing">
+              <Link href="/register">
                 <a className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-md transition-colors inline-block">
                   Try Keyword Extraction
                 </a>
