@@ -38,6 +38,7 @@ import { registerContactRoutes } from './contact-routes';
 import { SubscriptionService } from "../../services/subscription-service";
 import { fileURLToPath } from "url";
 import { TaxService } from '../../services/tax-service';
+import { registerBlogAdminRoutes } from './admin/blog-routes';
 
 // Get server root path for ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -108,6 +109,9 @@ export function registerAdminRoutes(app: Express) {
   
   // Register Contact routes
   registerContactRoutes(app);
+  
+  // Register Blog admin routes
+  registerBlogAdminRoutes(app);
   
   // Debug endpoint - available without admin check to help troubleshoot admin access
   app.get("/api/admin/debug", (req: Request, res: Response) => {

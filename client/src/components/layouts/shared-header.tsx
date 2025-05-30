@@ -63,6 +63,10 @@ export default function SharedHeader({ isLandingPage = false, forceBackground = 
             Pricing
           </Link>
           
+          <Link href="/blog" className="text-white hover:text-blue-400 transition-colors">
+            Blog
+          </Link>
+          
           <Link href="/about" className="text-white hover:text-blue-400 transition-colors">
             About Us
           </Link>
@@ -137,6 +141,10 @@ export default function SharedHeader({ isLandingPage = false, forceBackground = 
               
               <Link href="/pricing" className="text-white hover:text-blue-400 transition-colors py-2 px-2 border-b border-indigo-800/50 w-full text-left" onClick={handleNavLinkClick}>
                 Pricing
+              </Link>
+              
+              <Link href="/blog" className="text-white hover:text-blue-400 transition-colors py-2 px-2 border-b border-indigo-800/50 w-full text-left" onClick={handleNavLinkClick}>
+                Blog
               </Link>
               
               <Link href="/about" className="text-white hover:text-blue-400 transition-colors py-2 px-2 border-b border-indigo-800/50 w-full text-left" onClick={handleNavLinkClick}>

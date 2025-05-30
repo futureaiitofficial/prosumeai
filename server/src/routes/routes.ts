@@ -18,6 +18,7 @@ import { registerPaymentRoutes } from "./payment-routes";
 import { registerTaxRoutes } from "./tax-routes";
 import { registerTaxAdminRoutes } from "./tax-admin-routes";
 import { registerTwoFactorRoutes, checkTwoFactorRequired } from "./two-factor-routes";
+import { registerPublicBlogRoutes } from "./public-blog-routes";
 import notificationRouter from "./notification-routes";
 import { 
   sessionTimeoutMiddleware, 
@@ -91,6 +92,9 @@ export function registerRoutes(app: express.Express): Server {
   
   // Register notification routes
   app.use('/api', notificationRouter);
+  
+  // Register public blog routes (no authentication required)
+  registerPublicBlogRoutes(app);
   
   // Register other routes by calling their registration functions
   registerAIResumeRoutes(app);

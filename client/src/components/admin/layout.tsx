@@ -31,7 +31,8 @@ import {
   LucideIcon,
   Wrench,
   User,
-  ArrowLeft
+  ArrowLeft,
+  BookOpen
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
@@ -84,6 +85,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
   // Navigation items
   const navigationItems: NavigationItem[] = [
     { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
+    { name: "Blog", href: "/admin/blog", icon: BookOpen },
     { name: "Templates", href: "/admin/templates", icon: FileText },
     { name: "Email Templates", href: "/admin/email-templates", icon: Mail },
     { name: "Users", href: "/admin/users", icon: Users },

@@ -60,6 +60,10 @@ import { NotificationProvider } from '@/contexts/notification-context';
 import NotificationsPage from '@/pages/user/notifications';
 import AdminNotificationsPage from '@/pages/admin/notifications/index';
 import CreateNotificationPage from '@/pages/admin/notifications/create';
+import AdminBlog from '@/pages/admin/blog';
+import BlogNew from '@/pages/admin/blog-new';
+import BlogPage from '@/pages/blog';
+import BlogPostPage from '@/pages/blog-post';
 
 // Session Recovery component to handle network disconnections
 function SessionRecovery() {
@@ -146,6 +150,11 @@ function Router() {
       <Route path="/verify-2fa" component={VerifyTwoFactorPage} />
       <Route path="/terms" component={TermsOfServicePage} />
       <Route path="/privacy" component={PrivacyPolicyPage} />
+      
+      {/* Public Blog Routes */}
+      <Route path="/blog" component={BlogPage} />
+      <Route path="/blog/:slug" component={BlogPostPage} />
+      
       <ProtectedRoute path="/dashboard" component={Dashboard} />
       <ProtectedRoute path="/resumes" component={Resumes} />
       <ProtectedRoute path="/resume-builder" component={ResumeBuilder} />
@@ -190,6 +199,19 @@ function Router() {
       <AdminRoute path="/admin/tax" component={() => <AdminTaxPage />} />
       <AdminRoute path="/admin/notifications" component={AdminNotificationsPage} />
       <AdminRoute path="/admin/notifications/create" component={CreateNotificationPage} />
+      <AdminRoute path="/admin/blog" component={AdminBlog} />
+      <AdminRoute path="/admin/blog/new" component={BlogNew} />
+      <AdminRoute 
+        path="/admin/blog/edit/:id" 
+        component={() => {
+          const BlogEdit = React.lazy(() => import('@/pages/admin/blog-edit'));
+          return (
+            <Suspense fallback={<div>Loading...</div>}>
+              <BlogEdit />
+            </Suspense>
+          );
+        }} 
+      />
       
       <Route component={NotFound} />
     </Switch>

@@ -111,3 +111,9 @@
 [2025-05-29T22:32:05.354Z] Database connection closed
 [2025-05-29T22:32:05.355Z] Closing 1 active connections
 [2025-05-29T22:55:37.180Z] Database connection closed
+[2025-05-30T00:18:27.758Z] Unhandled promise rejection: Error: Build failed with 1 error:
+node_modules/@tinymce/tinymce-react/lib/es2015/main/ts/Utils.js:3:24: ERROR: Could not resolve "@tinymce/miniature"
+[2025-05-30T00:19:37.055Z] Unhandled promise rejection: Error: Build failed with 1 error:
+node_modules/@tinymce/tinymce-react/lib/es2015/main/ts/Utils.js:3:24: ERROR: Could not resolve "@tinymce/miniature"
+[2025-05-30T00:48:15.735Z] Uncaught exception: listen EADDRINUSE: address already in use 0.0.0.0:3000
+[2025-05-30T00:48:22.878Z] Uncaught exception: write EIO
