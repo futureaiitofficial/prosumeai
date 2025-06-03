@@ -670,23 +670,32 @@ export function registerTemplateRoutes(app: express.Express) {
         // Choose the appropriate table
         const table = category === "resume" ? resumeTemplates : coverLetterTemplates;
         
-        // Check if the template already exists
-        const [existingTemplate] = await db
+        // Normalize the name for better matching
+        const normalizedName = name.toLowerCase().trim();
+        
+        // Check if the template already exists by name (case-insensitive)
+        const existingTemplates = await db
           .select()
-          .from(table)
-          .where(eq(table.name, name));
+          .from(table);
+          
+        // Find existing template by normalized name matching
+        const existingTemplate = existingTemplates.find(existing => 
+          existing.name.toLowerCase().trim() === normalizedName ||
+          existing.name.toLowerCase().replace(/\s+/g, '-') === normalizedName.replace(/\s+/g, '-') ||
+          existing.name.toLowerCase().replace(/\s+/g, '') === normalizedName.replace(/\s+/g, '')
+        );
           
         if (existingTemplate) {
           results.push({
             id: existingTemplate.id,
-            name,
+            name: existingTemplate.name, // Use existing name
             action: "existing",
             type: category
           });
           continue;
         }
         
-        // Create a new template
+        // Create a new template only if it doesn't exist
         const [newTemplate] = await db
           .insert(table)
           .values({
@@ -707,9 +716,17 @@ export function registerTemplateRoutes(app: express.Express) {
         });
       }
       
+      // Log the results for debugging
+      console.log("Template initialization results:", results);
+      
       res.json({
         message: "Templates processed successfully",
-        results
+        results: results,
+        summary: {
+          created: results.filter(r => r.action === "created").length,
+          existing: results.filter(r => r.action === "existing").length,
+          total: results.length
+        }
       });
     } catch (error) {
       console.error("Error ensuring templates:", error);
@@ -826,6 +843,104 @@ export function registerTemplateRoutes(app: express.Express) {
     } catch (error) {
       console.error("Error running template image repair:", error);
       return res.status(500).json({ message: "Failed to repair template images" });
+    }
+  });
+
+  // Debug helper endpoint to clean up duplicate templates
+  app.post("/api/admin/templates/cleanup-duplicates", requireAdmin, async (req, res) => {
+    try {
+      console.log("Starting template cleanup process...");
+      
+      const results = {
+        resumeTemplates: { duplicatesRemoved: 0, kept: 0 },
+        coverLetterTemplates: { duplicatesRemoved: 0, kept: 0 }
+      };
+      
+      // Clean up resume templates
+      const resumeTemplatesData = await db.select().from(resumeTemplates);
+      const resumeGroups = new Map();
+      
+      // Group templates by normalized name
+      for (const template of resumeTemplatesData) {
+        const normalizedName = template.name.toLowerCase().trim().replace(/\s+/g, '-');
+        if (!resumeGroups.has(normalizedName)) {
+          resumeGroups.set(normalizedName, []);
+        }
+        resumeGroups.get(normalizedName).push(template);
+      }
+      
+      // Remove duplicates, keeping the first one (lowest ID)
+      for (const [normalizedName, templates] of Array.from(resumeGroups.entries())) {
+        if (templates.length > 1) {
+          console.log(`Found ${templates.length} duplicate resume templates for: ${normalizedName}`);
+          
+          // Sort by ID to keep the oldest one
+          templates.sort((a: any, b: any) => a.id - b.id);
+          const toKeep = templates[0];
+          const toRemove = templates.slice(1);
+          
+          // Remove duplicates
+          for (const duplicate of toRemove) {
+            await db.delete(resumeTemplates).where(eq(resumeTemplates.id, duplicate.id));
+            results.resumeTemplates.duplicatesRemoved++;
+            console.log(`Removed duplicate resume template: ${duplicate.name} (ID: ${duplicate.id})`);
+          }
+          
+          results.resumeTemplates.kept++;
+          console.log(`Kept resume template: ${toKeep.name} (ID: ${toKeep.id})`);
+        } else {
+          results.resumeTemplates.kept++;
+        }
+      }
+      
+      // Clean up cover letter templates
+      const coverLetterTemplatesData = await db.select().from(coverLetterTemplates);
+      const coverLetterGroups = new Map();
+      
+      // Group templates by normalized name
+      for (const template of coverLetterTemplatesData) {
+        const normalizedName = template.name.toLowerCase().trim().replace(/\s+/g, '-');
+        if (!coverLetterGroups.has(normalizedName)) {
+          coverLetterGroups.set(normalizedName, []);
+        }
+        coverLetterGroups.get(normalizedName).push(template);
+      }
+      
+      // Remove duplicates, keeping the first one (lowest ID)
+      for (const [normalizedName, templates] of Array.from(coverLetterGroups.entries())) {
+        if (templates.length > 1) {
+          console.log(`Found ${templates.length} duplicate cover letter templates for: ${normalizedName}`);
+          
+          // Sort by ID to keep the oldest one
+          templates.sort((a: any, b: any) => a.id - b.id);
+          const toKeep = templates[0];
+          const toRemove = templates.slice(1);
+          
+          // Remove duplicates
+          for (const duplicate of toRemove) {
+            await db.delete(coverLetterTemplates).where(eq(coverLetterTemplates.id, duplicate.id));
+            results.coverLetterTemplates.duplicatesRemoved++;
+            console.log(`Removed duplicate cover letter template: ${duplicate.name} (ID: ${duplicate.id})`);
+          }
+          
+          results.coverLetterTemplates.kept++;
+          console.log(`Kept cover letter template: ${toKeep.name} (ID: ${toKeep.id})`);
+        } else {
+          results.coverLetterTemplates.kept++;
+        }
+      }
+      
+      console.log("Template cleanup completed:", results);
+      
+      return res.json({
+        message: "Template cleanup completed successfully",
+        results,
+        totalDuplicatesRemoved: results.resumeTemplates.duplicatesRemoved + results.coverLetterTemplates.duplicatesRemoved,
+        totalTemplatesKept: results.resumeTemplates.kept + results.coverLetterTemplates.kept
+      });
+    } catch (error) {
+      console.error("Error cleaning up duplicate templates:", error);
+      return res.status(500).json({ message: "Failed to cleanup duplicate templates" });
     }
   });
 }

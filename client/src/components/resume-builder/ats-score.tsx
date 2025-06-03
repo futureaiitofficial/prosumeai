@@ -3,10 +3,10 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import * as ProgressPrimitive from "@radix-ui/react-progress";
 import { Badge } from "@/components/ui/badge";
-import { Sparkles, RefreshCw, Check, AlertTriangle, Info, PieChart, ChevronRight, CheckCircle2, XCircle, AlertCircle, ChevronDown, ChevronUp } from "lucide-react";
+import { Sparkles, RefreshCw, Check, AlertTriangle, Info, PieChart, ChevronRight, CheckCircle2, XCircle, AlertCircle, ChevronDown, ChevronUp, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { calculateATSScore } from "@/lib/ats-score";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetTrigger } from "@/components/ui/sheet";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -371,8 +371,8 @@ export default function ATSScore({ resumeData }: ATSScoreProps) {
 
   return (
     <div className="inline-flex items-center">
-      <Sheet open={isOpen} onOpenChange={setIsOpen}>
-        <SheetTrigger asChild>
+      <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <DialogTrigger asChild>
           <Button 
             variant="outline" 
             size="sm" 
@@ -408,187 +408,222 @@ export default function ATSScore({ resumeData }: ATSScoreProps) {
               </>
             )}
           </Button>
-        </SheetTrigger>
-        <SheetContent 
-          side="right" 
-          className="w-full sm:w-3/4 md:w-2/3 lg:w-1/2 overflow-y-auto"
+        </DialogTrigger>
+        <DialogContent 
+          className="max-w-[95vw] w-[95vw] h-[90vh] max-h-[90vh] p-0 overflow-hidden"
         >
-          <SheetHeader className="mb-5">
-            <SheetTitle className="flex items-center gap-2 text-xl">
+          <DialogHeader className="p-6 pb-4 border-b">
+            <DialogTitle className="flex items-center gap-2 text-xl">
               <Info className="w-5 h-5" />
               ATS Compatibility Score
-            </SheetTitle>
-            <SheetDescription>
+            </DialogTitle>
+            <DialogDescription>
               Analysis of how well your resume performs with Applicant Tracking Systems
-            </SheetDescription>
-          </SheetHeader>
+            </DialogDescription>
+          </DialogHeader>
           
           {score ? (
-            <div className="space-y-6">
-              <div className="text-center p-6 bg-gray-50 dark:bg-gray-900/50 rounded-lg">
-                <div className="inline-block relative">
-                  <div className={cn(
-                    "text-5xl font-bold",
-                    getScoreColor(score.generalScore)
-                  )}>
-                    {score.generalScore}%
-                  </div>
-                  <Badge className={cn(
-                    "absolute -top-2 -right-10 border-0", 
-                    score.generalScore >= 80 ? "bg-green-100 text-green-800" : 
-                    score.generalScore >= 60 ? "bg-amber-100 text-amber-800" : 
-                    "bg-red-100 text-red-800"
-                  )}>
-                    {getScoreGrade(score.generalScore)}
-                  </Badge>
+            <div className="flex-1 p-6 overflow-y-auto">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full">
+                {/* Left Column - Main Score and Breakdown */}
+                <div className="space-y-4">
+                  {/* Main Score Display */}
+                  <Card className="p-4 text-center bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20">
+                    <div className="inline-block relative">
+                      <div className={cn(
+                        "text-5xl font-bold mb-2",
+                        getScoreColor(score.generalScore)
+                      )}>
+                        {score.generalScore}%
+                      </div>
+                      <Badge className={cn(
+                        "absolute -top-1 -right-8 border-0 text-xs", 
+                        score.generalScore >= 80 ? "bg-green-100 text-green-800" : 
+                        score.generalScore >= 60 ? "bg-amber-100 text-amber-800" : 
+                        "bg-red-100 text-red-800"
+                      )}>
+                        {getScoreGrade(score.generalScore)}
+                      </Badge>
+                    </div>
+                    <div className="text-sm text-gray-600 dark:text-gray-400">Overall ATS Compatibility</div>
+                  </Card>
+                  
+                  {/* Score Breakdown */}
+                  <Card className="p-4">
+                    <h3 className="font-semibold text-base mb-4">Score Breakdown</h3>
+                    <div className="space-y-3">
+                      {score.feedback.generalFeedback.map((item, index) => (
+                        <div key={index} className="space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span className="font-medium">{item.category}</span>
+                            <span className={cn(
+                              "font-semibold",
+                              getScoreColor(item.score)
+                            )}>{item.score}%</span>
+                          </div>
+                          <Progress 
+                            value={item.score} 
+                            className={cn(
+                              "h-2",
+                              "[&>div]:transition-all",
+                              "[&>div]:bg-current",
+                              getProgressColor(item.score).replace("bg-", "text-")
+                            )}
+                          />
+                          <p className="text-xs text-gray-600 dark:text-gray-400">{item.feedback}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </Card>
+
+                  {/* Recalculate Button */}
+                  <Button 
+                    className="w-full" 
+                    variant="outline"
+                    onClick={() => handleCalculateScore()}
+                    disabled={isCalculating}
+                  >
+                    {isCalculating ? (
+                      <>
+                        <RefreshCw className="h-4 w-4 animate-spin mr-2" />
+                        Updating Analysis...
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="h-4 w-4 mr-2" />
+                        Recalculate Score
+                      </>
+                    )}
+                  </Button>
                 </div>
-                <div className="mt-2 text-sm text-gray-500">Overall ATS Compatibility</div>
-              </div>
-              
-              <div className="space-y-4">
-                <h3 className="font-medium">Score Breakdown</h3>
-                <div className="space-y-3">
-                  {score.feedback.generalFeedback.map((item, index) => (
-                    <div key={index} className="space-y-1">
-                      <div className="flex justify-between text-sm">
-                        <span className="font-medium">{item.category}</span>
-                        <span className={cn(
-                          "font-medium",
-                          getScoreColor(item.score)
-                        )}>{item.score}%</span>
+
+                {/* Middle Column - Job Match Score and Keywords */}
+                <div className="space-y-4">
+                  {score.jobSpecificScore !== undefined && score.feedback.keywordsFeedback && (
+                    <Card className="p-4 bg-blue-50/50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-800">
+                      <div className="flex justify-between items-center mb-3">
+                        <h3 className="font-semibold text-base">Job Match Score</h3>
+                        <span className={cn("font-bold text-xl", getScoreColor(score.jobSpecificScore))}>
+                          {score.jobSpecificScore}%
+                        </span>
                       </div>
                       <Progress 
-                        value={item.score} 
-                        className={cn(
-                          "h-2",
-                          "[&>div]:transition-all",
-                          "[&>div]:bg-current",
-                          getProgressColor(item.score).replace("bg-", "text-")
-                        )}
+                        value={score.jobSpecificScore} 
+                        className={cn("h-2 mb-4", getProgressColor(score.jobSpecificScore))} 
                       />
-                      <p className="text-xs text-gray-500 mt-1">{item.feedback}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              
-              {score.jobSpecificScore !== undefined && score.feedback.keywordsFeedback && (
-                <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg space-y-4">
-                  <div className="flex justify-between items-center">
-                    <h3 className="font-medium">Job Match Score</h3>
-                    <span className={`font-bold text-lg ${getScoreColor(score.jobSpecificScore)}`}>
-                      {score.jobSpecificScore}%
-                    </span>
-                  </div>
-                  <Progress 
-                    value={score.jobSpecificScore} 
-                    className={`h-2 ${getProgressColor(score.jobSpecificScore)}`} 
-                  />
-                  
-                  {/* Display keywords by category */}
-                  {Object.keys(score.feedback.keywordsFeedback.categories).length > 0 && (
-                    <div className="space-y-2 mt-3">
-                      <h4 className="text-sm font-medium">Keyword Match by Category:</h4>
                       
-                      <div className="space-y-2">
-                        {Object.entries(score.feedback.keywordsFeedback.categories)
-                          .filter(([_, categoryData]) => categoryData.all.length > 0)
-                          .map(([category, categoryData]) => (
-                            <Collapsible 
-                              key={category}
-                              open={expandedCategories.includes(category)}
-                              onOpenChange={() => toggleCategory(category)}
-                              className="border rounded-md overflow-hidden"
-                            >
-                              <CollapsibleTrigger asChild>
-                                <div className="flex justify-between items-center p-3 bg-gray-100 dark:bg-gray-800 cursor-pointer">
-                                  <div className="flex items-center gap-2">
-                                    <span className="font-medium text-sm">{formatCategoryName(category)}</span>
-                                    <Badge variant="secondary" className="bg-blue-100 text-blue-800">
-                                      {categoryData.found.length}/{categoryData.all.length}
-                                    </Badge>
-                                  </div>
-                                  {expandedCategories.includes(category) ? 
-                                    <ChevronUp className="h-4 w-4" /> : 
-                                    <ChevronDown className="h-4 w-4" />
-                                  }
-                                </div>
-                              </CollapsibleTrigger>
-                              <CollapsibleContent className="p-3 bg-white dark:bg-gray-950 space-y-3">
-                                {categoryData.found.length > 0 && (
-                                  <div>
-                                    <h5 className="text-xs font-medium text-gray-500 mb-2">Found:</h5>
-                                    <div className="flex flex-wrap gap-2">
-                                      {categoryData.found.map((keyword, i) => (
-                                        <Badge key={i} variant="secondary" className="bg-green-100 text-green-800 hover:bg-green-200 dark:bg-green-900 dark:text-green-200 dark:hover:bg-green-800">
-                                            {keyword}
+                      {/* Keyword Categories */}
+                      {Object.keys(score.feedback.keywordsFeedback.categories).length > 0 && (
+                        <div className="space-y-3">
+                          <h4 className="text-sm font-semibold">Keyword Match by Category:</h4>
+                          
+                          <div className="space-y-2 max-h-80 overflow-y-auto">
+                            {Object.entries(score.feedback.keywordsFeedback.categories)
+                              .filter(([_, categoryData]) => categoryData.all.length > 0)
+                              .map(([category, categoryData]) => (
+                                <Collapsible 
+                                  key={category}
+                                  open={expandedCategories.includes(category)}
+                                  onOpenChange={() => toggleCategory(category)}
+                                  className="border rounded-lg overflow-hidden bg-white dark:bg-gray-950"
+                                >
+                                  <CollapsibleTrigger asChild>
+                                    <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-900 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800">
+                                      <div className="flex items-center gap-2">
+                                        <span className="font-medium text-sm">{formatCategoryName(category)}</span>
+                                        <Badge variant="secondary" className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                                          {categoryData.found.length}/{categoryData.all.length}
                                         </Badge>
-                                      ))}
+                                      </div>
+                                      {expandedCategories.includes(category) ? 
+                                        <ChevronUp className="h-4 w-4" /> : 
+                                        <ChevronDown className="h-4 w-4" />
+                                      }
                                     </div>
-                                  </div>
-                                )}
-                                
-                                {categoryData.missing.length > 0 && (
-                                  <div>
-                                    <h5 className="text-xs font-medium text-gray-500 mb-2">Missing:</h5>
-                                    <div className="flex flex-wrap gap-2">
-                                      {categoryData.missing.map((keyword, i) => (
-                                        <Badge key={i} variant="outline" className="bg-red-50 text-red-800 border-red-200 hover:bg-red-100 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800 dark:hover:bg-red-900/50">
-                                          {keyword}
-                                        </Badge>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
-                              </CollapsibleContent>
-                            </Collapsible>
-                          ))}
-                      </div>
-                      
-                      <div className="mt-4 text-xs text-gray-500 italic">
-                        <p>Keywords are extracted using AI analysis of the job description and organized into relevant categories.</p>
-                      </div>
-                    </div>
+                                  </CollapsibleTrigger>
+                                  <CollapsibleContent className="p-3 space-y-3">
+                                    {categoryData.found.length > 0 && (
+                                      <div>
+                                        <h5 className="text-xs font-medium text-green-700 dark:text-green-400 mb-2">✓ Found Keywords:</h5>
+                                        <div className="flex flex-wrap gap-1">
+                                          {categoryData.found.map((keyword, i) => (
+                                            <Badge key={i} variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 text-xs">
+                                                {keyword}
+                                            </Badge>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+                                    
+                                    {categoryData.missing.length > 0 && (
+                                      <div>
+                                        <h5 className="text-xs font-medium text-red-700 dark:text-red-400 mb-2">✗ Missing Keywords:</h5>
+                                        <div className="flex flex-wrap gap-1">
+                                          {categoryData.missing.map((keyword, i) => (
+                                            <Badge key={i} variant="outline" className="bg-red-50 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800 text-xs">
+                                              {keyword}
+                                            </Badge>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </CollapsibleContent>
+                                </Collapsible>
+                              ))}
+                          </div>
+                        </div>
+                      )}
+                    </Card>
                   )}
                 </div>
-              )}
 
-              {score.feedback.overallSuggestions && score.feedback.overallSuggestions.length > 0 && (
-                <div className="space-y-3">
-                  <h3 className="font-medium">Improvement Suggestions</h3>
-                  <ul className="space-y-2 text-sm">
-                    {score.feedback.overallSuggestions.map((suggestion, i) => (
-                      <li key={i} className="flex items-start p-3 bg-gray-50 dark:bg-gray-900/50 rounded-md">
-                        {score.generalScore >= 80 ? (
-                          <Check className="h-5 w-5 text-green-500 mr-3 mt-0.5 flex-shrink-0" />
-                        ) : (
-                          <AlertTriangle className="h-5 w-5 text-amber-500 mr-3 mt-0.5 flex-shrink-0" />
-                        )}
-                        <span>{suggestion}</span>
-                      </li>
-                    ))}
-                  </ul>
+                {/* Right Column - Improvement Suggestions and Stats */}
+                <div className="space-y-4">
+                  {/* Quick Stats Summary */}
+                  <Card className="p-4 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20">
+                    <h3 className="font-semibold text-base mb-3">Quick Stats</h3>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="text-center p-3 bg-white/60 dark:bg-gray-900/60 rounded-lg">
+                        <div className="font-bold text-2xl text-green-600">{score.feedback.keywordsFeedback?.found.length || 0}</div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400">Keywords Found</div>
+                      </div>
+                      <div className="text-center p-3 bg-white/60 dark:bg-gray-900/60 rounded-lg">
+                        <div className="font-bold text-2xl text-red-600">{score.feedback.keywordsFeedback?.missing.length || 0}</div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400">Keywords Missing</div>
+                      </div>
+                      <div className="text-center p-3 bg-white/60 dark:bg-gray-900/60 rounded-lg">
+                        <div className="font-bold text-2xl text-blue-600">{Object.keys(score.feedback.keywordsFeedback?.categories || {}).length}</div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400">Categories</div>
+                      </div>
+                      <div className="text-center p-3 bg-white/60 dark:bg-gray-900/60 rounded-lg">
+                        <div className="font-bold text-2xl text-orange-600">{score.feedback.generalFeedback.filter(f => f.priority === 'high').length}</div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400">High Priority</div>
+                      </div>
+                    </div>
+                  </Card>
+
+                  {/* Improvement Suggestions */}
+                  {score.feedback.overallSuggestions && score.feedback.overallSuggestions.length > 0 && (
+                    <Card className="p-4 flex-1">
+                      <h3 className="font-semibold text-base mb-3">Improvement Suggestions</h3>
+                      <ScrollArea className="h-64">
+                        <div className="space-y-3 pr-4">
+                          {score.feedback.overallSuggestions.map((suggestion, i) => (
+                            <div key={i} className="flex items-start p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg">
+                              {score.generalScore >= 80 ? (
+                                <Check className="h-4 w-4 text-green-500 mr-3 mt-0.5 flex-shrink-0" />
+                              ) : (
+                                <AlertTriangle className="h-4 w-4 text-amber-500 mr-3 mt-0.5 flex-shrink-0" />
+                              )}
+                              <span className="text-sm leading-relaxed">{suggestion}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </ScrollArea>
+                    </Card>
+                  )}
                 </div>
-              )}
-              
-              <Button 
-                className="w-full mt-6" 
-                variant="outline"
-                onClick={() => handleCalculateScore()}
-                disabled={isCalculating}
-              >
-                {isCalculating ? (
-                  <>
-                    <RefreshCw className="h-4 w-4 animate-spin mr-2" />
-                    Updating Analysis...
-                  </>
-                ) : (
-                  <>
-                    <RefreshCw className="h-4 w-4 mr-2" />
-                    Recalculate Score
-                  </>
-                )}
-              </Button>
+              </div>
             </div>
           ) : (
             <div className="text-center py-10 space-y-4">
@@ -625,8 +660,8 @@ export default function ATSScore({ resumeData }: ATSScoreProps) {
               </div>
             </div>
           )}
-        </SheetContent>
-      </Sheet>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

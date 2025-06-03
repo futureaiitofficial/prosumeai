@@ -22,82 +22,150 @@ export const ModernCoverLetter: React.FC<CoverLetterTemplateProps> = ({
   const companyName = data.companyName || 'Company Name';
   const content = data.content || 'Your cover letter content will appear here...';
 
+  const containerStyle: React.CSSProperties = {
+    width: '210mm',
+    minHeight: '297mm',
+    backgroundColor: '#ffffff',
+    fontFamily: '"Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif',
+    fontSize: '10pt',
+    padding: '15mm 20mm',
+    color: '#1a1a1a',
+    margin: '0',
+    boxSizing: 'border-box',
+    lineHeight: '1.4',
+    position: 'relative'
+  };
+
   return (
     <div
       ref={setRef}
-      className="cover-letter-modern bg-white font-sans w-full text-black"
+      className="cover-letter-modern"
+      style={containerStyle}
     >
-      <div className="border-l-4 border-blue-500 h-full">
-        <div className="px-10 py-10 max-w-[210mm] mx-auto">
-          {/* Header with modern design */}
-          <header className="mb-8 flex flex-col">
-            <h1 className="text-2xl font-bold text-blue-700 mb-2">{fullName}</h1>
-            <div className="text-sm text-gray-600 space-y-0.5 flex flex-col">
-              <p>{email}</p>
-              <p>{phone}</p>
-              <p>{address}</p>
-            </div>
-            <div className="mt-4 text-sm text-gray-600">{formattedDate}</div>
-          </header>
-
-          {/* Recipient */}
-          <section className="mb-8">
-            <p className="font-medium text-blue-700">{recipientName}</p>
-            <p className="text-gray-700">{companyName}</p>
-          </section>
-
-          {/* Content */}
-          <section className="mb-8 whitespace-pre-wrap leading-relaxed text-gray-800">
-            {content}
-          </section>
-
-          {/* Footer */}
-          <footer>
-            <p className="mb-6 text-gray-800">Sincerely,</p>
-            <p className="font-medium text-blue-700">{fullName}</p>
-          </footer>
+      {/* Accent bar */}
+      <div 
+        style={{
+          position: 'absolute',
+          left: '0',
+          top: '0',
+          bottom: '0',
+          width: '4pt',
+          background: 'linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%)',
+          borderRadius: '0 2pt 2pt 0'
+        }}
+      ></div>
+      
+      {/* Header */}
+      <header style={{ borderBottom: '3px solid #2563eb', paddingBottom: '8pt', marginBottom: '12pt' }}>
+        <h1 style={{ fontSize: '20pt', fontWeight: '700', color: '#1e293b', margin: '0 0 4pt 0', letterSpacing: '-0.025em' }}>{fullName}</h1>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8pt', fontSize: '9pt', color: '#64748b', alignItems: 'center' }}>
+          <span>{email}</span>
+          <span style={{ color: '#cbd5e1', fontWeight: '300' }}>•</span>
+          <span>{phone}</span>
+          <span style={{ color: '#cbd5e1', fontWeight: '300' }}>•</span>
+          <span>{address}</span>
         </div>
+      </header>
+
+      {/* Date */}
+      <div style={{ fontSize: '9pt', color: '#64748b', marginTop: '12pt', marginBottom: '12pt' }}>
+        {formattedDate}
       </div>
+
+      {/* Recipient */}
+      <section style={{ marginBottom: '16pt' }}>
+        <p style={{ fontSize: '11pt', fontWeight: '600', color: '#1e293b', margin: '0 0 2pt 0' }}>{recipientName}</p>
+        <p style={{ fontSize: '10pt', color: '#475569', margin: '0' }}>{companyName}</p>
+      </section>
+
+      {/* Content */}
+      <section style={{ marginBottom: '16pt', lineHeight: '1.5', color: '#374151', fontSize: '10pt', whiteSpace: 'pre-wrap' }}>
+        {content}
+      </section>
+
+      {/* Footer */}
+      <footer style={{ marginTop: '16pt' }}>
+        <p style={{ fontSize: '10pt', color: '#374151', marginBottom: '12pt' }}>Sincerely,</p>
+        <p style={{ fontSize: '11pt', fontWeight: '600', color: '#1e293b' }}>{fullName}</p>
+      </footer>
 
       <style jsx global>{`
         ${customCss}
         
-        .cover-letter-modern {
-          font-family: 'Arial', sans-serif;
-        }
-        
+        /* Print optimizations */
         @media print {
           .cover-letter-modern {
-            width: 210mm;
-            height: 297mm;
-            padding: 20mm 0;
+            width: 210mm !important;
+            height: 297mm !important;
+            padding: 15mm 20mm !important;
+            margin: 0 !important;
+            box-shadow: none !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          
+          /* Ensure proper page breaks */
+          .cover-letter-modern header {
+            page-break-inside: avoid;
+            break-inside: avoid;
+          }
+          
+          .cover-letter-modern section {
+            page-break-inside: avoid;
+            break-inside: avoid;
+          }
+          
+          .cover-letter-modern footer {
+            page-break-inside: avoid;
+            break-inside: avoid;
           }
         }
         
-        /* Force text to remain properly colored in all themes */
+        /* Force color preservation */
+        .cover-letter-modern,
         .cover-letter-modern * {
           color: inherit !important;
         }
         
+        /* Specific color overrides */
+        .cover-letter-modern h1 {
+          color: #1e293b !important;
+        }
+        
+        /* Ensure links are properly styled */
+        .cover-letter-modern a {
+          color: #2563eb !important;
+          text-decoration: none !important;
+        }
+        
+        .cover-letter-modern a:hover {
+          text-decoration: underline !important;
+        }
+        
+        /* Responsive adjustments for screen preview */
+        @media screen and (max-width: 768px) {
+          .cover-letter-modern {
+            padding: 10mm 15mm !important;
+            font-size: 9pt !important;
+          }
+          
+          .cover-letter-modern h1 {
+            font-size: 18pt !important;
+          }
+        }
+        
+        /* Ensure text wrapping */
+        .cover-letter-modern p,
+        .cover-letter-modern div {
+          word-wrap: break-word;
+          overflow-wrap: break-word;
+        }
+        
+        /* Optimize spacing for single page */
         .cover-letter-modern {
-          color: #000000 !important;
-        }
-        
-        .cover-letter-modern h1, 
-        .cover-letter-modern .text-blue-700 {
-          color: #1d4ed8 !important;
-        }
-        
-        .cover-letter-modern .text-gray-600 {
-          color: #4b5563 !important;
-        }
-        
-        .cover-letter-modern .text-gray-700 {
-          color: #374151 !important;
-        }
-        
-        .cover-letter-modern .text-gray-800 {
-          color: #1f2937 !important;
+          display: flex;
+          flex-direction: column;
+          justify-content: flex-start;
         }
       `}</style>
     </div>

@@ -14,11 +14,16 @@ export interface ResumeData {
   summary?: string;
   template?: string;
   
-  // Skills
+  // Skills - Legacy support (backward compatibility)
   skills?: string[];
   technicalSkills?: string[];
   softSkills?: string[];
   useSkillCategories?: boolean; // Whether to categorize skills into technical and soft skills
+  
+  // New flexible skill categories system
+  skillCategories?: {
+    [categoryName: string]: string[]; // e.g., { "Programming Languages": ["JavaScript", "Python"], "Tools": ["Docker", "AWS"] }
+  };
   
   // Work Experience
   workExperience?: {

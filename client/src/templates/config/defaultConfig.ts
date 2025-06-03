@@ -130,6 +130,17 @@ export const templateMetadata = {
     tags: ['modern', 'sleek', 'simple'],
     isAtsOptimized: true
   },
+  'modern-sidebar': {
+    id: 'modern-sidebar',
+    name: 'Modern Sidebar',
+    description: 'A clean, modern two-column layout with a sidebar for contact info and skills, perfect for showcasing technical expertise.',
+    version: '1.0.0',
+    thumbnail: '/templates/modern-sidebar.png',
+    isDefault: false,
+    category: 'modern',
+    tags: ['modern', 'sidebar', 'two-column', 'clean', 'technical'],
+    isAtsOptimized: true
+  },
   professional: {
     id: 'professional',
     name: 'Professional',

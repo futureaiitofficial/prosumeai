@@ -183,22 +183,68 @@ export async function enhanceExperienceBullets(
  */
 export async function extractRelevantSkills(
   jobTitle: string,
-  jobDescription: string
-): Promise<{technicalSkills: string[], softSkills: string[]}> {
+  jobDescription: string,
+  customCategories?: string[]
+): Promise<{
+  // Legacy format for backward compatibility
+  technicalSkills: string[], 
+  softSkills: string[],
+  // New flexible format
+  categorizedSkills: {
+    [category: string]: string[]
+  }
+}> {
   try {
     const response = await apiRequest('POST', '/api/resume-ai/extract-skills', {
       jobTitle,
-      jobDescription
+      jobDescription,
+      customCategories: customCategories || []
     });
     
     const data = await response.json();
+    
+    // Return both legacy and new format
     return {
+      // Legacy format
       technicalSkills: data.technicalSkills || [],
-      softSkills: data.softSkills || []
+      softSkills: data.softSkills || [],
+      // New flexible format
+      categorizedSkills: data.categorizedSkills || {
+        "Technical Skills": data.technicalSkills || [],
+        "Soft Skills": data.softSkills || []
+      }
     };
   } catch (error) {
     console.error('Failed to extract relevant skills:', error);
     throw new Error('Could not extract skills. Please try again later.');
+  }
+}
+
+/**
+ * Extract comprehensive skills with multiple categories
+ */
+export async function extractSkillsWithCategories(
+  jobTitle: string,
+  jobDescription: string,
+  customCategories: string[] = []
+): Promise<{
+  [category: string]: string[]
+}> {
+  try {
+    const response = await apiRequest('POST', '/api/resume-ai/extract-skills-comprehensive', {
+      jobTitle,
+      jobDescription,
+      customCategories
+    });
+    
+    const data = await response.json();
+    return data.categorizedSkills || {};
+  } catch (error) {
+    console.error('Failed to extract categorized skills:', error);
+    
+    // Fallback to basic extraction
+    const basicResult = await extractRelevantSkills(jobTitle, jobDescription);
+    return basicResult.categorizedSkills;
   }
 }
 
@@ -251,20 +297,64 @@ export async function calculateATSScore(
  * Generate skills based on just the target job position
  */
 export async function generateSkillsForPosition(
-  jobTitle: string
-): Promise<{technicalSkills: string[], softSkills: string[]}> {
+  jobTitle: string,
+  customCategories?: string[]
+): Promise<{
+  // Legacy format for backward compatibility
+  technicalSkills: string[], 
+  softSkills: string[],
+  // New flexible format
+  categorizedSkills: {
+    [category: string]: string[]
+  }
+}> {
   try {
     const response = await apiRequest('POST', '/api/resume-ai/generate-position-skills', {
-      jobTitle
+      jobTitle,
+      customCategories: customCategories || []
     });
     
     const data = await response.json();
+    
+    // Return both legacy and new format
     return {
+      // Legacy format
       technicalSkills: data.technicalSkills || [],
-      softSkills: data.softSkills || []
+      softSkills: data.softSkills || [],
+      // New flexible format
+      categorizedSkills: data.categorizedSkills || {
+        "Technical Skills": data.technicalSkills || [],
+        "Soft Skills": data.softSkills || []
+      }
     };
   } catch (error) {
     console.error('Failed to generate skills for position:', error);
     throw new Error('Could not generate skills. Please try again later.');
+  }
+}
+
+/**
+ * Generate skills with custom categories
+ */
+export async function generateSkillsWithCategories(
+  jobTitle: string,
+  customCategories: string[] = []
+): Promise<{
+  [category: string]: string[]
+}> {
+  try {
+    const response = await apiRequest('POST', '/api/resume-ai/generate-skills-comprehensive', {
+      jobTitle,
+      customCategories
+    });
+    
+    const data = await response.json();
+    return data.categorizedSkills || {};
+  } catch (error) {
+    console.error('Failed to generate categorized skills:', error);
+    
+    // Fallback to basic generation
+    const basicResult = await generateSkillsForPosition(jobTitle);
+    return basicResult.categorizedSkills;
   }
 }

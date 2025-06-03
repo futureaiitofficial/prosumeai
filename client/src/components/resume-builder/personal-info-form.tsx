@@ -51,8 +51,43 @@ export default function PersonalInfoForm({ data, updateData }: PersonalInfoFormP
     try {
       // Automatically prepend https:// for validation if missing
       const processedUrl = url.startsWith('http') ? url : `https://${url}`;
-      new URL(processedUrl);
+      const urlObj = new URL(processedUrl);
+      
+      // Basic checks for valid URL structure
+      if (!urlObj.hostname || urlObj.hostname.length < 1) {
+        return false;
+      }
+      
+      // Check for at least one dot in hostname (basic domain validation)
+      if (!urlObj.hostname.includes('.')) {
+        return false;
+      }
+      
+      // Check hostname length
+      if (urlObj.hostname.length > 253) {
+        return false;
+      }
+      
       return true;
+    } catch (_) {
+      return false;
+    }
+  };
+
+  const validateLinkedInURL = (url: string) => {
+    if (!url) return true; // Allow empty URLs
+    
+    try {
+      const processedUrl = url.startsWith('http') ? url : `https://${url}`;
+      const urlObj = new URL(processedUrl);
+      
+      // Check if it's a LinkedIn domain
+      const domain = urlObj.hostname.replace(/^www\./, '');
+      if (!domain.includes('linkedin.com')) {
+        return false;
+      }
+      
+      return validateURL(url);
     } catch (_) {
       return false;
     }
@@ -145,9 +180,16 @@ export default function PersonalInfoForm({ data, updateData }: PersonalInfoFormP
         errorMsg = isValid ? '' : 'Invalid phone number';
         break;
       case 'linkedinUrl':
+        isValid = updatedValue === '' || validateLinkedInURL(updatedValue);
+        errorMsg = isValid ? '' : 'Please enter a valid LinkedIn URL (e.g., linkedin.com/in/yourname)';
+        // Ensure URL has http/https prefix for proper linking
+        if (isValid && updatedValue && !updatedValue.startsWith('http')) {
+          updatedValue = `https://${updatedValue}`;
+        }
+        break;
       case 'portfolioUrl':
         isValid = updatedValue === '' || validateURL(updatedValue);
-        errorMsg = isValid ? '' : 'Invalid URL';
+        errorMsg = isValid ? '' : 'Please enter a valid website URL (e.g., www.yoursite.com)';
         // Ensure URL has http/https prefix for proper linking
         if (isValid && updatedValue && !updatedValue.startsWith('http')) {
           updatedValue = `https://${updatedValue}`;
@@ -275,7 +317,7 @@ export default function PersonalInfoForm({ data, updateData }: PersonalInfoFormP
         <Label htmlFor="linkedinUrl">LinkedIn URL</Label>
         <Input
           id="linkedinUrl"
-          placeholder="linkedin.com/in/username"
+          placeholder="linkedin.com/in/yourname"
           value={formatDisplayUrl(data?.linkedinUrl || "")}
           onChange={(e) => {
             const value = e.target.value;
@@ -283,16 +325,24 @@ export default function PersonalInfoForm({ data, updateData }: PersonalInfoFormP
             const urlToSave = value && !value.startsWith('http') ? `https://${value}` : value;
             updateField("linkedinUrl", urlToSave);
           }}
+          className={errors.linkedinUrl ? "border-red-500" : ""}
         />
         {errors.linkedinUrl && <p className="text-red-500 text-xs">{errors.linkedinUrl}</p>}
-        <p className="text-xs text-muted-foreground">Format shown on resume: {data?.linkedinUrl ? formatURL(data.linkedinUrl) : 'linkedin.com/in/username'}</p>
+        <p className="text-xs text-muted-foreground">
+          Example: linkedin.com/in/yourname or https://linkedin.com/in/yourname
+        </p>
+        {data?.linkedinUrl && !errors.linkedinUrl && (
+          <p className="text-xs text-green-600">
+            ✓ Will appear as: {formatURL(data.linkedinUrl)}
+          </p>
+        )}
       </div>
       
       <div className="grid gap-2">
         <Label htmlFor="portfolioUrl">Portfolio/Website URL</Label>
         <Input
           id="portfolioUrl"
-          placeholder="yourwebsite.com"
+          placeholder="www.yourwebsite.com"
           value={formatDisplayUrl(data?.portfolioUrl || "")}
           onChange={(e) => {
             const value = e.target.value;
@@ -300,9 +350,17 @@ export default function PersonalInfoForm({ data, updateData }: PersonalInfoFormP
             const urlToSave = value && !value.startsWith('http') ? `https://${value}` : value;
             updateField("portfolioUrl", urlToSave);
           }}
+          className={errors.portfolioUrl ? "border-red-500" : ""}
         />
         {errors.portfolioUrl && <p className="text-red-500 text-xs">{errors.portfolioUrl}</p>}
-        <p className="text-xs text-muted-foreground">Format shown on resume: {data?.portfolioUrl ? formatURL(data.portfolioUrl) : 'yourwebsite.com'}</p>
+        <p className="text-xs text-muted-foreground">
+          Example: www.yoursite.com or https://github.com/yourusername
+        </p>
+        {data?.portfolioUrl && !errors.portfolioUrl && (
+          <p className="text-xs text-green-600">
+            ✓ Will appear as: {formatURL(data.portfolioUrl)}
+          </p>
+        )}
       </div>
       
       <div className="mt-4 p-3 border rounded-md bg-blue-50 dark:bg-blue-900/20 flex gap-2">

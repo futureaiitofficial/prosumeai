@@ -147,6 +147,73 @@ export default function ProjectsForm({ data, updateData }: ProjectsFormProps) {
     editProject(updatedProject);
   };
 
+  // Helper functions for URL formatting and validation
+  const validateURL = (url: string) => {
+    if (!url) return true; // Allow empty URLs
+    
+    try {
+      // Automatically prepend https:// for validation if missing
+      const processedUrl = url.startsWith('http') ? url : `https://${url}`;
+      const urlObj = new URL(processedUrl);
+      
+      // Basic checks for valid URL structure
+      if (!urlObj.hostname || urlObj.hostname.length < 1) {
+        return false;
+      }
+      
+      // Check for at least one dot in hostname (basic domain validation)
+      if (!urlObj.hostname.includes('.')) {
+        return false;
+      }
+      
+      // Check hostname length
+      if (urlObj.hostname.length > 253) {
+        return false;
+      }
+      
+      return true;
+    } catch (_) {
+      return false;
+    }
+  };
+
+  const formatDisplayUrl = (url: string) => {
+    if (!url) return '';
+    return url.replace(/^https?:\/\//, '');
+  };
+
+  const formatURL = (url: string) => {
+    // Return empty string if URL is empty
+    if (!url) return '';
+    
+    // Add https:// if missing
+    if (!url.startsWith('http')) {
+      url = `https://${url}`;
+    }
+    
+    try {
+      const urlObj = new URL(url);
+      
+      // Remove www. prefix for cleaner display
+      let host = urlObj.hostname;
+      if (host.startsWith('www.')) {
+        host = host.substring(4);
+      }
+      
+      // Truncate paths that are too long
+      const path = urlObj.pathname;
+      let displayPath = path;
+      if (path.length > 15 && path !== '/') {
+        displayPath = path.substring(0, 12) + '...';
+      }
+      
+      // Format the final URL
+      return `${host}${displayPath === '/' ? '' : displayPath}`;
+    } catch (_) {
+      return url;
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center mb-4">
@@ -322,15 +389,31 @@ export default function ProjectsForm({ data, updateData }: ProjectsFormProps) {
                   <div className="grid gap-2">
                     <Label>Project URL</Label>
                     <Input
-                      placeholder="https://github.com/yourusername/project"
-                      value={project.url || ""}
+                      placeholder="github.com/yourusername/project"
+                      value={formatDisplayUrl(project.url || "")}
                       onChange={(e) => {
+                        const value = e.target.value;
+                        // Only add prefix when saving to data, not in the input display
+                        const urlToSave = value && !value.startsWith('http') ? `https://${value}` : value;
                         editProject({
                           ...project,
-                          url: e.target.value
+                          url: urlToSave
                         });
                       }}
                     />
+                    <p className="text-xs text-muted-foreground">
+                      Example: github.com/username/project or yoursite.com/demo
+                    </p>
+                    {project.url && validateURL(project.url) && (
+                      <p className="text-xs text-green-600">
+                        ✓ Will appear as: {formatURL(project.url)}
+                      </p>
+                    )}
+                    {project.url && !validateURL(project.url) && (
+                      <p className="text-xs text-red-500">
+                        Please enter a valid URL (e.g., github.com/username/project)
+                      </p>
+                    )}
                   </div>
                 </div>
               </CardContent>
@@ -470,10 +553,28 @@ export default function ProjectsForm({ data, updateData }: ProjectsFormProps) {
             <div className="grid gap-2">
               <Label>Project URL</Label>
               <Input
-                placeholder="https://github.com/yourusername/project"
-                value={newProject.url || ""}
-                onChange={(e) => setNewProject({ ...newProject, url: e.target.value })}
+                placeholder="github.com/yourusername/project"
+                value={formatDisplayUrl(newProject.url || "")}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  // Only add prefix when saving to data, not in the input display
+                  const urlToSave = value && !value.startsWith('http') ? `https://${value}` : value;
+                  setNewProject({ ...newProject, url: urlToSave });
+                }}
               />
+              <p className="text-xs text-muted-foreground">
+                Example: github.com/username/project or yoursite.com/demo
+              </p>
+              {newProject.url && validateURL(newProject.url) && (
+                <p className="text-xs text-green-600">
+                  ✓ Will appear as: {formatURL(newProject.url)}
+                </p>
+              )}
+              {newProject.url && !validateURL(newProject.url) && (
+                <p className="text-xs text-red-500">
+                  Please enter a valid URL (e.g., github.com/username/project)
+                </p>
+              )}
             </div>
           </div>
           

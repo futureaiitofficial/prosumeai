@@ -110,6 +110,7 @@ export const resumes = pgTable("resumes", {
   technicalSkills: text("technical_skills").array(),
   softSkills: text("soft_skills").array(),
   useSkillCategories: boolean("use_skill_categories").default(false),
+  skillCategories: jsonb("skill_categories"), // New flexible skills categorization
   
   // Additional sections
   certifications: jsonb("certifications"),

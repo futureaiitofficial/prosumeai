@@ -22,7 +22,7 @@ export class ProfessionalTemplate extends BaseTemplate {
     super(metadata, professionalCustomization);
   }
 
-  renderPreview(data: ResumeData): JSX.Element {
+  render(data: ResumeData): JSX.Element {
     console.log("ProfessionalTemplate rendering with data:", data);
     const { colors, fonts } = this.customization;
 
@@ -30,46 +30,42 @@ export class ProfessionalTemplate extends BaseTemplate {
     const useSkillCategories = data.useSkillCategories ?? false;
 
     const containerStyle: React.CSSProperties = {
-      width: '210mm', // A4 width
-      height: 'auto',
-      maxWidth: '100%',
+      width: '210mm',
+      minHeight: '297mm',
       backgroundColor: colors.background || '#ffffff',
       fontFamily: fonts.body || '"Times New Roman", serif',
       fontSize: '9pt',
-      padding: '8mm',
+      padding: '12mm',
       color: colors.text || '#000000',
-      margin: '0 auto', // Center content for preview
+      margin: '0',
       boxSizing: 'border-box',
-      lineHeight: '1.3',
-      overflow: 'visible',
+      lineHeight: '1.2',
       position: 'relative'
     };
 
     const headerStyle: React.CSSProperties = {
       textAlign: 'center',
-      marginBottom: '0.3rem',
+      marginBottom: '6pt',
       width: '100%',
-      display: 'block',
-      pageBreakAfter: 'avoid' // Prevent page break after header
+      display: 'block'
     };
 
     const nameStyle: React.CSSProperties = {
       fontFamily: fonts.heading || '"Times New Roman", serif',
-      fontSize: '1.4rem',
+      fontSize: '18pt',
       fontWeight: 'bold',
       color: '#000000',
-      margin: '0 0 0.2rem 0',
+      margin: '0 0 2pt 0',
       padding: 0,
       textAlign: 'center',
-      lineHeight: '1.3',
+      lineHeight: '1.1',
       display: 'block'
     };
 
     const jobTitleStyle: React.CSSProperties = {
-      fontSize: '1rem',
+      fontSize: '11pt',
       color: colors.secondary || '#000000',
-      marginBottom: '0.4rem',
-      margin: '0 0 0.4rem 0',
+      margin: '0 0 4pt 0',
       padding: 0,
       textAlign: 'center'
     };
@@ -78,66 +74,62 @@ export class ProfessionalTemplate extends BaseTemplate {
       display: 'flex',
       justifyContent: 'center',
       flexWrap: 'wrap',
-      gap: '0.2rem',
-      fontSize: '0.85rem',
-      marginBottom: '0.4rem',
+      gap: '2pt',
+      fontSize: '9pt',
+      marginBottom: '0',
       width: '100%',
       whiteSpace: 'normal',
       wordWrap: 'break-word',
-      lineHeight: '1.3'
+      lineHeight: '1.2'
     };
 
     const contactItemStyle: React.CSSProperties = {
-      padding: '0 0.1rem',
+      padding: '0 2pt',
       position: 'relative',
       display: 'inline-block'
     };
 
     const sectionStyle: React.CSSProperties = {
-      marginBottom: '0.1rem',
+      marginBottom: '2pt',
       width: '100%',
-      display: 'block',
-      pageBreakInside: 'auto'
+      display: 'block'
     };
 
     const sectionHeaderStyle: React.CSSProperties = {
       fontFamily: fonts.heading || '"Times New Roman", serif',
-      fontSize: '1.1rem',
+      fontSize: '11pt',
       fontWeight: 'bold',
       color: '#000000',
-      borderBottom: '2px solid #000000',
-      paddingBottom: '0.2rem',
-      marginBottom: '0.2rem',
-      marginTop: '0.3rem',
+      borderBottom: '1.5pt solid #000000',
+      paddingBottom: '1pt',
+      marginBottom: '2pt',
+      marginTop: '0',
       width: '100%',
       display: 'block',
-      pageBreakBefore: 'auto',
-      pageBreakAfter: 'avoid'
+      textTransform: 'uppercase',
+      letterSpacing: '0.5pt'
     };
 
-    // Style for experience/education items to keep them together if possible
+    // Style for experience/education items - more compact
     const itemStyle: React.CSSProperties = {
-      marginBottom: '0.4rem',
+      marginBottom: '4pt',
       width: '100%', 
-      display: 'block',
-      pageBreakInside: 'avoid' // Try to avoid breaking within an item
+      display: 'block'
     };
 
-    // Style for titles to stay with their content
+    // Style for titles to stay with their content - simplified
     const titleStyle: React.CSSProperties = {
       fontWeight: 'bold', 
-      fontSize: '1rem', 
-      marginBottom: '0.2rem', 
-      margin: '0 0 0.2rem 0', 
-      padding: 0,
-      pageBreakAfter: 'avoid' // Don't break page right after a title
+      fontSize: '10pt', 
+      margin: '0 0 1pt 0', 
+      padding: 0
     };
 
     const mainContentStyle: React.CSSProperties = {
       width: '100%',
       display: 'flex',
       flexDirection: 'column',
-      gap: '0.05rem'
+      gap: '0'
     };
 
     return (
@@ -151,15 +143,15 @@ export class ProfessionalTemplate extends BaseTemplate {
           <div style={contactStyle}>
             {data.email && <span style={contactItemStyle}>{data.email}</span>}
             {data.email && (data.phone || data.city || data.state || data.formattedLinkedinUrl || data.formattedPortfolioUrl) && 
-              <span style={{...contactItemStyle, padding: '0 0.1rem'}}>{data.contactSeparator || "|"}</span>}
+              <span style={{...contactItemStyle, padding: '0 2pt'}}>{data.contactSeparator || "|"}</span>}
             
             {data.phone && <span style={contactItemStyle}>{data.phone}</span>}
             {data.phone && (data.city || data.state || data.formattedLinkedinUrl || data.formattedPortfolioUrl) && 
-              <span style={{...contactItemStyle, padding: '0 0.1rem'}}>{data.contactSeparator || "|"}</span>}
+              <span style={{...contactItemStyle, padding: '0 2pt'}}>{data.contactSeparator || "|"}</span>}
             
             {data.city && data.state && <span style={contactItemStyle}>{`${data.city}, ${data.state}`}</span>}
             {data.city && data.state && (data.formattedLinkedinUrl || data.formattedPortfolioUrl) && 
-              <span style={{...contactItemStyle, padding: '0 0.1rem'}}>{data.contactSeparator || "|"}</span>}
+              <span style={{...contactItemStyle, padding: '0 2pt'}}>{data.contactSeparator || "|"}</span>}
             
             {data.formattedLinkedinUrl && 
               <span style={contactItemStyle}>
@@ -172,7 +164,7 @@ export class ProfessionalTemplate extends BaseTemplate {
                 </a>
               </span>}
             {data.formattedLinkedinUrl && data.formattedPortfolioUrl && 
-              <span style={{...contactItemStyle, padding: '0 0.1rem'}}>{data.contactSeparator || "|"}</span>}
+              <span style={{...contactItemStyle, padding: '0 2pt'}}>{data.contactSeparator || "|"}</span>}
               
             {data.formattedPortfolioUrl && 
               <span style={contactItemStyle}>
@@ -191,43 +183,43 @@ export class ProfessionalTemplate extends BaseTemplate {
           {/* Use the section renderer to respect section order */}
           {renderSections(data, {
             summary: () => data.summary ? (
-              <section style={sectionStyle} className="resume-section summary-section no-break-inside">
-                <h2 style={sectionHeaderStyle} className="no-break-after">Professional Summary</h2>
+              <section style={sectionStyle} className="resume-section summary-section">
+                <h2 style={sectionHeaderStyle}>Professional Summary</h2>
                 <p style={{ 
-                  fontSize: '0.9rem', 
+                  fontSize: '9pt', 
                   lineHeight: '1.3', 
-                  margin: '0.15rem 0 0.4rem 0',
+                  margin: '0 0 0 0',
                   padding: '0',
                   display: 'block'
-                }} className="no-break-inside">{data.summary}</p>
+                }}>{data.summary}</p>
               </section>
             ) : null,
             
             workExperience: () => data.workExperience && data.workExperience.length > 0 ? (
               <section style={sectionStyle} className="resume-section experience-section">
-                <h2 style={sectionHeaderStyle} className="no-break-after">Work Experience</h2>
+                <h2 style={sectionHeaderStyle}>Work Experience</h2>
                 {data.workExperience.map((exp, index) => (
-                  <div key={exp.id || index} style={itemStyle} className="experience-item no-break-inside">
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.2rem', width: '100%' }} className="no-break-after">
+                  <div key={exp.id || index} style={itemStyle} className="experience-item">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1pt', width: '100%' }}>
                       <div style={{ flex: '1 1 70%' }}>
-                        <h3 style={titleStyle} className="no-break-after">{exp.position}</h3>
-                        <h4 style={{ fontSize: '0.9rem', color: colors.secondary || '#4b5563', margin: 0, padding: 0 }} className="no-break-after">{exp.company}{exp.location ? `, ${exp.location}` : ''}</h4>
+                        <h3 style={titleStyle}>{exp.position}</h3>
+                        <h4 style={{ fontSize: '9pt', color: colors.secondary || '#4b5563', margin: 0, padding: 0 }}>{exp.company}{exp.location ? `, ${exp.location}` : ''}</h4>
                       </div>
-                      <div style={{ fontSize: '0.85rem', color: colors.secondary || '#4b5563', textAlign: 'right', marginTop: '0.25rem' }}>
+                      <div style={{ fontSize: '8pt', color: colors.secondary || '#4b5563', textAlign: 'right', marginTop: '0' }}>
                         {exp.startDate} - {exp.current ? 'Present' : exp.endDate}
                       </div>
                     </div>
                     
                     {exp.description && (
-                      <p style={{ fontSize: '0.9rem', marginTop: '0.2rem', lineHeight: '1.3', margin: '0.2rem 0 0.3rem 0', padding: 0 }} className="no-break-inside">{exp.description}</p>
+                      <p style={{ fontSize: '9pt', marginTop: '1pt', lineHeight: '1.3', margin: '1pt 0 2pt 0', padding: 0 }}>{exp.description}</p>
                     )}
                     
                     {exp.achievements && exp.achievements.length > 0 && (
-                      <ul style={{ margin: '0.3rem 0 0.5rem 1.2rem', padding: 0, fontSize: '0.85rem' }} className="achievements-list">
+                      <div style={{ margin: '1pt 0 0 0', padding: 0, fontSize: '8pt' }} className="achievements-list">
                         {exp.achievements.map((achievement, i) => (
-                          <li key={i} style={{ marginBottom: '0.2rem', lineHeight: '1.3' }} className="no-break-inside">{achievement}</li>
+                          <div key={i} style={{ marginBottom: '0.5pt', lineHeight: '1.3' }}>{achievement}</div>
                         ))}
-                      </ul>
+                      </div>
                     )}
                   </div>
                 ))}
@@ -236,49 +228,66 @@ export class ProfessionalTemplate extends BaseTemplate {
             
             education: () => data.education && data.education.length > 0 ? (
               <section style={sectionStyle} className="resume-section education-section">
-                <h2 style={sectionHeaderStyle} className="no-break-after">Education</h2>
+                <h2 style={sectionHeaderStyle}>Education</h2>
                 {data.education.map((edu, index) => (
-                  <div key={edu.id || index} style={itemStyle} className="education-item no-break-inside">
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.2rem', width: '100%' }} className="no-break-after">
+                  <div key={edu.id || index} style={itemStyle} className="education-item">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1pt', width: '100%' }}>
                       <div style={{ flex: '1 1 70%' }}>
-                        <h3 style={titleStyle} className="no-break-after">{edu.degree} {edu.fieldOfStudy ? `in ${edu.fieldOfStudy}` : ''}</h3>
-                        <h4 style={{ fontSize: '0.9rem', color: colors.secondary || '#4b5563', margin: 0, padding: 0 }} className="no-break-after">{edu.institution}</h4>
+                        <h3 style={titleStyle}>{edu.degree} {edu.fieldOfStudy ? `in ${edu.fieldOfStudy}` : ''}</h3>
+                        <h4 style={{ fontSize: '9pt', color: colors.secondary || '#4b5563', margin: 0, padding: 0 }}>{edu.institution}</h4>
                       </div>
-                      <div style={{ fontSize: '0.85rem', color: colors.secondary || '#4b5563', textAlign: 'right', marginTop: '0.25rem' }}>
+                      <div style={{ fontSize: '8pt', color: colors.secondary || '#4b5563', textAlign: 'right', marginTop: '0' }}>
                         {edu.startDate} - {edu.current ? 'Present' : edu.endDate}
                       </div>
                     </div>
                     {edu.description && (
-                      <p style={{ fontSize: '0.9rem', marginTop: '0.2rem', lineHeight: '1.3', margin: '0.2rem 0 0 0', padding: 0 }} className="no-break-inside">{edu.description}</p>
+                      <p style={{ fontSize: '9pt', marginTop: '1pt', lineHeight: '1.3', margin: '1pt 0 0 0', padding: 0 }}>{edu.description}</p>
                     )}
                   </div>
                 ))}
               </section>
             ) : null,
             
-            skills: () => (data.skills?.length > 0 || data.technicalSkills?.length > 0 || data.softSkills?.length > 0) ? (
+            skills: () => (data.skills?.length > 0 || data.technicalSkills?.length > 0 || data.softSkills?.length > 0 || data.skillCategories) ? (
               <section style={sectionStyle} className="resume-section skills-section">
-                <h2 style={sectionHeaderStyle} className="no-break-after">Skills</h2>
-                <div style={{ fontSize: '0.9rem', width: '100%' }} className="skills-content no-break-inside">
-                  {!useSkillCategories && data.skills && data.skills.length > 0 && (
-                    <p style={{ marginBottom: '0.4rem', margin: '0 0 0.4rem 0', padding: 0 }} className="no-break-inside">{data.skills.join(', ')}</p>
-                  )}
-                  {useSkillCategories && (
+                <h2 style={sectionHeaderStyle}>Skills</h2>
+                <div style={{ fontSize: '9pt', width: '100%' }} className="skills-content">
+                  {/* New flexible categories system */}
+                  {useSkillCategories && data.skillCategories && Object.keys(data.skillCategories).length > 0 ? (
+                    Object.entries(data.skillCategories).map(([categoryName, skills]) => (
+                      skills && skills.length > 0 ? (
+                        <div key={categoryName} style={{ marginBottom: '1pt', width: '100%', display: 'block' }} className={`skills-category-${categoryName.toLowerCase().replace(/\s+/g, '-')}`}>
+                          <h3 style={titleStyle}>{categoryName}</h3>
+                          <p style={{ margin: 0, padding: 0 }}>{skills.join(', ')}</p>
+                        </div>
+                      ) : null
+                    ))
+                  ) : (
                     <>
-                      {data.skills && data.skills.length > 0 && (
-                        <p style={{ marginBottom: '0.4rem', margin: '0 0 0.4rem 0', padding: 0 }} className="no-break-inside">General Skills: {data.skills.join(', ')}</p>
+                      {/* Simple mode - all skills in one list */}
+                      {!useSkillCategories && data.skills && data.skills.length > 0 && (
+                        <p style={{ marginBottom: '0', margin: '0', padding: 0 }}>{data.skills.join(', ')}</p>
                       )}
-                      {data.technicalSkills && data.technicalSkills.length > 0 && (
-                        <div style={{ marginBottom: '0.4rem', width: '100%', display: 'block' }} className="technical-skills no-break-inside">
-                          <h3 style={titleStyle} className="no-break-after">Technical Skills</h3>
-                          <p style={{ margin: 0, padding: 0 }}>{data.technicalSkills.join(', ')}</p>
-                        </div>
-                      )}
-                      {data.softSkills && data.softSkills.length > 0 && (
-                        <div style={{ width: '100%', display: 'block' }} className="soft-skills no-break-inside">
-                          <h3 style={titleStyle} className="no-break-after">Soft Skills</h3>
-                          <p style={{ margin: 0, padding: 0 }}>{data.softSkills.join(', ')}</p>
-                        </div>
+                      
+                      {/* Legacy categorized skills */}
+                      {useSkillCategories && (
+                        <>
+                          {data.skills && data.skills.length > 0 && (
+                            <p style={{ marginBottom: '1pt', margin: '0 0 1pt 0', padding: 0 }}>General Skills: {data.skills.join(', ')}</p>
+                          )}
+                          {data.technicalSkills && data.technicalSkills.length > 0 && (
+                            <div style={{ marginBottom: '1pt', width: '100%', display: 'block' }} className="technical-skills">
+                              <h3 style={titleStyle}>Technical Skills</h3>
+                              <p style={{ margin: 0, padding: 0 }}>{data.technicalSkills.join(', ')}</p>
+                            </div>
+                          )}
+                          {data.softSkills && data.softSkills.length > 0 && (
+                            <div style={{ width: '100%', display: 'block' }} className="soft-skills">
+                              <h3 style={titleStyle}>Soft Skills</h3>
+                              <p style={{ margin: 0, padding: 0 }}>{data.softSkills.join(', ')}</p>
+                            </div>
+                          )}
+                        </>
                       )}
                     </>
                   )}
@@ -288,29 +297,29 @@ export class ProfessionalTemplate extends BaseTemplate {
             
             projects: () => data.projects && data.projects.length > 0 ? (
               <section style={sectionStyle} className="resume-section projects-section">
-                <h2 style={sectionHeaderStyle} className="no-break-after">Projects</h2>
+                <h2 style={sectionHeaderStyle}>Projects</h2>
                 {data.projects.map((project, index) => (
-                  <div key={project.id || index} style={itemStyle} className="project-item no-break-inside">
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.2rem', width: '100%' }} className="no-break-after">
+                  <div key={project.id || index} style={itemStyle} className="project-item">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1pt', width: '100%' }}>
                       <div style={{ flex: '1 1 70%' }}>
-                        <h3 style={titleStyle} className="no-break-after">{project.name}</h3>
+                        <h3 style={titleStyle}>{project.name}</h3>
                         {project.technologies && project.technologies.length > 0 && (
-                          <p style={{ fontSize: '0.85rem', color: colors.secondary || '#4b5563', margin: '0 0 0.2rem 0', padding: 0 }} className="no-break-after">
+                          <p style={{ fontSize: '8pt', color: colors.secondary || '#4b5563', margin: '0 0 1pt 0', padding: 0 }}>
                             <strong>Technologies:</strong> {project.technologies.join(', ')}
                           </p>
                         )}
                       </div>
                       {(project.startDate || project.endDate) && (
-                        <div style={{ fontSize: '0.85rem', color: colors.secondary || '#4b5563', textAlign: 'right', marginTop: '0.25rem' }}>
+                        <div style={{ fontSize: '8pt', color: colors.secondary || '#4b5563', textAlign: 'right', marginTop: '0' }}>
                           {project.startDate} - {project.current ? 'Present' : project.endDate}
                         </div>
                       )}
                     </div>
                     {project.description && (
-                      <p style={{ fontSize: '0.9rem', marginTop: '0.2rem', lineHeight: '1.3', margin: '0.2rem 0 0 0', padding: 0 }} className="no-break-inside">{project.description}</p>
+                      <p style={{ fontSize: '9pt', marginTop: '1pt', lineHeight: '1.3', margin: '1pt 0 0 0', padding: 0 }}>{project.description}</p>
                     )}
                     {project.url && (
-                      <p style={{ fontSize: '0.85rem', marginTop: '0.2rem', marginBottom: 0, lineHeight: '1.3' }} className="no-break-inside">
+                      <p style={{ fontSize: '8pt', marginTop: '1pt', marginBottom: 0, lineHeight: '1.3' }}>
                         <strong>URL:</strong> {project.url}
                       </p>
                     )}
@@ -321,33 +330,50 @@ export class ProfessionalTemplate extends BaseTemplate {
             
             publications: () => data.publications && data.publications.length > 0 ? (
               <section style={sectionStyle} className="resume-section publications-section">
-                <h2 style={sectionHeaderStyle} className="no-break-after">Publications</h2>
+                <h2 style={sectionHeaderStyle}>Publications</h2>
                 {data.publications.map((publication, index) => (
-                  <div key={publication.id || index} style={itemStyle} className="publication-item no-break-inside">
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.2rem', width: '100%' }} className="no-break-after">
-                      <div style={{ flex: '1 1 70%' }}>
-                        <h3 style={titleStyle} className="no-break-after">{publication.title}</h3>
-                        <h4 style={{ fontSize: '0.9rem', color: colors.secondary || '#4b5563', margin: 0, padding: 0 }} className="no-break-after">
-                          {publication.publisher}
-                          {publication.authors && ` | ${publication.authors}`}
-                        </h4>
-                      </div>
-                      {publication.publicationDate && (
-                        <div style={{ fontSize: '0.85rem', color: colors.secondary || '#4b5563', textAlign: 'right', marginTop: '0.25rem' }}>
-                          {publication.publicationDate}
-                        </div>
+                  <div key={publication.id || index} style={itemStyle} className="publication-item">
+                    <p style={{ fontSize: '9pt', lineHeight: '1.4', margin: '0', padding: 0, fontStyle: 'normal' }}>
+                      {/* Authors */}
+                      {publication.authors && (
+                        <span style={{ fontWeight: 'bold' }}>
+                          {Array.isArray(publication.authors) ? publication.authors.join(', ') : publication.authors}
+                        </span>
                       )}
-                    </div>
+                      {publication.authors && '. '}
+                      
+                      {/* Publication Date */}
+                      {publication.publicationDate && (
+                        <span>({publication.publicationDate}). </span>
+                      )}
+                      
+                      {/* Title */}
+                      <span style={{ fontStyle: 'italic' }}>{publication.title}</span>
+                      {publication.title && '. '}
+                      
+                      {/* Publisher */}
+                      {publication.publisher && (
+                        <span style={{ fontWeight: 'bold' }}>{publication.publisher}</span>
+                      )}
+                      {publication.publisher && '. '}
+                      
+                      {/* URL */}
+                      {publication.url && (
+                        <a 
+                          href={publication.url} 
+                          target="_blank" 
+                          rel="noopener noreferrer" 
+                          style={{ color: colors.primary || '#000000', textDecoration: 'none' }}
+                        >
+                          {publication.url}
+                        </a>
+                      )}
+                    </p>
                     
+                    {/* Description as a separate paragraph if provided */}
                     {publication.description && (
-                      <p style={{ fontSize: '0.9rem', marginTop: '0.2rem', lineHeight: '1.3', margin: '0.2rem 0 0 0', padding: 0 }} className="no-break-inside">
+                      <p style={{ fontSize: '8pt', marginTop: '1pt', lineHeight: '1.3', margin: '1pt 0 0 0', padding: 0, color: colors.secondary || '#4b5563' }}>
                         {publication.description}
-                      </p>
-                    )}
-                    
-                    {publication.url && (
-                      <p style={{ fontSize: '0.85rem', marginTop: '0.2rem', marginBottom: 0, lineHeight: '1.3' }} className="no-break-inside">
-                        <strong>URL/DOI:</strong> {publication.url}
                       </p>
                     )}
                   </div>
@@ -357,15 +383,15 @@ export class ProfessionalTemplate extends BaseTemplate {
             
             certifications: () => data.certifications && data.certifications.length > 0 ? (
               <section style={sectionStyle} className="resume-section certifications-section">
-                <h2 style={sectionHeaderStyle} className="no-break-after">Certifications</h2>
+                <h2 style={sectionHeaderStyle}>Certifications</h2>
                 {data.certifications.map((cert, index) => (
-                  <div key={cert.id || index} style={itemStyle} className="certification-item no-break-inside">
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.2rem', width: '100%' }} className="no-break-after">
+                  <div key={cert.id || index} style={itemStyle} className="certification-item">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1pt', width: '100%' }}>
                       <div style={{ flex: '1 1 70%' }}>
-                        <h3 style={titleStyle} className="no-break-after">{cert.name}</h3>
-                        <h4 style={{ fontSize: '0.9rem', color: colors.secondary || '#4b5563', margin: 0, padding: 0 }} className="no-break-after">{cert.issuer}</h4>
+                        <h3 style={titleStyle}>{cert.name}</h3>
+                        <h4 style={{ fontSize: '9pt', color: colors.secondary || '#4b5563', margin: 0, padding: 0 }}>{cert.issuer}</h4>
                       </div>
-                      <div style={{ fontSize: '0.85rem', color: colors.secondary || '#4b5563', textAlign: 'right', marginTop: '0.25rem' }}>
+                      <div style={{ fontSize: '8pt', color: colors.secondary || '#4b5563', textAlign: 'right', marginTop: '0' }}>
                         {cert.date} {cert.expires && cert.expiryDate ? `- Expires: ${cert.expiryDate}` : ''}
                       </div>
                     </div>
@@ -377,6 +403,11 @@ export class ProfessionalTemplate extends BaseTemplate {
         </div>
       </div>
     );
+  }
+
+  // Use single render method for both preview and PDF
+  renderPreview(data: ResumeData): JSX.Element {
+    return this.render(data);
   }
 
   async exportToPDF(data: ResumeData): Promise<Blob> {

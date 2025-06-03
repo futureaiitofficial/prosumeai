@@ -120,37 +120,21 @@ export async function generatePDFFromReactElement(
         }
       }
       
-      /* Support for vertical dividers across page breaks - ONLY for Elegant Divider template */
-      [data-template-id="elegant-divider"] .vertical-divider {
-        page-break-inside: auto;
-        break-inside: auto;
-      }
-      
-      /* Better approach for showing dividers on each page - ONLY for Elegant Divider template */
-      @page {
-        size: auto;
-      }
-      
-      /* Add custom divider ONLY for Elegant Divider template */
-      [data-template-id="elegant-divider"] {
+      /* Elegant Divider template - single column layout with horizontal dividers */
+      .elegant-divider-template {
         position: relative;
       }
       
-      [data-template-id="elegant-divider"]::before {
-        content: none;
+      /* Remove any conflicting styles for elegant divider template */
+      .elegant-divider-template .resume-section {
+        page-break-inside: auto;
+        break-inside: auto;
+        margin-bottom: 1pt;
       }
       
-      @media print {
-        [data-template-id="elegant-divider"]::before {
-          content: "";
-          position: fixed;
-          top: 0;
-          left: 32%;
-          height: 100%;
-          width: 1px;
-          background-color: #e5e5e5;
-          z-index: 1000;
-        }
+      /* Ensure dividers display properly */
+      .elegant-divider-template .resume-section h2 + div {
+        margin-bottom: 4pt;
       }
     `;
     

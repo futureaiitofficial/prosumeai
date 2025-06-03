@@ -57,5 +57,29 @@ export const templates: Record<string, TemplateConfig> = {
         sectionSpacing: '1.5rem'
       }
     }
+  },
+  'modern-sidebar': {
+    id: 'modern-sidebar',
+    name: 'Modern Sidebar',
+    description: 'A clean, modern two-column layout with a sidebar for contact info and skills, perfect for showcasing technical expertise.',
+    preview: '/templates/modern-sidebar.png',
+    isAtsOptimized: true,
+    customization: {
+      colors: {
+        primary: '#1e293b',
+        secondary: '#64748b',
+        text: '#475569',
+        background: '#ffffff'
+      },
+      fonts: {
+        heading: 'Inter',
+        body: 'Inter'
+      },
+      spacing: {
+        margins: '1rem',
+        lineHeight: 1.4,
+        sectionSpacing: '2rem'
+      }
+    }
   }
 }; 

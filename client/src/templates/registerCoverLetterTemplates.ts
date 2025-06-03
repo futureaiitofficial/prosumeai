@@ -1,5 +1,6 @@
 import { StandardCoverLetter } from './implementations/cover-letter/StandardCoverLetter';
 import { ModernCoverLetter } from './implementations/cover-letter/ModernCoverLetter';
+import { ProfessionalCoverLetter } from './implementations/cover-letter/ProfessionalCoverLetter';
 
 // Template metadata
 export const coverLetterTemplateMetadata = {
@@ -18,6 +19,14 @@ export const coverLetterTemplateMetadata = {
     version: '1.0.0',
     thumbnail: '/templates/cl-modern.png',
     component: ModernCoverLetter
+  },
+  professional: {
+    id: 'professional',
+    name: 'Professional',
+    description: 'Professional banner design with elegant styling for corporate applications',
+    version: '1.0.0',
+    thumbnail: '/templates/cl-professional.png',
+    component: ProfessionalCoverLetter
   }
 };
 
@@ -25,6 +34,7 @@ export const coverLetterTemplateMetadata = {
 export const coverLetterTemplates = {
   standard: StandardCoverLetter,
   modern: ModernCoverLetter,
+  professional: ProfessionalCoverLetter,
 };
 
 let registered = false;

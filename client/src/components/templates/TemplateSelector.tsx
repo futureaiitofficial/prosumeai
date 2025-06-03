@@ -14,13 +14,10 @@ import {
 } from "@/components/ui/tabs";
 import { Button } from '@/components/ui/button';
 import { useTemplates } from '@/hooks/use-templates';
-import { Loader2, CheckCircle } from 'lucide-react';
-
-type TemplateCategory = {
-  id: string;
-  name: string;
-  templates: TemplateInfo[];
-};
+import { Loader2, CheckCircle, Lock } from 'lucide-react';
+import { TemplateFactory } from '@/templates/core/TemplateFactory';
+import { registerTemplates } from '@/templates/registerTemplates';
+import { coverLetterTemplateMetadata } from '@/templates/registerCoverLetterTemplates';
 
 type TemplateInfo = {
   id: string;
@@ -29,68 +26,90 @@ type TemplateInfo = {
   preview: string;
 };
 
+type TemplateCategory = {
+  id: string;
+  name: string;
+  templates: TemplateInfo[];
+};
+
 interface TemplateSelectorProps {
   type: 'resume' | 'cover-letter';
   onSelect: (templateId: string) => void;
   selectedTemplate?: string;
 }
 
-// Resume template categories and templates
-const resumeCategories: TemplateCategory[] = [
-  {
-    id: 'templates',
-    name: 'Templates',
-    templates: [
-      {
-        id: 'professional',
-        name: 'Professional',
-        description: 'A clean, traditional resume template suitable for most industries',
-        preview: '/images/templates/preview-professional.png'
-      },
-      {
-        id: 'elegant-divider',
-        name: 'Elegant Divider',
-        description: 'Template with elegant dividers and modern layout',
-        preview: '/images/templates/preview-elegant-divider.png'
-      },
-      {
-        id: 'minimalist-ats',
-        name: 'Minimalist ATS',
-        description: 'ATS-friendly minimalist design with clean sections',
-        preview: '/images/templates/preview-minimalist-ats.png'
+/**
+ * Get resume templates dynamically from TemplateFactory
+ */
+const getResumeTemplates = (): TemplateInfo[] => {
+  try {
+    // Ensure templates are registered
+    registerTemplates();
+    
+    // Get template factory instance
+    const factory = TemplateFactory.getInstance();
+    const registeredTypes = factory.getRegisteredTypes();
+    
+    return registeredTypes.map(templateId => {
+      try {
+        const template = factory.getTemplate(templateId);
+        const metadata = template?.metadata;
+        
+        return {
+          id: templateId,
+          name: metadata?.name || templateId.charAt(0).toUpperCase() + templateId.slice(1).replace(/-/g, ' '),
+          description: metadata?.description || `Professional ${templateId.replace(/-/g, ' ')} template`,
+          preview: `/images/templates/preview-${templateId}.png`
+        };
+      } catch (error) {
+        console.error(`Error getting template ${templateId}:`, error);
+        return {
+          id: templateId,
+          name: templateId.charAt(0).toUpperCase() + templateId.slice(1).replace(/-/g, ' '),
+          description: `Professional ${templateId.replace(/-/g, ' ')} template`,
+          preview: `/images/templates/preview-${templateId}.png`
+        };
       }
-    ]
+    });
+  } catch (error) {
+    console.error('Error getting resume templates:', error);
+    return [];
   }
-];
+};
 
-// Cover letter template categories and templates
-const coverLetterCategories: TemplateCategory[] = [
-  {
-    id: 'templates',
-    name: 'Templates',
-    templates: [
-      {
-        id: 'standard',
-        name: 'Standard',
-        description: 'Traditional cover letter format suitable for formal applications',
-        preview: '/images/templates/preview-standard-cover.png'
-      },
-      {
-        id: 'modern',
-        name: 'Modern',
-        description: 'Modern design with contemporary styling for creative roles',
-        preview: '/images/templates/preview-modern-cover.png'
-      }
-    ]
-  }
-];
+/**
+ * Get cover letter templates dynamically from metadata
+ */
+const getCoverLetterTemplates = (): TemplateInfo[] => {
+  return Object.entries(coverLetterTemplateMetadata).map(([templateId, metadata]) => ({
+    id: templateId,
+    name: metadata.name,
+    description: metadata.description,
+    preview: `/images/templates/preview-${templateId}-cover.png`
+  }));
+};
+
+/**
+ * Get template categories dynamically based on type
+ */
+const getTemplateCategories = (type: 'resume' | 'cover-letter'): TemplateCategory[] => {
+  const templates = type === 'resume' ? getResumeTemplates() : getCoverLetterTemplates();
+  
+  return [
+    {
+      id: 'templates',
+      name: 'Templates',
+      templates
+    }
+  ];
+};
 
 export function TemplateSelector({ type, onSelect, selectedTemplate }: TemplateSelectorProps) {
   const [activeCategory, setActiveCategory] = useState('templates');
   const { canUseTemplate, isLoading, error, availableTemplates } = useTemplates(type);
   
   // Get the right categories based on type
-  const categories = type === 'resume' ? resumeCategories : coverLetterCategories;
+  const categories = getTemplateCategories(type);
   
   // Select the first available template if none is selected
   useEffect(() => {

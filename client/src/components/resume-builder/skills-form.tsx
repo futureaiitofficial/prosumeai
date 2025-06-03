@@ -3,9 +3,9 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { X, Sparkles, RefreshCw } from "lucide-react";
+import { X, Sparkles, RefreshCw, Plus, Edit, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { extractRelevantSkills, generateSkillsForPosition } from "@/utils/ai-resume-helpers";
+import { extractRelevantSkills, generateSkillsForPosition, extractSkillsWithCategories, generateSkillsWithCategories } from "@/utils/ai-resume-helpers";
 import {
   Tabs, 
   TabsContent, 
@@ -15,12 +15,20 @@ import {
 import {
   Switch
 } from "@/components/ui/switch";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 interface SkillsFormProps {
   data: {
     skills: string[];
     technicalSkills: string[];
     softSkills: string[];
+    skillCategories: { [categoryName: string]: string[] };
     targetJobTitle?: string;
     jobDescription?: string;
     useSkillCategories?: boolean;
@@ -30,21 +38,49 @@ interface SkillsFormProps {
 
 export default function SkillsForm({ data, updateData }: SkillsFormProps) {
   const { toast } = useToast();
-  const [newGeneralSkill, setNewGeneralSkill] = useState("");
-  const [newTechnicalSkill, setNewTechnicalSkill] = useState("");
-  const [newSoftSkill, setNewSoftSkill] = useState("");
+  const [newSkill, setNewSkill] = useState("");
+  const [categoryInputs, setCategoryInputs] = useState<{ [categoryName: string]: string }>({});
   const [combinedSkills, setCombinedSkills] = useState("");
   const [isExtracting, setIsExtracting] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [activeTab, setActiveTab] = useState("all");
   const [useCategories, setUseCategories] = useState(data.useSkillCategories ?? false);
+  
+  // Category management state
+  const [skillCategories, setSkillCategories] = useState<{ [categoryName: string]: string[] }>({});
+  const [showAddCategoryDialog, setShowAddCategoryDialog] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [editingCategory, setEditingCategory] = useState<string | null>(null);
+  const [editCategoryName, setEditCategoryName] = useState("");
 
-  // Initialize skills from props
+  // Initialize skills from props and migrate legacy data
   useEffect(() => {
-    // Set the categories toggle based on the saved preference
     setUseCategories(data.useSkillCategories ?? false);
     
-    // Set the active tab based on the categories setting
+    // Initialize skill categories - migrate from legacy structure if needed
+    let categories: { [categoryName: string]: string[] } = {};
+    
+    // If user has the new skillCategories structure, use it
+    if (data.skillCategories && Object.keys(data.skillCategories).length > 0) {
+      categories = { ...data.skillCategories };
+    } else {
+      // Migrate from legacy structure
+      if (data.technicalSkills && data.technicalSkills.length > 0) {
+        categories["Technical Skills"] = [...data.technicalSkills];
+      }
+      if (data.softSkills && data.softSkills.length > 0) {
+        categories["Soft Skills"] = [...data.softSkills];
+      }
+      
+      // If no categorized skills but has general skills, create a default category
+      if (Object.keys(categories).length === 0 && data.skills && data.skills.length > 0) {
+        categories["General Skills"] = [...data.skills];
+      }
+    }
+    
+    setSkillCategories(categories);
+    
+    // Set active tab based on categories setting
     if (data.useSkillCategories) {
       setActiveTab("categorized");
     } else {
@@ -55,52 +91,134 @@ export default function SkillsForm({ data, updateData }: SkillsFormProps) {
     if (Array.isArray(data.skills)) {
       setCombinedSkills(data.skills.join(", "));
     }
-  }, [data]); // Re-run when data changes, e.g., when loading a saved resume
+  }, [data]);
+
+  // Get all skills from all categories for the "all skills" view
+  const getAllSkills = (): string[] => {
+    if (!useCategories) {
+      return data.skills || [];
+    }
+    
+    const allSkills: string[] = [];
+    Object.values(skillCategories).forEach(categorySkills => {
+      allSkills.push(...categorySkills);
+    });
+    
+    // Remove duplicates
+    return Array.from(new Set(allSkills));
+  };
 
   // Handle category preference change
   const handleCategoryToggleChange = (checked: boolean) => {
     setUseCategories(checked);
     
-    // If turning off categories, merge all skills into single list but preserve categorization
     if (!checked) {
-      // Store all skills in a single array but preserve the originals in their respective arrays
-      const allSkills = [
-        ...(data.skills || []),
-        ...(data.technicalSkills || []),
-        ...(data.softSkills || [])
-      ].filter((skill, index, self) => self.indexOf(skill) === index); // Remove duplicates
-      
-      // Update skills with combined list but preserve the categorized skills for later
+      // Switching to simple mode - combine all skills
+      const allSkills = getAllSkills();
       updateData({
         skills: allSkills,
-        useSkillCategories: false 
-        // Important: We're not clearing technicalSkills and softSkills arrays
-        // This way we preserve the categorization information
+        useSkillCategories: false
       });
-      
       setCombinedSkills(allSkills.join(", "));
-      
-      // Reset to all skills tab when categories are disabled
       setActiveTab("all");
-    } 
-    // If turning on categories, restore the categorized view
-    else {
-      // Just enable the categories flag - we'll keep existing categorized skills
-      updateData({ useSkillCategories: true });
-      
-      // If no categorized skills exist but we have general skills, we'll keep them as general
-      if ((data.technicalSkills?.length === 0 || !data.technicalSkills) && 
-          (data.softSkills?.length === 0 || !data.softSkills) && 
-          data.skills?.length > 0) {
-        // If we have general skills but no categorized skills, we could potentially
-        // ask the user if they want to auto-categorize their skills here
-      } 
-      
-      // Always switch to categorized view when categories are enabled
+    } else {
+      // Switching to categorized mode
+      updateData({ 
+        useSkillCategories: true,
+        skillCategories: skillCategories
+      });
       setActiveTab("categorized");
     }
   };
 
+  // Add a new skill category
+  const handleAddCategory = () => {
+    if (!newCategoryName.trim()) return;
+    
+    const updatedCategories = {
+      ...skillCategories,
+      [newCategoryName.trim()]: []
+    };
+    
+    setSkillCategories(updatedCategories);
+    updateData({ skillCategories: updatedCategories });
+    setNewCategoryName("");
+    setShowAddCategoryDialog(false);
+    
+    toast({
+      title: "Category Added",
+      description: `"${newCategoryName.trim()}" category has been created.`,
+    });
+  };
+
+  // Rename a category
+  const handleRenameCategory = (oldName: string) => {
+    if (!editCategoryName.trim() || editCategoryName.trim() === oldName) {
+      setEditingCategory(null);
+      setEditCategoryName("");
+      return;
+    }
+    
+    const updatedCategories = { ...skillCategories };
+    updatedCategories[editCategoryName.trim()] = updatedCategories[oldName];
+    delete updatedCategories[oldName];
+    
+    setSkillCategories(updatedCategories);
+    updateData({ skillCategories: updatedCategories });
+    setEditingCategory(null);
+    setEditCategoryName("");
+    
+    toast({
+      title: "Category Renamed",
+      description: `Category renamed to "${editCategoryName.trim()}".`,
+    });
+  };
+
+  // Delete a category
+  const handleDeleteCategory = (categoryName: string) => {
+    const updatedCategories = { ...skillCategories };
+    delete updatedCategories[categoryName];
+    
+    setSkillCategories(updatedCategories);
+    updateData({ skillCategories: updatedCategories });
+    
+    toast({
+      title: "Category Deleted",
+      description: `"${categoryName}" category has been removed.`,
+    });
+  };
+
+  // Add skill to a specific category
+  const handleAddSkillToCategory = (categoryName: string, skill: string) => {
+    if (!skill.trim()) return;
+    
+    const updatedCategories = {
+      ...skillCategories,
+      [categoryName]: [...(skillCategories[categoryName] || []), skill.trim()]
+    };
+    
+    setSkillCategories(updatedCategories);
+    updateData({ skillCategories: updatedCategories });
+    
+    // Clear the input for this specific category
+    setCategoryInputs(prev => ({
+      ...prev,
+      [categoryName]: ""
+    }));
+  };
+
+  // Remove skill from a specific category
+  const handleRemoveSkillFromCategory = (categoryName: string, skillToRemove: string) => {
+    const updatedCategories = {
+      ...skillCategories,
+      [categoryName]: (skillCategories[categoryName] || []).filter(skill => skill !== skillToRemove)
+    };
+    
+    setSkillCategories(updatedCategories);
+    updateData({ skillCategories: updatedCategories });
+  };
+
+  // Handle simple skills (non-categorized)
   const handleCombinedSkillsChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setCombinedSkills(e.target.value);
     const skillsArray = e.target.value
@@ -110,132 +228,31 @@ export default function SkillsForm({ data, updateData }: SkillsFormProps) {
     updateData({ skills: skillsArray });
   };
 
-  const handleAddSkill = (skillType: 'general' | 'technical' | 'soft') => {
-    // Get the correct skill value and setter based on type
-    let skillValue: string;
-    let setSkillValue: React.Dispatch<React.SetStateAction<string>>;
+  const handleAddSimpleSkill = () => {
+    if (!newSkill.trim()) return;
     
-    if (skillType === 'general') {
-      skillValue = newGeneralSkill;
-      setSkillValue = setNewGeneralSkill;
-    } else if (skillType === 'technical') {
-      skillValue = newTechnicalSkill;
-      setSkillValue = setNewTechnicalSkill;
-    } else { // soft
-      skillValue = newSoftSkill;
-      setSkillValue = setNewSoftSkill;
-    }
-    
-    if (skillValue.trim()) {
-      if (skillType === 'general') {
-        const updatedSkills = [...(data.skills || []), skillValue.trim()];
-        updateData({ skills: updatedSkills });
-        setCombinedSkills(updatedSkills.join(", "));
-      } else if (skillType === 'technical') {
-        const updatedTechnicalSkills = [...(data.technicalSkills || []), skillValue.trim()];
-        updateData({ technicalSkills: updatedTechnicalSkills });
-      } else if (skillType === 'soft') {
-        const updatedSoftSkills = [...(data.softSkills || []), skillValue.trim()];
-        updateData({ softSkills: updatedSoftSkills });
-      }
-      setSkillValue("");
-    }
+    const updatedSkills = [...(data.skills || []), newSkill.trim()];
+    updateData({ skills: updatedSkills });
+    setCombinedSkills(updatedSkills.join(", "));
+    setNewSkill("");
   };
 
-  const handleRemoveSkill = (skillToRemove: string, skillType = "all") => {
-    if (skillType === "all") {
-      const updatedSkills = (data.skills || []).filter(
-        skill => skill !== skillToRemove
-      );
-      updateData({ skills: updatedSkills });
-      setCombinedSkills(updatedSkills.join(", "));
-    } else if (skillType === "technical") {
-      const updatedTechnicalSkills = (data.technicalSkills || []).filter(
-        skill => skill !== skillToRemove
-      );
-      updateData({ technicalSkills: updatedTechnicalSkills });
-    } else if (skillType === "soft") {
-      const updatedSoftSkills = (data.softSkills || []).filter(
-        skill => skill !== skillToRemove
-      );
-      updateData({ softSkills: updatedSoftSkills });
-    }
+  const handleRemoveSimpleSkill = (skillToRemove: string) => {
+    const updatedSkills = (data.skills || []).filter(skill => skill !== skillToRemove);
+    updateData({ skills: updatedSkills });
+    setCombinedSkills(updatedSkills.join(", "));
   };
-  
-  // Helper function to merge new skills with existing ones
+
+  // Helper function to merge skills
   const mergeSkills = (existingSkills: string[] = [], newSkills: string[] = []): string[] => {
-    // Create a set from existing skills to track what we already have
     const skillsSet = new Set(existingSkills);
-    
-    // Add new skills if they don't already exist
-    newSkills.forEach(skill => {
-      skillsSet.add(skill);
-    });
-    
-    // Convert back to array
+    newSkills.forEach(skill => skillsSet.add(skill));
     return Array.from(skillsSet);
   };
 
-  // Helper function to standardize capitalization of skills
-  const standardizeCapitalization = (skills: string[]): string[] => {
-    return skills.map(skill => {
-      // Split by spaces and capitalize each word
-      return skill.split(' ')
-        .map(word => {
-          // Skip capitalizing certain connecting words if not at the beginning
-          const lowerCaseWords = ['and', 'or', 'the', 'of', 'in', 'on', 'at', 'to', 'for', 'with', 'by'];
-          if (lowerCaseWords.includes(word.toLowerCase())) {
-            return word.toLowerCase();
-          }
-          
-          // Special cases for technical terms that have specific capitalization
-          const specialCases: {[key: string]: string} = {
-            'javascript': 'JavaScript',
-            'typescript': 'TypeScript',
-            'nodejs': 'Node.js',
-            'node.js': 'Node.js',
-            'react.js': 'React.js',
-            'vue.js': 'Vue.js',
-            'angular.js': 'Angular.js',
-            'php': 'PHP',
-            'html': 'HTML',
-            'css': 'CSS',
-            'api': 'API',
-            'apis': 'APIs',
-            'rest': 'REST',
-            'sql': 'SQL',
-            'nosql': 'NoSQL',
-            'aws': 'AWS',
-            'gcp': 'GCP',
-            'ui': 'UI',
-            'ux': 'UX',
-            'ci/cd': 'CI/CD',
-            'saas': 'SaaS',
-            'paas': 'PaaS',
-            'iaas': 'IaaS',
-            'ai': 'AI',
-            'ml': 'ML',
-            'nlp': 'NLP',
-            'seo': 'SEO',
-            'cro': 'CRO',
-            'crm': 'CRM',
-            'erp': 'ERP',
-          };
-          
-          if (specialCases[word.toLowerCase()]) {
-            return specialCases[word.toLowerCase()];
-          }
-          
-          // Default case - capitalize first letter
-          return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
-        })
-        .join(' ');
-    });
-  };
-
+  // AI Generation with flexible categories
   const handleGenerateSkills = async () => {
     try {
-      // Check if we have the required data
       if (!data.targetJobTitle) {
         toast({
           title: "Missing Information",
@@ -247,68 +264,60 @@ export default function SkillsForm({ data, updateData }: SkillsFormProps) {
       
       setIsGenerating(true);
       
-      const generatedSkills = await generateSkillsForPosition(
-        data.targetJobTitle
-      );
-      
-      // Check if we received any skills
-      if ((!generatedSkills.technicalSkills || generatedSkills.technicalSkills.length === 0) &&
-          (!generatedSkills.softSkills || generatedSkills.softSkills.length === 0)) {
+      if (useCategories && Object.keys(skillCategories).length > 0) {
+        // Generate skills for existing custom categories
+        const categoryNames = Object.keys(skillCategories);
+        const generatedSkills = await generateSkillsWithCategories(data.targetJobTitle, categoryNames);
+        
+        // Merge with existing skills
+        const updatedCategories = { ...skillCategories };
+        Object.keys(generatedSkills).forEach(category => {
+          if (updatedCategories[category]) {
+            updatedCategories[category] = mergeSkills(updatedCategories[category], generatedSkills[category]);
+          } else {
+            updatedCategories[category] = generatedSkills[category];
+          }
+        });
+        
+        setSkillCategories(updatedCategories);
+        updateData({ skillCategories: updatedCategories });
+        
         toast({
-          title: "No Skills Generated",
-          description: "We couldn't generate skills for this position. Please try a more specific job title.",
-          variant: "destructive",
+          title: "Skills Generated",
+          description: `Added skills across ${Object.keys(generatedSkills).length} categories.`,
         });
-        setIsGenerating(false);
-        return;
-      }
-      
-      // Filter out any non-skills that might have been incorrectly generated
-      const filteredTechnicalSkills = standardizeCapitalization(
-        generatedSkills.technicalSkills.filter(skill => isValidSkill(skill))
-      );
-      
-      const filteredSoftSkills = standardizeCapitalization(
-        generatedSkills.softSkills.filter(skill => isValidSkill(skill))
-      );
-      
-      // If using categories, MERGE the categorized skills
-      if (useCategories) {
-        const mergedTechnical = mergeSkills(data.technicalSkills, filteredTechnicalSkills);
-        const mergedSoft = mergeSkills(data.softSkills, filteredSoftSkills);
-        
-        updateData({ 
-          technicalSkills: mergedTechnical,
-          softSkills: mergedSoft,
-          useSkillCategories: true
-        });
-        
-        // Switch to categorized view
-        setActiveTab("categorized");
       } else {
-        // If not using categories, combine all NEW skills with EXISTING skills
-        const existingSkills = data.skills || [];
-        const newSkills = [...filteredTechnicalSkills, ...filteredSoftSkills];
-        const mergedSkills = mergeSkills(existingSkills, newSkills);
+        // Generate skills for default categories or simple mode
+        const generatedSkills = await generateSkillsForPosition(data.targetJobTitle);
         
-        updateData({ 
-          skills: mergedSkills,
-          // Also merge the categorized skills for future use
-          technicalSkills: mergeSkills(data.technicalSkills, filteredTechnicalSkills),
-          softSkills: mergeSkills(data.softSkills, filteredSoftSkills),
-          useSkillCategories: false
+        if (useCategories) {
+          // Create default categories
+          const newCategories = generatedSkills.categorizedSkills;
+          setSkillCategories(newCategories);
+          updateData({ 
+            skillCategories: newCategories,
+            useSkillCategories: true 
+          });
+        } else {
+          // Add to simple skills list
+          const allNewSkills = [
+            ...generatedSkills.technicalSkills,
+            ...generatedSkills.softSkills
+          ];
+          const mergedSkills = mergeSkills(data.skills, allNewSkills);
+          updateData({ skills: mergedSkills });
+          setCombinedSkills(mergedSkills.join(", "));
+        }
+        
+        toast({
+          title: "Skills Generated",
+          description: `Added ${generatedSkills.technicalSkills.length + generatedSkills.softSkills.length} skills.`,
         });
-        setCombinedSkills(mergedSkills.join(", "));
       }
-      
-      toast({
-        title: "Skills Generated",
-        description: `Added ${filteredTechnicalSkills.length} technical skills and ${filteredSoftSkills.length} soft skills for ${data.targetJobTitle}.`,
-      });
     } catch (error) {
       toast({
         title: "Generation Failed",
-        description: "There was an error generating skills for this position. Please try again.",
+        description: "There was an error generating skills. Please try again.",
         variant: "destructive",
       });
       console.error("Skills generation error:", error);
@@ -316,23 +325,13 @@ export default function SkillsForm({ data, updateData }: SkillsFormProps) {
       setIsGenerating(false);
     }
   };
-  
+
   const handleExtractSkills = async () => {
     try {
-      // Check if we have the required data
-      if (!data.targetJobTitle) {
+      if (!data.targetJobTitle || !data.jobDescription) {
         toast({
           title: "Missing Information",
-          description: "Please enter a target job title first.",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      if (!data.jobDescription) {
-        toast({
-          title: "Missing Information",
-          description: "Please enter a job description to extract relevant skills.",
+          description: "Please enter both a target job title and job description.",
           variant: "destructive",
         });
         return;
@@ -340,114 +339,70 @@ export default function SkillsForm({ data, updateData }: SkillsFormProps) {
       
       setIsExtracting(true);
       
-      const extractedSkills = await extractRelevantSkills(
-        data.targetJobTitle,
-        data.jobDescription
-      );
-      
-      // Check if we received any skills
-      if ((!extractedSkills.technicalSkills || extractedSkills.technicalSkills.length === 0) &&
-          (!extractedSkills.softSkills || extractedSkills.softSkills.length === 0)) {
+      if (useCategories && Object.keys(skillCategories).length > 0) {
+        // Extract skills for existing custom categories
+        const categoryNames = Object.keys(skillCategories);
+        const extractedSkills = await extractSkillsWithCategories(
+          data.targetJobTitle, 
+          data.jobDescription, 
+          categoryNames
+        );
+        
+        // Merge with existing skills
+        const updatedCategories = { ...skillCategories };
+        Object.keys(extractedSkills).forEach(category => {
+          if (updatedCategories[category]) {
+            updatedCategories[category] = mergeSkills(updatedCategories[category], extractedSkills[category]);
+          } else {
+            updatedCategories[category] = extractedSkills[category];
+          }
+        });
+        
+        setSkillCategories(updatedCategories);
+        updateData({ skillCategories: updatedCategories });
+        
         toast({
-          title: "No Skills Found",
-          description: "We couldn't find any relevant skills in the job description. Try entering a more detailed job description.",
-          variant: "destructive",
+          title: "Skills Extracted",
+          description: `Extracted skills across ${Object.keys(extractedSkills).length} categories.`,
         });
-        setIsExtracting(false);
-        return;
-      }
-      
-      // Filter out any non-skills that might have been incorrectly extracted
-      const filteredTechnicalSkills = standardizeCapitalization(
-        extractedSkills.technicalSkills.filter(skill => isValidSkill(skill))
-      );
-      
-      const filteredSoftSkills = standardizeCapitalization(
-        extractedSkills.softSkills.filter(skill => isValidSkill(skill))
-      );
-      
-      // If using categories, MERGE the categorized skills
-      if (useCategories) {
-        const mergedTechnical = mergeSkills(data.technicalSkills, filteredTechnicalSkills);
-        const mergedSoft = mergeSkills(data.softSkills, filteredSoftSkills);
-        
-        updateData({ 
-          technicalSkills: mergedTechnical,
-          softSkills: mergedSoft,
-          useSkillCategories: true
-        });
-        
-        // Switch to categorized view
-        setActiveTab("categorized");
       } else {
-        // If not using categories, combine all NEW skills with EXISTING skills
-        const existingSkills = data.skills || [];
-        const newSkills = [...filteredTechnicalSkills, ...filteredSoftSkills];
-        const mergedSkills = mergeSkills(existingSkills, newSkills);
+        // Extract skills for default categories or simple mode
+        const extractedSkills = await extractRelevantSkills(data.targetJobTitle, data.jobDescription);
         
-        updateData({ 
-          skills: mergedSkills,
-          // Also merge the categorized skills for future use
-          technicalSkills: mergeSkills(data.technicalSkills, filteredTechnicalSkills),
-          softSkills: mergeSkills(data.softSkills, filteredSoftSkills),
-          useSkillCategories: false
+        if (useCategories) {
+          // Create default categories
+          const newCategories = extractedSkills.categorizedSkills;
+          setSkillCategories(newCategories);
+          updateData({ 
+            skillCategories: newCategories,
+            useSkillCategories: true 
+          });
+        } else {
+          // Add to simple skills list
+          const allNewSkills = [
+            ...extractedSkills.technicalSkills,
+            ...extractedSkills.softSkills
+          ];
+          const mergedSkills = mergeSkills(data.skills, allNewSkills);
+          updateData({ skills: mergedSkills });
+          setCombinedSkills(mergedSkills.join(", "));
+        }
+        
+        toast({
+          title: "Skills Extracted",
+          description: `Extracted ${extractedSkills.technicalSkills.length + extractedSkills.softSkills.length} skills.`,
         });
-        setCombinedSkills(mergedSkills.join(", "));
       }
-      
-      toast({
-        title: "Skills Extracted",
-        description: `Added ${filteredTechnicalSkills.length} technical skills and ${filteredSoftSkills.length} soft skills from the job description.`,
-      });
     } catch (error) {
       toast({
         title: "Extraction Failed",
-        description: "There was an error extracting skills from the job description. Please try again.",
+        description: "There was an error extracting skills. Please try again.",
         variant: "destructive",
       });
       console.error("Skills extraction error:", error);
     } finally {
       setIsExtracting(false);
     }
-  };
-  
-  // Helper function to validate if an item is a legitimate skill
-  const isValidSkill = (skill: string): boolean => {
-    const lowerSkill = skill.toLowerCase();
-    
-    // Filter out common non-skills markers
-    if (
-      // Too long to be a standard skill
-      skill.split(' ').length > 4 ||
-      
-      // Employment terms and logistical items
-      lowerSkill.includes(' years of experience') ||
-      lowerSkill.includes('degree in') ||
-      lowerSkill.includes('salary') ||
-      lowerSkill.includes('full-time') ||
-      lowerSkill.includes('part-time') ||
-      lowerSkill.includes('remote') ||
-      lowerSkill.includes('hybrid') ||
-      lowerSkill.includes('position') ||
-      lowerSkill.includes('job') ||
-      lowerSkill.includes('location') ||
-      
-      // Generic phrases
-      lowerSkill.includes('ability to') ||
-      lowerSkill.includes('experience with') ||
-      lowerSkill.includes('knowledge of') ||
-      lowerSkill.includes('understanding of') ||
-      
-      // Overly general terms
-      lowerSkill === 'experience' ||
-      lowerSkill === 'skills' ||
-      lowerSkill === 'qualifications' ||
-      lowerSkill === 'requirements'
-    ) {
-      return false;
-    }
-    
-    return true;
   };
 
   return (
@@ -499,7 +454,7 @@ export default function SkillsForm({ data, updateData }: SkillsFormProps) {
               checked={useCategories}
               onCheckedChange={handleCategoryToggleChange}
             />
-            <Label htmlFor="use-categories">Use skill categories</Label>
+            <Label htmlFor="use-categories">Use custom categories</Label>
           </div>
         </div>
       </div>
@@ -508,196 +463,172 @@ export default function SkillsForm({ data, updateData }: SkillsFormProps) {
         <p className="text-sm text-blue-600 dark:text-blue-400 flex items-center">
           <Sparkles className="h-4 w-4 mr-2 text-blue-500" />
           <span>
-            <strong>Pro Tip:</strong> Click "Generate for Position" to get relevant skills based on your target job title, or "Extract from Job" to identify skills from your job description.
+            <strong>New Feature:</strong> Create custom skill categories like "Programming Languages", "Tools", "Software", etc. Toggle "Use custom categories" to organize your skills exactly how you want!
           </span>
         </p>
       </div>
-      
-      <div className="flex items-center justify-between pb-4 border-b border-gray-200 dark:border-gray-700">
-        <div>
-          <p className="text-sm text-gray-500">
-            Organize your skills to showcase your capabilities
-          </p>
-        </div>
-        <div className="flex items-center space-x-2">
-          <Switch 
-            id="use-categories-toggle" 
-            checked={useCategories} 
-            onCheckedChange={handleCategoryToggleChange} 
-          />
-          <Label htmlFor="use-categories-toggle">
-            {useCategories ? "Categories enabled" : "All skills"}
-          </Label>
-        </div>
-      </div>
 
       {useCategories ? (
-        // Categorized skills view
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-1">
-            <TabsTrigger value="categorized">Categorized Skills</TabsTrigger>
-          </TabsList>
-          
-          <TabsContent value="categorized" className="space-y-6">
-            {/* Technical Skills */}
-            <div className="space-y-4">
-              <h3 className="font-medium text-lg">Technical Skills</h3>
-              
-              <div className="flex gap-2">
-                <div className="flex-1">
+        // Custom categorized skills view
+        <div className="space-y-6">
+          <div className="flex justify-between items-center">
+            <h3 className="text-lg font-medium">Custom Skill Categories</h3>
+            <Button 
+              onClick={() => setShowAddCategoryDialog(true)}
+              variant="outline" 
+              size="sm"
+              className="gap-2"
+            >
+              <Plus className="h-4 w-4" />
+              Add Category
+            </Button>
+          </div>
+
+          {Object.keys(skillCategories).length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              <p>No skill categories yet. Click "Add Category" to create your first custom category!</p>
+              <p className="text-sm mt-2">Examples: "Programming Languages", "Tools", "Software", "Frameworks"</p>
+            </div>
+          ) : (
+            Object.entries(skillCategories).map(([categoryName, skills]) => (
+              <div key={categoryName} className="border rounded-lg p-4">
+                <div className="flex justify-between items-center mb-3">
+                  {editingCategory === categoryName ? (
+                    <div className="flex items-center gap-2 flex-1">
+                      <Input
+                        value={editCategoryName}
+                        onChange={(e) => setEditCategoryName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            handleRenameCategory(categoryName);
+                          } else if (e.key === "Escape") {
+                            setEditingCategory(null);
+                            setEditCategoryName("");
+                          }
+                        }}
+                        className="flex-1"
+                        autoFocus
+                      />
+                      <Button 
+                        onClick={() => handleRenameCategory(categoryName)}
+                        size="sm"
+                        variant="outline"
+                      >
+                        Save
+                      </Button>
+                      <Button 
+                        onClick={() => {
+                          setEditingCategory(null);
+                          setEditCategoryName("");
+                        }}
+                        size="sm"
+                        variant="ghost"
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  ) : (
+                    <>
+                      <h4 className="font-medium text-lg">{categoryName}</h4>
+                      <div className="flex gap-2">
+                        <Button
+                          onClick={() => {
+                            setEditingCategory(categoryName);
+                            setEditCategoryName(categoryName);
+                          }}
+                          size="sm"
+                          variant="ghost"
+                          className="gap-1"
+                        >
+                          <Edit className="h-3 w-3" />
+                          Rename
+                        </Button>
+                        <Button
+                          onClick={() => handleDeleteCategory(categoryName)}
+                          size="sm"
+                          variant="ghost"
+                          className="gap-1 text-red-600 hover:text-red-700"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                          Delete
+                        </Button>
+                      </div>
+                    </>
+                  )}
+                </div>
+                
+                <div className="flex gap-2 mb-3">
                   <Input
-                    placeholder="Add a technical skill (e.g., JavaScript, Python)"
-                    value={newTechnicalSkill}
-                    onChange={(e) => setNewTechnicalSkill(e.target.value)}
+                    placeholder={`Add a skill to ${categoryName}`}
+                    value={categoryInputs[categoryName] || ""}
+                    onChange={(e) => setCategoryInputs(prev => ({
+                      ...prev,
+                      [categoryName]: e.target.value
+                    }))}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
                         e.preventDefault();
-                        handleAddSkill('technical');
+                        handleAddSkillToCategory(categoryName, categoryInputs[categoryName] || "");
                       }
                     }}
                   />
-                </div>
-                <Button onClick={() => handleAddSkill('technical')} disabled={!newTechnicalSkill.trim()}>
-                  Add
-                </Button>
-              </div>
-              
-              {data.technicalSkills && data.technicalSkills.length > 0 && (
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {data.technicalSkills.map((skill, index) => (
-                    <div
-                      key={index}
-                      className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 px-3 py-1 rounded-full flex items-center"
-                    >
-                      <span>{skill}</span>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveSkill(skill, "technical")}
-                        className="ml-2 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-            
-            {/* Soft Skills */}
-            <div className="space-y-4">
-              <h3 className="font-medium text-lg">Soft Skills</h3>
-              
-              <div className="flex gap-2">
-                <div className="flex-1">
-                  <Input
-                    placeholder="Add a soft skill (e.g., Communication, Leadership)"
-                    value={newSoftSkill}
-                    onChange={(e) => setNewSoftSkill(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        handleAddSkill('soft');
-                      }
+                  <Button 
+                    onClick={() => {
+                      handleAddSkillToCategory(categoryName, categoryInputs[categoryName] || "");
                     }}
-                  />
+                    disabled={!(categoryInputs[categoryName] || "").trim()}
+                  >
+                    Add
+                  </Button>
                 </div>
-                <Button onClick={() => handleAddSkill('soft')} disabled={!newSoftSkill.trim()}>
-                  Add
-                </Button>
-              </div>
-              
-              {data.softSkills && data.softSkills.length > 0 && (
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {data.softSkills.map((skill, index) => (
-                    <div
-                      key={index}
-                      className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 px-3 py-1 rounded-full flex items-center"
-                    >
-                      <span>{skill}</span>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveSkill(skill, "soft")}
-                        className="ml-2 text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-200"
+                
+                {skills && skills.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {skills.map((skill, index) => (
+                      <div
+                        key={index}
+                        className="bg-primary-100 text-primary-800 dark:bg-primary-900 dark:text-primary-200 px-3 py-1 rounded-full flex items-center"
                       >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-            
-            {/* General Skills */}
-            <div className="space-y-4">
-              <h3 className="font-medium text-lg">General Skills</h3>
-              
-              <div className="flex gap-2">
-                <div className="flex-1">
-                  <Input
-                    placeholder="Add a general skill (e.g., Project Management)"
-                    value={newGeneralSkill}
-                    onChange={(e) => setNewGeneralSkill(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        handleAddSkill('general');
-                      }
-                    }}
-                  />
-                </div>
-                <Button onClick={() => handleAddSkill('general')} disabled={!newGeneralSkill.trim()}>
-                  Add
-                </Button>
+                        <span>{skill}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveSkillFromCategory(categoryName, skill)}
+                          className="ml-2 text-primary-600 dark:text-primary-400 hover:text-primary-800 dark:hover:text-primary-200"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-gray-500 text-sm">No skills in this category yet.</p>
+                )}
               </div>
-              
-              {data.skills && data.skills.length > 0 && (
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {data.skills.map((skill, index) => (
-                    <div
-                      key={index}
-                      className="bg-primary-100 text-primary-800 dark:bg-primary-900 dark:text-primary-200 px-3 py-1 rounded-full flex items-center"
-                    >
-                      <span>{skill}</span>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveSkill(skill)}
-                        className="ml-2 text-primary-600 dark:text-primary-400 hover:text-primary-800 dark:hover:text-primary-200"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </TabsContent>
-        </Tabs>
+            ))
+          )}
+        </div>
       ) : (
-        // Non-categorized view (all skills in one list)
+        // Simple skills view (all skills in one list)
         <div className="space-y-4">
-          {/* Quick add skill input */}
           <div className="flex gap-2">
-            <div className="flex-1">
-              <Input
-                placeholder="Add a skill (e.g., JavaScript, Project Management)"
-                value={newGeneralSkill}
-                onChange={(e) => setNewGeneralSkill(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    handleAddSkill('general');
-                  }
-                }}
-              />
-            </div>
-            <Button onClick={() => handleAddSkill('general')} disabled={!newGeneralSkill.trim()}>
+            <Input
+              placeholder="Add a skill (e.g., JavaScript, Project Management)"
+              value={newSkill}
+              onChange={(e) => setNewSkill(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  handleAddSimpleSkill();
+                }
+              }}
+            />
+            <Button onClick={handleAddSimpleSkill} disabled={!newSkill.trim()}>
               Add
             </Button>
           </div>
 
-          {/* Skills tags display */}
           {data.skills && data.skills.length > 0 && (
-            <div className="flex flex-wrap gap-2 mt-4">
+            <div className="flex flex-wrap gap-2">
               {data.skills.map((skill, index) => (
                 <div
                   key={index}
@@ -706,7 +637,7 @@ export default function SkillsForm({ data, updateData }: SkillsFormProps) {
                   <span>{skill}</span>
                   <button
                     type="button"
-                    onClick={() => handleRemoveSkill(skill)}
+                    onClick={() => handleRemoveSimpleSkill(skill)}
                     className="ml-2 text-primary-600 dark:text-primary-400 hover:text-primary-800 dark:hover:text-primary-200"
                   >
                     <X className="h-3 w-3" />
@@ -716,7 +647,6 @@ export default function SkillsForm({ data, updateData }: SkillsFormProps) {
             </div>
           )}
 
-          {/* Bulk edit textarea */}
           <div className="mt-6">
             <Label htmlFor="skills-textarea">Or edit all skills at once (comma separated)</Label>
             <Textarea
@@ -730,19 +660,80 @@ export default function SkillsForm({ data, updateData }: SkillsFormProps) {
         </div>
       )}
 
-      {/* Skills categories */}
+      {/* Add Category Dialog */}
+      <Dialog open={showAddCategoryDialog} onOpenChange={setShowAddCategoryDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add New Skill Category</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="category-name">Category Name</Label>
+              <Input
+                id="category-name"
+                placeholder="e.g., Programming Languages, Tools, Software"
+                value={newCategoryName}
+                onChange={(e) => setNewCategoryName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleAddCategory();
+                  }
+                }}
+              />
+            </div>
+            <div className="text-sm text-gray-600">
+              <p className="font-medium mb-2">Popular category ideas:</p>
+              <div className="grid grid-cols-2 gap-1 text-xs">
+                <span>• Programming Languages</span>
+                <span>• Frameworks</span>
+                <span>• Tools & Software</span>
+                <span>• Databases</span>
+                <span>• Cloud Platforms</span>
+                <span>• Soft Skills</span>
+                <span>• Methodologies</span>
+                <span>• Certifications</span>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddCategoryDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleAddCategory} disabled={!newCategoryName.trim()}>
+              Add Category
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Skills guidance */}
       <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg mt-6">
-        <h3 className="font-medium mb-3">Skills Tip</h3>
+        <h3 className="font-medium mb-3">Skills Organization Tips</h3>
         <p className="text-sm text-gray-600 dark:text-gray-300 mb-3">
-          Include a diverse mix of these skill types to create a well-rounded resume:
+          {useCategories 
+            ? "Organize your skills into meaningful categories that match your industry and role:"
+            : "Include a diverse mix of skills relevant to your target position:"
+          }
         </p>
-        <ul className="text-sm list-disc list-inside space-y-1 text-gray-600 dark:text-gray-300">
-          <li><span className="font-medium">Technical Skills:</span> Programming languages, tools, software</li>
-          <li><span className="font-medium">Soft Skills:</span> Communication, leadership, problem-solving</li>
-          <li><span className="font-medium">Industry Skills:</span> Skills specific to your field</li>
-        </ul>
+        
+        {useCategories ? (
+          <ul className="text-sm list-disc list-inside space-y-1 text-gray-600 dark:text-gray-300">
+            <li><span className="font-medium">Programming Languages:</span> JavaScript, Python, Java, etc.</li>
+            <li><span className="font-medium">Tools & Platforms:</span> Docker, AWS, Git, etc.</li>
+            <li><span className="font-medium">Frameworks:</span> React, Django, Spring, etc.</li>
+            <li><span className="font-medium">Soft Skills:</span> Leadership, Communication, Problem-solving</li>
+          </ul>
+        ) : (
+          <ul className="text-sm list-disc list-inside space-y-1 text-gray-600 dark:text-gray-300">
+            <li><span className="font-medium">Technical Skills:</span> Programming languages, tools, software</li>
+            <li><span className="font-medium">Soft Skills:</span> Communication, leadership, problem-solving</li>
+            <li><span className="font-medium">Industry Skills:</span> Skills specific to your field</li>
+          </ul>
+        )}
+        
         <p className="text-sm mt-3 text-blue-600 dark:text-blue-400">
-          <span className="font-medium">Pro tip:</span> Click "Extract from Job" to automatically identify relevant skills from the job description.
+          <span className="font-medium">Pro tip:</span> Use "Extract from Job" to automatically identify relevant skills from job descriptions, or "Generate for Position" to get role-specific suggestions.
         </p>
       </div>
     </div>

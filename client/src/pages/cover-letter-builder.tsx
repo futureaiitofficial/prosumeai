@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
-import { Plus, Wand2, FileText, Briefcase, ChevronRight, ArrowLeft, FileEdit, FileDown, Building, Lock, AlertTriangle, Loader2, Sparkles } from "lucide-react";
+import { Plus, Wand2, FileText, Briefcase, ChevronRight, ArrowLeft, FileEdit, FileDown, Building, Lock, AlertTriangle, Loader2, Sparkles, Eye } from "lucide-react";
 import { handleSubscriptionError } from "@/utils/error-handler";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -27,6 +27,11 @@ import { Badge } from "@/components/ui/badge";
 import { coverLetterTemplates as importedTemplates } from "@/templates/registerCoverLetterTemplates";
 import { TokenUsage } from "@/components/ui/token-usage";
 import { useTokenWarning } from "@/hooks/use-token-warning";
+import CoverLetterTemplateSelection from "@/components/resume-builder/cover-letter-template-selection";
+import CoverLetterPreview from "@/components/resume-builder/cover-letter-preview";
+
+// Add Dialog imports
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 // Cover letter creation steps
 type BuilderStep = "template" | "job-details" | "personal-info" | "company-info" | "content" | "export";
@@ -72,12 +77,6 @@ interface CoverLetter {
   isComplete?: boolean | null;
 }
 
-interface TemplateImage {
-  name: string;
-  url: string;
-  size: number;
-}
-
 export default function CoverLetterBuilder() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -90,6 +89,9 @@ export default function CoverLetterBuilder() {
   const [isEditing, setIsEditing] = useState(false);
   const [coverLetterId, setCoverLetterId] = useState<number | null>(null);
   const [isNewCoverLetter, setIsNewCoverLetter] = useState(false);
+  
+  // Add mobile preview state
+  const [showMobilePreview, setShowMobilePreview] = useState(false);
   
   // Form data state
   const [formData, setFormData] = useState({
@@ -245,12 +247,6 @@ export default function CoverLetterBuilder() {
   // Navigate to a specific step
   const goToStep = (step: BuilderStep) => {
     setCurrentStep(step);
-  };
-
-  // Fix the template selection
-  const handleTemplateSelect = (templateId: string) => {
-    // Directly select the template without any premium checks
-    setFormData(prev => ({...prev, template: templateId}));
   };
 
   // Generate content mutation
@@ -766,6 +762,9 @@ export default function CoverLetterBuilder() {
         if (templateName === 'modern') {
           const module = await import('@/templates/implementations/cover-letter/ModernCoverLetter');
           TemplateComponent = module.default;
+        } else if (templateName === 'professional') {
+          const module = await import('@/templates/implementations/cover-letter/ProfessionalCoverLetter');
+          TemplateComponent = module.default;
         } else {
           // Default to standard
           const module = await import('@/templates/implementations/cover-letter/StandardCoverLetter');
@@ -821,7 +820,7 @@ export default function CoverLetterBuilder() {
               print-color-adjust: exact !important;
             }
             
-            .cover-letter-container, .cover-letter-standard, .cover-letter-modern {
+            .cover-letter-container, .cover-letter-standard, .cover-letter-modern, .cover-letter-professional {
               margin: 0;
               padding: 0;
               width: 100%;
@@ -1006,94 +1005,16 @@ export default function CoverLetterBuilder() {
     return <div className="p-4 text-red-500">Template component not available</div>;
   };
 
-  // Fetch template images
-  const { data: templateImages = { images: [] as TemplateImage[] } } = useQuery({
-    queryKey: ["/api/templates/images"],
-    queryFn: async () => {
-      try {
-        const res = await fetch('/api/templates/images');
-        if (!res.ok) {
-          throw new Error('Failed to fetch template images');
-        }
-        const data = await res.json();
-        console.log("Cover letter template images loaded:", data.images?.length || 0);
-        return data;
-      } catch (error) {
-        console.error('Error fetching template images:', error);
-        return { images: [] };
-      }
-    }
-  });
-
-  // Finding a template image by ID
-  const getTemplateImageUrl = (templateId: string) => {
-    // Try to find a matching image by template ID in the filename
-    const matchingImage = templateImages.images.find((img: TemplateImage) => 
-      img.name.includes(templateId) || 
-      img.name.includes(`template-${templateId}`)
-    );
-    
-    if (matchingImage) {
-      return matchingImage.url;
-    }
-    
-    // Try to match a template-X pattern where X is a numeric index
-    const templateIndex = Object.keys(coverLetterTemplateMetadata).indexOf(templateId) + 1;
-    const indexMatchingImage = templateImages.images.find((img: TemplateImage) => 
-      img.name.includes(`template-${templateIndex}`)
-    );
-    
-    if (indexMatchingImage) {
-      return indexMatchingImage.url;
-    }
-    
-    // Default fallback
-    return '/placeholder-image.png';
-  };
-
   // Render step content
   const renderStepContent = () => {
     switch (currentStep) {
       case "template":
         return (
-          <div className="space-y-6">
-            <h2 className="text-xl font-semibold">Select a Template</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              {Object.entries(coverLetterTemplateMetadata).map(([id, template]) => {
-                // Get the image URL for this template
-                const imageUrl = getTemplateImageUrl(id);
-                
-                return (
-                  <Card 
-                    key={id}
-                    className={`cursor-pointer transition-all h-full ${formData.template === id ? 'border-primary border-2 shadow-lg' : 'hover:shadow-md'}`}
-                    onClick={() => handleTemplateSelect(id)}
-                  >
-                    <CardContent className="p-6">
-                      <div className="aspect-[4/5] bg-muted rounded-md mb-4 flex items-center justify-center overflow-hidden">
-                        {imageUrl ? (
-                          <img 
-                            src={imageUrl} 
-                            alt={`${template.name} template`}
-                            className="w-full h-full object-contain"
-                            onError={(e) => {
-                              console.error(`Failed to load image: ${imageUrl}`);
-                              e.currentTarget.src = '/placeholder-image.png';
-                            }}
-                          />
-                        ) : (
-                          <FileText className="h-16 w-16 text-muted-foreground" />
-                        )}
-                      </div>
-                      <h3 className="text-lg font-medium mb-2">{template.name}</h3>
-                      <p className="text-sm text-muted-foreground">
-                        {template.description}
-                      </p>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
+          <div className="space-y-4">
+            <CoverLetterTemplateSelection 
+              selectedTemplate={formData.template} 
+              onChange={(template) => setFormData(prev => ({...prev, template}))} 
+            />
           </div>
         );
       
@@ -1355,9 +1276,29 @@ export default function CoverLetterBuilder() {
                   </CardContent>
                 </Card>
                 
-                <div className="border rounded-md p-4 lg:hidden">
-                  <h3 className="text-lg font-semibold mb-2">Preview</h3>
-                  {renderTemplateComponent()}
+                {/* Cover Letter Preview - same design as resume builder */}
+                <div className="hidden lg:block h-full bg-gradient-to-br from-gray-50 to-gray-100 dark:from-slate-950 dark:to-slate-900 border-l dark:border-slate-800">
+                  <div className="h-full flex flex-col">
+                    <div className="flex-1 overflow-hidden relative">
+                      <div className="absolute inset-0">
+                        <CoverLetterPreview 
+                          data={{
+                            template: formData.template,
+                            title: formData.title,
+                            fullName: personalInfo.fullName,
+                            email: personalInfo.email,
+                            phone: personalInfo.phone,
+                            address: personalInfo.address,
+                            recipientName: companyInfo.recipientName,
+                            companyName: companyInfo.companyName,
+                            jobTitle: jobDetails.jobTitle,
+                            content: formData.content
+                          }} 
+                          hideDownloadButton={true} 
+                        />
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1555,6 +1496,19 @@ export default function CoverLetterBuilder() {
             </div>
           </div>
 
+          {/* Mobile preview button */}
+          <div className="block lg:hidden mb-4">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowMobilePreview(true)}
+              className="w-full"
+            >
+              <Eye className="h-4 w-4 mr-2" />
+              Preview Cover Letter
+            </Button>
+          </div>
+
           {/* Builder content */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-4">
             {/* Form area */}
@@ -1622,12 +1576,52 @@ export default function CoverLetterBuilder() {
             {/* Preview area */}
             <div className="bg-card border rounded-lg shadow-sm h-[842px] w-full max-w-[595px] overflow-hidden hidden lg:block dark:border-slate-800">
               <div className="h-full w-full overflow-auto">
-                {renderTemplateComponent()}
+                <CoverLetterPreview 
+                  data={{
+                    template: formData.template,
+                    title: formData.title,
+                    fullName: personalInfo.fullName,
+                    email: personalInfo.email,
+                    phone: personalInfo.phone,
+                    address: personalInfo.address,
+                    recipientName: companyInfo.recipientName,
+                    companyName: companyInfo.companyName,
+                    jobTitle: jobDetails.jobTitle,
+                    content: formData.content
+                  }} 
+                  hideDownloadButton={true} 
+                />
               </div>
             </div>
           </div>
         </div>
       </div>
+      
+      {/* Mobile Preview Dialog */}
+      <Dialog open={showMobilePreview} onOpenChange={setShowMobilePreview}>
+        <DialogContent className="max-w-full h-[90vh] p-0">
+          <DialogHeader className="px-4 py-2 border-b">
+            <DialogTitle>Cover Letter Preview</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-auto">
+            <CoverLetterPreview 
+              data={{
+                template: formData.template,
+                title: formData.title,
+                fullName: personalInfo.fullName,
+                email: personalInfo.email,
+                phone: personalInfo.phone,
+                address: personalInfo.address,
+                recipientName: companyInfo.recipientName,
+                companyName: companyInfo.companyName,
+                jobTitle: jobDetails.jobTitle,
+                content: formData.content
+              }} 
+              hideDownloadButton={false} 
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
       
       {/* Add the token warning dialog */}
       <TokenWarningDialog />

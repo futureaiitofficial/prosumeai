@@ -9,6 +9,7 @@ interface ResumeData {
   softSkills?: string[];
   projects?: any[];
   certifications?: any[];
+  publications?: any[];
   useSkillCategories?: boolean;
   sectionOrder?: string[];
 }
@@ -20,6 +21,7 @@ interface SectionRenderer {
   skills: () => React.ReactNode;
   projects: () => React.ReactNode;
   certifications: () => React.ReactNode;
+  publications: () => React.ReactNode;
 }
 
 /**
@@ -31,7 +33,7 @@ export function renderSections(
   renderers: SectionRenderer
 ): React.ReactNode[] {
   // Default section order if not provided
-  const defaultOrder = ["summary", "workExperience", "education", "skills", "projects", "certifications"];
+  const defaultOrder = ["summary", "workExperience", "education", "skills", "projects", "certifications", "publications"];
   
   // Use provided section order or default, ensure it's always an array
   const order = Array.isArray(data.sectionOrder) && data.sectionOrder.length > 0 

@@ -8,12 +8,12 @@ import { renderSections } from '../core/sectionRenderer';
 const metadata = {
   id: 'elegant-divider',
   name: 'Elegant Divider',
-  description: 'A professional two-column layout with a vertical divider for clear section separation.',
+  description: 'A professional single-column layout with elegant horizontal dividers between sections.',
   isAtsOptimized: true,
   version: '1.0.0',
   thumbnail: '/templates/elegant-divider.png',
   category: 'professional',
-  tags: ['elegant', 'professional', 'two-column', 'modern', 'clean']
+  tags: ['elegant', 'professional', 'single-column', 'modern', 'clean']
 };
 
 export class ElegantDividerTemplate extends BaseTemplate {
@@ -21,7 +21,7 @@ export class ElegantDividerTemplate extends BaseTemplate {
     super(metadata, elegantCustomization);
   }
 
-  renderPreview(data: ResumeData): JSX.Element {
+  render(data: ResumeData): JSX.Element {
     console.log("ElegantDividerTemplate rendering with data:", data);
     const { colors, fonts } = this.customization;
 
@@ -29,438 +29,570 @@ export class ElegantDividerTemplate extends BaseTemplate {
     const useSkillCategories = data.useSkillCategories ?? false;
 
     const containerStyle: React.CSSProperties = {
-      width: '100%',
-      height: '100%',
+      width: '210mm',
       minHeight: '297mm',
-      maxWidth: '100%',
       backgroundColor: colors.background || '#ffffff',
-      fontFamily: fonts.body || '"Arial", sans-serif',
+      fontFamily: fonts.body || '"Playfair Display", "Georgia", serif',
       fontSize: '9pt',
-      padding: '0',
-      color: colors.text || '#333333',
+      padding: '12mm',
+      color: colors.text || '#1a1a1a',
       margin: '0',
       boxSizing: 'border-box',
-      lineHeight: '1.3',
-      overflow: 'visible',
+      lineHeight: '1.2',
       position: 'relative'
     };
 
-    // Two-column layout styles
-    const mainContainerStyle: React.CSSProperties = {
-      display: 'flex',
-      flexDirection: 'row',
+    // Header styles - centered with elegant typography - keep together
+    const headerStyle: React.CSSProperties = {
+      textAlign: 'center',
+      marginBottom: '2pt',
+      paddingBottom: '2pt',
+      borderBottom: '2pt solid #2c3e50',
       width: '100%',
-      height: '100%',
-      minHeight: '297mm',
-      position: 'relative',
-      margin: 0,
-      padding: 0
+      display: 'block'
     };
 
-    const leftColumnStyle: React.CSSProperties = {
-      width: '32%',
-      padding: '20px',
-      position: 'relative',
-      borderRight: `1px solid #000000`,
-      height: '100%',
-      boxSizing: 'border-box',
-      minHeight: '100%'
-    };
-
-    const rightColumnStyle: React.CSSProperties = {
-      width: '68%',
-      padding: '20px',
-      position: 'relative',
-      boxSizing: 'border-box'
-    };
-
-    // Header styles
     const nameStyle: React.CSSProperties = {
-      fontFamily: fonts.heading || '"Arial", sans-serif',
-      fontSize: '1.6rem',
-      fontWeight: 'bold',
-      color: '#000000',
-      margin: '0 0 0.4rem 0',
+      fontFamily: fonts.heading || '"Playfair Display", "Georgia", serif',
+      fontSize: '22pt',
+      fontWeight: '700',
+      color: '#2c3e50',
+      margin: '0',
       padding: 0,
-      lineHeight: '1.3',
+      lineHeight: '1.0',
+      textAlign: 'center',
+      letterSpacing: '1pt',
       display: 'block'
     };
 
     const jobTitleStyle: React.CSSProperties = {
-      fontFamily: fonts.body || '"Arial", sans-serif',
-      fontSize: '1rem',
-      color: colors.secondary || '#4b5563',
-      marginBottom: '1rem',
-      fontWeight: 'normal'
+      fontFamily: fonts.body || '"Lato", "Arial", sans-serif',
+      fontSize: '11pt',
+      color: '#5d6d7e',
+      margin: '0 0 2pt 0',
+      padding: 0,
+      fontWeight: '400',
+      textAlign: 'center',
+      fontStyle: 'italic',
+      letterSpacing: '0.5pt',
+      lineHeight: '1.1',
+      display: 'block'
     };
 
-    // Contact styles
+    // Contact styles - elegant horizontal layout
     const contactStyle: React.CSSProperties = {
-      marginBottom: '1.5rem',
-      fontSize: '0.9rem'
+      display: 'flex',
+      justifyContent: 'center',
+      flexWrap: 'wrap',
+      gap: '2pt 8pt',
+      fontSize: '8pt',
+      marginTop: '1pt',
+      textAlign: 'center',
+      color: '#5d6d7e',
+      width: '100%'
     };
 
     const contactItemStyle: React.CSSProperties = {
-      display: 'block',
-      marginBottom: '0.25rem',
-      color: colors.text || '#333333'
+      display: 'inline-flex',
+      alignItems: 'center',
+      color: '#5d6d7e'
     };
 
-    // Section styling
+    // Section styling with elegant dividers - prevent breaks between sections
     const sectionStyle: React.CSSProperties = {
-      marginBottom: '0.7rem', // Reduced from 1rem for tighter spacing
+      marginBottom: '1pt',
       width: '100%',
       display: 'block',
-      pageBreakInside: 'auto'
+      position: 'relative'
     };
 
     const sectionHeaderStyle: React.CSSProperties = {
-      fontFamily: fonts.heading || '"Arial", sans-serif',
-      fontSize: '0.9rem',
-      fontWeight: 'bold',
-      color: '#000000',
-      textTransform: 'uppercase',
-      letterSpacing: '0.05rem',
-      marginBottom: '0.4rem',
-      marginTop: '0.7rem',
+      fontFamily: fonts.heading || '"Playfair Display", "Georgia", serif',
+      fontSize: '12pt',
+      fontWeight: '600',
+      color: '#2c3e50',
+      marginBottom: '3pt',
+      marginTop: '0',
+      textAlign: 'center',
+      position: 'relative',
+      paddingBottom: '2pt',
+      display: 'block',
+      width: '100%'
+    };
+
+    // Elegant divider after section headers
+    const dividerStyle: React.CSSProperties = {
+      width: '50pt',
+      height: '1pt',
+      backgroundColor: '#bdc3c7',
+      margin: '0 auto 4pt auto',
+      position: 'relative',
+      display: 'block'
+    };
+
+    // Content layout
+    const contentStyle: React.CSSProperties = {
+      maxWidth: '100%',
+      margin: '0 auto',
+      width: '100%',
+      display: 'block'
+    };
+
+    // Experience/Education item styles - allow breaking inside items if needed
+    const itemStyle: React.CSSProperties = {
+      marginBottom: '3pt',
       width: '100%',
       display: 'block',
-      pageBreakBefore: 'auto',
-      pageBreakAfter: 'avoid'
+      paddingBottom: '1pt'
     };
 
-    // Style for experience/education items to keep them together
-    const itemStyle: React.CSSProperties = {
-      marginBottom: '0.7rem', 
-      width: '100%', 
-      display: 'block',
-      pageBreakInside: 'avoid'
+    const itemHeaderStyle: React.CSSProperties = {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+      marginBottom: '0.5pt',
+      width: '100%'
     };
 
-    // Style for titles
     const titleStyle: React.CSSProperties = {
-      fontWeight: 'bold', 
-      fontSize: '1rem', 
-      color: colors.primary || '#1e293b',
-      marginBottom: '0.1rem', 
-      margin: '0 0 0.1rem 0', 
+      fontWeight: '600',
+      fontSize: '10pt',
+      color: '#2c3e50',
+      margin: '0',
       padding: 0,
-      pageBreakAfter: 'avoid'
+      flex: '1',
+      lineHeight: '1.1',
+      display: 'block'
     };
 
-    // Bullet styles
-    const bulletListStyle: React.CSSProperties = {
-      listStyleType: 'none',
+    const companyStyle: React.CSSProperties = {
+      fontWeight: '500',
+      fontSize: '9pt',
+      color: '#5d6d7e',
+      margin: '0',
       padding: 0,
-      margin: '0 0 0.5rem 0'
+      fontStyle: 'italic',
+      lineHeight: '1.1',
+      display: 'block'
     };
 
-    const bulletItemStyle: React.CSSProperties = {
-      position: 'relative',
-      paddingLeft: '12px',
-      marginBottom: '0.3rem',
-      fontSize: '0.9rem',
-      lineHeight: '1.3'
+    const dateStyle: React.CSSProperties = {
+      fontSize: '8pt',
+      color: '#85929e',
+      fontWeight: '400',
+      textAlign: 'right',
+      minWidth: '60pt',
+      lineHeight: '1.1',
+      display: 'block'
     };
 
-    // Skill styles
-    const skillItemStyle: React.CSSProperties = {
+    // Skills section - simple text format
+    const skillsContainerStyle: React.CSSProperties = {
+      textAlign: 'center',
+      marginTop: '1pt',
+      width: '100%',
+      display: 'block'
+    };
+
+    const skillsTextStyle: React.CSSProperties = {
+      fontSize: '9pt',
+      color: '#34495e',
+      lineHeight: '1.2',
+      margin: '0',
+      padding: 0,
       display: 'block',
-      marginBottom: '0.15rem',
-      fontSize: '0.9rem'
+      textAlign: 'center'
     };
 
-    const skillCategoryStyle: React.CSSProperties = {
-      fontWeight: 'bold',
-      marginBottom: '0.2rem',
-      fontSize: '0.9rem'
+    // Achievements/bullet points
+    const achievementsStyle: React.CSSProperties = {
+      margin: '1pt 0 0 0',
+      padding: 0,
+      fontSize: '8pt',
+      display: 'block',
+      width: '100%'
+    };
+
+    const achievementItemStyle: React.CSSProperties = {
+      marginBottom: '1pt',
+      lineHeight: '1.3',
+      color: '#34495e',
+      paddingLeft: '10pt',
+      position: 'relative',
+      display: 'block',
+      width: '100%'
+    };
+
+    const bulletStyle: React.CSSProperties = {
+      position: 'absolute',
+      left: '0',
+      top: '0',
+      color: '#8b9dc3',
+      fontWeight: '600'
     };
 
     return (
-      <div 
-        style={containerStyle} 
-        className="resume-container"
-        data-template-id="elegant-divider"
-      >
-        <div style={mainContainerStyle}>
-          {/* Left Column */}
-          <div style={leftColumnStyle} className="resume-left-column no-break-inside">
-            {/* Name and Job Title */}
-            <div style={{ marginBottom: '1.5rem' }}>
-              <h1 style={nameStyle} className="no-break-after">{data.fullName}</h1>
-              <p style={jobTitleStyle} className="no-break-after">{data.targetJobTitle}</p>
-            </div>
+      <div style={containerStyle} className="resume-container elegant-divider-template">
+        {/* Header - Centered with elegant styling */}
+        <header style={headerStyle} className="resume-header">
+          <h1 style={nameStyle}>{data.fullName}</h1>
+          {data.targetJobTitle && <p style={jobTitleStyle}>{data.targetJobTitle}</p>}
+          
+          <div style={contactStyle}>
+            {data.email && <span style={contactItemStyle}>{data.email}</span>}
+            {data.phone && <span style={contactItemStyle}>{data.phone}</span>}
+            {data.city && data.state && <span style={contactItemStyle}>{data.city}, {data.state}</span>}
+            {data.formattedLinkedinUrl && 
+              <span style={contactItemStyle}>
+                <a 
+                  href={data.linkedinUrl} 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  style={{ color: '#5d6d7e', textDecoration: 'none' }}>
+                  {data.formattedLinkedinUrl}
+                </a>
+              </span>
+            }
+            {data.formattedPortfolioUrl && 
+              <span style={contactItemStyle}>
+                <a 
+                  href={data.portfolioUrl} 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  style={{ color: '#5d6d7e', textDecoration: 'none' }}>
+                  {data.formattedPortfolioUrl}
+                </a>
+              </span>
+            }
+          </div>
+        </header>
+
+        <div style={contentStyle}>
+          {/* Use renderSections for consistent section ordering */}
+          {renderSections(data, {
+            summary: () => data.summary ? (
+              <section style={sectionStyle} className="resume-section summary-section">
+                <h2 style={sectionHeaderStyle}>Professional Summary</h2>
+                <div style={dividerStyle}></div>
+                <p style={{ 
+                  fontSize: '9pt', 
+                  lineHeight: '1.2', 
+                  margin: '0',
+                  padding: '0',
+                  textAlign: 'center',
+                  color: '#34495e',
+                  fontStyle: 'italic',
+                  display: 'block',
+                  width: '100%'
+                }}>{data.summary}</p>
+              </section>
+            ) : null,
             
-            {/* Contact Information */}
-            <div style={contactStyle} className="contact-section no-break-inside">
-              <h2 style={sectionHeaderStyle} className="no-break-after">Contact</h2>
-              {data.phone && (
-                <div style={contactItemStyle}>
-                  {data.phone}
-                </div>
-              )}
-              {data.email && (
-                <div style={contactItemStyle}>
-                  {data.email}
-                </div>
-              )}
-              {data.linkedinUrl && (
-                <div style={contactItemStyle}>
-                  <a 
-                    href={data.linkedinUrl} 
-                    target="_blank" 
-                    rel="noopener noreferrer" 
-                    style={{ color: colors.text || '#333333', textDecoration: 'none', wordBreak: 'break-all' }}
-                  >
-                    {data.linkedinUrl.replace(/^https?:\/\/(www\.)?/, '')}
-                  </a>
-                </div>
-              )}
-              {data.location && (
-                <div style={contactItemStyle}>
-                  {data.location}
-                </div>
-              )}
-              {!data.location && data.city && data.state && (
-                <div style={contactItemStyle}>
-                  {data.city}, {data.state}
-                </div>
-              )}
-              {data.portfolioUrl && (
-                <div style={contactItemStyle}>
-                  <a 
-                    href={data.portfolioUrl} 
-                    target="_blank" 
-                    rel="noopener noreferrer" 
-                    style={{ color: colors.text || '#333333', textDecoration: 'none', wordBreak: 'break-all' }}
-                  >
-                    {data.portfolioUrl.replace(/^https?:\/\/(www\.)?/, '')}
-                  </a>
-                </div>
-              )}
-            </div>
-            
-            {/* Skills Section for Left Column */}
-            {renderSections(data, {
-              skills: () => (data.skills?.length > 0 || data.technicalSkills?.length > 0 || data.softSkills?.length > 0) ? (
-                <div style={sectionStyle} className="skills-section no-break-inside">
-                  <h2 style={sectionHeaderStyle} className="no-break-after">Skills</h2>
-                  
-                  {!useSkillCategories && data.skills && data.skills.length > 0 && (
-                    <div style={bulletListStyle}>
-                      {data.skills.map((skill, index) => (
-                        <div key={index} style={skillItemStyle}>{skill}</div>
-                      ))}
-                    </div>
-                  )}
-                  
-                  {useSkillCategories && (
-                    <>
-                      {data.technicalSkills && data.technicalSkills.length > 0 && (
-                        <div style={{ marginBottom: '0.5rem' }} className="technical-skills no-break-inside">
-                          <div style={skillCategoryStyle}>Professional</div>
-                          {data.technicalSkills.map((skill, index) => (
-                            <div key={index} style={{...skillItemStyle, position: 'relative', paddingLeft: '10px'}}>
-                              <span style={{ position: 'absolute', left: '0', top: '0' }}>•</span>
-                              {skill.replace(/^[•\-\*]\s*/, '')}
-                            </div>
-                          ))}
+            skills: () => (data.skills?.length > 0 || data.technicalSkills?.length > 0 || data.softSkills?.length > 0 || data.skillCategories) ? (
+              <section style={sectionStyle} className="resume-section skills-section">
+                <h2 style={sectionHeaderStyle}>Core Competencies</h2>
+                <div style={dividerStyle}></div>
+                <div style={skillsContainerStyle} className="skills-content">
+                  {/* New flexible categories system */}
+                  {useSkillCategories && data.skillCategories && Object.keys(data.skillCategories).length > 0 ? (
+                    Object.entries(data.skillCategories).map(([categoryName, skills], index) => (
+                      skills && skills.length > 0 ? (
+                        <div key={categoryName} style={{ marginBottom: index < Object.keys(data.skillCategories!).length - 1 ? '3pt' : '0' }}>
+                          <h3 style={{ 
+                            ...titleStyle, 
+                            textAlign: 'center', 
+                            fontSize: '10pt', 
+                            marginBottom: '2pt',
+                            color: '#2c3e50',
+                            fontWeight: '600'
+                          }}>{categoryName}</h3>
+                          <p style={skillsTextStyle}>{skills.join(', ')}</p>
                         </div>
+                      ) : null
+                    ))
+                  ) : (
+                    <>
+                      {/* Simple mode - all skills in one list */}
+                      {!useSkillCategories && data.skills && data.skills.length > 0 && (
+                        <p style={skillsTextStyle}>{data.skills.join(', ')}</p>
                       )}
                       
-                      {data.softSkills && data.softSkills.length > 0 && (
-                        <div className="soft-skills no-break-inside">
-                          <div style={skillCategoryStyle}>Technical</div>
-                          {data.softSkills.map((skill, index) => (
-                            <div key={index} style={{...skillItemStyle, position: 'relative', paddingLeft: '10px'}}>
-                              <span style={{ position: 'absolute', left: '0', top: '0' }}>•</span>
-                              {skill.replace(/^[•\-\*]\s*/, '')}
-                            </div>
-                          ))}
-                        </div>
+                      {/* Legacy categorized skills */}
+                      {useSkillCategories && (
+                        <p style={skillsTextStyle}>
+                          {data.technicalSkills && data.technicalSkills.length > 0 && 
+                            data.technicalSkills.join(', ')
+                          }
+                          {data.technicalSkills && data.technicalSkills.length > 0 && 
+                           data.softSkills && data.softSkills.length > 0 && ', '}
+                          {data.softSkills && data.softSkills.length > 0 && 
+                            data.softSkills.join(', ')
+                          }
+                        </p>
                       )}
                     </>
                   )}
                 </div>
-              ) : null,
-              
-              languages: () => data.languages && data.languages.length > 0 ? (
-                <div style={sectionStyle} className="languages-section no-break-inside">
-                  <h2 style={sectionHeaderStyle} className="no-break-after">Languages</h2>
-                  <div style={bulletListStyle}>
-                    {data.languages.map((lang, index) => (
-                      <div key={index} style={skillItemStyle}>
-                        {lang.language}{lang.proficiency ? `, ${lang.proficiency}` : ''}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : null,
-              
-              certifications: () => data.certifications && data.certifications.length > 0 ? (
-                <div style={sectionStyle} className="certifications-section no-break-inside">
-                  <h2 style={sectionHeaderStyle} className="no-break-after">Professional Development</h2>
-                  {data.certifications.map((cert, index) => (
-                    <div key={cert.id || index} style={{ marginBottom: '0.5rem' }} className="certification-item no-break-inside">
-                      <div style={{ fontWeight: 'bold', fontSize: '0.9rem', marginBottom: '0.1rem' }}>
-                        {cert.name}
-                      </div>
-                      <div style={{ fontSize: '0.85rem' }}>
-                        {cert.issuer}
-                      </div>
-                      <div style={{ fontSize: '0.85rem', color: colors.secondary || '#4b5563' }}>
-                        {cert.date}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : null
-            })}
-          </div>
-          
-          {/* Right Column */}
-          <div style={rightColumnStyle} className="resume-right-column">
-            {/* Use renderSections to render right column content in the correct order */}
-            {renderSections(data, {
-              summary: () => data.summary ? (
-                <section style={sectionStyle} className="resume-section summary-section no-break-inside">
-                  <p style={{ 
-                    fontSize: '0.9rem', 
-                    lineHeight: '1.4', 
-                    margin: '0 0 1rem 0',
-                    padding: '0',
-                    display: 'block'
-                  }} className="no-break-inside">{data.summary}</p>
-                </section>
-              ) : null,
-              
-              workExperience: () => data.workExperience && data.workExperience.length > 0 ? (
-                <section style={sectionStyle} className="resume-section experience-section">
-                  <h2 style={sectionHeaderStyle} className="no-break-after">Work Experience</h2>
-                  {data.workExperience.map((exp, index) => (
-                    <div key={exp.id || index} style={itemStyle} className="experience-item no-break-inside">
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.1rem', width: '100%' }} className="no-break-after">
-                        <div style={{ flex: '1 1 70%' }}>
-                          <h3 style={titleStyle} className="no-break-after">{exp.position}</h3>
-                          <h4 style={{ fontSize: '0.9rem', color: colors.secondary || '#4b5563', margin: 0, padding: 0 }} className="no-break-after">
-                            {exp.company}{exp.location ? ` | ${exp.location}` : ''}
-                          </h4>
-                        </div>
-                        <div style={{ fontSize: '0.85rem', color: colors.secondary || '#4b5563', textAlign: 'right' }}>
-                          {exp.startDate} - {exp.current ? 'Present' : exp.endDate}
-                        </div>
-                      </div>
-                      {exp.description && (
-                        <p style={{ fontSize: '0.9rem', marginTop: '0.2rem', lineHeight: '1.3', margin: '0.2rem 0 0.3rem 0', padding: 0 }} className="no-break-inside">
-                          {exp.description}
+              </section>
+            ) : null,
+            
+            workExperience: () => data.workExperience && data.workExperience.length > 0 ? (
+              <section style={sectionStyle} className="resume-section experience-section">
+                <h2 style={sectionHeaderStyle}>Professional Experience</h2>
+                <div style={dividerStyle}></div>
+                {data.workExperience.map((exp, index) => (
+                  <div key={exp.id || index} style={itemStyle} className="experience-item">
+                    <div style={itemHeaderStyle}>
+                      <div style={{ flex: '1' }}>
+                        <h3 style={titleStyle}>{exp.position}</h3>
+                        <p style={companyStyle}>
+                          {exp.company}{exp.location ? ` • ${exp.location}` : ''}
                         </p>
-                      )}
-                      {exp.achievements && exp.achievements.length > 0 && (
-                        <ul style={bulletListStyle} className="achievements-list no-break-inside">
-                          {exp.achievements.map((achievement, i) => (
-                            <li key={i} style={bulletItemStyle} className="no-break-inside">
-                              <span style={{ position: 'absolute', left: '0', top: '0' }}>•</span>
-                              {achievement.replace(/^[•\-\*]\s*/, '')}
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                  ))}
-                </section>
-              ) : null,
-              
-              education: () => data.education && data.education.length > 0 ? (
-                <section style={sectionStyle} className="resume-section education-section">
-                  <h2 style={sectionHeaderStyle} className="no-break-after">Education</h2>
-                  {data.education.map((edu, index) => (
-                    <div key={edu.id || index} style={itemStyle} className="education-item no-break-inside">
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.1rem', width: '100%' }} className="no-break-after">
-                        <div style={{ flex: '1 1 70%' }}>
-                          <h3 style={titleStyle} className="no-break-after">{edu.degree} {edu.fieldOfStudy ? `in ${edu.fieldOfStudy}` : ''}</h3>
-                          <h4 style={{ fontSize: '0.9rem', color: colors.secondary || '#4b5563', margin: 0, padding: 0 }} className="no-break-after">
-                            {edu.institution}{edu.location ? `, ${edu.location}` : ''}
-                          </h4>
-                        </div>
-                        <div style={{ fontSize: '0.85rem', color: colors.secondary || '#4b5563', textAlign: 'right' }}>
-                          {edu.startDate} - {edu.current ? 'Present' : edu.endDate}
-                        </div>
                       </div>
-                      {edu.description && (
-                        <p style={{ fontSize: '0.9rem', marginTop: '0.2rem', lineHeight: '1.3', margin: '0.2rem 0 0 0', padding: 0 }} className="no-break-inside">
-                          {edu.description}
-                        </p>
-                      )}
-                    </div>
-                  ))}
-                </section>
-              ) : null,
-              
-              projects: () => data.projects && data.projects.length > 0 ? (
-                <section style={sectionStyle} className="resume-section projects-section">
-                  <h2 style={sectionHeaderStyle} className="no-break-after">Projects</h2>
-                  {data.projects.map((project, index) => (
-                    <div key={project.id || index} style={itemStyle} className="project-item no-break-inside">
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.1rem', width: '100%' }} className="no-break-after">
-                        <h3 style={titleStyle} className="no-break-after">{project.name} {project.detail ? `— ${project.detail}` : ''}</h3>
-                        {(project.startDate || project.endDate) && (
-                          <div style={{ fontSize: '0.85rem', color: colors.secondary || '#4b5563', textAlign: 'right' }}>
-                            {project.startDate} - {project.current ? 'Present' : project.endDate || 'N/A'}
-                          </div>
-                        )}
+                      <div style={dateStyle}>
+                        {exp.startDate} - {exp.current ? 'Present' : exp.endDate}
                       </div>
-                      <p style={{ fontSize: '0.9rem', marginTop: '0.2rem', lineHeight: '1.3', margin: '0.2rem 0 0 0', padding: 0 }} className="no-break-inside">
-                        {project.description}
+                    </div>
+                    
+                    {exp.description && (
+                      <p style={{ 
+                        fontSize: '9pt', 
+                        lineHeight: '1.2', 
+                        margin: '1pt 0', 
+                        padding: 0,
+                        color: '#34495e',
+                        display: 'block',
+                        width: '100%'
+                      }}>
+                        {exp.description}
                       </p>
-                      {project.technologies && project.technologies.length > 0 && (
-                        <div style={{ fontSize: '0.85rem', margin: '0.2rem 0 0 0', padding: 0 }} className="no-break-inside">
-                          <strong>Technologies:</strong> {project.technologies.join(', ')}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </section>
-              ) : null,
-              
-              publications: () => data.publications && data.publications.length > 0 ? (
-                <section style={sectionStyle} className="resume-section publications-section">
-                  <h2 style={sectionHeaderStyle} className="no-break-after">Publications</h2>
-                  {data.publications.map((publication, index) => (
-                    <div key={publication.id || index} style={itemStyle} className="publication-item no-break-inside">
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.1rem', width: '100%' }} className="no-break-after">
-                        <div style={{ flex: '1 1 70%' }}>
-                          <h3 style={titleStyle} className="no-break-after">{publication.title}</h3>
-                          <h4 style={{ fontSize: '0.9rem', color: colors.secondary || '#4b5563', margin: 0, padding: 0 }} className="no-break-after">
-                            {publication.publisher}{publication.authors ? ` | ${publication.authors}` : ''}
-                          </h4>
-                        </div>
-                        {publication.publicationDate && (
-                          <div style={{ fontSize: '0.85rem', color: colors.secondary || '#4b5563', textAlign: 'right' }}>
-                            {publication.publicationDate}
+                    )}
+                    
+                    {exp.achievements && exp.achievements.length > 0 && (
+                      <div style={achievementsStyle} className="achievements-list">
+                        {exp.achievements.map((achievement, i) => (
+                          <div key={i} style={achievementItemStyle}>
+                            <span style={bulletStyle}>▪</span>
+                            {achievement.replace(/^[•\-\*]\s*/, '')}
                           </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </section>
+            ) : null,
+            
+            education: () => data.education && data.education.length > 0 ? (
+              <section style={sectionStyle} className="resume-section education-section">
+                <h2 style={sectionHeaderStyle}>Education</h2>
+                <div style={dividerStyle}></div>
+                {data.education.map((edu, index) => (
+                  <div key={edu.id || index} style={itemStyle} className="education-item">
+                    <div style={itemHeaderStyle}>
+                      <div style={{ flex: '1' }}>
+                        <h3 style={titleStyle}>
+                          {edu.degree}{edu.fieldOfStudy ? ` in ${edu.fieldOfStudy}` : ''}
+                        </h3>
+                        <p style={companyStyle}>{edu.institution}</p>
+                      </div>
+                      <div style={dateStyle}>
+                        {edu.startDate} - {edu.current ? 'Present' : edu.endDate}
+                      </div>
+                    </div>
+                    {edu.description && (
+                      <p style={{ 
+                        fontSize: '9pt', 
+                        lineHeight: '1.2', 
+                        margin: '1pt 0 0 0', 
+                        padding: 0,
+                        color: '#34495e',
+                        display: 'block',
+                        width: '100%'
+                      }}>
+                        {edu.description}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </section>
+            ) : null,
+            
+            projects: () => data.projects && data.projects.length > 0 ? (
+              <section style={sectionStyle} className="resume-section projects-section">
+                <h2 style={sectionHeaderStyle}>Notable Projects</h2>
+                <div style={dividerStyle}></div>
+                {data.projects.map((project, index) => (
+                  <div key={project.id || index} style={itemStyle} className="project-item">
+                    <div style={itemHeaderStyle}>
+                      <div style={{ flex: '1' }}>
+                        <h3 style={titleStyle}>{project.name}</h3>
+                        {project.url && (
+                          <a 
+                            href={project.url} 
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            style={{
+                              color: '#5d6d7e',
+                              textDecoration: 'none',
+                              fontSize: '8pt',
+                              fontStyle: 'italic',
+                              display: 'block'
+                            }}
+                          >
+                            {project.url.replace(/^https?:\/\/(www\.)?/, '')}
+                          </a>
                         )}
                       </div>
-                      
-                      {publication.description && (
-                        <p style={{ fontSize: '0.9rem', marginTop: '0.2rem', lineHeight: '1.3', margin: '0.2rem 0 0 0', padding: 0 }} className="no-break-inside">
-                          {publication.description}
-                        </p>
-                      )}
-                      
-                      {publication.url && (
-                        <p style={{ fontSize: '0.85rem', margin: '0.2rem 0 0 0', padding: 0 }} className="no-break-inside">
-                          <strong>URL/DOI:</strong> {publication.url}
-                        </p>
+                      {(project.startDate || project.endDate) && (
+                        <div style={dateStyle}>
+                          {project.startDate} - {project.current ? 'Present' : project.endDate || ''}
+                        </div>
                       )}
                     </div>
-                  ))}
-                </section>
-              ) : null
-            })}
-          </div>
+                    
+                    <p style={{ 
+                      fontSize: '9pt', 
+                      lineHeight: '1.2', 
+                      margin: '1pt 0', 
+                      padding: 0,
+                      color: '#34495e',
+                      display: 'block',
+                      width: '100%'
+                    }}>
+                      {project.description}
+                    </p>
+                    
+                    {project.technologies && project.technologies.length > 0 && (
+                      <p style={{ 
+                        fontSize: '8pt', 
+                        margin: '1pt 0 0 0', 
+                        padding: 0,
+                        color: '#5d6d7e',
+                        display: 'block',
+                        width: '100%'
+                      }}>
+                        <strong>Technologies:</strong> {project.technologies.join(', ')}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </section>
+            ) : null,
+            
+            publications: () => data.publications && data.publications.length > 0 ? (
+              <section style={sectionStyle} className="resume-section publications-section">
+                <h2 style={sectionHeaderStyle}>Publications</h2>
+                <div style={dividerStyle}></div>
+                {data.publications.map((publication, index) => (
+                  <div key={publication.id || index} style={itemStyle} className="publication-item">
+                    <p style={{ 
+                      fontSize: '9pt', 
+                      lineHeight: '1.3', 
+                      margin: '0', 
+                      padding: 0, 
+                      fontStyle: 'normal', 
+                      color: '#34495e',
+                      display: 'block',
+                      width: '100%'
+                    }}>
+                      {/* Authors */}
+                      {publication.authors && (
+                        <span style={{ fontWeight: '600', color: '#2c3e50' }}>
+                          {Array.isArray(publication.authors) ? publication.authors.join(', ') : publication.authors}
+                        </span>
+                      )}
+                      {publication.authors && '. '}
+                      
+                      {/* Publication Date */}
+                      {publication.publicationDate && (
+                        <span>({publication.publicationDate}). </span>
+                      )}
+                      
+                      {/* Title */}
+                      <span style={{ fontStyle: 'italic' }}>{publication.title}</span>
+                      {publication.title && '. '}
+                      
+                      {/* Publisher */}
+                      {publication.publisher && (
+                        <span style={{ fontWeight: '600' }}>{publication.publisher}</span>
+                      )}
+                      {publication.publisher && '. '}
+                      
+                      {/* URL */}
+                      {publication.url && (
+                        <a 
+                          href={publication.url} 
+                          target="_blank" 
+                          rel="noopener noreferrer" 
+                          style={{ color: '#5d6d7e', textDecoration: 'none' }}
+                        >
+                          {publication.url}
+                        </a>
+                      )}
+                    </p>
+                    
+                    {/* Description as a separate paragraph if provided */}
+                    {publication.description && (
+                      <p style={{ 
+                        fontSize: '8pt', 
+                        margin: '2pt 0 0 0', 
+                        padding: 0, 
+                        color: '#85929e',
+                        lineHeight: '1.3',
+                        display: 'block',
+                        width: '100%'
+                      }}>
+                        {publication.description}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </section>
+            ) : null,
+            
+            certifications: () => data.certifications && data.certifications.length > 0 ? (
+              <section style={sectionStyle} className="resume-section certifications-section">
+                <h2 style={sectionHeaderStyle}>Professional Development</h2>
+                <div style={dividerStyle}></div>
+                {data.certifications.map((cert, index) => (
+                  <div key={cert.id || index} style={itemStyle} className="certification-item">
+                    <div style={itemHeaderStyle}>
+                      <div style={{ flex: '1' }}>
+                        <h3 style={titleStyle}>{cert.name}</h3>
+                        <p style={companyStyle}>{cert.issuer}</p>
+                      </div>
+                      <div style={dateStyle}>
+                        {cert.date}
+                        {cert.expiryDate && ` - ${cert.expiryDate}`}
+                      </div>
+                    </div>
+                    {cert.description && (
+                      <p style={{ 
+                        fontSize: '9pt', 
+                        lineHeight: '1.3', 
+                        margin: '2pt 0', 
+                        padding: 0,
+                        color: '#34495e',
+                        display: 'block',
+                        width: '100%'
+                      }}>
+                        {cert.description}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </section>
+            ) : null
+          })}
         </div>
       </div>
     );
+  }
+
+  // Use single render method for both preview and PDF
+  renderPreview(data: ResumeData): JSX.Element {
+    return this.render(data);
   }
 
   async exportToPDF(data: ResumeData): Promise<Blob> {
@@ -505,7 +637,7 @@ export class ElegantDividerTemplate extends BaseTemplate {
       dataWithFormattedUrls.contactSeparator = "|";
       
       // Pass the enhanced data to renderPreview
-      const element = this.renderPreview(dataWithFormattedUrls);
+      const element = this.render(dataWithFormattedUrls);
       return await generatePDFFromReactElement(element, filename);
     } catch (error) {
       console.error("Error in ElegantDividerTemplate.exportToPDF:", error);

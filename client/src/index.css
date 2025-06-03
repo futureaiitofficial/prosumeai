@@ -215,3 +215,81 @@
     backface-visibility: hidden;
   }
 }
+
+/* Resume Template Page Break CSS Rules */
+/* These CSS rules ensure proper page breaks for PDF generation and preview */
+@media print, screen {
+  /* Experience items should not break across pages */
+  .experience-item {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+  
+  /* Education items should not break across pages */
+  .education-item {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+  
+  /* Project items should not break across pages */
+  .project-item {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+  
+  /* Certification items should not break across pages */
+  .certification-item {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+  
+  /* Publication items should not break across pages */
+  .publication-item {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+  
+  /* Section headers should not break at the end of pages */
+  .resume-section h2,
+  .resume-section h3 {
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+  }
+  
+  /* Prevent orphaned titles and headers */
+  .resume-section h2,
+  .resume-section h3,
+  .experience-item h3,
+  .education-item h3,
+  .project-item h3,
+  .certification-item h3,
+  .publication-item h3 {
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+  }
+  
+  /* Achievements lists should try to stay together */
+  .achievements-list {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+  
+  /* Individual achievement items should not break */
+  .achievements-list li {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+  
+  /* Skills sections should try to stay together */
+  .skills-content {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+  
+  /* Technical and soft skills subsections */
+  .technical-skills,
+  .soft-skills {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+}

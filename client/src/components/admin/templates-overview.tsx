@@ -67,13 +67,6 @@ import { templateRegistry } from "@/templates/base/TemplateRegistry";
 import { registerTemplates } from "@/templates/registerTemplates";
 import { coverLetterTemplateMetadata } from "@/templates/registerCoverLetterTemplates";
 
-// Define resume template IDs from registerTemplates
-const RESUME_TEMPLATE_IDS = [
-  'professional',
-  'elegant-divider',
-  'minimalist-ats'
-];
-
 // Template type
 interface Template {
   id?: number;
@@ -95,6 +88,31 @@ interface TemplateImage {
   url: string;
   size: number;
 }
+
+// Remove hardcoded template IDs - make it dynamic
+const getRegisteredTemplateTypes = () => {
+  try {
+    // Ensure templates are registered
+    registerTemplates();
+    
+    // Get template factory instance
+    const factory = TemplateFactory.getInstance();
+    const resumeTemplateTypes = factory.getRegisteredTypes();
+    
+    console.log('Dynamic resume template types:', resumeTemplateTypes);
+    
+    return {
+      resumeTemplates: resumeTemplateTypes,
+      coverLetterTemplates: Object.keys(coverLetterTemplateMetadata)
+    };
+  } catch (error) {
+    console.error('Error getting registered template types:', error);
+    return {
+      resumeTemplates: [],
+      coverLetterTemplates: []
+    };
+  }
+};
 
 export function TemplatesOverview() {
   const { toast } = useToast();
@@ -570,23 +588,83 @@ export function TemplatesOverview() {
     fileInputRef.current?.click();
   };
   
+  // Cleanup duplicates mutation
+  const cleanupDuplicatesMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch('/api/admin/templates/cleanup-duplicates', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to cleanup duplicates');
+      }
+      
+      return await response.json();
+    },
+    onSuccess: (data) => {
+      console.log("Duplicates cleanup completed:", data);
+      
+      // Refresh the templates list
+      refetchTemplates();
+      
+      toast({
+        title: "Cleanup Completed",
+        description: `Removed ${data.totalDuplicatesRemoved} duplicate templates. Kept ${data.totalTemplatesKept} unique templates.`,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Cleanup Failed",
+        description: `Failed to cleanup duplicates: ${error.message}`,
+        variant: "destructive",
+      });
+    },
+  });
+  
   // Mutation to ensure templates exist in the database
   const ensureTemplatesMutation = useMutation({
     mutationFn: async () => {
-      // Prepare default templates based on registry
+      // Get dynamic template types
+      const { resumeTemplates: resumeTemplateTypes, coverLetterTemplates: coverLetterTemplateTypes } = getRegisteredTemplateTypes();
+      
+      console.log('Ensuring templates for:', {
+        resumeTypes: resumeTemplateTypes,
+        coverLetterTypes: coverLetterTemplateTypes
+      });
+      
+      // Prepare default templates based on dynamic registration
       const defaultTemplates = [
-        // Resume templates
-        ...RESUME_TEMPLATE_IDS.map(templateId => {
-          const template = templateRegistry.get(templateId);
-          return {
-            name: template?.name || templateId.charAt(0).toUpperCase() + templateId.slice(1).replace(/-/g, ' '),
-            description: template?.description || "",
-            category: "resume",
-            content: ""
-          };
+        // Resume templates from TemplateFactory
+        ...resumeTemplateTypes.map(templateId => {
+          try {
+            // Ensure templates are registered
+            registerTemplates();
+            const factory = TemplateFactory.getInstance();
+            const template = factory.getTemplate(templateId);
+            const metadata = template?.metadata;
+            
+            return {
+              name: metadata?.name || templateId.charAt(0).toUpperCase() + templateId.slice(1).replace(/-/g, ' '),
+              description: metadata?.description || "",
+              category: "resume",
+              content: ""
+            };
+          } catch (error) {
+            console.error(`Error getting template ${templateId}:`, error);
+            return {
+              name: templateId.charAt(0).toUpperCase() + templateId.slice(1).replace(/-/g, ' '),
+              description: "",
+              category: "resume",
+              content: ""
+            };
+          }
         }),
         // Cover letter templates
-        ...Object.keys(coverLetterTemplateMetadata).map(templateId => {
+        ...coverLetterTemplateTypes.map(templateId => {
           const metadata = coverLetterTemplateMetadata[templateId as keyof typeof coverLetterTemplateMetadata];
           return {
             name: metadata?.name || templateId.charAt(0).toUpperCase() + templateId.slice(1).replace(/-/g, ' '),
@@ -596,6 +674,8 @@ export function TemplatesOverview() {
           };
         })
       ];
+      
+      console.log('Preparing to ensure templates:', defaultTemplates.map(t => ({ name: t.name, category: t.category })));
       
       // Call the API to ensure these templates exist
       const response = await fetch('/api/admin/templates/ensure', {
@@ -664,6 +744,38 @@ export function TemplatesOverview() {
                 });
               }}>
                 Refresh Data
+              </Button>
+              <Button variant="outline" onClick={() => {
+                console.log("Manually triggering template initialization...");
+                ensureTemplatesMutation.mutate();
+              }} disabled={ensureTemplatesMutation.isPending}>
+                {ensureTemplatesMutation.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Initializing...
+                  </>
+                ) : (
+                  <>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Initialize Templates
+                  </>
+                )}
+              </Button>
+              <Button variant="outline" onClick={() => {
+                console.log("Triggering duplicates cleanup...");
+                cleanupDuplicatesMutation.mutate();
+              }} disabled={cleanupDuplicatesMutation.isPending}>
+                {cleanupDuplicatesMutation.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Cleaning...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Clean Duplicates
+                  </>
+                )}
               </Button>
               <Dialog open={isAddTemplateOpen} onOpenChange={setIsAddTemplateOpen}>
                 <DialogTrigger asChild>
@@ -852,10 +964,12 @@ export function TemplatesOverview() {
         <CardContent>
           {/* Troubleshooting info */}
           <div className="bg-yellow-50 p-4 rounded-md mb-4 border border-yellow-200">
-            <h3 className="text-sm font-medium text-yellow-800 mb-2">Template Image Troubleshooting</h3>
+            <h3 className="text-sm font-medium text-yellow-800 mb-2">Template Management Troubleshooting</h3>
             <div className="text-xs text-yellow-700 space-y-1">
               <p>• If images aren't showing, check that your templates are active.</p>
               <p>• Images need to be associated with active templates to be displayed.</p>
+              <p>• If you see duplicate templates, use the "Clean Duplicates" button to remove them.</p>
+              <p>• Use "Initialize Templates" to add missing templates from code to database.</p>
               <p>• Images loaded: {templateImages.images?.length || 0}</p>
               <p>• Templates from server: {serverTemplates?.length || 0}</p>
               <p>• Templates in state: Resume={resumeTemplates.length}, Cover Letter={coverLetterTemplates.length}</p>

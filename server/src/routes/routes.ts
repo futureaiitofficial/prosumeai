@@ -9,7 +9,7 @@ import { registerAdminRoutes } from "../routes/admin-routes";
 import { registerResumeTemplateRoutes } from "./resume-template-routes";
 import { registerCoverLetterTemplateRoutes } from "./cover-letter-template-routes";
 import { registerTemplateRoutes } from "./template-routes";
-import { registerResumeRoutes } from "./resume-routes";
+import { registerEnhancedResumeRoutes } from "./resume-routes-enhanced";
 import { registerCoverLetterRoutes } from "./cover-letter-routes";
 import { registerJobApplicationRoutes } from "./job-applications-routes";
 import { registerSubscriptionRoutes } from "./subscription-routes";
@@ -19,6 +19,7 @@ import { registerTaxRoutes } from "./tax-routes";
 import { registerTaxAdminRoutes } from "./tax-admin-routes";
 import { registerTwoFactorRoutes, checkTwoFactorRequired } from "./two-factor-routes";
 import { registerPublicBlogRoutes } from "./public-blog-routes";
+import { registerEnhancedAIRoutes } from "./ai-enhanced";
 import notificationRouter from "./notification-routes";
 import { 
   sessionTimeoutMiddleware, 
@@ -90,6 +91,9 @@ export function registerRoutes(app: express.Express): Server {
   // Register AI router directly (it exports a router)
   app.use('/api/ai', aiRouter);
   
+  // Register enhanced AI routes with security
+  registerEnhancedAIRoutes(app);
+  
   // Register notification routes
   app.use('/api', notificationRouter);
   
@@ -102,7 +106,7 @@ export function registerRoutes(app: express.Express): Server {
   registerResumeTemplateRoutes(app);
   registerCoverLetterTemplateRoutes(app);
   registerTemplateRoutes(app);
-  registerResumeRoutes(app);
+  registerEnhancedResumeRoutes(app);
   registerCoverLetterRoutes(app);
   registerJobApplicationRoutes(app);
   registerSubscriptionRoutes(app);

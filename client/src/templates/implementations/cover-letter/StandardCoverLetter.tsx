@@ -23,50 +23,66 @@ export const StandardCoverLetter: React.FC<CoverLetterTemplateProps> = ({
   // Ensure we're only using the content field for the main content
   const content = data.content || 'Your cover letter content will appear here...';
 
+  const containerStyle: React.CSSProperties = {
+    width: '210mm',
+    minHeight: '297mm',
+    backgroundColor: '#ffffff',
+    fontFamily: "'Times New Roman', Times, serif",
+    fontSize: '10pt',
+    padding: '25mm 20mm',
+    color: '#000000',
+    margin: '0',
+    boxSizing: 'border-box',
+    lineHeight: '1.4',
+    position: 'relative'
+  };
+
   return (
     <div
       ref={setRef}
-      className="cover-letter-standard bg-white font-serif w-full text-black"
-      style={{ fontFamily: "'Times New Roman', Times, serif" }}
+      className="cover-letter-standard"
+      style={containerStyle}
     >
-      <div className="px-10 py-10 max-w-[210mm] mx-auto">
-        {/* Header */}
-        <header className="mb-8">
-          <h1 className="text-xl font-bold mb-1 text-black">{fullName}</h1>
-          <div className="text-sm text-gray-700 space-y-0.5">
-            <p>{email}</p>
-            <p>{phone}</p>
-            <p>{address}</p>
-          </div>
-          <div className="mt-4 text-sm text-gray-700">{formattedDate}</div>
-        </header>
+      {/* Header */}
+      <header style={{ marginBottom: '20pt' }}>
+        <h1 style={{ fontSize: '16pt', fontWeight: 'bold', marginBottom: '4pt', color: '#000000' }}>{fullName}</h1>
+        <div style={{ fontSize: '10pt', color: '#374151' }}>
+          <p style={{ margin: '0 0 2pt 0' }}>{email}</p>
+          <p style={{ margin: '0 0 2pt 0' }}>{phone}</p>
+          <p style={{ margin: '0 0 2pt 0' }}>{address}</p>
+        </div>
+        <div style={{ marginTop: '12pt', fontSize: '10pt', color: '#374151' }}>{formattedDate}</div>
+      </header>
 
-        {/* Recipient */}
-        <section className="mb-8">
-          <p className="font-medium text-black">{recipientName}</p>
-          <p className="text-gray-700">{companyName}</p>
-        </section>
+      {/* Recipient */}
+      <section style={{ marginBottom: '20pt' }}>
+        <p style={{ fontWeight: '600', color: '#000000', margin: '0 0 2pt 0' }}>{recipientName}</p>
+        <p style={{ color: '#374151', margin: '0' }}>{companyName}</p>
+      </section>
 
-        {/* Content */}
-        <section className="mb-8 whitespace-pre-wrap leading-relaxed text-gray-900">
-          {content}
-        </section>
+      {/* Content */}
+      <section style={{ marginBottom: '20pt', whiteSpace: 'pre-wrap', lineHeight: '1.5', color: '#111827' }}>
+        {content}
+      </section>
 
-        {/* Footer */}
-        <footer>
-          <p className="mb-6 text-gray-900">Sincerely,</p>
-          <p className="font-medium text-black">{fullName}</p>
-        </footer>
-      </div>
+      {/* Footer */}
+      <footer>
+        <p style={{ marginBottom: '16pt', color: '#111827' }}>Sincerely,</p>
+        <p style={{ fontWeight: '600', color: '#000000' }}>{fullName}</p>
+      </footer>
 
       <style jsx global>{`
         ${customCss}
         
         @media print {
           .cover-letter-standard {
-            width: 210mm;
-            height: 297mm;
-            padding: 25mm 20mm;
+            width: 210mm !important;
+            height: 297mm !important;
+            padding: 25mm 20mm !important;
+            margin: 0 !important;
+            box-shadow: none !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
         }
         

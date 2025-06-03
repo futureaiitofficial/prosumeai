@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import Header from "@/components/layouts/header";
 import { motion } from "framer-motion";
+import { createPortal } from "react-dom";
 
 
 // Import form components
@@ -233,13 +234,30 @@ export const AnimatedResumeDownloadButton = ({ resumeData, className }: Animated
 
   return (
     <>
-      {/* Animation modal */}
-      {showAnimation && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm z-50">
+      {/* Animation modal with maximum z-index - rendered via portal */}
+      {showAnimation && createPortal(
+        <div 
+          className="fixed inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          style={{ 
+            zIndex: 99999,
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            margin: 0,
+            padding: 0
+          }}
+        >
           <motion.div 
             initial={{ scale: 0.9, opacity: 0 }} 
             animate={{ scale: 1, opacity: 1 }}
-            className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-96 sm:w-[480px] overflow-hidden"
+            className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-96 sm:w-[480px] overflow-hidden relative"
+            style={{ 
+              zIndex: 100000,
+              maxWidth: '90vw',
+              maxHeight: '90vh'
+            }}
           >
             <div className="flex flex-col items-center gap-6 py-10 px-6">
               {/* Paper with shadow effect */}
@@ -312,7 +330,8 @@ export const AnimatedResumeDownloadButton = ({ resumeData, className }: Animated
               </Button>
             </div>
           </motion.div>
-        </div>
+        </div>,
+        document.body
       )}
       
       {/* Actual download button that triggers our custom handler */}
@@ -402,10 +421,11 @@ interface ResumeData {
   skills: string[];
   technicalSkills: string[];
   softSkills: string[];
+  useSkillCategories: boolean;
+  skillCategories: { [categoryName: string]: string[] }; // New flexible skills categorization - required
   certifications: Certification[];
   projects: Project[];
   publications: Publication[];
-  useSkillCategories: boolean;
   sectionOrder: string[];
   keywordsFeedback?: {
     found: string[];
@@ -451,12 +471,13 @@ const initialResumeData: ResumeData = {
   skills: [],
   technicalSkills: [],
   softSkills: [],
+  useSkillCategories: false,
+  skillCategories: {}, // Initialize as empty object
   
   // Additional sections
   certifications: [],
   projects: [],
   publications: [],
-  useSkillCategories: false,
   
   // Default section order
   sectionOrder: ["summary", "workExperience", "education", "skills", "projects", "publications", "certifications"]
@@ -473,6 +494,10 @@ export default function ResumeBuilder() {
   const [resumeData, setResumeData] = useState<ResumeData>(initialResumeData);
   const [resumeId, setResumeId] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Add processing state for download section
+  const [isProcessingResume, setIsProcessingResume] = useState(false);
+  const [resumeProcessingComplete, setResumeProcessingComplete] = useState(false);
   
   // Define steps array to ensure consistency
   const BUILDER_STEPS: BuilderStep[] = ["template", "import-option", "job-description", "personal-info", "employment-history", "summary", "education", "skills", "projects", "publications", "certifications", "section-order", "download"];
@@ -498,12 +523,28 @@ export default function ResumeBuilder() {
         description: "Your resume has been saved successfully.",
       });
     },
-    onError: (error: Error) => {
+    onError: (error: any) => {
+      // Handle specific validation errors
+      let errorTitle = "Failed to save resume";
+      let errorDescription = error.message;
+      
+      if (error.statusCode === 400 && error.data) {
+        const { message, details, hint } = error.data;
+        if (message && details) {
+          errorTitle = message;
+          errorDescription = details;
+          if (hint) {
+            errorDescription += "\n\nTip: " + hint;
+          }
+        }
+      }
+      
       if (!handleSubscriptionError(error, toast)) {
         toast({
-          title: "Failed to save resume",
-          description: error.message,
+          title: errorTitle,
+          description: errorDescription,
           variant: "destructive",
+          duration: 8000,
         });
       }
       console.error("Resume save error:", error);
@@ -530,13 +571,47 @@ export default function ResumeBuilder() {
         });
       }
     },
-    onError: (error: Error) => {
-      if (!handleSubscriptionError(error, toast)) {
+    onError: (error: any, variables: any) => {
+      // Handle specific validation errors with better user feedback
+      let errorTitle = "Failed to update resume";
+      let errorDescription = error.message;
+      
+      // Check if this is a validation error with specific details
+      if (error.statusCode === 400 && error.data) {
+        const { message, details, hint } = error.data;
+        
+        if (message && details) {
+          errorTitle = message;
+          errorDescription = details;
+          
+          // Add helpful hint if available
+          if (hint) {
+            errorDescription += "\n\nTip: " + hint;
+          }
+        }
+      }
+      
+      // For auto-save errors, show less intrusive notification
+      const isAutoSave = variables?.isAutoSave;
+      
+      if (isAutoSave && error.statusCode === 400) {
+        // For auto-save validation errors, show a warning instead of error
         toast({
-          title: "Failed to update resume",
-          description: error.message,
-          variant: "destructive",
+          title: "Auto-save paused",
+          description: errorDescription,
+          variant: "default", // Use default instead of destructive for auto-save
+          duration: 6000,
         });
+      } else {
+        // Check for subscription-related errors first
+        if (!handleSubscriptionError(error, toast)) {
+          toast({
+            title: errorTitle,
+            description: errorDescription,
+            variant: "destructive",
+            duration: 8000, // Show longer for validation errors so users can read the details
+          });
+        }
       }
       console.error("Resume update error:", error);
     },
@@ -691,6 +766,7 @@ export default function ResumeBuilder() {
       setResumeData({
         ...data,
         jobDescription: data.jobDescription || "", // Ensure jobDescription is always a string
+        skillCategories: data.skillCategories || {}, // Ensure skillCategories is always an object
         sectionOrder: ensuredSectionOrder
       });
     } catch (error) {
@@ -713,7 +789,21 @@ export default function ResumeBuilder() {
     
     const currentIndex = BUILDER_STEPS.indexOf(currentStep);
     if (currentIndex < BUILDER_STEPS.length - 1) {
-      setCurrentStep(BUILDER_STEPS[currentIndex + 1]);
+      const nextStep = BUILDER_STEPS[currentIndex + 1];
+      
+      // If navigating to download section, start processing animation
+      if (nextStep === "download") {
+        setIsProcessingResume(true);
+        setResumeProcessingComplete(false);
+        
+        // Simulate processing time with realistic delays
+        setTimeout(() => {
+          setIsProcessingResume(false);
+          setResumeProcessingComplete(true);
+        }, 3500); // 3.5 seconds processing time
+      }
+      
+      setCurrentStep(nextStep);
     }
   };
 
@@ -724,8 +814,42 @@ export default function ResumeBuilder() {
     
     const currentIndex = BUILDER_STEPS.indexOf(currentStep);
     if (currentIndex > 0) {
-      setCurrentStep(BUILDER_STEPS[currentIndex - 1]);
+      const previousStep = BUILDER_STEPS[currentIndex - 1];
+      
+      // Reset processing state when leaving download section
+      if (currentStep === "download") {
+        setIsProcessingResume(false);
+        setResumeProcessingComplete(false);
+      }
+      
+      setCurrentStep(previousStep);
     }
+  };
+
+  // Handle direct step navigation
+  const navigateToStep = (step: BuilderStep) => {
+    // Save current state before navigating (auto-save)
+    autoSaveResume();
+    
+    // If navigating to download section, start processing animation
+    if (step === "download" && currentStep !== "download") {
+      setIsProcessingResume(true);
+      setResumeProcessingComplete(false);
+      
+      // Simulate processing time
+      setTimeout(() => {
+        setIsProcessingResume(false);
+        setResumeProcessingComplete(true);
+      }, 3500);
+    }
+    
+    // Reset processing state when leaving download section
+    if (currentStep === "download" && step !== "download") {
+      setIsProcessingResume(false);
+      setResumeProcessingComplete(false);
+    }
+    
+    setCurrentStep(step);
   };
 
   // Render specific section content
@@ -786,109 +910,237 @@ export default function ResumeBuilder() {
         );
         
       case "download":
-        return (
-          <div className="space-y-6">
-            <h2 className="text-2xl font-bold mb-6">Your Resume is Ready!</h2>
-            
-            <div className="relative overflow-hidden bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-8 border border-blue-100">
-              {/* Animated particles */}
-              <div className="absolute top-0 left-0 w-full h-full overflow-hidden opacity-10">
-                <div className="animate-float absolute top-1/4 left-1/4 w-12 h-12 rounded-full bg-blue-400"></div>
-                <div className="animate-float-delayed absolute top-3/4 left-2/3 w-8 h-8 rounded-full bg-indigo-400"></div>
-                <div className="animate-float-slow absolute top-1/2 left-1/3 w-16 h-16 rounded-full bg-purple-400"></div>
-                <div className="animate-spin-slow absolute top-1/3 right-1/4 w-20 h-20 opacity-20">
-                  <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M12 1L15 5H9L12 1Z" fill="currentColor"/>
-                    <path d="M12 23L9 19H15L12 23Z" fill="currentColor"/>
-                    <path d="M1 12L5 9V15L1 12Z" fill="currentColor"/>
-                    <path d="M23 12L19 15V9L23 12Z" fill="currentColor"/>
-                  </svg>
-                </div>
-              </div>
-              
-              {/* Content */}
-              <div className="relative z-10">
-                <div className="flex flex-col items-center text-center space-y-4">
-                  <div className="h-16 w-16 bg-blue-500 rounded-full flex items-center justify-center mb-2">
-                    <svg className="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                  </div>
-                  
-                  <h3 className="text-xl font-semibold text-gray-900">Resume Created Successfully</h3>
-                  
-                  <p className="text-gray-600 max-w-md">
-                    Your professional resume has been created and is ready to download. Use it to impress employers and land your dream job!
-                  </p>
-                  
-                  <div className="animate-bounce mt-4">
-                    <AnimatedResumeDownloadButton 
-                      resumeData={resumeData}
-                      className="py-3 px-8 text-base"
-                    />
-                  </div>
-                </div>
+        // Show processing animation first, then success screen
+        if (isProcessingResume) {
+          return (
+            <div className="space-y-6">
+              <div className="text-center">
+                <h2 className="text-2xl font-bold mb-6">Processing Your Resume</h2>
                 
-                {/* Resume Stats */}
-                <div className="mt-10 grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-100 text-center">
-                    <p className="text-sm text-gray-500">Job Target</p>
-                    <p className="text-lg font-bold mt-1 truncate">{resumeData.targetJobTitle || "Not specified"}</p>
+                <div className="relative overflow-hidden bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-12 border border-blue-100">
+                  {/* Animated background particles */}
+                  <div className="absolute top-0 left-0 w-full h-full overflow-hidden opacity-10">
+                    <div className="animate-float absolute top-1/4 left-1/4 w-12 h-12 rounded-full bg-blue-400"></div>
+                    <div className="animate-float-delayed absolute top-3/4 left-2/3 w-8 h-8 rounded-full bg-indigo-400"></div>
+                    <div className="animate-float-slow absolute top-1/2 left-1/3 w-16 h-16 rounded-full bg-purple-400"></div>
                   </div>
                   
-                  <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-100 text-center">
-                    <p className="text-sm text-gray-500">Experience</p>
-                    <p className="text-lg font-bold mt-1">{resumeData.workExperience?.length || 0} Positions</p>
-                  </div>
-                  
-                  <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-100 text-center">
-                    <p className="text-sm text-gray-500">Skills</p>
-                    <p className="text-lg font-bold mt-1">{
-                      (resumeData.useSkillCategories 
-                        ? [...(resumeData.technicalSkills || []), ...(resumeData.softSkills || [])]
-                        : (resumeData.skills || [])
-                      ).length
-                    } Skills</p>
-                  </div>
-                  
-                  <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-100 text-center">
-                    <p className="text-sm text-gray-500">Template</p>
-                    <p className="text-lg font-bold mt-1 capitalize truncate">{resumeData.template?.replace(/-/g, ' ') || "Professional"}</p>
-                  </div>
-                </div>
-                
-                {/* Tips */}
-                <div className="mt-10">
-                  <h4 className="font-medium text-gray-900 mb-3">Next Steps</h4>
-                  <ul className="space-y-3">
-                    <li className="flex items-start">
-                      <div className="flex-shrink-0 h-5 w-5 text-blue-500 mt-0.5">
-                        <svg viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                        </svg>
+                  {/* Main processing animation */}
+                  <div className="relative z-10 flex flex-col items-center space-y-8">
+                    {/* Animated resume icon */}
+                    <motion.div
+                      initial={{ scale: 0.8, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      transition={{ duration: 0.5 }}
+                      className="relative"
+                    >
+                      <div className="w-32 h-40 bg-white rounded-lg shadow-lg relative overflow-hidden border-2 border-gray-200">
+                        {/* Animated content lines */}
+                        <div className="p-4 space-y-3">
+                          <motion.div 
+                            className="h-3 bg-gray-200 rounded-full"
+                            animate={{ opacity: [0.3, 1, 0.3] }}
+                            transition={{ duration: 1.5, repeat: Infinity }}
+                          />
+                          <motion.div 
+                            className="h-2 bg-gray-200 rounded-full w-3/4"
+                            animate={{ opacity: [0.3, 1, 0.3] }}
+                            transition={{ duration: 1.5, repeat: Infinity, delay: 0.2 }}
+                          />
+                          <motion.div 
+                            className="h-2 bg-gray-200 rounded-full"
+                            animate={{ opacity: [0.3, 1, 0.3] }}
+                            transition={{ duration: 1.5, repeat: Infinity, delay: 0.4 }}
+                          />
+                          <motion.div 
+                            className="h-2 bg-gray-200 rounded-full w-5/6"
+                            animate={{ opacity: [0.3, 1, 0.3] }}
+                            transition={{ duration: 1.5, repeat: Infinity, delay: 0.6 }}
+                          />
+                          <motion.div 
+                            className="h-2 bg-gray-200 rounded-full w-2/3"
+                            animate={{ opacity: [0.3, 1, 0.3] }}
+                            transition={{ duration: 1.5, repeat: Infinity, delay: 0.8 }}
+                          />
+                        </div>
+                        
+                        {/* Animated scanning line */}
+                        <motion.div
+                          className="absolute left-0 right-0 h-1 bg-gradient-to-r from-transparent via-blue-500 to-transparent"
+                          animate={{ y: [0, 160, 0] }}
+                          transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                        />
                       </div>
-                      <p className="ml-2 text-gray-600">Tailor your resume for each job application for better results.</p>
-                    </li>
-                    <li className="flex items-start">
-                      <div className="flex-shrink-0 h-5 w-5 text-blue-500 mt-0.5">
-                        <svg viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                        </svg>
+                    </motion.div>
+                    
+                    {/* Processing steps */}
+                    <div className="space-y-4 w-full max-w-md">
+                      <motion.div
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.5 }}
+                        className="flex items-center space-x-3"
+                      >
+                        <motion.div
+                          className="w-6 h-6 rounded-full bg-green-500 flex items-center justify-center"
+                          initial={{ scale: 0 }}
+                          animate={{ scale: 1 }}
+                          transition={{ delay: 0.8 }}
+                        >
+                          <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                        </motion.div>
+                        <span className="text-gray-700">Formatting content...</span>
+                      </motion.div>
+                      
+                      <motion.div
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 1.2 }}
+                        className="flex items-center space-x-3"
+                      >
+                        <motion.div
+                          className="w-6 h-6 rounded-full bg-green-500 flex items-center justify-center"
+                          initial={{ scale: 0 }}
+                          animate={{ scale: 1 }}
+                          transition={{ delay: 1.5 }}
+                        >
+                          <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                        </motion.div>
+                        <span className="text-gray-700">Applying template design...</span>
+                      </motion.div>
+                      
+                      <motion.div
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 1.9 }}
+                        className="flex items-center space-x-3"
+                      >
+                        <motion.div
+                          className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center"
+                          animate={{ rotate: 360 }}
+                          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                        >
+                          <Loader2 className="w-4 h-4 text-white" />
+                        </motion.div>
+                        <span className="text-gray-700">Optimizing for ATS compatibility...</span>
+                      </motion.div>
+                    </div>
+                    
+                    {/* Progress bar */}
+                    <div className="w-full max-w-md">
+                      <div className="bg-gray-200 rounded-full h-2 overflow-hidden">
+                        <motion.div
+                          className="bg-gradient-to-r from-blue-500 to-indigo-600 h-2 rounded-full"
+                          initial={{ width: "0%" }}
+                          animate={{ width: "100%" }}
+                          transition={{ duration: 3, ease: "easeInOut" }}
+                        />
                       </div>
-                      <p className="ml-2 text-gray-600">Pair your resume with a compelling cover letter.</p>
-                    </li>
-                    <li className="flex items-start">
-                      <div className="flex-shrink-0 h-5 w-5 text-blue-500 mt-0.5">
-                        <svg viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                        </svg>
-                      </div>
-                      <p className="ml-2 text-gray-600">Practice answering interview questions based on your resume content.</p>
-                    </li>
-                  </ul>
+                    </div>
+                    
+                    <motion.p
+                      className="text-lg font-medium text-gray-700"
+                      animate={{ opacity: [0.7, 1, 0.7] }}
+                      transition={{ duration: 2, repeat: Infinity }}
+                    >
+                      Crafting your professional resume...
+                    </motion.p>
+                  </div>
                 </div>
               </div>
             </div>
+          );
+        }
+        
+        // Show success screen after processing
+        return (
+          <div className="space-y-6">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+            >
+              <h2 className="text-2xl font-bold mb-6">Your Resume is Ready!</h2>
+              
+              <div className="relative overflow-hidden bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg p-8 border border-green-100">
+                {/* Animated particles */}
+                <div className="absolute top-0 left-0 w-full h-full overflow-hidden opacity-10">
+                  <div className="animate-float absolute top-1/4 left-1/4 w-12 h-12 rounded-full bg-green-400"></div>
+                  <div className="animate-float-delayed absolute top-3/4 left-2/3 w-8 h-8 rounded-full bg-emerald-400"></div>
+                  <div className="animate-float-slow absolute top-1/2 left-1/3 w-16 h-16 rounded-full bg-teal-400"></div>
+                  <motion.div 
+                    className="animate-spin-slow absolute top-1/3 right-1/4 w-20 h-20 opacity-20"
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 10, repeat: Infinity, ease: "linear" }}
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M12 1L15 5H9L12 1Z" fill="currentColor"/>
+                      <path d="M12 23L9 19H15L12 23Z" fill="currentColor"/>
+                      <path d="M1 12L5 9V15L1 12Z" fill="currentColor"/>
+                      <path d="M23 12L19 15V9L23 12Z" fill="currentColor"/>
+                    </svg>
+                  </motion.div>
+                </div>
+                
+                {/* Content */}
+                <div className="relative z-10">
+                  <div className="flex flex-col items-center text-center space-y-4">
+                    <motion.div 
+                      className="h-16 w-16 bg-green-500 rounded-full flex items-center justify-center mb-2"
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
+                    >
+                      <motion.svg 
+                        className="h-8 w-8 text-white" 
+                        fill="none" 
+                        viewBox="0 0 24 24" 
+                        stroke="currentColor"
+                        initial={{ pathLength: 0 }}
+                        animate={{ pathLength: 1 }}
+                        transition={{ delay: 0.5, duration: 0.8 }}
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </motion.svg>
+                    </motion.div>
+                    
+                    <motion.h3 
+                      className="text-xl font-semibold text-gray-900"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.6 }}
+                    >
+                      Resume Created Successfully
+                    </motion.h3>
+                    
+                    <motion.p 
+                      className="text-gray-600 max-w-md"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.8 }}
+                    >
+                      Your professional resume has been created and is ready to download. Use it to impress employers and land your dream job!
+                    </motion.p>
+                    
+                    <motion.div 
+                      className="mt-4"
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: 1, type: "spring", stiffness: 200 }}
+                    >
+                      <AnimatedResumeDownloadButton 
+                        resumeData={resumeData}
+                        className="py-3 px-8 text-base"
+                      />
+                    </motion.div>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
           </div>
         );
 
@@ -948,7 +1200,7 @@ export default function ResumeBuilder() {
                         ? "bg-primary text-primary-foreground"
                         : "text-muted-foreground hover:bg-muted"
                     }`}
-                    onClick={() => setCurrentStep(step.id as BuilderStep)}
+                    onClick={() => navigateToStep(step.id as BuilderStep)}
                   >
                     {step.icon}
                     <span className="ml-3">{step.label}</span>
@@ -1050,7 +1302,7 @@ export default function ResumeBuilder() {
                       ? "bg-primary text-primary-foreground"
                       : "bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-700"
                     }`}
-                  onClick={() => setCurrentStep(step.id as BuilderStep)}
+                  onClick={() => navigateToStep(step.id as BuilderStep)}
                 >
                   {step.label}
                 </button>

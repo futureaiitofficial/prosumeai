@@ -26,6 +26,8 @@ export interface ResumeData {
   skills?: string[];
   technicalSkills?: string[];
   softSkills?: string[];
+  useSkillCategories?: boolean;
+  skillCategories?: { [categoryName: string]: string[] };
   projects?: Project[];
   certifications?: Certification[];
   // Properties added for UI formatting

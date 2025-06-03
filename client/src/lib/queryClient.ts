@@ -139,12 +139,21 @@ export async function apiRequest(
           throw error;
         }
         
-        const error: any = new Error(errorData.message || 'An error occurred');
+        // Create detailed error object with validation details
+        const errorMessage = errorData.message || errorData.details || 'An error occurred';
+        const error: any = new Error(errorMessage);
         error.statusCode = response.status;
-        error.data = errorData;
+        error.data = errorData; // Include full error data for validation details
         throw error;
       } catch (jsonError) {
-        console.error('Could not parse error response:', jsonError);
+        // Only log JSON parsing errors if they're actual parsing errors
+        if (jsonError instanceof SyntaxError) {
+          console.error('Could not parse error response as JSON:', jsonError);
+        } else {
+          // Re-throw our custom errors
+          throw jsonError;
+        }
+        
         // If JSON parsing fails, throw a standard error with status code
         const error: any = new Error(`Request failed with status ${response.status}`);
         error.statusCode = response.status;

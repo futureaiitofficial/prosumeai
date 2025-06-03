@@ -63,6 +63,10 @@ export default function Resumes() {
   // Filtered resumes
   const [filteredResumes, setFilteredResumes] = useState<any[]>([]);
   
+  // Add state for checking references before deletion
+  const [checkingReferences, setCheckingReferences] = useState(false);
+  const [resumeReferences, setResumeReferences] = useState<any>(null);
+  
   // Apply filters when search term or date range changes
   useEffect(() => {
     if (!resumes.length) {
@@ -155,10 +159,83 @@ export default function Resumes() {
     },
   });
   
+  // Function to check resume references
+  const checkResumeReferences = async (resumeId: number) => {
+    try {
+      setCheckingReferences(true);
+      console.log('Checking references for resume ID:', resumeId);
+      
+      const response = await apiRequest("GET", `/api/resumes/${resumeId}/references`);
+      console.log('References response status:', response.status);
+      
+      const data = await response.json();
+      console.log('References response data:', data);
+      
+      setResumeReferences(data);
+      
+      if (data.canDelete) {
+        // If no references, proceed with normal deletion
+        setResumeToDelete(resumeId);
+        setDeleteDialogOpen(true);
+      } else {
+        // If there are references, show the enhanced dialog
+        setResumeToDelete(resumeId);
+        setDeleteDialogOpen(true);
+      }
+    } catch (error: any) {
+      console.error('Error checking resume references:', error);
+      
+      // Provide more specific error messages
+      let errorMessage = "Failed to check resume references. Please try again.";
+      
+      if (error.message) {
+        if (error.message.includes('Authentication required')) {
+          errorMessage = "Authentication required. Please refresh the page and try again.";
+        } else if (error.message.includes('404')) {
+          errorMessage = "Resume not found. Please refresh the page.";
+        } else if (error.message.includes('403')) {
+          errorMessage = "You don't have permission to access this resume.";
+        } else if (error.message.includes('500')) {
+          errorMessage = "Server error occurred. Please try again later.";
+        } else {
+          errorMessage = `Error: ${error.message}`;
+        }
+      }
+      
+      // Set fallback state - allow deletion but show warning
+      setResumeReferences({
+        resumeId,
+        resumeTitle: "Unknown Resume",
+        references: { coverLetters: [], jobApplications: [] },
+        canDelete: true,
+        checkFailed: true,
+        errorMessage
+      });
+      
+      setResumeToDelete(resumeId);
+      setDeleteDialogOpen(true);
+      
+      toast({
+        title: "Warning",
+        description: `${errorMessage} Proceeding with deletion dialog, but please be cautious.`,
+        variant: "destructive",
+        duration: 8000,
+      });
+    } finally {
+      setCheckingReferences(false);
+    }
+  };
+
   // Delete resume mutation
   const deleteResumeMutation = useMutation({
     mutationFn: async (id: number) => {
-      await apiRequest("DELETE", `/api/resumes/${id}`);
+      const response = await apiRequest("DELETE", `/api/resumes/${id}`);
+      // If the response is not ok, parse the error message
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(JSON.stringify(errorData));
+      }
+      return await response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/resumes"] });
@@ -170,10 +247,35 @@ export default function Resumes() {
       setResumeToDelete(null);
     },
     onError: (error: Error) => {
+      let errorMessage = "Failed to delete resume";
+      let errorDescription = error.message;
+      
+      try {
+        // Try to parse the error as JSON (from our enhanced error response)
+        const errorData = JSON.parse(error.message);
+        
+        if (errorData.constraint === "cover_letters") {
+          errorMessage = "Cannot Delete Resume";
+          errorDescription = "This resume is linked to one or more cover letters. Please delete the cover letters first or remove the links.";
+        } else if (errorData.constraint === "job_applications") {
+          errorMessage = "Cannot Delete Resume";
+          errorDescription = "This resume is linked to one or more job applications. Please remove those links first.";
+        } else if (errorData.detail === "foreign key constraint violation") {
+          errorMessage = "Cannot Delete Resume";
+          errorDescription = errorData.error || "This resume is referenced by other data. Please remove those references first.";
+        } else {
+          errorDescription = errorData.message || errorData.error || error.message;
+        }
+      } catch {
+        // If parsing fails, use the original error message
+        errorDescription = error.message;
+      }
+      
       toast({
-        title: "Failed to delete resume",
-        description: error.message,
+        title: errorMessage,
+        description: errorDescription,
         variant: "destructive",
+        duration: 6000,
       });
       setDeleteDialogOpen(false);
       setResumeToDelete(null);
@@ -414,11 +516,15 @@ export default function Resumes() {
                             size="icon" 
                             className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50"
                             onClick={() => {
-                              setResumeToDelete(resume.id);
-                              setDeleteDialogOpen(true);
+                              checkResumeReferences(resume.id);
                             }}
+                            disabled={checkingReferences}
                           >
-                            <Trash2 className="h-4 w-4" />
+                            {checkingReferences ? (
+                              <div className="h-4 w-4 animate-spin rounded-full border-2 border-red-500 border-t-transparent"></div>
+                            ) : (
+                              <Trash2 className="h-4 w-4" />
+                            )}
                           </Button>
                         </div>
                       </CardHeader>
@@ -475,20 +581,75 @@ export default function Resumes() {
                 <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
                   <AlertDialogContent>
                     <AlertDialogHeader>
-                      <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                      <AlertDialogTitle>
+                        {resumeReferences?.canDelete ? "Are you sure?" : "Cannot Delete Resume"}
+                      </AlertDialogTitle>
                       <AlertDialogDescription>
-                        This action cannot be undone. This will permanently delete your resume and all associated data.
+                        {resumeReferences?.checkFailed && (
+                          <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                            <p className="text-sm text-yellow-800">
+                              <strong>Warning:</strong> Unable to verify resume references due to: {resumeReferences.errorMessage}
+                            </p>
+                            <p className="text-xs text-yellow-600 mt-1">
+                              Deletion may fail if this resume is linked to other items.
+                            </p>
+                          </div>
+                        )}
+                        
+                        {resumeReferences?.canDelete ? (
+                          "This action cannot be undone. This will permanently delete your resume and all associated data."
+                        ) : (
+                          <div className="space-y-3">
+                            <p>This resume cannot be deleted because it's linked to other items:</p>
+                            
+                            {resumeReferences?.references?.coverLetters?.length > 0 && (
+                              <div>
+                                <p className="font-semibold text-sm">Cover Letters ({resumeReferences.references.coverLetters.length}):</p>
+                                <ul className="list-disc list-inside text-sm space-y-1 ml-2">
+                                  {resumeReferences.references.coverLetters.map((cl: any) => (
+                                    <li key={cl.id}>
+                                      {cl.title} - {cl.company} ({cl.jobTitle})
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                            
+                            {resumeReferences?.references?.jobApplications?.length > 0 && (
+                              <div>
+                                <p className="font-semibold text-sm">Job Applications ({resumeReferences.references.jobApplications.length}):</p>
+                                <ul className="list-disc list-inside text-sm space-y-1 ml-2">
+                                  {resumeReferences.references.jobApplications.map((ja: any) => (
+                                    <li key={ja.id}>
+                                      {ja.company} - {ja.jobTitle} ({ja.status})
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                            
+                            <p className="text-sm text-gray-600">
+                              Please remove these links or delete the linked items first, then try again.
+                            </p>
+                          </div>
+                        )}
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction
-                        className="bg-red-500 hover:bg-red-600"
-                        onClick={() => resumeToDelete && deleteResumeMutation.mutate(resumeToDelete)}
-                        disabled={deleteResumeMutation.isPending}
-                      >
-                        {deleteResumeMutation.isPending ? "Deleting..." : "Delete Resume"}
-                      </AlertDialogAction>
+                      <AlertDialogCancel onClick={() => {
+                        setResumeReferences(null);
+                      }}>
+                        {resumeReferences?.canDelete ? "Cancel" : "Close"}
+                      </AlertDialogCancel>
+                      {resumeReferences?.canDelete && (
+                        <AlertDialogAction
+                          className="bg-red-500 hover:bg-red-600"
+                          onClick={() => resumeToDelete && deleteResumeMutation.mutate(resumeToDelete)}
+                          disabled={deleteResumeMutation.isPending}
+                        >
+                          {deleteResumeMutation.isPending ? "Deleting..." : "Delete Resume"}
+                        </AlertDialogAction>
+                      )}
                     </AlertDialogFooter>
                   </AlertDialogContent>
                 </AlertDialog>

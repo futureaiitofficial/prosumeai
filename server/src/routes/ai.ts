@@ -9,6 +9,7 @@ import { requireUser } from '../../middleware/auth';
 import { requireFeatureAccess, trackFeatureUsage } from '../../middleware/feature-access';
 import { planFeatures } from '@shared/schema';
 import { extractDocumentText } from '../../simple-parser'; // Import the extractDocumentText function
+import { extractSkills, generateSkillsForPosition } from '../utils/ai-resume-utils-new'; // Import AI utility functions
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -49,23 +50,44 @@ export async function extractKeywordsFromJobDescription(
       return [];
     }
 
+    // Validate input length
+    if (jobDescription.length < 50) {
+      console.warn('Job description too short for reliable keyword extraction');
+      return [];
+    }
+
     const prompt = `
-As an expert resume skills analyst, extract ONLY legitimate professional skills from this job description that would be appropriate to list in a resume's skills section.
+As an expert resume ATS analyst, extract ONLY high-value professional keywords that would significantly impact ATS scoring.
 
-IMPORTANT GUIDELINES:
-1. Extract ONLY actual professional skills, competencies, and abilities
-2. EXCLUDE company names, job titles, locations, and non-skill requirements
-3. EXCLUDE generic phrases like "ability to" - extract just the skill itself
-4. EXCLUDE vague descriptions that aren't specific skills
-5. FOCUS on hard skills, technical abilities, and concrete soft skills
-6. Ensure each skill is expressed in standard resume format (1-3 words typically)
-7. Format skills consistently (e.g., "JavaScript" not "javascript", "Python" not "python coding")
-8. Prioritize specific skills over general ones (e.g., "React" is better than "frontend development")
-9. Include only skills that could legitimately appear in a skills section of a resume
-10. Differentiate between tools/technologies and skills when appropriate
+CRITICAL EXTRACTION CRITERIA:
+1. Extract ONLY skills, technologies, tools, and qualifications that would appear in a resume
+2. EXCLUDE: company names, job titles, locations, generic phrases, and non-skill requirements
+3. PRIORITIZE: specific technical skills, software/tools, certifications, and concrete abilities
+4. FORMAT: Standard resume terminology (e.g., "JavaScript" not "javascript coding")
+5. FOCUS: Keywords that ATS systems specifically scan for in resumes
+6. QUALITY over QUANTITY: Extract 10-15 high-impact keywords rather than many low-value ones
 
-Return ONLY a list of 15-20 legitimate skills, with each on a new line.
-No numbering, bullet points, categories, or explanations.
+EXCLUDE these categories:
+- Company names and proper nouns (except technologies/tools)
+- Job titles and role descriptions
+- Geographic locations
+- Years of experience requirements
+- Degree levels (extract field of study instead)
+- Generic soft skills without specificity
+- Action verbs and job responsibilities
+- Benefits and compensation mentions
+
+INCLUDE these categories:
+- Programming languages and frameworks
+- Software applications and tools
+- Technical methodologies and processes
+- Industry-specific skills and knowledge
+- Certifications and professional qualifications
+- Specific hard skills and competencies
+- Measurable capabilities
+
+Return ONLY a clean list of 10-15 high-impact keywords, one per line.
+No explanations, categories, or formatting.
 
 Job Description:
 ${truncateText(jobDescription, 2000)}
@@ -75,53 +97,86 @@ ${truncateText(jobDescription, 2000)}
       const response = await OpenAIApi.chat({
         model: MODEL,
         messages: [{ role: 'user', content: prompt }],
-        max_tokens: 350,
-        temperature: 0.2,
+        max_tokens: 300,
+        temperature: 0.1, // Lower temperature for more consistent results
       });
 
       if (!response.choices || response.choices.length === 0) {
         console.error('OpenAI API returned empty choices array');
-        return ['API Error: No response choices returned'];
+        return [];
       }
 
       const content = response.choices[0]?.message?.content?.trim() || "";
       
+      if (!content) {
+        console.warn('OpenAI returned empty content for keyword extraction');
+        return [];
+      }
+
       // Split by newlines and clean up each keyword
       let keywords = content
         .split('\n')
         .map((line: string) => line.trim())
-        .filter((line: string) => line.length > 0);
+        .filter((line: string) => line.length > 0)
+        .map((line: string) => {
+          // Remove any numbering, bullets, or extra formatting
+          return line.replace(/^\d+\.?\s*/, '').replace(/^[-•*]\s*/, '').trim();
+        });
 
-      // Additional post-processing to exclude common non-skills
+      // Additional post-processing for quality control
       keywords = keywords.filter(skill => {
         const lowerSkill = skill.toLowerCase();
         
-        // Filter out common non-skills markers
-        if (
-          // Employment terms and logistical items
-          lowerSkill.includes(' years of experience') ||
-          lowerSkill.includes('degree in') ||
-          lowerSkill.includes('salary') ||
-          lowerSkill.includes('full-time') ||
-          lowerSkill.includes('part-time') ||
-          lowerSkill.includes('remote') ||
-          lowerSkill.includes('hybrid') ||
-          lowerSkill.includes('location') ||
+        // Filter out patterns that indicate non-skills
+        const invalidPatterns = [
+          // Experience and temporal requirements
+          /\d+\+?\s*(years?|months?)\s*(of\s*)?(experience|exp)/i,
+          /experience\s*(in|with|of)/i,
+          /minimum\s*\d+\s*years?/i,
+          
+          // Educational requirements
+          /bachelor'?s?\s*(degree|in)/i,
+          /master'?s?\s*(degree|in)/i,
+          /degree\s*in/i,
           
           // Generic phrases
-          lowerSkill.includes('ability to') ||
-          lowerSkill.includes('experience with') ||
-          lowerSkill.includes('knowledge of') ||
-          lowerSkill.includes('understanding of') ||
+          /ability\s*to/i,
+          /knowledge\s*of/i,
+          /understanding\s*of/i,
+          /experience\s*with/i,
+          /familiarity\s*with/i,
+          /working\s*knowledge/i,
           
-          // Overly general terms
-          lowerSkill === 'experience' ||
-          lowerSkill === 'skills' ||
-          lowerSkill === 'qualifications' ||
-          lowerSkill === 'requirements' ||
+          // Company and location indicators
+          /based\s*in/i,
+          /located\s*in/i,
+          /\b(inc|llc|corp|ltd|company)\b/i,
           
-          // Too long to be a standard skill
-          lowerSkill.split(' ').length > 4
+          // Job logistics
+          /full[- ]?time/i,
+          /part[- ]?time/i,
+          /remote/i,
+          /hybrid/i,
+          /on[- ]?site/i,
+          
+          // Overly generic terms
+          /^(team|work|job|role|position|company|business)$/i,
+          /^(good|great|excellent|strong|solid)$/i,
+          /^(skills?|requirements?|qualifications?)$/i
+        ];
+        
+        // Check if skill matches any invalid pattern
+        if (invalidPatterns.some(pattern => pattern.test(skill))) {
+          return false;
+        }
+        
+        // Filter by length and content
+        if (
+          skill.length < 2 || // Too short
+          skill.length > 50 || // Too long to be a single skill
+          lowerSkill.split(' ').length > 5 || // Too many words
+          /^\d+$/.test(skill) || // Just a number
+          /^[^a-zA-Z]*$/.test(skill) // No letters
         ) {
           return false;
         }
@@ -129,10 +184,61 @@ ${truncateText(jobDescription, 2000)}
         return true;
       });
 
-      return keywords;
+      // Remove duplicates and normalize
+      const uniqueKeywords = Array.from(new Set(
+        keywords.map(keyword => {
+          // Normalize common variations
+          let normalized = keyword.trim();
+          
+          // Handle common technology name variations
+          const normalizations: { [key: string]: string } = {
+            'js': 'JavaScript',
+            'javascript': 'JavaScript',
+            'ts': 'TypeScript',
+            'typescript': 'TypeScript',
+            'py': 'Python',
+            'python': 'Python',
+            'node': 'Node.js',
+            'nodejs': 'Node.js',
+            'node.js': 'Node.js',
+            'react': 'React',
+            'reactjs': 'React',
+            'angular': 'Angular',
+            'angularjs': 'Angular',
+            'vue': 'Vue.js',
+            'vuejs': 'Vue.js',
+            'css3': 'CSS',
+            'html5': 'HTML',
+            'sql': 'SQL',
+            'mysql': 'MySQL',
+            'postgresql': 'PostgreSQL',
+            'postgres': 'PostgreSQL',
+            'aws': 'AWS',
+            'amazon web services': 'AWS',
+            'azure': 'Microsoft Azure',
+            'gcp': 'Google Cloud Platform',
+            'google cloud': 'Google Cloud Platform'
+          };
+          
+          const normalizedLower = normalized.toLowerCase();
+          if (normalizations[normalizedLower]) {
+            normalized = normalizations[normalizedLower];
+          } else {
+            // Capitalize first letter of each word for consistency
+            normalized = normalized.split(' ')
+              .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+              .join(' ');
+          }
+          
+          return normalized;
+        })
+      ));
+
+      // Limit to reasonable number of keywords for ATS scoring
+      return uniqueKeywords.slice(0, 20);
+
     } catch (apiError: any) {
-      // Log specific OpenAI API errors
-      console.error('OpenAI API Error:', apiError.message);
+      console.error('OpenAI API Error in keyword extraction:', apiError.message);
       
       if (apiError.status === 401) {
         throw new Error('Authentication error: Invalid API key or token. Please check your OPENAI_API_KEY.');
@@ -151,7 +257,7 @@ ${truncateText(jobDescription, 2000)}
 }
 
 /**
- * Analyzes a job description and categorizes keywords
+ * Analyzes a job description and categorizes keywords with improved quality and error handling
  */
 export async function analyzeJobDescription(
   jobDescription: string
@@ -165,7 +271,7 @@ export async function analyzeJobDescription(
   certifications: string[];
 }> {
   try {
-    // If job description is empty, return empty categories
+    // Validate input
     if (!jobDescription || jobDescription.trim() === '') {
       return {
         technicalSkills: [],
@@ -178,53 +284,68 @@ export async function analyzeJobDescription(
       };
     }
 
+    // Check for minimum content length for meaningful analysis
+    if (jobDescription.trim().length < 100) {
+      console.warn('Job description too short for detailed analysis');
+      // Try basic keyword extraction as fallback
+      const basicKeywords = await extractKeywordsFromJobDescription(jobDescription);
+      return {
+        technicalSkills: basicKeywords.slice(0, 5),
+        softSkills: [],
+        education: [],
+        responsibilities: [],
+        industryTerms: [],
+        tools: [],
+        certifications: []
+      };
+    }
+
     const prompt = `
-As a professional resume analyst, categorize skills and qualifications from this job description specifically for resume use.
+As a professional ATS optimization expert, categorize skills and qualifications from this job description for resume optimization.
 
-Extract keywords into these categories:
+CATEGORIZATION GUIDELINES:
 
-1. technicalSkills: Concrete technical abilities, programming languages, methodologies, and hard skills
-   Examples: JavaScript, Python, Data Analysis, SEO, Machine Learning, DevOps, REST APIs, Accounting
+1. technicalSkills: Programming languages, methodologies, frameworks, and hard technical abilities
+   Examples: JavaScript, Python, Machine Learning, Data Analysis, REST APIs, Agile, DevOps, SQL
 
-2. softSkills: Specific interpersonal abilities, character traits, and professional attributes 
-   Examples: Leadership, Communication, Problem Solving, Conflict Resolution, Time Management
+2. tools: Specific software, platforms, applications, and development tools
+   Examples: React, AWS, Docker, Figma, Salesforce, JIRA, Excel, Git, Jenkins
 
-3. tools: Specific software, platforms, frameworks, and technologies used in the role
-   Examples: Adobe Photoshop, React, AWS, Docker, Kubernetes, Excel, Salesforce, JIRA
+3. softSkills: Interpersonal abilities and professional traits (only specific, measurable ones)
+   Examples: Leadership, Project Management, Communication, Problem Solving, Team Collaboration
 
-4. certifications: Professional certifications, licenses, and formal qualifications
-   Examples: AWS Certified Solutions Architect, PMP, CISSP, CPA, Scrum Master
+4. certifications: Professional certifications, licenses, and formal credentials
+   Examples: AWS Solutions Architect, PMP, Scrum Master, CPA, Security+, Google Analytics
 
-5. education: Required degrees and academic qualifications (not for listing as skills)
-   Examples: Bachelor's in Computer Science, MBA, Associate's Degree
+5. education: Academic requirements and educational qualifications
+   Examples: Computer Science, Engineering, Business Administration, Statistics
 
-6. industryTerms: Industry-specific knowledge areas (NOT company names or job titles)
-   Examples: Supply Chain Management, Product Lifecycle, UX Design, Financial Analysis
+6. industryTerms: Domain-specific knowledge areas and business concepts
+   Examples: Supply Chain, Healthcare Compliance, Financial Services, E-commerce, SaaS
 
-7. responsibilities: Key duties and functions (not for listing as skills, for context only)
-   Examples: Project Management, Team Leadership, Content Creation, Customer Support
+7. responsibilities: Key job functions and duties (for context, not for resume skills)
+   Examples: Code Review, System Architecture, Customer Support, Budget Management
 
-CRITICAL CRITERIA FOR RESUME-APPROPRIATE SKILLS:
-- Include ONLY items that could legitimately appear in a resume skills section
-- Extract items as they would appear in a resume (short, 1-3 words typically)
-- Format consistently and professionally (e.g., "JavaScript" not "javascript")
-- EXCLUDE generic phrases like "ability to" - extract just the skill itself
-- EXCLUDE company names, job titles, locations, and descriptions
-- EXCLUDE subjective qualities or personality traits that cannot be objectively demonstrated
-- PRIORITIZE specific skills over general skill areas
+QUALITY CRITERIA:
+- Extract ONLY terms that could legitimately appear in a resume skills section
+- Use standard industry terminology and proper capitalization
+- Avoid generic phrases, company names, and job titles
+- Focus on specific, searchable keywords that ATS systems target
+- Prioritize skills over general concepts
+- Limit each category to the most impactful 5-10 items
 
-Format response as a valid JSON object with array properties for each category.
+Format response as valid JSON with arrays for each category.
 
 Job Description:
-${truncateText(jobDescription, 2000)}
+${truncateText(jobDescription, 2500)}
 `;
 
     try {
       const response = await OpenAIApi.chat({
         model: MODEL,
         messages: [{ role: 'user', content: prompt }],
-        max_tokens: 1000,
-        temperature: 0.2,
+        max_tokens: 1200,
+        temperature: 0.1, // Lower temperature for more consistent categorization
         response_format: { type: "json_object" }
       });
 
@@ -235,123 +356,94 @@ ${truncateText(jobDescription, 2000)}
 
       const content = response.choices[0]?.message?.content?.trim() || "{}";
       
-      // Parse the JSON response
+      if (!content) {
+        throw new Error('OpenAI returned empty content');
+      }
+
+      // Parse and validate the JSON response
+      let parsedResult: any;
       try {
-        // Clean up the content in case it contains markdown code blocks or other formatting
+        // Clean up the content in case it contains markdown or other formatting
         let cleanedContent = content;
         
-        // Remove markdown code blocks if present (```json ... ```)
-        if (cleanedContent.startsWith("```") && cleanedContent.endsWith("```")) {
+        // Remove markdown code blocks if present
+        if (cleanedContent.includes('```')) {
           const codeBlockMatch = cleanedContent.match(/```(?:json)?\s*([\s\S]*?)```/);
           if (codeBlockMatch && codeBlockMatch[1]) {
             cleanedContent = codeBlockMatch[1].trim();
           }
         }
         
-        // Try to ensure we have valid JSON
-        if (!cleanedContent.startsWith("{")) {
-          cleanedContent = "{}";
+        // Ensure we have valid JSON structure
+        if (!cleanedContent.startsWith('{')) {
+          cleanedContent = '{}';
         }
         
-        console.log("Cleaned content before parsing:", cleanedContent);
-        const parsedResult = JSON.parse(cleanedContent);
-        
-        // Post-process the extracted skills for additional filtering
-        // Function to filter skills based on common criteria
-        const filterSkills = (skills: string[]): string[] => {
-          if (!Array.isArray(skills)) return [];
-          
-          return skills.filter(skill => {
-            const lowerSkill = skill.toLowerCase();
-            
-            // Filter out common non-skills markers 
-            if (
-              // Employment terms and logistical items
-              lowerSkill.includes(' years of experience') ||
-              lowerSkill.includes('degree in') ||
-              lowerSkill.includes('salary') ||
-              lowerSkill.includes('full-time') ||
-              lowerSkill.includes('part-time') ||
-              lowerSkill.includes('remote') ||
-              lowerSkill.includes('hybrid') ||
-              lowerSkill.includes('location') ||
-              
-              // Generic phrases
-              lowerSkill.includes('ability to') ||
-              lowerSkill.includes('experience with') ||
-              lowerSkill.includes('knowledge of') ||
-              lowerSkill.includes('understanding of') ||
-              
-              // Overly general terms
-              lowerSkill === 'experience' ||
-              lowerSkill === 'skills' ||
-              lowerSkill === 'qualifications' ||
-              lowerSkill === 'requirements' ||
-              
-              // Too long to be a standard skill
-              lowerSkill.split(' ').length > 4
-            ) {
-              return false;
-            }
-            
-            return true;
-          });
-        };
-        
-        // Ensure all categories exist and apply filtering
-        const result = {
-          technicalSkills: filterSkills(parsedResult.technicalSkills || []),
-          softSkills: filterSkills(parsedResult.softSkills || []),
-          education: Array.isArray(parsedResult.education) ? parsedResult.education : [],
-          responsibilities: Array.isArray(parsedResult.responsibilities) ? parsedResult.responsibilities : [],
-          industryTerms: filterSkills(parsedResult.industryTerms || []),
-          tools: filterSkills(parsedResult.tools || []),
-          certifications: Array.isArray(parsedResult.certifications) ? parsedResult.certifications : []
-        };
-        
-        return result;
+        parsedResult = JSON.parse(cleanedContent);
       } catch (parseError) {
-        console.error('Error parsing OpenAI response:', parseError);
+        console.error('JSON parsing error:', parseError);
+        console.log('Raw content:', content);
         
-        // Fall back to basic keyword extraction
-        const keywords = await extractKeywordsFromJobDescription(jobDescription);
-        
-        // Simple categorization logic - this is just a fallback
-        const technicalKeywords = ['javascript', 'python', 'java', 'html', 'css', 'api', 'sql', 'nosql', 
-          'react', 'angular', 'vue', 'node', 'aws', 'azure', 'cloud', 'data', 'analytics', 'machine learning'];
-        
-        const softKeywords = ['communication', 'leadership', 'teamwork', 'collaboration', 'problem solving', 
-          'time management', 'critical thinking', 'creativity', 'project management'];
-          
-        const toolKeywords = ['excel', 'powerpoint', 'word', 'photoshop', 'illustrator', 'figma', 'jira', 
-          'confluence', 'git', 'docker', 'kubernetes', 'terraform', 'jenkins'];
-        
-        // Simple categorization based on keyword matches
-        const result = {
-          technicalSkills: keywords.filter(k => 
-            technicalKeywords.some(tk => k.toLowerCase().includes(tk))
-          ),
-          softSkills: keywords.filter(k => 
-            softKeywords.some(sk => k.toLowerCase().includes(sk))
-          ),
-          tools: keywords.filter(k => 
-            toolKeywords.some(tk => k.toLowerCase().includes(tk))
-          ),
-          education: [],
-          responsibilities: [],
-          industryTerms: keywords.filter(k => 
-            !technicalKeywords.some(tk => k.toLowerCase().includes(tk)) &&
-            !softKeywords.some(sk => k.toLowerCase().includes(sk)) &&
-            !toolKeywords.some(tk => k.toLowerCase().includes(tk))
-          ),
-          certifications: []
-        };
-        
-        return result;
+        // Fallback to basic keyword extraction
+        const fallbackKeywords = await extractKeywordsFromJobDescription(jobDescription);
+        return categorizeKeywordsBasic(fallbackKeywords);
       }
+      
+      // Validate and clean each category
+      const cleanCategory = (items: any[]): string[] => {
+        if (!Array.isArray(items)) return [];
+        
+        return items
+          .filter(item => typeof item === 'string' && item.trim().length > 0)
+          .map(item => item.trim())
+          .filter(item => {
+            // Additional filtering for quality
+            const lowerItem = item.toLowerCase();
+            return (
+              item.length >= 2 && 
+              item.length <= 50 &&
+              !lowerItem.includes('experience with') &&
+              !lowerItem.includes('knowledge of') &&
+              !lowerItem.includes('ability to') &&
+              !/\d+\+?\s*years?/i.test(item) &&
+              !/degree in/i.test(item)
+            );
+          })
+          .slice(0, 10); // Limit each category
+      };
+      
+      // Process and validate all categories
+      const result = {
+        technicalSkills: cleanCategory(parsedResult.technicalSkills || []),
+        softSkills: cleanCategory(parsedResult.softSkills || []),
+        education: cleanCategory(parsedResult.education || []),
+        responsibilities: cleanCategory(parsedResult.responsibilities || []),
+        industryTerms: cleanCategory(parsedResult.industryTerms || []),
+        tools: cleanCategory(parsedResult.tools || []),
+        certifications: cleanCategory(parsedResult.certifications || [])
+      };
+      
+      // Quality check: if we got very few results, supplement with fallback
+      const totalExtracted = Object.values(result).reduce((sum, arr) => sum + arr.length, 0);
+      
+      if (totalExtracted < 5) {
+        console.warn('AI extraction yielded few results, supplementing with fallback');
+        const fallbackKeywords = await extractKeywordsFromJobDescription(jobDescription);
+        const fallbackCategorized = categorizeKeywordsBasic(fallbackKeywords);
+        
+        // Merge results, prioritizing AI results but filling gaps
+        Object.keys(result).forEach(key => {
+          const typedKey = key as keyof typeof result;
+          if (result[typedKey].length === 0 && fallbackCategorized[typedKey].length > 0) {
+            result[typedKey] = fallbackCategorized[typedKey];
+          }
+        });
+      }
+      
+      return result;
+      
     } catch (apiError: any) {
-      // Log specific OpenAI API errors
-      console.error('OpenAI API Error:', apiError.message);
+      console.error('OpenAI API Error in job analysis:', apiError);
       
       if (apiError.status === 401) {
         throw new Error('Authentication error: Invalid API key or token. Please check your OPENAI_API_KEY.');
@@ -361,12 +453,107 @@ ${truncateText(jobDescription, 2000)}
         throw new Error('OpenAI server error. Please try again later.');
       }
       
-      throw apiError;
+      // Fallback to basic extraction on API errors
+      console.log('Falling back to basic keyword extraction due to API error');
+      const fallbackKeywords = await extractKeywordsFromJobDescription(jobDescription);
+      return categorizeKeywordsBasic(fallbackKeywords);
     }
   } catch (error: any) {
     console.error('Error analyzing job description:', error);
-    throw new Error(`Failed to analyze job description: ${error.message}`);
+    
+    // Final fallback - return basic categorization
+    try {
+      const fallbackKeywords = await extractKeywordsFromJobDescription(jobDescription);
+      return categorizeKeywordsBasic(fallbackKeywords);
+    } catch (fallbackError) {
+      console.error('Fallback extraction also failed:', fallbackError);
+      // Return empty structure as last resort
+      return {
+        technicalSkills: [],
+        softSkills: [],
+        education: [],
+        responsibilities: [],
+        industryTerms: [],
+        tools: [],
+        certifications: []
+      };
+    }
   }
+}
+
+/**
+ * Basic keyword categorization as fallback when AI fails
+ */
+function categorizeKeywordsBasic(keywords: string[]): {
+  technicalSkills: string[];
+  softSkills: string[];
+  education: string[];
+  responsibilities: string[];
+  industryTerms: string[];
+  tools: string[];
+  certifications: string[];
+} {
+  const technicalPatterns = [
+    /\b(javascript|python|java|c\+\+|c#|php|ruby|go|swift|kotlin|rust|scala)\b/i,
+    /\b(react|angular|vue|node|express|django|spring|laravel)\b/i,
+    /\b(sql|nosql|mongodb|mysql|postgresql|redis|elasticsearch)\b/i,
+    /\b(html|css|sass|less|bootstrap|tailwind)\b/i,
+    /\b(api|rest|graphql|soap|microservices|devops|cicd)\b/i,
+    /\b(machine learning|ai|artificial intelligence|data science|analytics)\b/i,
+    /\b(agile|scrum|kanban|waterfall|lean)\b/i
+  ];
+  
+  const toolPatterns = [
+    /\b(aws|azure|google cloud|gcp|docker|kubernetes|terraform)\b/i,
+    /\b(git|github|gitlab|bitbucket|jenkins|travis|circleci)\b/i,
+    /\b(jira|confluence|slack|teams|zoom)\b/i,
+    /\b(excel|powerpoint|word|outlook|sharepoint)\b/i,
+    /\b(photoshop|illustrator|figma|sketch|canva)\b/i,
+    /\b(salesforce|hubspot|zendesk|freshworks)\b/i
+  ];
+  
+  const softSkillPatterns = [
+    /\b(leadership|management|communication|collaboration)\b/i,
+    /\b(problem solving|critical thinking|analytical)\b/i,
+    /\b(project management|time management|organization)\b/i,
+    /\b(creativity|innovation|adaptability|flexibility)\b/i
+  ];
+  
+  const certificationPatterns = [
+    /\b(aws certified|azure certified|google certified)\b/i,
+    /\b(pmp|scrum master|product owner|csm|cpo)\b/i,
+    /\b(cissp|security\+|network\+|ceh)\b/i,
+    /\b(cpa|cfa|frm|phr|sphr)\b/i
+  ];
+  
+  const result = {
+    technicalSkills: [] as string[],
+    softSkills: [] as string[],
+    education: [] as string[],
+    responsibilities: [] as string[],
+    industryTerms: [] as string[],
+    tools: [] as string[],
+    certifications: [] as string[]
+  };
+  
+  keywords.forEach(keyword => {
+    const lowerKeyword = keyword.toLowerCase();
+    
+    if (certificationPatterns.some(pattern => pattern.test(keyword))) {
+      result.certifications.push(keyword);
+    } else if (technicalPatterns.some(pattern => pattern.test(keyword))) {
+      result.technicalSkills.push(keyword);
+    } else if (toolPatterns.some(pattern => pattern.test(keyword))) {
+      result.tools.push(keyword);
+    } else if (softSkillPatterns.some(pattern => pattern.test(keyword))) {
+      result.softSkills.push(keyword);
+    } else {
+      // Default to industry terms for unmatched keywords
+      result.industryTerms.push(keyword);
+    }
+  });
+  
+  return result;
 }
 
 /**
@@ -1160,6 +1347,428 @@ router.post('/parse-resume',
       return res.status(500).json({ 
         message: "Failed to parse resume: " + (error.message || "Unknown error"), 
         error: "PARSING_ERROR" 
+      });
+    }
+  }
+);
+
+// Extract skills with custom categories
+router.post('/extract-skills-comprehensive', 
+  requireUser,
+  requireFeatureAccess('ai_generation'),
+  trackFeatureUsage('ai_generation'),
+  async (req, res) => {
+    try {
+      const { jobTitle, jobDescription, customCategories } = req.body;
+      
+      if (!jobTitle || !jobDescription) {
+        return res.status(400).json({ 
+          message: 'Job title and description are required',
+          error: 'MISSING_REQUIRED_DATA'
+        });
+      }
+      
+      console.log('Extracting skills with custom categories:', customCategories);
+      
+      // Default categories if none provided
+      const categories = customCategories && customCategories.length > 0 
+        ? customCategories 
+        : ['Technical Skills', 'Soft Skills', 'Tools', 'Programming Languages'];
+      
+      const prompt = `
+You are an expert resume ATS specialist. Extract relevant skills from the following job description for a "${jobTitle}" position and categorize them into the specified categories.
+
+Job Description:
+${truncateText(jobDescription, 2000)}
+
+CATEGORIES TO USE:
+${categories.map((cat: string) => `- ${cat}`).join('\n')}
+
+Please categorize the skills you find into the above categories. If a category doesn't have any relevant skills, include an empty array.
+
+Format your response as a JSON object with category names as keys and arrays of skills as values.
+
+IMPORTANT:
+- Extract only skills that are explicitly mentioned or strongly implied in the job description
+- Use exact keywords from the job description where possible
+- Each skill should be 1-3 words maximum
+- Include 5-10 skills per category when possible
+- Be specific (e.g., "React.js" not just "frontend")
+
+Example format:
+{
+  "Technical Skills": ["JavaScript", "Python", "REST APIs"],
+  "Tools": ["Docker", "AWS", "Git"],
+  "Programming Languages": ["Python", "JavaScript", "SQL"],
+  "Soft Skills": ["Communication", "Leadership", "Problem Solving"]
+}
+
+Do not include explanations, just the JSON object.
+`;
+
+      const response = await OpenAIApi.chat({
+        model: MODEL,
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 800,
+        temperature: 0.5,
+        response_format: { type: "json_object" }
+      });
+
+      const content = response.choices[0]?.message?.content?.trim() || "{}";
+      const categorizedSkills = JSON.parse(content);
+      
+      // Clean and validate the categorized skills
+      const cleanedSkills: { [category: string]: string[] } = {};
+      categories.forEach((category: string) => {
+        const skills = categorizedSkills[category] || [];
+        if (Array.isArray(skills)) {
+          cleanedSkills[category] = skills
+            .filter((skill: any) => typeof skill === 'string' && skill.trim().length > 0)
+            .map((skill: string) => skill.trim())
+            .slice(0, 10); // Limit to 10 skills per category
+        } else {
+          cleanedSkills[category] = [];
+        }
+      });
+
+      // Track token usage
+      if (req.isAuthenticated && req.isAuthenticated() && req.user) {
+        const tokensUsed = response.usage?.total_tokens || 400;
+        try {
+          await trackTokenUsage(req.user.id, 'ai_generation', tokensUsed);
+        } catch (tokenError) {
+          console.error('Error tracking token usage:', tokenError);
+        }
+      }
+
+      res.json({ categorizedSkills: cleanedSkills });
+    } catch (error) {
+      console.error('Error extracting skills with categories:', error);
+      res.status(500).json({ 
+        message: 'Failed to extract skills with custom categories',
+        error: 'SKILL_EXTRACTION_ERROR'
+      });
+    }
+  }
+);
+
+// Generate skills with custom categories
+router.post('/generate-skills-comprehensive', 
+  requireUser,
+  requireFeatureAccess('ai_generation'),
+  trackFeatureUsage('ai_generation'),
+  async (req, res) => {
+    try {
+      const { jobTitle, customCategories } = req.body;
+      
+      if (!jobTitle) {
+        return res.status(400).json({ 
+          message: 'Job title is required',
+          error: 'MISSING_REQUIRED_DATA'
+        });
+      }
+      
+      console.log('Generating skills with custom categories:', customCategories);
+      
+      // Default categories if none provided
+      const categories = customCategories && customCategories.length > 0 
+        ? customCategories 
+        : ['Technical Skills', 'Soft Skills', 'Tools', 'Programming Languages'];
+      
+      const prompt = `
+You are an expert resume ATS specialist. Generate relevant skills that would be expected for a "${jobTitle}" position and categorize them into the specified categories.
+
+CATEGORIES TO USE:
+${categories.map((cat: string) => `- ${cat}`).join('\n')}
+
+Please generate skills that would be relevant for this job role and categorize them into the above categories. If a category doesn't apply to this role, include an empty array.
+
+Format your response as a JSON object with category names as keys and arrays of skills as values.
+
+IMPORTANT:
+- Include specific technical skills relevant to this job position
+- Include industry-standard terminology for this role
+- Be precise and focus on skills that would actually appear in job descriptions
+- Include both fundamental and advanced skills for this role
+- Each skill should be 1-3 words maximum
+- Include 6-12 skills per relevant category
+
+Example format:
+{
+  "Programming Languages": ["JavaScript", "Python", "TypeScript"],
+  "Tools": ["Docker", "AWS", "Git", "Jenkins"],
+  "Technical Skills": ["REST APIs", "Database Design", "CI/CD"],
+  "Soft Skills": ["Communication", "Leadership", "Problem Solving"]
+}
+
+Do not include explanations, just the JSON object.
+`;
+
+      const response = await OpenAIApi.chat({
+        model: MODEL,
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 800,
+        temperature: 0.5,
+        response_format: { type: "json_object" }
+      });
+
+      const content = response.choices[0]?.message?.content?.trim() || "{}";
+      const categorizedSkills = JSON.parse(content);
+      
+      // Clean and validate the categorized skills
+      const cleanedSkills: { [category: string]: string[] } = {};
+      categories.forEach((category: string) => {
+        const skills = categorizedSkills[category] || [];
+        if (Array.isArray(skills)) {
+          cleanedSkills[category] = skills
+            .filter((skill: any) => typeof skill === 'string' && skill.trim().length > 0)
+            .map((skill: string) => skill.trim())
+            .slice(0, 12); // Limit to 12 skills per category
+        } else {
+          cleanedSkills[category] = [];
+        }
+      });
+
+      // Track token usage
+      if (req.isAuthenticated && req.isAuthenticated() && req.user) {
+        const tokensUsed = response.usage?.total_tokens || 400;
+        try {
+          await trackTokenUsage(req.user.id, 'ai_generation', tokensUsed);
+        } catch (tokenError) {
+          console.error('Error tracking token usage:', tokenError);
+        }
+      }
+
+      res.json({ categorizedSkills: cleanedSkills });
+    } catch (error) {
+      console.error('Error generating skills with categories:', error);
+      res.status(500).json({ 
+        message: 'Failed to generate skills with custom categories',
+        error: 'SKILL_GENERATION_ERROR'
+      });
+    }
+  }
+);
+
+// Update existing extract-skills endpoint to support custom categories
+router.post('/extract-skills', 
+  requireUser,
+  requireFeatureAccess('ai_generation'),
+  trackFeatureUsage('ai_generation'),
+  async (req, res) => {
+    try {
+      const { jobTitle, jobDescription, customCategories } = req.body;
+      
+      if (!jobTitle || !jobDescription) {
+        return res.status(400).json({ 
+          message: 'Job title and description are required',
+          error: 'MISSING_REQUIRED_DATA'
+        });
+      }
+      
+      console.log('Extracting skills (legacy format) with custom categories:', customCategories);
+      
+      // Use the enhanced categorized extraction
+      if (customCategories && customCategories.length > 0) {
+        const categories = customCategories;
+        
+        const prompt = `
+You are an expert resume ATS specialist. Extract relevant skills from the following job description for a "${jobTitle}" position and provide both traditional categorization and custom categorization.
+
+Job Description:
+${truncateText(jobDescription, 2000)}
+
+CUSTOM CATEGORIES:
+${categories.map((cat: string) => `- ${cat}`).join('\n')}
+
+Please provide skills in both formats:
+1. Traditional format (technicalSkills and softSkills)
+2. Custom categorized format
+
+Format your response as a JSON object with both formats:
+
+{
+  "technicalSkills": ["skill1", "skill2"],
+  "softSkills": ["skill1", "skill2"],
+  "categorizedSkills": {
+    "CustomCategory1": ["skill1", "skill2"],
+    "CustomCategory2": ["skill1", "skill2"]
+  }
+}
+
+IMPORTANT:
+- Extract only skills explicitly mentioned in the job description
+- Use exact keywords where possible
+- Include 8-12 skills total in traditional categories
+- Distribute skills appropriately across custom categories
+- Be specific and relevant
+
+Do not include explanations, just the JSON object.
+`;
+
+        const response = await OpenAIApi.chat({
+          model: MODEL,
+          messages: [{ role: 'user', content: prompt }],
+          max_tokens: 700,
+          temperature: 0.5,
+          response_format: { type: "json_object" }
+        });
+
+        const content = response.choices[0]?.message?.content?.trim() || "{}";
+        const result = JSON.parse(content);
+        
+        // Clean the results
+        const cleanedResult = {
+          technicalSkills: (result.technicalSkills || []).slice(0, 12),
+          softSkills: (result.softSkills || []).slice(0, 8),
+          categorizedSkills: result.categorizedSkills || {}
+        };
+
+        // Track token usage
+        if (req.isAuthenticated && req.isAuthenticated() && req.user) {
+          const tokensUsed = response.usage?.total_tokens || 400;
+          try {
+            await trackTokenUsage(req.user.id, 'ai_generation', tokensUsed);
+          } catch (tokenError) {
+            console.error('Error tracking token usage:', tokenError);
+          }
+        }
+
+        return res.json(cleanedResult);
+      }
+      
+      // Fallback to original implementation for backward compatibility
+      try {
+        const extractedSkills = await extractSkills(jobTitle, jobDescription);
+        res.json(extractedSkills);
+      } catch (fallbackError) {
+        // If the extractSkills function doesn't exist, create a basic response
+        console.error('extractSkills function not available, using basic response:', fallbackError);
+        res.json({ 
+          technicalSkills: [], 
+          softSkills: [],
+          categorizedSkills: {
+            "Technical Skills": [],
+            "Soft Skills": []
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Error extracting skills:', error);
+      res.status(500).json({ 
+        message: 'Failed to extract skills from job description',
+        error: 'SKILL_EXTRACTION_ERROR'
+      });
+    }
+  }
+);
+
+// Update existing generate-position-skills endpoint to support custom categories
+router.post('/generate-position-skills', 
+  requireUser,
+  requireFeatureAccess('ai_generation'),
+  trackFeatureUsage('ai_generation'),
+  async (req, res) => {
+    try {
+      const { jobTitle, customCategories } = req.body;
+      
+      if (!jobTitle) {
+        return res.status(400).json({ 
+          message: 'Job title is required',
+          error: 'MISSING_REQUIRED_DATA'
+        });
+      }
+      
+      console.log('Generating position skills (legacy format) with custom categories:', customCategories);
+      
+      // Use the enhanced categorized generation
+      if (customCategories && customCategories.length > 0) {
+        const categories = customCategories;
+        
+        const prompt = `
+You are an expert resume ATS specialist. Generate relevant skills for a "${jobTitle}" position and provide both traditional categorization and custom categorization.
+
+CUSTOM CATEGORIES:
+${categories.map((cat: string) => `- ${cat}`).join('\n')}
+
+Please provide skills in both formats:
+1. Traditional format (technicalSkills and softSkills)
+2. Custom categorized format
+
+Format your response as a JSON object with both formats:
+
+{
+  "technicalSkills": ["skill1", "skill2"],
+  "softSkills": ["skill1", "skill2"],
+  "categorizedSkills": {
+    "CustomCategory1": ["skill1", "skill2"],
+    "CustomCategory2": ["skill1", "skill2"]
+  }
+}
+
+IMPORTANT:
+- Include specific technical skills relevant to this job position
+- Include industry-standard terminology for this role
+- Include both fundamental and advanced skills
+- Be precise and focus on skills that actually appear in job descriptions
+- Include 8-12 skills total in traditional categories
+- Distribute skills appropriately across custom categories
+
+Do not include explanations, just the JSON object.
+`;
+
+        const response = await OpenAIApi.chat({
+          model: MODEL,
+          messages: [{ role: 'user', content: prompt }],
+          max_tokens: 700,
+          temperature: 0.5,
+          response_format: { type: "json_object" }
+        });
+
+        const content = response.choices[0]?.message?.content?.trim() || "{}";
+        const result = JSON.parse(content);
+        
+        // Clean the results
+        const cleanedResult = {
+          technicalSkills: (result.technicalSkills || []).slice(0, 12),
+          softSkills: (result.softSkills || []).slice(0, 8),
+          categorizedSkills: result.categorizedSkills || {}
+        };
+
+        // Track token usage
+        if (req.isAuthenticated && req.isAuthenticated() && req.user) {
+          const tokensUsed = response.usage?.total_tokens || 400;
+          try {
+            await trackTokenUsage(req.user.id, 'ai_generation', tokensUsed);
+          } catch (tokenError) {
+            console.error('Error tracking token usage:', tokenError);
+          }
+        }
+
+        return res.json(cleanedResult);
+      }
+      
+      // Fallback to original implementation for backward compatibility
+      try {
+        const generatedSkills = await generateSkillsForPosition(jobTitle);
+        res.json(generatedSkills);
+      } catch (fallbackError) {
+        // If the generateSkillsForPosition function doesn't exist, create a basic response
+        console.error('generateSkillsForPosition function not available, using basic response:', fallbackError);
+        res.json({ 
+          technicalSkills: [], 
+          softSkills: [],
+          categorizedSkills: {
+            "Technical Skills": [],
+            "Soft Skills": []
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Error generating position skills:', error);
+      res.status(500).json({ 
+        message: 'Failed to generate skills for job position',
+        error: 'SKILL_GENERATION_ERROR'
       });
     }
   }

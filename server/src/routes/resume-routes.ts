@@ -230,21 +230,114 @@ export function registerResumeRoutes(app: express.Express) {
         return res.status(403).json({ message: "You don't have permission to delete this resume" });
       }
       
-      // Delete the resume
-      const success = await storage.deleteResume(resumeId);
-      
-      if (!success) {
-        return res.status(500).json({ message: "Failed to delete resume" });
+      // Try to delete the resume
+      try {
+        const success = await storage.deleteResume(resumeId);
+        
+        if (!success) {
+          return res.status(500).json({ message: "Failed to delete resume" });
+        }
+        
+        res.json({ 
+          message: "Resume deleted successfully",
+          id: resumeId
+        });
+      } catch (deleteError: any) {
+        // Check for foreign key constraint violations
+        if (deleteError.code === '23503') {
+          if (deleteError.constraint_name === 'cover_letters_resume_id_resumes_id_fk') {
+            return res.status(409).json({ 
+              message: "Cannot delete resume that is linked to cover letters",
+              error: "This resume is referenced by one or more cover letters. Please remove these references first or delete the cover letters.",
+              detail: "foreign key constraint violation",
+              constraint: "cover_letters"
+            });
+          } else if (deleteError.constraint_name === 'job_applications_resume_id_resumes_id_fk') {
+            return res.status(409).json({ 
+              message: "Cannot delete resume that is linked to job applications",
+              error: "This resume is referenced by one or more job applications. Please remove these references first.",
+              detail: "foreign key constraint violation",
+              constraint: "job_applications"
+            });
+          } else {
+            // Generic foreign key constraint error
+            return res.status(409).json({ 
+              message: "Cannot delete resume due to existing references",
+              error: "This resume is referenced by other data. Please remove these references first.",
+              detail: "foreign key constraint violation"
+            });
+          }
+        }
+        
+        // Re-throw other errors
+        throw deleteError;
       }
-      
-      res.json({ 
-        message: "Resume deleted successfully",
-        id: resumeId
-      });
     } catch (error: any) {
       console.error(`Error in DELETE /api/resumes/${req.params.id}:`, error);
       res.status(500).json({ 
         message: "Failed to delete resume", 
+        error: error.message 
+      });
+    }
+  });
+
+  // Get resume references (what's linked to this resume)
+  app.get('/api/resumes/:id/references', 
+    requireUser, 
+    async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      const resumeId = parseInt(req.params.id);
+      
+      if (isNaN(resumeId)) {
+        return res.status(400).json({ message: "Invalid resume ID" });
+      }
+      
+      // Check if resume exists and belongs to the user
+      const existingResume = await storage.getResume(resumeId);
+      
+      if (!existingResume) {
+        return res.status(404).json({ message: "Resume not found" });
+      }
+      
+      if (existingResume.userId !== req.user.id) {
+        return res.status(403).json({ message: "You don't have permission to access this resume" });
+      }
+      
+      // Get all cover letters that reference this resume
+      const coverLetters = await storage.getCoverLetters(req.user.id);
+      const linkedCoverLetters = coverLetters.filter(cl => cl.resumeId === resumeId);
+      
+      // Get all job applications that reference this resume
+      const jobApplications = await storage.getJobApplications(req.user.id);
+      const linkedJobApplications = jobApplications.filter(ja => ja.resumeId === resumeId);
+      
+      res.json({
+        resumeId,
+        resumeTitle: existingResume.title,
+        references: {
+          coverLetters: linkedCoverLetters.map(cl => ({
+            id: cl.id,
+            title: cl.title,
+            company: cl.company,
+            jobTitle: cl.jobTitle
+          })),
+          jobApplications: linkedJobApplications.map(ja => ({
+            id: ja.id,
+            company: ja.company,
+            jobTitle: ja.jobTitle,
+            status: ja.status
+          }))
+        },
+        canDelete: linkedCoverLetters.length === 0 && linkedJobApplications.length === 0
+      });
+    } catch (error: any) {
+      console.error(`Error in GET /api/resumes/${req.params.id}/references:`, error);
+      res.status(500).json({ 
+        message: "Failed to fetch resume references", 
         error: error.message 
       });
     }
