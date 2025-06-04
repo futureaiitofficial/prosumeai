@@ -19,6 +19,7 @@ import { registerTaxRoutes } from "./tax-routes";
 import { registerTaxAdminRoutes } from "./tax-admin-routes";
 import { registerTwoFactorRoutes, checkTwoFactorRequired } from "./two-factor-routes";
 import { registerPublicBlogRoutes } from "./public-blog-routes";
+import { registerBlogRoutes } from "./blog-routes";
 import { registerEnhancedAIRoutes } from "./ai-enhanced";
 import notificationRouter from "./notification-routes";
 import { 

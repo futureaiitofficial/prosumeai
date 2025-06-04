@@ -8,6 +8,10 @@ services:
     restart: always
     environment:
       NODE_ENV: production
+      # Security headers and settings
+      TRUST_PROXY: "true"
+      DISABLE_SECURE_COOKIE: "false"
+      COOKIE_SAMESITE: "strict"
     # Remove pgAdmin in production
     depends_on:
       db:
@@ -20,11 +24,20 @@ services:
         reservations:
           memory: 512M
           cpus: '0.25'
+    # Security: Remove volumes that aren't needed in production
+    volumes:
+      # Keep only essential volumes
+      - ./public/images:/app/public/images
+      - ./server/uploads:/app/server/uploads
+      - ./logs:/app/logs
 
   db:
     restart: always
-    # Don't expose database port in production
+    # Don't expose database port in production (remove from ports)
     ports: []
+    # Harden database configuration
+    environment:
+      POSTGRES_HOST_AUTH_METHOD: md5  # Require password authentication
     deploy:
       resources:
         limits:
@@ -34,7 +47,14 @@ services:
           memory: 256M
           cpus: '0.1'
 
-  # Remove pgAdmin service in production
+  # Remove pgAdmin service in production for security
   pgadmin:
     deploy:
-      replicas: 0 
+      replicas: 0
+
+# Add production-specific network configuration
+networks:
+  atscribe-network:
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.name: "prosumeai-prod" 

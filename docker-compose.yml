@@ -75,6 +75,8 @@ services:
     volumes:
       # Volume mount for notification sounds (working solution)
       - ./public/sounds:/app/public/sounds:ro
+      # Volume mount for persistent blog images (publicly accessible)
+      - ./public/images:/app/public/images
     depends_on:
       db:
         condition: service_healthy

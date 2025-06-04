@@ -1,10 +1,36 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'wouter';
 import { useBranding } from '@/components/branding/branding-provider';
+import axios from 'axios';
+
+interface BlogCategory {
+  id: number;
+  name: string;
+  slug: string;
+  description?: string;
+  postCount: number;
+  isActive: boolean;
+}
 
 export default function SharedFooter() {
   const branding = useBranding();
   const currentYear = new Date().getFullYear();
+  const [categories, setCategories] = useState<BlogCategory[]>([]);
+  
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const response = await axios.get('/api/blog/categories');
+        // Only show first 5 categories in footer
+        setCategories(response.data.slice(0, 5));
+      } catch (error) {
+        console.error('Error fetching blog categories:', error);
+        // Fail silently for footer
+      }
+    };
+    
+    fetchCategories();
+  }, []);
   
   return (
     <footer className="bg-slate-900 py-10 md:py-12 text-white">
@@ -20,12 +46,36 @@ export default function SharedFooter() {
             </p>
           </div>
           
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-6 md:gap-8">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 md:gap-8">
             <div>
               <h4 className="text-base md:text-lg font-semibold mb-3 md:mb-4">Product</h4>
               <ul className="space-y-2">
                 <li><Link href="/#features"><a className="text-slate-400 hover:text-indigo-400 transition-colors text-sm md:text-base">Features</a></Link></li>
                 <li><Link href="/pricing"><a className="text-slate-400 hover:text-indigo-400 transition-colors text-sm md:text-base">Pricing</a></Link></li>
+              </ul>
+            </div>
+            
+            <div>
+              <h4 className="text-base md:text-lg font-semibold mb-3 md:mb-4">Resources</h4>
+              <ul className="space-y-2">
+                {categories.map((category) => (
+                  <li key={category.id}>
+                    <Link href={`/blog?category=${category.slug}`}>
+                      <a className="text-slate-400 hover:text-indigo-400 transition-colors text-sm md:text-base">
+                        {category.name}
+                      </a>
+                    </Link>
+                  </li>
+                ))}
+                {categories.length === 0 && (
+                  <li>
+                    <Link href="/blog">
+                      <a className="text-slate-400 hover:text-indigo-400 transition-colors text-sm md:text-base">
+                        Blog
+                      </a>
+                    </Link>
+                  </li>
+                )}
               </ul>
             </div>
             

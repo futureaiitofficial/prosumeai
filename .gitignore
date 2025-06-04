@@ -7,3 +7,7 @@ vite.config.ts.*
 .env
 uploads/*
 !uploads/.gitkeep
+# Backup files
+backups/
+*.sql
+*.sql.gz

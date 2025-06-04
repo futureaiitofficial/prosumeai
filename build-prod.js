@@ -2,84 +2,74 @@
 
 /**
  * Production build script for ProsumeAI
- * This script builds both the client and server for production
+ * This script builds both the client and server for production deployment
  */
 
-import { spawn, spawnSync } from 'child_process';
+import { spawn } from 'child_process';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
-import dotenv from 'dotenv';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Load environment variables from .env.production if it exists
-const envPath = path.join(__dirname, '.env.production');
-if (fs.existsSync(envPath)) {
-  console.log('Loading environment variables from .env.production');
-  dotenv.config({ path: envPath });
-} else {
-  // Fall back to regular .env
-  console.log('No .env.production found. Using .env file if available');
-  dotenv.config();
+console.log('🚀 Building ProsumeAI for production...');
+
+// Ensure dist directories exist
+const distDir = path.join(__dirname, 'dist');
+const clientDistDir = path.join(distDir, 'client');
+const serverDistDir = path.join(distDir, 'server');
+
+if (!fs.existsSync(distDir)) {
+  fs.mkdirSync(distDir, { recursive: true });
 }
 
-console.log('Building ProsumeAI for production...');
+async function runCommand(command, args, description) {
+  return new Promise((resolve, reject) => {
+    console.log(`📦 ${description}...`);
+    
+    const child = spawn(command, args, {
+      cwd: __dirname,
+      stdio: 'inherit',
+      shell: true
+    });
 
-// Ensure dist directory exists
-const ensureDistDir = spawnSync('node', ['server/utils/ensure-dist-dir.js'], {
-  cwd: __dirname,
-  stdio: 'inherit'
-});
+    child.on('close', (code) => {
+      if (code === 0) {
+        console.log(`✅ ${description} completed successfully`);
+        resolve();
+      } else {
+        console.error(`❌ ${description} failed with code ${code}`);
+        reject(new Error(`${description} failed`));
+      }
+    });
 
-if (ensureDistDir.status !== 0) {
-  console.error('Failed to ensure dist directory exists');
-  process.exit(1);
+    child.on('error', (error) => {
+      console.error(`❌ ${description} error:`, error);
+      reject(error);
+    });
+  });
 }
 
-// Build client
-console.log('\n=== Building client ===');
-const clientBuild = spawnSync('npx', ['vite', 'build', '--config', path.join(__dirname, 'vite.config.ts')], {
-  cwd: __dirname,
-  env: {
-    ...process.env,
-    NODE_ENV: 'production'
-  },
-  stdio: 'inherit'
-});
+async function build() {
+  try {
+    // Step 1: Build client (Vite build)
+    await runCommand('npm', ['run', 'build:client'], 'Building client application');
 
-if (clientBuild.status !== 0) {
-  console.error('Client build failed');
-  process.exit(1);
+    // Step 2: Build server (TypeScript compilation)  
+    await runCommand('npm', ['run', 'build:server'], 'Building server application');
+
+    // Step 3: Ensure dist directory structure
+    await runCommand('npm', ['run', 'build:ensure-dist'], 'Ensuring dist directory structure');
+
+    console.log('🎉 Production build completed successfully!');
+    console.log('📁 Built files are in the dist/ directory');
+    console.log('🔧 Run "npm run start:prod" to start the production server');
+
+  } catch (error) {
+    console.error('💥 Build failed:', error.message);
+    process.exit(1);
+  }
 }
 
-// Build server
-console.log('\n=== Building server ===');
-// Create a simple index.js in dist that imports and runs the server
-const serverEntryContent = `
-// Production server entry point
-import { createServer } from 'http';
-import express from 'express';
-import { fileURLToPath } from 'url';
-import path from 'path';
-import dotenv from 'dotenv';
-
-// Load environment variables
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-dotenv.config({ path: path.join(__dirname, '../.env.production') });
-
-// Set NODE_ENV to production explicitly
-process.env.NODE_ENV = 'production';
-console.log('Starting server in production mode');
-
-// Import server
-import '../server/index.js';
-`;
-
-fs.writeFileSync(path.join(__dirname, 'dist', 'index.js'), serverEntryContent);
-console.log('Created production server entry point');
-
-console.log('\n=== Build completed successfully ===');
-console.log('You can now run the application using: npm run start:prod'); 
+build(); 

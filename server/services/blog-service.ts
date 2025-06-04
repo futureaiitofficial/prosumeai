@@ -733,6 +733,19 @@ export class BlogService {
     return result.length > 0;
   }
 
+  /**
+   * Get media by filename
+   */
+  public static async getMediaByFilename(filename: string): Promise<BlogMedia | null> {
+    const [media] = await db
+      .select()
+      .from(blogMedia)
+      .where(eq(blogMedia.filename, filename))
+      .limit(1);
+
+    return media || null;
+  }
+
   // ============= Utility Methods =============
 
   /**
@@ -802,6 +815,29 @@ export class BlogService {
       totalTags: Number(totalTags.count),
       totalViews: Number(totalViews)
     };
+  }
+
+  /**
+   * Get all blog posts for migration purposes (no pagination)
+   */
+  public static async getAllPostsForMigration(): Promise<BlogPost[]> {
+    return await db.select().from(blogPosts);
+  }
+
+  /**
+   * Update post URLs only (for migration)
+   */
+  public static async updatePostUrls(id: number, urlData: { featuredImage?: string; content?: string }): Promise<boolean> {
+    const [updatedPost] = await db
+      .update(blogPosts)
+      .set({
+        ...urlData,
+        updatedAt: new Date()
+      })
+      .where(eq(blogPosts.id, id))
+      .returning();
+
+    return !!updatedPost;
   }
 }
 

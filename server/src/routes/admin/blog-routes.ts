@@ -41,7 +41,8 @@ const mediaStorage = multer.diskStorage({
       subDir = 'documents';
     }
     
-    const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'blog', subDir);
+    // Use protected directory instead of public
+    const uploadDir = path.join(process.cwd(), 'server', 'uploads', 'blog', subDir);
     
     // Create directory if it doesn't exist
     if (!fs.existsSync(uploadDir)) {
@@ -389,7 +390,7 @@ export function registerBlogAdminRoutes(app: Express) {
       else if (fileType === 'audio') subDir = 'audio';
       else if (fileType === 'document') subDir = 'documents';
 
-      const mediaUrl = `/uploads/blog/${subDir}/${req.file.filename}`;
+      const mediaUrl = `/api/blog/protected-media/${subDir}/${req.file.filename}`;
 
       // Get image dimensions for images
       let width, height;
@@ -751,6 +752,107 @@ export function registerBlogAdminRoutes(app: Express) {
       console.error("Error fetching blog statistics:", error);
       return res.status(500).json({ 
         message: "Failed to fetch blog statistics",
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  // Migration endpoint to update blog post image URLs
+  app.post("/api/admin/blog/migrate-image-urls", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      console.log('Starting blog image URL migration...');
+      
+      // Get all blog posts
+      const posts = await BlogService.getAllPostsForMigration();
+      console.log(`Found ${posts.length} blog posts to check`);
+      
+      let updatedCount = 0;
+      const updatedPosts = [];
+      
+      for (const post of posts) {
+        let shouldUpdate = false;
+        let updatedPost = { ...post };
+        
+        // Update featured image URL from protected format to simple public format
+        if (post.featuredImage && post.featuredImage.includes('/api/blog/protected-media/featured/')) {
+          const filename = post.featuredImage.replace('/api/blog/protected-media/featured/', '');
+          updatedPost.featuredImage = `/images/blog/${filename}`;
+          shouldUpdate = true;
+          console.log(`Updated featured image for post "${post.title}"`);
+        }
+        
+        // Update content images
+        if (post.content) {
+          let updatedContent = post.content;
+          const originalContent = updatedContent;
+          
+          // Update protected media references to simple public paths
+          updatedContent = updatedContent.replace(
+            /\/api\/blog\/protected-media\/featured\/([^"'\s>]+)/g,
+            '/images/blog/$1'
+          );
+          
+          updatedContent = updatedContent.replace(
+            /\/api\/blog\/protected-media\/images\/([^"'\s>]+)/g,
+            '/images/blog/$1'
+          );
+          
+          updatedContent = updatedContent.replace(
+            /\/api\/blog\/protected-media\/videos\/([^"'\s>]+)/g,
+            '/images/blog/$1'
+          );
+          
+          updatedContent = updatedContent.replace(
+            /\/api\/blog\/protected-media\/audio\/([^"'\s>]+)/g,
+            '/images/blog/$1'
+          );
+          
+          updatedContent = updatedContent.replace(
+            /\/api\/blog\/protected-media\/documents\/([^"'\s>]+)/g,
+            '/images/blog/$1'
+          );
+          
+          updatedContent = updatedContent.replace(
+            /\/api\/blog\/protected-media\/other\/([^"'\s>]+)/g,
+            '/images/blog/$1'
+          );
+          
+          if (updatedContent !== originalContent) {
+            updatedPost.content = updatedContent;
+            shouldUpdate = true;
+            console.log(`Updated content images for post "${post.title}"`);
+          }
+        }
+        
+        // Update the post if changes were made
+        if (shouldUpdate) {
+          const updated = await BlogService.updatePostUrls(post.id, {
+            featuredImage: updatedPost.featuredImage || undefined,
+            content: updatedPost.content || undefined
+          });
+          
+          if (updated) {
+            updatedCount++;
+            updatedPosts.push({
+              id: post.id,
+              title: post.title,
+              featuredImageUpdated: post.featuredImage !== updatedPost.featuredImage,
+              contentUpdated: post.content !== updatedPost.content
+            });
+          }
+        }
+      }
+      
+      return res.json({
+        message: `Successfully updated ${updatedCount} blog posts`,
+        totalPosts: posts.length,
+        updatedCount,
+        updatedPosts
+      });
+    } catch (error) {
+      console.error("Error migrating blog post URLs:", error);
+      return res.status(500).json({ 
+        message: "Failed to migrate blog post URLs",
         error: error instanceof Error ? error.message : 'Unknown error'
       });
     }

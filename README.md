@@ -404,3 +404,80 @@ The system provides REST API endpoints for both user and admin operations:
 ### Integration
 
 The 2FA system integrates with the existing authentication system and user management functionality within ProsumeAI.
+
+## 📚 Documentation
+
+All documentation has been organized into categories for easier navigation:
+
+### 📖 **[Complete Documentation](./docs/)**
+- **[🚀 Deployment Guides](./docs/deployment/)** - Production setup, Docker, security
+- **[🔧 Development Setup](./docs/development/)** - Hot reloading, development environment  
+- **[✨ Features Documentation](./docs/features/)** - Blog system, skills categorization
+- **[🔐 Security Guides](./docs/security/)** - Security implementation and audits
+- **[📊 Analytics](./docs/analytics/)** - Revenue tracking and analytics
+- **[📖 General Guides](./docs/guides/)** - Templates, database, notifications
+
+### 🛠️ **[Scripts](./scripts/)**
+- **[💾 Backup Scripts](./scripts/backup/)** - Database and system backups
+- **Migration Scripts** - Database migrations and utilities
+- **Development Scripts** - Docker, deployment automation
+
+## 🚀 Quick Start
+
+### Development
+```bash
+# Start development with hot reloading
+./scripts/docker-dev.sh
+```
+
+### Production Deployment
+```bash
+# Create backup before deployment
+./scripts/backup/backup-full.sh
+
+# See complete deployment guide
+# docs/deployment/PRODUCTION_DEPLOYMENT_GUIDE.md
+```
+
+### Backup & Maintenance
+```bash
+# Database backup
+./scripts/backup/backup-db.sh
+
+# Full system backup  
+./scripts/backup/backup-full.sh
+```
+
+## 🔍 Need Help?
+
+- **🖼️ Images not showing?** → [Blog Images Fix](./docs/features/BLOG_IMAGES_FIX.md)
+- **🚀 Deploying to production?** → [Production Deployment Guide](./docs/deployment/PRODUCTION_DEPLOYMENT_GUIDE.md)  
+- **🔧 Development setup issues?** → [Docker Hot Reload Setup](./docs/development/DOCKER_DEVELOPMENT_HOT_RELOAD.md)
+- **🔐 Security concerns?** → [Security Implementation Guide](./docs/security/SECURITY_IMPLEMENTATION_GUIDE.md)
+
+## 📁 Project Structure
+
+```
+ProsumeAI/
+├── docs/           # 📚 All documentation organized by category
+├── scripts/        # 🛠️ Utility scripts (backup, deployment, etc.)
+├── client/         # 🎨 Frontend React application
+├── server/         # ⚙️ Backend Node.js/Express API
+├── public/         # 🌐 Static assets (images, sounds)
+├── shared/         # 🔗 Shared types and utilities
+└── logs/           # 📝 Application logs
+```
+
+## 🎯 Features
+
+- **AI-Powered Resume Builder** with ATS optimization
+- **Cover Letter Generator** with job-specific customization
+- **Blog System** with persistent image storage
+- **User Management** with session-based authentication
+- **Template System** with multiple professional designs
+- **Analytics Dashboard** for tracking usage and revenue
+- **Docker-based Deployment** with hot reloading for development
+
+---
+
+*For detailed setup instructions, feature documentation, and deployment guides, see the [docs/](./docs/) directory.*

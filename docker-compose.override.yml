@@ -1,0 +1,65 @@
+# Development override for docker-compose
+# This file enables live reloading and hot module replacement in development
+# Use: docker compose up (it will automatically include this override)
+
+services:
+  app:
+    # Override build to use development mode
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+      target: development
+    environment:
+      # Override for development
+      NODE_ENV: development
+      # Enable hot reloading
+      CHOKIDAR_USEPOLLING: true
+      VITE_HMR_HOST: 0.0.0.0
+      VITE_HMR_PORT: 5173
+      # Database connection for Docker
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    volumes:
+      # Mount source code for hot reloading
+      - ./client:/app/client
+      - ./server:/app/server
+      - ./shared:/app/shared
+      - ./public:/app/public
+      - ./logs:/app/logs
+      # Mount public blog images directory for persistent storage
+      - ./public/images:/app/public/images
+      # Mount environment files
+      - ./.env:/app/.env:ro
+      - ./.env.development:/app/.env.development:ro
+      - ./package.json:/app/package.json:ro
+      - ./package-lock.json:/app/package-lock.json:ro
+      - ./tsconfig.json:/app/tsconfig.json:ro
+      - ./tsconfig.client.json:/app/tsconfig.client.json:ro
+      - ./tsconfig.server.json:/app/tsconfig.server.json:ro
+      - ./vite.config.ts:/app/vite.config.ts:ro
+      - ./tailwind.config.ts:/app/tailwind.config.ts:ro
+      - ./postcss.config.js:/app/postcss.config.js:ro
+      - ./drizzle.config.ts:/app/drizzle.config.ts:ro
+      - ./theme.json:/app/theme.json:ro
+      - ./start-dev-docker.js:/app/start-dev-docker.js:ro
+      # Keep node_modules from container (important for performance)
+      - /app/node_modules
+    ports:
+      - "5173:5173"  # Vite dev server
+      - "3000:3000"  # API server
+    command: ["node", "start-dev-docker.js"]
+    stdin_open: true
+    tty: true
+    # Add development-specific settings for Docker Compose v2.22+
+    develop:
+      watch:
+        - action: sync
+          path: ./client
+          target: /app/client
+        - action: sync
+          path: ./server
+          target: /app/server
+        - action: sync
+          path: ./shared
+          target: /app/shared
+        - action: rebuild
+          path: ./package.json 
