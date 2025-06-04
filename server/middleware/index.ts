@@ -3,6 +3,8 @@ import { initializeDataEncryption } from './data-encryption';
 import { initializeSessionConfig, sessionTimeoutMiddleware, regenerateSessionAfterLogin, postLoginSessionHandler, validateActiveSession } from './session-security';
 import { initializeEmailService } from '../services/init-email';
 import { initializePuppeteerPDFService } from '../services/puppeteer-pdf-service';
+import { setupAuth } from '../config/auth';
+import type { Express } from 'express';
 
 /**
  * Export middleware components for convenient importing
@@ -26,8 +28,21 @@ export {
  * Initialize all middleware and services
  * This should be called at application startup
  */
-export async function initializeServices() {
+export async function initializeServices(app?: Express) {
   try {
+    console.log('Initializing services...');
+    
+    // Initialize session security configuration first
+    await initializeSessionConfig();
+    console.log('Session configuration initialized');
+    
+    // Setup authentication (Passport) if app is provided
+    if (app) {
+      console.log('Setting up authentication...');
+      await setupAuth(app);
+      console.log('✅ Authentication setup complete');
+    }
+    
     // Initialize encryption key and IV
     await initializeEncryption();
     console.log('Encryption keys initialized');
@@ -36,17 +51,18 @@ export async function initializeServices() {
     await initializeDataEncryption();
     console.log('Data encryption configuration initialized');
     
-    // Initialize session security configuration
-    await initializeSessionConfig();
-    console.log('Session security configuration initialized');
-    
     // Initialize email service
     await initializeEmailService();
     
-    // Initialize PDF service
-    await initializePuppeteerPDFService();
-    console.log('Using puppeteer for PDF generation instead of pdfmake');
+    // Initialize PDF service (non-blocking)
+    initializePuppeteerPDFService().then(() => {
+      console.log('Using puppeteer for PDF generation instead of pdfmake');
+    }).catch(error => {
+      console.error('PDF service initialization failed:', error);
+      console.log('Server will continue without PDF service - PDFs may not work');
+    });
     
+    console.log('Services initialized');
     return true;
   } catch (error) {
     console.error('Failed to initialize services:', error);

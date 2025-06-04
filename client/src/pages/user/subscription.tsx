@@ -1282,13 +1282,18 @@ const UserSubscriptionPage: React.FC = () => {
                                   <div className="flex justify-between text-sm">
                                     <span className="font-medium">{feature.featureName || 'Unknown Feature'}</span>
                                     <span className="text-muted-foreground">
-                                      {usageValue} / {isTokenFeature ? formatTokenCount(limitValue) : `${limitValue} uses`}
+                                      {feature.limitType === 'UNLIMITED' 
+                                        ? <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-300 dark:border-green-800">Unlimited</Badge>
+                                        : `${usageValue} / ${isTokenFeature ? formatTokenCount(limitValue) : `${limitValue} uses`}`
+                                      }
                                     </span>
                                   </div>
-                                  <Progress
-                                    value={Math.min(usagePercentage, 100)}
-                                    className={`h-2 ${usagePercentage > 80 ? 'bg-red-200 dark:bg-red-900' : ''}`}
-                                  />
+                                  {feature.limitType !== 'UNLIMITED' && (
+                                    <Progress
+                                      value={Math.min(usagePercentage, 100)}
+                                      className={`h-2 ${usagePercentage > 80 ? 'bg-red-200 dark:bg-red-900' : ''}`}
+                                    />
+                                  )}
                                   {feature.resetFrequency && feature.resetFrequency !== 'NEVER' && (
                                     <div className="text-xs text-muted-foreground">
                                       Resets {feature.resetFrequency.toLowerCase()}

@@ -7,7 +7,7 @@ import bodyParser from 'body-parser';
 import cookieParser from 'cookie-parser';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { db } from './config/db';
+import { db, validateSchema } from './config/db';
 import { cookieManager } from './utils/cookie-manager';
 import { registerAdminRoutes } from './src/routes/admin-routes';
 import { registerResumeRoutes } from './src/routes/resume-routes';
@@ -29,6 +29,7 @@ import { registerSubscriptionRoutes } from './src/routes/subscription-routes';
 import { registerTaxRoutes } from './src/routes/tax-routes';
 import { registerTaxAdminRoutes } from './src/routes/tax-admin-routes';
 import os from 'os';
+import { randomBytes } from 'crypto';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -92,8 +93,13 @@ console.log('CORS credentials setting: enabled');
 app.use(bodyParser.json({ limit: '10mb' }));
 app.use(bodyParser.urlencoded({ extended: true, limit: '10mb' }));
 
-// Add cookie-parser middleware 
-const cookieSecret = process.env.COOKIE_SECRET || process.env.SESSION_SECRET || 'ATScribe-cookie-secret';
+// Add cookie-parser middleware with improved security
+const cookieSecret = process.env.COOKIE_SECRET || process.env.SESSION_SECRET || randomBytes(32).toString('hex');
+
+if (!process.env.COOKIE_SECRET && !process.env.SESSION_SECRET) {
+  console.warn('⚠️  Neither COOKIE_SECRET nor SESSION_SECRET found in environment variables. Using randomly generated secret for this session.');
+}
+
 app.use(cookieParser(cookieSecret));
 
 // Apply cookie response patch for cross-browser compatibility
@@ -146,118 +152,58 @@ const PORT = process.env.PORT || 3000;
 // Start the server function - moved to a separate async function to properly handle initialization
 async function startServer() {
   try {
-    // Initialize session config first
-    console.log('Initializing session configuration...');
-    await initializeSessionConfig();
+    // Validate database schema first
+    await validateSchema();
+    console.log('📋 Database schema validation complete');
     
-    console.log('Setting up authentication...');
-    await setupAuth(app);
-    
-    console.log('Initializing services...');
-    await initializeServices();
-    
-    console.log('Session security configuration initialized');
-    console.log('Services initialized');
-    
-    // Register routes
-    const server = await registerRoutes(app);
-    
-    // Add the AI router registration, after auth is set up
-    app.use('/api/ai', router);  // Register AI routes AFTER auth is initialized
-    app.use('/api/resume-ai', resumeAiRoutes);  // Register Resume AI routes
+    // Verify session store is ready
+    try {
+      console.log('🔍 Initializing session store...');
+      const { verifySessionTable } = await import('./config/storage');
+      const sessionReady = await verifySessionTable();
+      if (sessionReady) {
+        console.log('✅ Session store initialized successfully');
+      } else {
+        console.warn('⚠️  Session store initialization had issues, but continuing...');
+      }
+    } catch (error) {
+      console.warn('⚠️  Session store initialization failed:', error);
+    }
 
-    // Error handling middleware
-    app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-      const status = err.status || err.statusCode || 500;
-      const message = err.message || "Internal Server Error";
-
-      console.error(`Error [${status}]: ${message}`);
-      if (err.stack) console.error(err.stack);
-
-      res.status(status).json({ message });
-    });
-
-    // Setup Vite in development or serve static files in production
-    if (app.get("env") === "development") {
+    // Initialize middleware and services
+    await initializeServices(app);
+    
+    // Setup routes
+    const server = registerRoutes(app);
+    
+    // Setup Vite in development
+    if (process.env.NODE_ENV === "development") {
       await setupVite(app, server);
     } else {
       serveStatic(app);
     }
+
+    const port = parseInt(process.env.PORT || "3000");
     
-    // Set up connection tracking for graceful shutdown
-    server.on('connection', (conn) => {
-      if (isShuttingDown) {
-        conn.end(); // Reject new connections during shutdown
-        return;
+    server.listen(port, "0.0.0.0", () => {
+      console.log(`\n🚀 Server running on http://0.0.0.0:${port}`);
+      console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
+      console.log(`🗄️  Database: Connected`);
+      console.log(`🍪 Sessions: PostgreSQL store`);
+      
+      if (process.env.NODE_ENV === "development") {
+        console.log(`\n🔗 Access URLs:`);
+        console.log(`   Local:    http://localhost:${port}`);
+        console.log(`   Network:  ${getLocalNetworkIPs().map(ip => `http://${ip}:${port}`).join(', ')}`);
       }
-      // Set max listeners on the socket to prevent warnings
-      conn.setMaxListeners(20);
-      
-      openConnections.add(conn);
-      conn.on('close', () => {
-        openConnections.delete(conn);
-      });
+
+      logToFile(`Server started on port ${port} in ${process.env.NODE_ENV || 'development'} mode`);
     });
-    
-    // Start the server
-    server.listen({
-      port: PORT,
-      host: "0.0.0.0",
-      reusePort: true,
-    }, () => {
-      console.log(`Server started in ${process.env.NODE_ENV || 'development'} mode`);
-      console.log(`Serving on port ${PORT}`);
-      
-      // Signal ready state to PM2 or other process managers
-      if (typeof process.send === 'function') {
-        process.send('ready');
-        console.log('Signaled ready state to process manager');
-      }
-    });
-    
-    // Graceful shutdown
-    const handleShutdown = (signal: string) => {
-      console.log(`${signal} received, shutting down gracefully`);
-      isShuttingDown = true;
-      
-      server.close(async () => {
-        console.log('HTTP server closed');
-        
-        // Close database connections if needed
-        if (db && typeof db.$client?.end === 'function') {
-          try {
-            db.$client.end();
-            logToFile('Database connection closed');
-          } catch (err) {
-            console.error('Error closing database connection:', err);
-          }
-        }
-        
-        // Close all active connections
-        if (openConnections.size > 0) {
-          logToFile(`Closing ${openConnections.size} active connections`);
-          for (const socket of Array.from(openConnections)) {
-            socket.destroy();
-          }
-        }
-        
-        console.log('All connections closed');
-        process.exit(0);
-      });
-      
-      // Force close if graceful shutdown takes too long
-      setTimeout(() => {
-        console.error('Forceful shutdown initiated after timeout');
-        process.exit(1);
-      }, 15000);
-    };
-    
-    // Register shutdown handlers
-    process.on('SIGTERM', () => handleShutdown('SIGTERM'));
-    process.on('SIGINT', () => handleShutdown('SIGINT'));
-    
+
+    return server;
   } catch (error) {
-    console.error('Error starting server:', error);
+    console.error('❌ Failed to start server:', error);
+    logToFile(`Server startup failed: ${error}`);
     process.exit(1);
   }
 }

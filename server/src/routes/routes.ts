@@ -36,8 +36,8 @@ export function registerRoutes(app: express.Express): Server {
   // Initialize HTTP server
   const server = createServer(app);
   
-  // Setup authentication
-  setupAuth(app);
+  // Authentication is now set up in initializeServices() before this function is called
+  // setupAuth(app); // REMOVED - now handled in initializeServices
   
   // Apply session security middleware
   app.use(sessionTimeoutMiddleware);
@@ -53,6 +53,38 @@ export function registerRoutes(app: express.Express): Server {
   // API routes
   app.get('/api/health', (req, res) => {
     res.json({ status: 'ok' });
+  });
+  
+  // Session persistence test endpoint
+  app.get('/api/session-test', (req, res) => {
+    if (!req.session) {
+      return res.status(500).json({ error: 'Session not available' });
+    }
+    
+    // Get or create session test data
+    const session = req.session as any; // Type assertion for test data
+    if (!session.sessionTestData) {
+      session.sessionTestData = {
+        createdAt: new Date().toISOString(),
+        counter: 1,
+        sessionId: req.sessionID
+      };
+    } else {
+      session.sessionTestData.counter += 1;
+      session.sessionTestData.lastAccessed = new Date().toISOString();
+    }
+    
+    res.json({
+      message: 'Session persistence test',
+      sessionId: req.sessionID,
+      authenticated: req.isAuthenticated(),
+      user: req.user ? { id: req.user.id, username: req.user.username } : null,
+      testData: session.sessionTestData,
+      instructions: {
+        test: 'Access this endpoint, restart Docker, access again to verify session persists',
+        restart: 'docker compose restart app'
+      }
+    });
   });
   
   // Add session security debug endpoint (development only)

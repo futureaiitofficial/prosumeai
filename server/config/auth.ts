@@ -217,6 +217,18 @@ export async function setupAuth(app: Express) {
     // Cache the config for synchronous access
     setCurrentSessionConfig(sessionConfig);
     
+    // Verify session table exists (important for Docker compatibility)
+    console.log('🔍 Verifying session store setup...');
+    try {
+      const { verifySessionTable } = await import('./storage');
+      const sessionTableReady = await verifySessionTable();
+      if (!sessionTableReady) {
+        console.warn('⚠️  Session table verification failed, but continuing with setup');
+      }
+    } catch (error) {
+      console.warn('⚠️  Could not verify session table:', error);
+    }
+    
     // Enhanced session settings with database config
     const sessionSettings: session.SessionOptions = {
       secret: sessionSecret,
@@ -226,9 +238,11 @@ export async function setupAuth(app: Express) {
       name: 'ATScribe.sid', // Custom cookie name for better security
       cookie: getCookieConfig(env),
       rolling: true, // Refresh the cookie expiration on every response
+      // Add explicit proxy settings for Docker
+      proxy: env === 'production' ? true : undefined,
     };
   
-    // Set trust proxy for production behind load balancers
+    // Set trust proxy for production behind load balancers and Docker
     if (env === 'production') {
       console.log('Setting trust proxy for production environment');
       app.set("trust proxy", 1);
@@ -249,7 +263,17 @@ export async function setupAuth(app: Express) {
     app.use(passport.initialize());
     app.use(passport.session());
     
-    console.log('Session setup complete using database configuration');
+    console.log('✅ Session setup complete using database configuration');
+    
+    // Add session debugging middleware in development
+    if (env === 'development') {
+      app.use((req, res, next) => {
+        if (req.originalUrl.startsWith('/api/') && req.session) {
+          console.log(`[SESSION] ${req.method} ${req.originalUrl} - SessionID: ${req.sessionID}, Authenticated: ${req.isAuthenticated()}`);
+        }
+        next();
+      });
+    }
   } catch (err) {
     console.error('Error in auth setup:', err);
     
@@ -266,6 +290,7 @@ export async function setupAuth(app: Express) {
       name: 'ATScribe.sid',
       cookie: getCookieConfig(env),
       rolling: true,
+      proxy: env === 'production' ? true : undefined,
     };
     
     if (env === 'production') {
@@ -276,7 +301,7 @@ export async function setupAuth(app: Express) {
     app.use(passport.initialize());
     app.use(passport.session());
     
-    console.log('Session setup complete using default configuration (fallback)');
+    console.log('⚠️  Session setup complete using default configuration (fallback)');
   }
 
   // Set up authentication strategies and routes - this should happen after session setup
@@ -616,33 +641,89 @@ function setupAuthRoutes(app: Express) {
             // Match the reset password format expected by the client
             const resetLink = `${baseURL}/reset-password?token=${resetToken}&userId=${user.id}`;
             
-            // Get user agent info
-            const userAgent = req.headers['user-agent'] || 'Unknown';
-            const ip = req.ip || '0.0.0.0';
-            
             // Look up location information from IP
             let locationInfo = 'Unknown location';
+            let clientIp = req.ip || '0.0.0.0';
+            
             try {
-              // If IP is localhost or internal, it won't have geolocation info
-              if (ip !== '127.0.0.1' && ip !== '0.0.0.0' && !ip.startsWith('192.168.') && !ip.startsWith('10.')) {
-                const geo = geoip.lookup(ip);
-                if (geo) {
-                  locationInfo = `${geo.city ? geo.city + ', ' : ''}${geo.region ? geo.region + ', ' : ''}${geo.country || 'Unknown'}`;
+              // Try to get real IP from headers if behind proxy/Docker
+              const forwardedIp = req.headers['x-forwarded-for'] as string;
+              const realIp = req.headers['x-real-ip'] as string;
+              
+              if (forwardedIp) {
+                // Take the first IP from the forwarded chain
+                clientIp = forwardedIp.split(',')[0].trim();
+              } else if (realIp) {
+                clientIp = realIp;
+              }
+              
+              console.log(`[GEOLOCATION] Original IP: ${req.ip}, Forwarded: ${forwardedIp}, Real: ${realIp}, Using: ${clientIp}`);
+              
+              // Check if IP is private/local
+              const isPrivateIp = (
+                clientIp === '127.0.0.1' || 
+                clientIp === '0.0.0.0' || 
+                clientIp.startsWith('192.168.') || 
+                clientIp.startsWith('10.') || 
+                clientIp.startsWith('172.') ||
+                clientIp === '::1' ||
+                clientIp.startsWith('fc00:') ||
+                clientIp.startsWith('fe80:')
+              );
+              
+              if (!isPrivateIp) {
+                console.log(`[GEOLOCATION] Looking up public IP: ${clientIp}`);
+                
+                // Try local geoip-lite first (fastest)
+                const geo = geoip.lookup(clientIp);
+                if (geo && geo.country) {
+                  locationInfo = `${geo.city ? geo.city + ', ' : ''}${geo.region ? geo.region + ', ' : ''}${geo.country}`;
+                  console.log(`[GEOLOCATION] Local lookup successful: ${locationInfo}`);
+                } else {
+                  console.log(`[GEOLOCATION] Local lookup failed, trying external service...`);
+                  
+                  // Fallback to external service (with AbortController for timeout)
+                  try {
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 3000);
+                    
+                    const response = await fetch(`https://ipapi.co/${clientIp}/json/`, {
+                      signal: controller.signal,
+                      headers: {
+                        'User-Agent': 'ProsumeAI/1.0'
+                      }
+                    });
+                    
+                    clearTimeout(timeoutId);
+                    
+                    if (response.ok) {
+                      const geoData = await response.json();
+                      if (geoData && geoData.country_name) {
+                        locationInfo = `${geoData.city ? geoData.city + ', ' : ''}${geoData.region ? geoData.region + ', ' : ''}${geoData.country_name}`;
+                        console.log(`[GEOLOCATION] External lookup successful: ${locationInfo}`);
+                      }
+                    }
+                  } catch (apiError: any) {
+                    console.log(`[GEOLOCATION] External API failed: ${apiError.message}`);
+                  }
                 }
               } else {
-                locationInfo = 'Local development environment';
+                locationInfo = process.env.NODE_ENV === 'production' 
+                  ? 'Private network'
+                  : 'Local development environment';
+                console.log(`[GEOLOCATION] Private IP detected: ${clientIp} -> ${locationInfo}`);
               }
             } catch (geoError) {
-              console.error(`Error looking up IP location: ${geoError}`);
+              console.error(`[GEOLOCATION] Error looking up IP location: ${geoError}`);
               locationInfo = 'Location lookup failed';
             }
             
             // Create login info object
             const loginInfo = {
               time: new Date().toLocaleString(),
-              device: userAgent,
+              device: req.headers['user-agent'] || 'Unknown',
               location: locationInfo,
-              ipAddress: ip
+              ipAddress: clientIp
             };
             
             // Send login alert email
@@ -992,6 +1073,7 @@ function setupPasswordRoutes(app: Express) {
       if (!email) {
         return res.status(400).json({ message: "Email is required" });
       }
+      
       
       // Find user by email
       const user = await storage.getUserByEmail(email);

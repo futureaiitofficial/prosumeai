@@ -15,9 +15,11 @@ export interface SanitizedJobApplication {
 export function sanitizeJobApplicationData(data: any): SanitizedJobApplication {
   // SQL injection patterns to block
   const sqlPatterns = [
-    /('|(\\'))/i,
-    /(;|\\;)/i,
-    /(--|\\/\\*|\\*\\/)/i,
+    /'/i,
+    /;/i,
+    /--/i,
+    /\/\*/i,
+    /\*\//i,
     /(DROP|SELECT|INSERT|UPDATE|DELETE|UNION)/i,
     /(ALTER|CREATE|TRUNCATE)/i,
     /(\bOR\b|\bAND\b).*[=<>]/i

@@ -401,7 +401,18 @@ export class EmailService {
         tls: {
           // Do not fail on invalid certificates
           rejectUnauthorized: false
-        }
+        },
+        // Docker-specific configuration to improve delivery
+        pool: true,
+        maxConnections: 5,
+        maxMessages: 100,
+        rateDelta: 1000,
+        rateLimit: 10,
+        // Add proper identification for Docker environments
+        name: process.env.SMTP_HELO_NAME || 'atscribe.com',
+        // Enable debug logging for troubleshooting
+        debug: process.env.NODE_ENV === 'development',
+        logger: process.env.NODE_ENV === 'development'
       });
       
       this.initialized = true;
@@ -429,7 +440,27 @@ export class EmailService {
       const domain = this.settings.senderEmail.split('@')[1];
       const messageId = `<${Date.now()}.${Math.random().toString(36).substring(2)}@${domain}>`;
       
-      // Send email
+      // Enhanced headers for Docker environments to improve delivery
+      const enhancedHeaders = {
+        'Message-ID': messageId,
+        'X-Mailer': 'ProsumeAI-Docker',
+        'X-Priority': '3',
+        'X-MSMail-Priority': 'Normal',
+        'Importance': 'Normal',
+        'List-Unsubscribe': `<mailto:unsubscribe@${domain}?subject=Unsubscribe>`,
+        'Precedence': 'Bulk',
+        // Docker-specific headers to improve reputation
+        'X-Originating-IP': process.env.HOST_IP || '[host.docker.internal]',
+        'X-Docker-Container': process.env.HOSTNAME || 'prosumeai-app',
+        'X-Authentication-Results': `${domain}; none`,
+        // Add DKIM-like signature placeholder
+        'DKIM-Signature': `v=1; a=rsa-sha256; d=${domain}; s=default; c=relaxed/relaxed;`,
+        // Add proper return path
+        'Return-Path': this.settings.senderEmail,
+        'Sender': this.settings.senderEmail
+      };
+      
+      // Send email with enhanced configuration
       const info = await this.transporter.sendMail({
         from: `"${this.settings.senderName}" <${this.settings.senderEmail}>`,
         to: options.to,
@@ -440,18 +471,37 @@ export class EmailService {
         cc: options.cc,
         bcc: options.bcc,
         attachments: options.attachments,
-        headers: {
-          'Message-ID': messageId,
-          'X-Mailer': 'ProsumeAI Mailer',
-          'List-Unsubscribe': `<mailto:unsubscribe@${domain}?subject=Unsubscribe>`,
-          'Precedence': 'Bulk'
-        }
+        headers: enhancedHeaders,
+        // Add envelope configuration for better delivery
+        envelope: {
+          from: this.settings.senderEmail,
+          to: Array.isArray(options.to) ? options.to : [options.to]
+        },
+        // Set message priority
+        priority: 'normal',
+        // Add tracking headers
+        encoding: 'utf8'
       });
       
       console.log('Email sent:', info.messageId);
+      console.log('Email response:', info.response);
+      
+      // Log delivery status for debugging
+      if (info.accepted && info.accepted.length > 0) {
+        console.log('✅ Email accepted for:', info.accepted.join(', '));
+      }
+      if (info.rejected && info.rejected.length > 0) {
+        console.log('❌ Email rejected for:', info.rejected.join(', '));
+      }
+      
       return true;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to send email:', error);
+      console.error('Error details:', {
+        code: error.code,
+        response: error.response,
+        command: error.command
+      });
       return false;
     }
   }

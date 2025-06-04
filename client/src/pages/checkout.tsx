@@ -12,7 +12,6 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { PaymentService, PaymentIntent, BillingDetails, GatewayKeyResponse } from '@/services/payment-service';
 import BillingDetailsForm from "@/components/checkout/billing-details-form";
 import axios from 'axios';
-import Image from 'next/image';
 import { useBranding } from '@/components/branding/branding-provider';
 // Import country-state-city package
 import { Country, State } from 'country-state-city';

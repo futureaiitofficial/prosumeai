@@ -4,7 +4,8 @@ import { db } from '../../../config/db';
 import { requireAdmin } from '../../../middleware/admin';
 import { storage } from '../../../config/storage';
 import { cookieManager } from '../../../utils/cookie-manager';
-import { sql } from 'drizzle-orm';
+import { sql, eq, count } from 'drizzle-orm';
+import { users } from '@shared/schema';
 
 const router = express.Router();
 
@@ -77,10 +78,10 @@ router.get('/server-status', requireAdmin, async (req: Request, res: Response) =
       
       // Get count of admin users
       try {
-        // Query to count admin users directly as a prepared statement
-        const adminCount = await db.select({ count: sql`COUNT(*)` })
-          .from(sql`users`)
-          .where(sql`"is_admin" = true`);
+        // Query to count admin users using proper Drizzle syntax
+        const adminCount = await db.select({ count: count() })
+          .from(users)
+          .where(eq(users.isAdmin, true));
         
         if (adminCount && adminCount.length > 0 && adminCount[0].count !== undefined) {
           // Convert BigInt or string to number
@@ -93,21 +94,10 @@ router.get('/server-status', requireAdmin, async (req: Request, res: Response) =
       
       // Try to get additional statistics using safer checks
       try {
-        // Check if the storage object has extra statistics methods
-        const storageAny = storage as any;
-        
-        // Only call these methods if they exist
-        if (storageAny && typeof storageAny.getResumeCount === 'function') {
-          userStats.totalResumes = safeNumber(await storageAny.getResumeCount());
-        }
-        
-        if (storageAny && typeof storageAny.getCoverLetterCount === 'function') {
-          userStats.totalCoverLetters = safeNumber(await storageAny.getCoverLetterCount());
-        }
-        
-        if (storageAny && typeof storageAny.getJobApplicationCount === 'function') {
-          userStats.totalJobApplications = safeNumber(await storageAny.getJobApplicationCount());
-        }
+        // Get total counts from the stats object which already has the global counts
+        userStats.totalResumes = safeNumber(stats.totalResumes || 0);
+        userStats.totalCoverLetters = safeNumber(stats.totalCoverLetters || 0);
+        userStats.totalJobApplications = safeNumber(stats.totalJobApplications || 0);
       } catch (statsError) {
         console.error('Error fetching detailed stats:', statsError);
       }

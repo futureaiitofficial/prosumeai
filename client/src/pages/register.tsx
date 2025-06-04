@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'wouter';
-import Head from 'next/head';
+import { Helmet } from 'react-helmet';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import RegisterForm from '@/components/auth/register-form';
 import { useToast } from '@/hooks/use-toast';
@@ -33,10 +33,10 @@ export default function RegisterPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      <Head>
+      <Helmet>
         <title>Create an Account | {branding.appName}</title>
         <meta name="description" content={`Sign up for ${branding.appName} and start creating professional resumes that get you noticed.`} />
-      </Head>
+      </Helmet>
       
       {/* Header with fixed position */}
       <SharedHeader isLandingPage={false} forceBackground={true} />

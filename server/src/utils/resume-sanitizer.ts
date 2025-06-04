@@ -757,15 +757,18 @@ export function sanitizeDate(input: any): string {
 // Check for suspicious patterns across all data
 export function detectSuspiciousPatterns(data: any): string[] {
   const suspiciousPatterns = [
-    /<script|javascript:|data:|vbscript:/i,
+    /<script[^>]*>.*?<\/script>/gi,  // Script tags
+    /javascript:\s*[^;\s]/gi,        // JavaScript protocol with content
+    /data:\s*text\/html/gi,          // Data URLs with HTML
+    /vbscript:/i,                    // VBScript protocol
     /'\s*(or|and)\s*'?\s*'?\s*(=|<|>)/gi,  // SQL injection patterns
     /'\s*(union|select)\s+.*(from|where)/gi,
     /;\s*(drop|delete|truncate|alter)\s+/gi,
     /--\s*\w/g,  // SQL comments with content
     /\/\*.*\*\//g,  // Block comments
-    /(\$\{|\$\(|<%|%>|\{\{|\}\})/g, // Template injection
-    /(eval\(|Function\(|setTimeout\(|setInterval\()/gi,
-    /(\bon\w+\s*=|href\s*=\s*["']?javascript:)/gi
+    // Removed overly broad template injection pattern
+    /(eval\s*\(|Function\s*\(|setTimeout\s*\(|setInterval\s*\()/gi,  // Dangerous JavaScript functions
+    /(\bon\w+\s*=|href\s*=\s*["']?javascript:)/gi  // Event handlers and JS hrefs
   ];
   
   const warnings: string[] = [];

@@ -1,7 +1,7 @@
 import { useRef } from 'react';
 import { Link } from 'wouter';
 import { motion } from 'framer-motion';
-import Head from 'next/head';
+import { Helmet } from 'react-helmet';
 import SharedHeader from '@/components/layouts/shared-header';
 import SharedFooter from '@/components/layouts/SharedFooter';
 import { useBranding } from '@/components/branding/branding-provider';
@@ -12,7 +12,7 @@ export default function AboutPage() {
   
   return (
     <div ref={containerRef} className="relative min-h-screen overflow-hidden">
-      <Head>
+      <Helmet>
         <title>About {branding.appName} | AI-Powered Resume Builder for Students & Job Seekers</title>
         <meta name="description" content={`${branding.appName} uses advanced AI technology to create professional resumes and cover letters that help students and early career professionals land more interviews and job offers.`} />
         <meta name="keywords" content="resume builder, AI resume, job application tools, ATS-friendly resume, cover letter generator, career tools, job search" />
@@ -33,7 +33,7 @@ export default function AboutPage() {
         
         {/* Canonical URL */}
         <link rel="canonical" href={`https://${branding.appName}.com/about`} />
-      </Head>
+      </Helmet>
       
       <SharedHeader isLandingPage={false} />
 

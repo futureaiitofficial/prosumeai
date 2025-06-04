@@ -6,6 +6,7 @@ import { getCookieConfig } from './config/auth.js';
 import { eq } from 'drizzle-orm';
 import * as schema from '../shared/schema.js';
 import dotenv from 'dotenv';
+import { randomBytes } from 'crypto';
 
 // Load environment variables
 dotenv.config();
@@ -18,7 +19,12 @@ async function createAdminLoginFix() {
   const env = process.env.NODE_ENV || 'development';
   
   // Set up session middleware with the same config as the main app
-  const sessionSecret = process.env.SESSION_SECRET || 'ATScribe-secret-key';
+  const sessionSecret = process.env.SESSION_SECRET || randomBytes(32).toString('hex');
+  
+  if (!process.env.SESSION_SECRET) {
+    console.warn('⚠️  SESSION_SECRET not found in environment variables. Using randomly generated secret for this session.');
+  }
+  
   const sessionSettings = {
     secret: sessionSecret,
     resave: false,

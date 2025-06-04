@@ -20,18 +20,13 @@ export function sanitizeInput(input: string): string {
   // Remove dangerous iframes and objects
   sanitized = sanitized.replace(/<(iframe|object|embed).*?>.*?<\/\1>/gi, '');
   
-  // More comprehensive SQL injection protection
-  // These patterns could be used in SQL injections
+  // More specific SQL injection protection (less broad patterns)
   const sqlPatterns = [
-    // SQL commands
-    /(\b(select|insert|update|delete|drop|alter|create|exec|union|where|from|having|join)\b\s*)/gi,
-    // SQL comment markers
-    /(--|#|\/\*)/g,
-    // Common SQL injection attempts
-    /((\%27)|(\'))((\%6F)|o|(\%4F))((\%72)|r|(\%52))/gi, // '%27 OR, 'OR
-    /((\%27)|(\'))union((\%27)|(\'))/gi, // 'union'
-    /((\%3D)|(=))[^\n]*((\%27)|(\')|(\-\-)|(\%3B)|(;))/gi, // = followed by a quote or comment
-    /((\%27)|(\'))order\s+by\s+[0-9]/gi, // 'order by 1--
+    // Actual SQL injection attempts (more specific)
+    /'\s*(or|and)\s*'?\s*'?\s*(=|1=1|true)/gi, // ' OR '1'='1 or ' AND true
+    /'\s*(union\s+select|select\s+\*\s+from)/gi, // ' UNION SELECT or SELECT * FROM
+    /;\s*(drop|delete|truncate|alter)\s+/gi, // ; DROP TABLE etc
+    /(--|#|\/\*)/g, // SQL comment markers
     /exec(\s|\+)+(s|x)p\w+/gi, // exec sp
     /SLEEP\(\s*\d+\s*\)/gi, // SLEEP()
     /BENCHMARK\(\s*\d+\s*,\s*.+\s*\)/gi, // BENCHMARK()
@@ -43,15 +38,13 @@ export function sanitizeInput(input: string): string {
     sanitized = sanitized.replace(pattern, (match) => `filtered-${match}`);
   });
   
-  // Encode HTML entities for extra safety
+  // Only encode dangerous HTML entities (be more selective)
   sanitized = sanitized
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;')
-    .replace(/\$/g, '&#36;')
-    .replace(/`/g, '&#96;');
+    .replace(/<script/gi, '&lt;script')
+    .replace(/<\/script>/gi, '&lt;/script&gt;')
+    .replace(/javascript:/gi, 'javascript-filtered:')
+    .replace(/vbscript:/gi, 'vbscript-filtered:')
+    .replace(/data:text\/html/gi, 'data-filtered:text/html');
   
   return sanitized;
 }

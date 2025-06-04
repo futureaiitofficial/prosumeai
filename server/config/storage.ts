@@ -7,7 +7,7 @@ import {
   appSettings, type AppSetting,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, sql, count } from "drizzle-orm";
+import { eq, and, sql, count, gt } from "drizzle-orm";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
 import pg from "pg";
@@ -33,12 +33,90 @@ if (!connectionString) {
   }
 }
 
-// Create the connection pool with corrected connection string
+// Create the connection pool with enhanced configuration for Docker compatibility
 const pool = new pg.Pool({
-  connectionString: connectionString
+  connectionString: connectionString,
+  // Add connection pool settings for better Docker compatibility
+  max: 20, // Set max connections
+  min: 2,  // Set min connections
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 10000,
+  // Add retry logic
+  keepAlive: true,
+  keepAliveInitialDelayMillis: 10000,
+});
+
+// Add pool error handling
+pool.on('error', (err) => {
+  console.error('Unexpected error on idle PostgreSQL client for session store:', err);
+});
+
+pool.on('connect', () => {
+  console.log('✅ Session store PostgreSQL pool connected successfully');
 });
 
 const PostgresSessionStore = connectPg(session);
+
+// Session store configuration with Docker compatibility enhancements
+const sessionStoreConfig = {
+  pool,
+  createTableIfMissing: true,
+  tableName: 'session', // Explicit table name
+  schemaName: 'public', // Explicit schema
+  // Add pruning for expired sessions
+  pruneSessionInterval: 60 * 15, // Prune every 15 minutes
+  // Enhanced error handling
+  errorLog: (error: Error) => {
+    console.error('Session store error:', error);
+  },
+};
+
+// Add session table verification function
+async function verifySessionTable(): Promise<boolean> {
+  try {
+    const client = await pool.connect();
+    try {
+      // Check if session table exists
+      const result = await client.query(`
+        SELECT EXISTS (
+          SELECT FROM information_schema.tables 
+          WHERE table_schema = 'public' 
+          AND table_name = 'session'
+        );
+      `);
+      
+      const tableExists = result.rows[0].exists;
+      
+      if (!tableExists) {
+        console.log('📋 Creating session table manually...');
+        // Create session table manually if it doesn't exist
+        await client.query(`
+          CREATE TABLE IF NOT EXISTS "session" (
+            "sid" varchar NOT NULL COLLATE "default",
+            "sess" json NOT NULL,
+            "expire" timestamp(6) NOT NULL
+          ) WITH (OIDS=FALSE);
+          
+          ALTER TABLE "session" ADD CONSTRAINT "session_pkey" PRIMARY KEY ("sid") NOT DEFERRABLE INITIALLY IMMEDIATE;
+          CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "session" ("expire");
+        `);
+        console.log('✅ Session table created successfully');
+      } else {
+        console.log('✅ Session table exists and is ready');
+      }
+      
+      return true;
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('❌ Error verifying session table:', error);
+    return false;
+  }
+}
+
+// Export the verification function
+export { verifySessionTable };
 
 // Define interface for storage operations (simplified)
 export interface IStorage {
@@ -96,10 +174,7 @@ export class DatabaseStorage implements IStorage {
   public sessionStore: session.Store;
 
   constructor() {
-    this.sessionStore = new PostgresSessionStore({
-      pool,
-      createTableIfMissing: true
-    });
+    this.sessionStore = new PostgresSessionStore(sessionStoreConfig);
   }
 
   // User methods (Simplified - rely on schema change to remove fields)
@@ -160,24 +235,24 @@ export class DatabaseStorage implements IStorage {
   // User statistics methods
   async getUserStatistics(): Promise<any> {
     try {
-      // Get total counts
-      const userCount = await db.select({ count: sql`count(*)` }).from(users);
-      const resumeCount = await db.select({ count: sql`count(*)` }).from(resumes);
-      const coverLetterCount = await db.select({ count: sql`count(*)` }).from(coverLetters);
-      const jobApplicationCount = await db.select({ count: sql`count(*)` }).from(jobApplications);
+      // Get total counts using proper Drizzle count() function
+      const userCount = await db.select({ count: count() }).from(users);
+      const resumeCount = await db.select({ count: count() }).from(resumes);
+      const coverLetterCount = await db.select({ count: count() }).from(coverLetters);
+      const jobApplicationCount = await db.select({ count: count() }).from(jobApplications);
       
       // Get recent user registrations (last 7 days)
       const lastWeek = new Date();
       lastWeek.setDate(lastWeek.getDate() - 7);
       
-      const recentUsers = await db.select({ count: sql`count(*)` })
+      const recentUsers = await db.select({ count: count() })
         .from(users)
-        .where(sql`"created_at" > ${lastWeek.toISOString()}`);
+        .where(gt(users.createdAt, lastWeek));
       
       // Get users who have logged in recently (last 7 days)
-      const recentLogins = await db.select({ count: sql`count(*)` })
+      const recentLogins = await db.select({ count: count() })
         .from(users)
-        .where(sql`"last_login" > ${lastWeek.toISOString()}`);
+        .where(gt(users.lastLogin, lastWeek));
       
       return {
         totalUsers: userCount[0]?.count || 0,

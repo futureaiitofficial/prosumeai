@@ -29,16 +29,49 @@ try {
 // Export for server startup
 export async function initializePuppeteerPDFService(): Promise<boolean> {
   try {
-    // Test to make sure puppeteer can launch
-    const browser = await puppeteer.launch({
-      headless: 'new' as any,
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
-    });
+    console.log('Initializing Puppeteer PDF service...');
+    
+    // Test to make sure puppeteer can launch with a timeout
+    const browser = await Promise.race([
+      puppeteer.launch({
+        headless: 'new' as any,
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-accelerated-2d-canvas',
+          '--no-first-run',
+          '--no-zygote',
+          '--single-process',
+          '--disable-gpu',
+          '--disable-web-security',
+          '--disable-features=VizDisplayCompositor',
+          '--disable-background-timer-throttling',
+          '--disable-backgrounding-occluded-windows',
+          '--disable-renderer-backgrounding',
+          '--disable-extensions',
+          '--disable-plugins',
+          '--disable-default-apps',
+          '--disable-hang-monitor',
+          '--disable-prompt-on-repost',
+          '--disable-sync',
+          '--metrics-recording-only',
+          '--no-default-browser-check',
+          '--safebrowsing-disable-auto-update',
+          '--disable-background-networking'
+        ]
+      }),
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Puppeteer launch timeout')), 30000)
+      )
+    ]) as any;
+    
     await browser.close();
     console.log('Puppeteer PDF service initialized successfully');
     return true;
   } catch (error) {
     console.error('Error initializing Puppeteer PDF service:', error);
+    console.log('PDF generation will continue without browser verification');
     return false;
   }
 }
@@ -651,39 +684,80 @@ export async function generateInvoicePDF(invoice: Invoice, settings: InvoiceSett
     // Launch puppeteer and generate PDF
     const browser = await puppeteer.launch({
       headless: 'new' as any,
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-accelerated-2d-canvas',
+        '--no-first-run',
+        '--no-zygote',
+        '--single-process',
+        '--disable-gpu',
+        '--disable-web-security',
+        '--disable-features=VizDisplayCompositor',
+        '--disable-background-timer-throttling',
+        '--disable-backgrounding-occluded-windows',
+        '--disable-renderer-backgrounding',
+        '--disable-extensions',
+        '--disable-plugins',
+        '--disable-default-apps',
+        '--disable-hang-monitor',
+        '--disable-prompt-on-repost',
+        '--disable-sync',
+        '--metrics-recording-only',
+        '--no-default-browser-check',
+        '--safebrowsing-disable-auto-update',
+        '--disable-background-networking'
+      ],
+      timeout: 60000 // 60 second timeout
     });
     
-    const page = await browser.newPage();
-    await page.goto(`file://${htmlPath}`, { waitUntil: 'networkidle0' });
-    
-    // Set PDF options for high-quality output with optimized margins
-    const pdfBuffer = await page.pdf({
-      format: 'A4',
-      printBackground: true,
-      margin: {
-        top: '0.7cm',
-        right: '0.7cm',
-        bottom: '0.7cm',
-        left: '0.7cm'
-      },
-      preferCSSPageSize: true,
-      displayHeaderFooter: false
-    });
-    
-    await browser.close();
-    
-    // Remove the temp HTML file after PDF generation
     try {
-      await fs.unlink(htmlPath);
-    } catch (cleanupError) {
-      console.warn(`Could not remove temporary file ${htmlPath}:`, cleanupError);
+      const page = await browser.newPage();
+      
+      // Set a longer timeout for navigation
+      await page.goto(`file://${htmlPath}`, { 
+        waitUntil: 'networkidle0',
+        timeout: 30000 
+      });
+      
+      // Wait for any fonts or styles to load
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Set PDF options for high-quality output with optimized margins
+      const pdfBuffer = await page.pdf({
+        format: 'A4',
+        printBackground: true,
+        margin: {
+          top: '0.7cm',
+          right: '0.7cm',
+          bottom: '0.7cm',
+          left: '0.7cm'
+        },
+        preferCSSPageSize: true,
+        displayHeaderFooter: false,
+        timeout: 60000 // 60 second timeout for PDF generation
+      });
+      
+      console.log(`Successfully generated PDF for invoice #${invoice.invoiceNumber} using puppeteer, size: ${pdfBuffer.length} bytes`);
+      
+      // Convert the Uint8Array to a Buffer object
+      return Buffer.from(pdfBuffer);
+    } finally {
+      // Ensure browser is always closed, even if there's an error
+      try {
+        await browser.close();
+      } catch (closeError) {
+        console.warn('Error closing browser:', closeError);
+      }
+      
+      // Remove the temp HTML file after PDF generation
+      try {
+        await fs.unlink(htmlPath);
+      } catch (cleanupError) {
+        console.warn(`Could not remove temporary file ${htmlPath}:`, cleanupError);
+      }
     }
-    
-    console.log(`Successfully generated PDF for invoice #${invoice.invoiceNumber} using puppeteer, size: ${pdfBuffer.length} bytes`);
-    
-    // Convert the Uint8Array to a Buffer object
-    return Buffer.from(pdfBuffer);
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error('Error generating PDF with puppeteer:', error);

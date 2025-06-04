@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import Head from 'next/head';
+import { Helmet } from 'react-helmet';
 import { Link, useLocation } from 'wouter';
 import { useQuery } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
@@ -246,7 +246,7 @@ const PricingPage: React.FC = () => {
 
   return (
     <div ref={containerRef} className="relative min-h-screen overflow-hidden">
-      <Head>
+      <Helmet>
         <title>Pricing | {branding.appName} | AI-Powered Resume Builder for Students</title>
         <meta name="description" content="Choose the perfect plan for your needs. {branding.appName} offers affordable pricing options for students and career professionals." />
         <meta name="keywords" content="resume pricing, affordable resume tools, resume builder plans, student pricing" />
@@ -267,7 +267,7 @@ const PricingPage: React.FC = () => {
         
         {/* Canonical URL */}
         <link rel="canonical" href={`https://${branding.appName}.com/pricing`} />
-      </Head>
+      </Helmet>
       
       {/* Header */}
       <SharedHeader />

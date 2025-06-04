@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Bell, Check, CheckCheck, Trash2, X } from 'lucide-react';
 import { useLocation } from 'wouter';
 import { Button } from '@/components/ui/button';
@@ -30,6 +30,14 @@ export function NotificationDropdown({ className }: NotificationDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [, setLocation] = useLocation();
 
+  // Fetch fresh notifications when dropdown opens
+  useEffect(() => {
+    if (isOpen) {
+      // Fetch notifications with a focus on unread ones first
+      fetchNotifications({ limit: 20 });
+    }
+  }, [isOpen, fetchNotifications]);
+
   const handleMarkAllAsRead = async () => {
     await markAllAsRead();
   };
@@ -39,11 +47,19 @@ export function NotificationDropdown({ className }: NotificationDropdownProps) {
     setLocation('/notifications');
   };
 
+  const handleDropdownOpenChange = (open: boolean) => {
+    setIsOpen(open);
+    // If opening and we have unread notifications, refresh the list to ensure we have the latest
+    if (open && unreadCount > 0) {
+      fetchNotifications({ limit: 20 });
+    }
+  };
+
   const unreadNotifications = notifications.filter(n => !n.isRead).slice(0, 5);
   const hasUnread = unreadCount > 0;
 
   return (
-    <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
+    <DropdownMenu open={isOpen} onOpenChange={handleDropdownOpenChange}>
       <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"

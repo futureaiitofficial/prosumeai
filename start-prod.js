@@ -37,8 +37,17 @@ if (!process.env.DATABASE_URL) {
 }
 
 if (!process.env.SESSION_SECRET) {
-  console.error('SESSION_SECRET not set! Using default secret (not recommended for production)');
-  process.env.SESSION_SECRET = '5021472849459a3e98f7fde1f6221f5593e5f9b8970c4470304c289e523e4669';
+  console.error('❌ CRITICAL ERROR: SESSION_SECRET environment variable is required for production!');
+  console.error('Please set SESSION_SECRET in your .env file or environment variables.');
+  console.error('You can generate a secure key with: node -e "console.log(require(\'crypto\').randomBytes(64).toString(\'hex\'))"');
+  process.exit(1);
+}
+
+if (!process.env.COOKIE_SECRET) {
+  console.error('❌ CRITICAL ERROR: COOKIE_SECRET environment variable is required for production!');
+  console.error('Please set COOKIE_SECRET in your .env file or environment variables.');
+  console.error('You can generate a secure key with: node -e "console.log(require(\'crypto\').randomBytes(64).toString(\'hex\'))"');
+  process.exit(1);
 }
 
 // Start the server using tsx to handle TypeScript files directly

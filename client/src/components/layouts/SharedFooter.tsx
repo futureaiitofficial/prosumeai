@@ -1,5 +1,5 @@
 import React from 'react';
-import Link from 'next/link';
+import { Link } from 'wouter';
 import { useBranding } from '@/components/branding/branding-provider';
 
 export default function SharedFooter() {
@@ -24,24 +24,24 @@ export default function SharedFooter() {
             <div>
               <h4 className="text-base md:text-lg font-semibold mb-3 md:mb-4">Product</h4>
               <ul className="space-y-2">
-                <li><Link href="/#features" className="text-slate-400 hover:text-indigo-400 transition-colors text-sm md:text-base">Features</Link></li>
-                <li><Link href="/pricing" className="text-slate-400 hover:text-indigo-400 transition-colors text-sm md:text-base">Pricing</Link></li>
+                <li><Link href="/#features"><a className="text-slate-400 hover:text-indigo-400 transition-colors text-sm md:text-base">Features</a></Link></li>
+                <li><Link href="/pricing"><a className="text-slate-400 hover:text-indigo-400 transition-colors text-sm md:text-base">Pricing</a></Link></li>
               </ul>
             </div>
             
             <div>
               <h4 className="text-base md:text-lg font-semibold mb-3 md:mb-4">Company</h4>
               <ul className="space-y-2">
-                <li><Link href="/about" className="text-slate-400 hover:text-indigo-400 transition-colors text-sm md:text-base">About Us</Link></li>
-                <li><Link href="/contact" className="text-slate-400 hover:text-indigo-400 transition-colors text-sm md:text-base">Contact</Link></li>
+                <li><Link href="/about"><a className="text-slate-400 hover:text-indigo-400 transition-colors text-sm md:text-base">About Us</a></Link></li>
+                <li><Link href="/contact"><a className="text-slate-400 hover:text-indigo-400 transition-colors text-sm md:text-base">Contact</a></Link></li>
               </ul>
             </div>
             
             <div>
               <h4 className="text-base md:text-lg font-semibold mb-3 md:mb-4">Legal</h4>
               <ul className="space-y-2">
-                <li><Link href="/privacy" className="text-slate-400 hover:text-indigo-400 transition-colors text-sm md:text-base">Privacy Policy</Link></li>
-                <li><Link href="/terms" className="text-slate-400 hover:text-indigo-400 transition-colors text-sm md:text-base">Terms of Service</Link></li>
+                <li><Link href="/privacy"><a className="text-slate-400 hover:text-indigo-400 transition-colors text-sm md:text-base">Privacy Policy</a></Link></li>
+                <li><Link href="/terms"><a className="text-slate-400 hover:text-indigo-400 transition-colors text-sm md:text-base">Terms of Service</a></Link></li>
               </ul>
             </div>
           </div>

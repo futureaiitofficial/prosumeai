@@ -108,6 +108,7 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
   // Dynamic polling control
   const pollIntervalRef = useRef<number>(3000); // Start with 3 seconds
   const intervalIdRef = useRef<NodeJS.Timeout | null>(null);
+  const notificationPollCountRef = useRef<number>(0); // Track polling cycles
 
   // Check if user is authenticated
   const isAuthenticated = Boolean(user);
@@ -252,6 +253,10 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
           
           // Reset polling to fast mode when new notifications arrive
           pollIntervalRef.current = 3000;
+          notificationPollCountRef.current = 0; // Reset polling counter
+          
+          // Immediately fetch updated notifications when new ones arrive
+          fetchNotifications({ limit: 20 }).catch(console.error);
           
           // Play notification sound for new notifications
           try {
@@ -286,14 +291,19 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
         console.error('Error fetching unread count:', error);
       }
     }
-  }, [isAuthenticated, playNotificationSound, toast, preferences?.enableSoundNotifications, preferences?.soundVolume]);
+  }, [isAuthenticated, playNotificationSound, toast, preferences?.enableSoundNotifications, preferences?.soundVolume, fetchNotifications]);
 
   // Force immediate notification check (for when user performs actions that might create notifications)
   const refreshNotificationsNow = useCallback(async () => {
     // Reset to fast polling
     pollIntervalRef.current = 3000;
-    await refreshUnreadCount();
-    await fetchNotifications();
+    notificationPollCountRef.current = 0; // Reset polling counter
+    
+    // Fetch both unread count and notifications
+    await Promise.all([
+      refreshUnreadCount(),
+      fetchNotifications({ limit: 20 })
+    ]);
   }, [refreshUnreadCount, fetchNotifications]);
 
   // Mark notification as read
@@ -450,7 +460,15 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
 
     const setupNextPoll = () => {
       intervalIdRef.current = setTimeout(async () => {
+        // Always refresh unread count
         await refreshUnreadCount();
+        
+        // Every 3rd poll cycle (roughly every 30-60 seconds depending on interval), 
+        // also refresh the notification list to ensure it stays in sync
+        notificationPollCountRef.current += 1;
+        if (notificationPollCountRef.current % 3 === 0) {
+          await fetchNotifications({ limit: 20 });
+        }
         
         // Gradually increase interval but cap at 20 seconds
         pollIntervalRef.current = Math.min(pollIntervalRef.current + 2000, 20000);
@@ -468,7 +486,7 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
         clearTimeout(intervalIdRef.current);
       }
     };
-  }, [refreshUnreadCount, isAuthenticated]);
+  }, [refreshUnreadCount, fetchNotifications, isAuthenticated]);
 
   const value: NotificationContextType = {
     notifications,

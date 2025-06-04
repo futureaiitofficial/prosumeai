@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'wouter';
-import Head from 'next/head';
+import { Helmet } from 'react-helmet';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -148,10 +148,10 @@ export default function VerifyEmailPage() {
   
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      <Head>
+      <Helmet>
         <title>Verify Email | {branding.appName}</title>
         <meta name="description" content={`Verify your email address for ${branding.appName}`} />
-      </Head>
+      </Helmet>
       
       {/* Header with fixed position */}
       <SharedHeader isLandingPage={false} forceBackground={true} />

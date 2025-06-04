@@ -1,0 +1,112 @@
+name: atscribe
+
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_HOST_AUTH_METHOD: trust
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./prosumeai_backup.sql:/docker-entrypoint-initdb.d/backup.sql:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - atscribe-network
+
+  # ProsumeAI Application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      # Application Configuration
+      NODE_ENV: ${NODE_ENV}
+      PORT: ${PORT}
+      
+      # Database Configuration
+      DATABASE_URL: ${DATABASE_URL}
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
+      DB_NAME: ${POSTGRES_DB}
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      
+      # Session & Cookie Security (ACTUALLY USED)
+      SESSION_SECRET: ${SESSION_SECRET}
+      SESSION_MAX_AGE: ${SESSION_MAX_AGE}
+      COOKIE_SECRET: ${COOKIE_SECRET}
+      COOKIE_SAMESITE: ${COOKIE_SAMESITE}
+      DISABLE_SECURE_COOKIE: ${DISABLE_SECURE_COOKIE}
+      TRUST_PROXY: ${TRUST_PROXY}
+      
+      # Admin Configuration
+      ADMIN_EMAIL: ${ADMIN_EMAIL}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      
+      # Application URLs
+      VITE_API_URL: ${VITE_API_URL}
+      VITE_APP_URL: ${VITE_APP_URL}
+      ORIGIN_URL: ${ORIGIN_URL}
+      CORS_ORIGIN: ${CORS_ORIGIN}
+      
+      # Enhanced networking for geolocation
+      HOST_IP: host.docker.internal
+      EXTERNAL_IP_DETECTION: enabled
+      
+      # REMOVED UNUSED VARIABLES:
+      # SECRET_KEY - Not used anywhere in codebase
+      # JWT_SECRET - No JWT implementation (uses sessions)
+      # VITE_ENCRYPTION_KEY - Database-generated encryption keys
+      # BCRYPT_ROUNDS - Uses scrypt, not bcrypt
+      # JWT_EXPIRES_IN - No JWT implementation
+    ports:
+      - "${PORT}:${PORT}"
+    volumes:
+      # Volume mount for notification sounds (working solution)
+      - ./public/sounds:/app/public/sounds:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - atscribe-network
+    # Add extra hosts to improve email delivery
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  # Optional: pgAdmin for database management
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
+      PGADMIN_CONFIG_SERVER_MODE: ${PGADMIN_CONFIG_SERVER_MODE}
+    ports:
+      - "5051:80"
+    depends_on:
+      - db
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    networks:
+      - atscribe-network
+
+volumes:
+  postgres_data:
+    driver: local
+  pgadmin_data:
+    driver: local
+
+networks:
+  atscribe-network:
+    driver: bridge 
