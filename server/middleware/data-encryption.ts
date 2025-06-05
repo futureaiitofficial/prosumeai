@@ -172,11 +172,25 @@ export function encryptModelData(data: any, modelName: string): any {
   // Clone the data to avoid modifying the original
   const encryptedData = { ...data };
 
+  // List of complex JSONB fields that should not be encrypted as simple strings
+  const complexFields = ['workExperience', 'education', 'projects', 'certifications', 'publications', 'statusHistory', 'skillCategories'];
+
   // Encrypt each field
   for (const field of modelConfig.fields) {
+    // Skip complex JSONB fields - they should not be encrypted as simple strings
+    if (complexFields.includes(field)) {
+      console.warn(`Skipping encryption of complex JSONB field '${field}' in model '${modelName}'. Complex fields should not be encrypted.`);
+      continue;
+    }
+
     // Only encrypt if the field has an actual value (not empty strings, null, or undefined)
     if (encryptedData[field] !== undefined && encryptedData[field] !== null && encryptedData[field] !== '') {
-      encryptedData[field] = safeEncrypt(encryptedData[field]);
+      // Only encrypt string values to avoid corrupting complex data structures
+      if (typeof encryptedData[field] === 'string') {
+        encryptedData[field] = safeEncrypt(encryptedData[field]);
+      } else {
+        console.warn(`Skipping encryption of non-string field '${field}' in model '${modelName}'. Value type: ${typeof encryptedData[field]}`);
+      }
     }
   }
 
@@ -204,10 +218,18 @@ export function decryptModelData(data: any, modelName: string): any {
   // Clone the data to avoid modifying the original
   const decryptedData = { ...data };
 
+  // List of complex JSONB fields that should not be decrypted as simple strings
+  const complexFields = ['workExperience', 'education', 'projects', 'certifications', 'publications', 'statusHistory', 'skillCategories'];
+
   // Decrypt each field
   for (const field of modelConfig.fields) {
+    // Skip complex JSONB fields - they should not be decrypted as simple strings
+    if (complexFields.includes(field)) {
+      continue;
+    }
+
     if (decryptedData[field] !== undefined && decryptedData[field] !== null) {
-      // Only decrypt if the field is actually encrypted
+      // Only decrypt if the field is actually encrypted and is a string
       if (typeof decryptedData[field] === 'string' && isEncrypted(decryptedData[field])) {
         try {
           // Decrypt the value
