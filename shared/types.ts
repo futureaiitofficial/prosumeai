@@ -30,13 +30,14 @@ export interface ResumeData {
   skillCategories?: { [categoryName: string]: string[] };
   projects?: Project[];
   certifications?: Certification[];
+  publications?: Publication[];
   // Properties added for UI formatting
   contactSeparator?: string;
   formattedLinkedinUrl?: string;
   formattedPortfolioUrl?: string;
 }
 
-interface WorkExperience {
+export interface WorkExperience {
   id?: number;
   company: string;
   position: string;
@@ -48,7 +49,7 @@ interface WorkExperience {
   achievements?: string[];
 }
 
-interface Education {
+export interface Education {
   id?: number;
   institution: string;
   degree: string;
@@ -63,7 +64,7 @@ interface Education {
   gpa?: string;
 }
 
-interface Project {
+export interface Project {
   id?: number;
   name: string;
   description?: string;
@@ -77,7 +78,7 @@ interface Project {
   link?: string;
 }
 
-interface Certification {
+export interface Certification {
   id?: number;
   name: string;
   issuer: string;
@@ -86,6 +87,16 @@ interface Certification {
   url?: string;
   expires?: boolean;
   expiryDate?: string;
+}
+
+export interface Publication {
+  id?: string;
+  title: string;
+  publisher: string;
+  authors: string;
+  publicationDate?: string | null;
+  url?: string | null;
+  description?: string;
 }
 
 // Template customization types

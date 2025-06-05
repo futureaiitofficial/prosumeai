@@ -346,6 +346,9 @@ export class ModernSidebarTemplate extends BaseTemplate {
 
           {/* Skills Section - ATS Friendly */}
           {renderSections(data, {
+            summary: () => null, // Not rendered in sidebar
+            workExperience: () => null, // Not rendered in sidebar
+            publications: () => null, // Not rendered in sidebar
             skills: () => (data.skills?.length > 0 || data.technicalSkills?.length > 0 || data.softSkills?.length > 0 || data.skillCategories) ? (
               <div style={sidebarSectionStyle}>
                 <h3 style={sidebarHeaderStyle}>Skills</h3>

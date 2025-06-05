@@ -275,6 +275,14 @@ export async function parseResume(resumeText: string): Promise<any> {
            - Issuing organization
            - Date received and expiration date if provided
         
+        8. PUBLICATIONS: For each publication:
+           - Full publication title (EXACTLY as written)
+           - Publisher/Journal name
+           - Authors (including the person whose resume this is)
+           - Publication date if provided
+           - URL, DOI, or link if provided
+           - Brief description or abstract if provided
+        
         OUTPUT INSTRUCTIONS:
         - Organize your findings into clearly labeled semantic categories
         - Include ONLY information actually found in the document VERBATIM
@@ -385,6 +393,17 @@ export async function parseResume(resumeText: string): Promise<any> {
               "current": true/false based on document,
               "url": "Actual project URL or null"
             }
+          ],
+          "publications": [
+            {
+              "id": "pub-1",
+              "title": "Actual publication title",
+              "publisher": "Actual publisher/journal name",
+              "authors": "Actual authors as mentioned",
+              "publicationDate": "EXACT publication date as mentioned or null",
+              "url": "Actual URL/DOI or null",
+              "description": "Actual description/abstract or empty string"
+            }
           ]
         }
         
@@ -432,6 +451,7 @@ export async function parseResume(resumeText: string): Promise<any> {
       if (!parsedData.softSkills) parsedData.softSkills = [];
       if (!parsedData.certifications) parsedData.certifications = [];
       if (!parsedData.projects) parsedData.projects = [];
+      if (!parsedData.publications) parsedData.publications = [];
       
       // Ensure personal info fields exist
       if (!parsedData.personalInfo) {
@@ -528,6 +548,9 @@ export async function parseResume(resumeText: string): Promise<any> {
           ],
           "projects": [
             // Only include if actual projects found, otherwise leave as empty array
+          ],
+          "publications": [
+            // Only include if actual publications found, otherwise leave as empty array
           ]
         }
       `;
@@ -565,6 +588,7 @@ export async function parseResume(resumeText: string): Promise<any> {
       if (!parsedData.softSkills) parsedData.softSkills = [];
       if (!parsedData.certifications) parsedData.certifications = [];
       if (!parsedData.projects) parsedData.projects = [];
+      if (!parsedData.publications) parsedData.publications = [];
       
       // Add note about using fallback approach
       parsedData.note = "Resume was processed using single-pass approach due to complexity.";
@@ -604,6 +628,7 @@ export async function parseResume(resumeText: string): Promise<any> {
       softSkills: [],
       certifications: [],
       projects: [],
+      publications: [],
       note: `Failed to parse resume: ${error.message}`
     };
   }

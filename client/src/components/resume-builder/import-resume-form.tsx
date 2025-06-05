@@ -93,7 +93,8 @@ export default function ImportResumeForm({ updateData }: ImportResumeFormProps) 
         technicalSkills: Array.isArray(data.technicalSkills) ? data.technicalSkills : [],
         softSkills: Array.isArray(data.softSkills) ? data.softSkills : [],
         certifications: Array.isArray(data.certifications) ? data.certifications : [],
-        projects: Array.isArray(data.projects) ? data.projects : []
+        projects: Array.isArray(data.projects) ? data.projects : [],
+        publications: Array.isArray(data.publications) ? data.publications : []
       };
       
       updateData(mappedData);

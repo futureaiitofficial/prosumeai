@@ -14,6 +14,12 @@ export interface ResumeData {
   summary?: string;
   template?: string;
   
+  // Properties added for UI formatting
+  contactSeparator?: string;
+  formattedLinkedinUrl?: string;
+  formattedPortfolioUrl?: string;
+  sectionOrder?: string[];
+  
   // Skills - Legacy support (backward compatibility)
   skills?: string[];
   technicalSkills?: string[];
@@ -73,5 +79,16 @@ export interface ResumeData {
     date: string;
     description?: string;
     url?: string;
+  }[];
+  
+  // Publications
+  publications?: {
+    id?: string;
+    title: string;
+    publisher: string;
+    authors: string;
+    publicationDate?: string | null;
+    url?: string | null;
+    description?: string;
   }[];
 } 
