@@ -1,215 +1,293 @@
-import puppeteer from 'puppeteer';
-import fs from 'fs-extra';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import type { Invoice, InvoiceSettings } from './pdf-service.d';
-import os from 'os';
+import puppeteer from "puppeteer"
+import fs from "fs-extra"
+import path from "path"
+import { fileURLToPath } from "url"
+import type { Invoice, InvoiceSettings } from "./pdf-service.d"
+import os from "os"
 
 // Make __dirname available in ESM
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 // Create a temp directory for invoice HTML templates
-const TEMP_DIR = path.join(os.tmpdir(), 'prosume-invoice-templates');
-fs.ensureDirSync(TEMP_DIR);
+const TEMP_DIR = path.join(os.tmpdir(), "prosume-invoice-templates")
+fs.ensureDirSync(TEMP_DIR)
 
 // Clean up old temp files on startup
 try {
-  const files = fs.readdirSync(TEMP_DIR);
+  const files = fs.readdirSync(TEMP_DIR)
   for (const file of files) {
-    if (file.startsWith('invoice-') && file.endsWith('.html')) {
-      fs.unlinkSync(path.join(TEMP_DIR, file));
+    if (file.startsWith("invoice-") && file.endsWith(".html")) {
+      fs.unlinkSync(path.join(TEMP_DIR, file))
     }
   }
-  console.log(`Cleaned up ${files.length} temporary invoice HTML files`);
+  console.log(`Cleaned up ${files.length} temporary invoice HTML files`)
 } catch (err) {
-  console.error('Error cleaning up temp files:', err);
+  console.error("Error cleaning up temp files:", err)
+}
+
+// Function to detect Chrome executable path
+function getChromePath(): string {
+  const possiblePaths = [
+    "/usr/bin/google-chrome-stable",
+    "/usr/bin/google-chrome",
+    "/usr/bin/chromium-browser",
+    "/usr/bin/chromium",
+    "/snap/bin/chromium",
+    process.env.CHROME_BIN,
+    process.env.PUPPETEER_EXECUTABLE_PATH,
+  ].filter(Boolean)
+
+  for (const chromePath of possiblePaths) {
+    if (chromePath && fs.existsSync(chromePath)) {
+      console.log(`Found Chrome at: ${chromePath}`)
+      return chromePath
+    }
+  }
+
+  // If no path found, let Puppeteer use its default
+  console.log("No Chrome executable found, using Puppeteer default")
+  return ""
+}
+
+// Get Chrome launch options
+function getChromeOptions() {
+  const chromePath = getChromePath()
+
+  const baseOptions = {
+    headless: true,
+    args: [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-dev-shm-usage",
+      "--disable-accelerated-2d-canvas",
+      "--no-first-run",
+      "--disable-gpu",
+      "--disable-background-timer-throttling",
+      "--disable-backgrounding-occluded-windows",
+      "--disable-renderer-backgrounding",
+      "--disable-features=TranslateUI",
+      "--disable-ipc-flooding-protection",
+      "--disable-web-security",
+      "--disable-features=VizDisplayCompositor",
+      "--run-all-compositor-stages-before-draw",
+      "--disable-extensions",
+    ],
+  }
+
+  // Only set executablePath if we found a valid Chrome installation
+  if (chromePath) {
+    return {
+      ...baseOptions,
+      executablePath: chromePath,
+    }
+  }
+
+  return baseOptions
 }
 
 // Export for server startup
 export async function initializePuppeteerPDFService(): Promise<boolean> {
   try {
-    console.log('Initializing Puppeteer PDF service...');
-    
-    // Test to make sure puppeteer can launch with Google Chrome
-    const browser = await puppeteer.launch({
-      headless: true,
-      executablePath: '/usr/bin/google-chrome',
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-accelerated-2d-canvas',
-        '--no-first-run',
-        '--disable-gpu',
-        '--disable-background-timer-throttling',
-        '--disable-backgrounding-occluded-windows',
-        '--disable-renderer-backgrounding'
-      ]
-    });
-    
-    await browser.close();
-    console.log('Puppeteer PDF service initialized successfully');
-    return true;
+    console.log("Initializing Puppeteer PDF service...")
+
+    // Test to make sure puppeteer can launch with Chrome
+    const options = getChromeOptions()
+    console.log("Chrome launch options:", JSON.stringify(options, null, 2))
+
+    const browser = await puppeteer.launch(options)
+
+    // Test basic functionality
+    const page = await browser.newPage()
+    await page.setContent("<html><body><h1>Test</h1></body></html>")
+    const title = await page.title()
+    console.log("Test page title:", title)
+
+    await browser.close()
+    console.log("Puppeteer PDF service initialized successfully")
+    return true
   } catch (error) {
-    console.error('Error initializing Puppeteer PDF service:', error);
-    console.log('PDF generation will continue without browser verification');
-    return false;
+    console.error("Error initializing Puppeteer PDF service:", error)
+
+    // Try to provide more helpful error information
+    if (error instanceof Error) {
+      if (error.message.includes("Browser was not found")) {
+        console.error("Chrome browser not found. Available browsers:")
+        try {
+          const { execSync } = await import("child_process")
+          const result = execSync(
+            'which google-chrome-stable google-chrome chromium-browser chromium 2>/dev/null || echo "No browsers found"',
+            { encoding: "utf8" },
+          )
+          console.error(result)
+        } catch (e) {
+          console.error("Could not check for available browsers")
+        }
+      }
+    }
+
+    console.log("PDF generation will continue without browser verification")
+    return false
   }
 }
 
 /**
  * Generate a PDF for an invoice using puppeteer
  * This creates an HTML file and converts it to PDF using puppeteer
- * 
+ *
  * @param invoice The invoice data to render
  * @param settings Invoice settings for formatting
  * @returns A buffer containing the PDF data
  */
 export async function generateInvoicePDF(invoice: Invoice, settings: InvoiceSettings): Promise<Buffer> {
+  let browser
+  let htmlPath = ""
+
   try {
-    console.log(`Generating PDF with puppeteer for invoice #${invoice.invoiceNumber}`);
-    
+    console.log(`Generating PDF with puppeteer for invoice #${invoice.invoiceNumber}`)
+
     // Get branding settings
-    let brandingSettings;
+    let brandingSettings
     try {
-      const { db } = await import('../config/db.js');
-      const schema = await import('../../shared/schema.js');
-      const { eq } = await import('drizzle-orm');
-      
+      const { db } = await import("../config/db.js")
+      const schema = await import("../../shared/schema.js")
+      const { eq } = await import("drizzle-orm")
+
       // Get appSettings from schema
-      const appSettings = schema.appSettings;
-      
+      const appSettings = schema.appSettings
+
       // Fetch branding settings from the database
-      const brandingData = await db.select().from(appSettings).where(eq(appSettings.key, 'branding')).limit(1);
-      
+      const brandingData = await db.select().from(appSettings).where(eq(appSettings.key, "branding")).limit(1)
+
       // Parse the branding settings from the value field if available
       if (brandingData.length > 0 && brandingData[0].value) {
         try {
-          if (typeof brandingData[0].value === 'string') {
-            brandingSettings = JSON.parse(brandingData[0].value);
+          if (typeof brandingData[0].value === "string") {
+            brandingSettings = JSON.parse(brandingData[0].value)
           } else {
-            brandingSettings = brandingData[0].value;
+            brandingSettings = brandingData[0].value
           }
-          console.log('Branding settings loaded for invoice PDF: success');
+          console.log("Branding settings loaded for invoice PDF: success")
         } catch (parseError) {
-          console.error('Error parsing branding settings:', parseError);
-          brandingSettings = null;
+          console.error("Error parsing branding settings:", parseError)
+          brandingSettings = null
         }
       } else {
-        console.log('Branding settings not found for invoice PDF');
-        brandingSettings = null;
+        console.log("Branding settings not found for invoice PDF")
+        brandingSettings = null
       }
     } catch (brandingError) {
-      console.error('Error fetching branding settings for invoice:', brandingError);
-      brandingSettings = null;
+      console.error("Error fetching branding settings for invoice:", brandingError)
+      brandingSettings = null
     }
-    
+
     // Format dates
     const formatDate = (dateString: string | undefined) => {
-      if (!dateString) return 'N/A';
-      const date = new Date(dateString);
-      return date.toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
-      });
-    };
+      if (!dateString) return "N/A"
+      const date = new Date(dateString)
+      return date.toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      })
+    }
 
     // Format currency
-    const formatCurrency = (amount: string | number, currency: string = 'USD') => {
-      const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
-      const locale = currency === 'INR' ? 'en-IN' : 'en-US';
-      
+    const formatCurrency = (amount: string | number, currency = "USD") => {
+      const numAmount = typeof amount === "string" ? Number.parseFloat(amount) : amount
+      const locale = currency === "INR" ? "en-IN" : "en-US"
+
       const formatter = new Intl.NumberFormat(locale, {
-        style: 'currency',
+        style: "currency",
         currency,
-        minimumFractionDigits: currency === 'INR' ? 0 : 2
-      });
-      
-      return formatter.format(numAmount);
-    };
+        minimumFractionDigits: currency === "INR" ? 0 : 2,
+      })
+
+      return formatter.format(numAmount)
+    }
 
     // Prepare invoice details
-    const companyDetails = invoice.companyDetails || {};
-    const billingDetails = invoice.billingDetails || {};
-    const items = invoice.items || [];
-    const taxDetails = invoice.taxDetails || { taxBreakdown: [] };
-    const taxBreakdown = taxDetails.taxBreakdown || [];
-    
+    const companyDetails = invoice.companyDetails || {}
+    const billingDetails = invoice.billingDetails || {}
+    const items = invoice.items || []
+    const taxDetails = invoice.taxDetails || { taxBreakdown: [] }
+    const taxBreakdown = taxDetails.taxBreakdown || []
+
     // Create a readable company address
     const companyAddress = [
       companyDetails.address,
-      companyDetails.city && companyDetails.state && companyDetails.postalCode ? 
-        `${companyDetails.city}, ${companyDetails.state} ${companyDetails.postalCode}` : '',
-      companyDetails.country
-    ].filter(Boolean).join(', ');
-    
+      companyDetails.city && companyDetails.state && companyDetails.postalCode
+        ? `${companyDetails.city}, ${companyDetails.state} ${companyDetails.postalCode}`
+        : "",
+      companyDetails.country,
+    ]
+      .filter(Boolean)
+      .join(", ")
+
     // Create a readable customer address
-    const customerName = billingDetails.fullName || billingDetails.companyName || 'Customer';
+    const customerName = billingDetails.fullName || billingDetails.companyName || "Customer"
     const customerAddress = [
       billingDetails.addressLine1,
       billingDetails.addressLine2,
-      billingDetails.city && billingDetails.state && billingDetails.postalCode ? 
-        `${billingDetails.city}, ${billingDetails.state} ${billingDetails.postalCode}` : '',
-      billingDetails.country
-    ].filter(Boolean).join(', ');
+      billingDetails.city && billingDetails.state && billingDetails.postalCode
+        ? `${billingDetails.city}, ${billingDetails.state} ${billingDetails.postalCode}`
+        : "",
+      billingDetails.country,
+    ]
+      .filter(Boolean)
+      .join(", ")
 
     // Generate items HTML
-    let itemsHTML = '';
-    let subtotal = 0;
+    let itemsHTML = ""
+    let subtotal = 0
 
     for (const item of items) {
-      const quantity = item.quantity || 1;
-      const unitPrice = item.unitPrice || 0;
-      const amount = quantity * unitPrice;
-      subtotal += amount;
+      const quantity = item.quantity || 1
+      const unitPrice = item.unitPrice || 0
+      const amount = quantity * unitPrice
+      subtotal += amount
 
       itemsHTML += `
         <tr>
-          <td>${item.description || 'Service'}</td>
+          <td>${item.description || "Service"}</td>
           <td class="text-center">${quantity}</td>
           <td class="text-right">${formatCurrency(unitPrice, invoice.currency)}</td>
           <td class="text-right">${formatCurrency(amount, invoice.currency)}</td>
         </tr>
-      `;
+      `
     }
 
     // Generate tax breakdown HTML
-    let taxBreakdownHTML = '';
+    let taxBreakdownHTML = ""
     for (const tax of taxBreakdown) {
       taxBreakdownHTML += `
         <tr>
           <td>${tax.name}</td>
           <td>${formatCurrency(tax.amount, invoice.currency)}</td>
         </tr>
-      `;
+      `
     }
 
     // Extract reference information from notes or generate defaults
-    const transactionId = invoice.notes?.match(/Transaction ID: ([A-Za-z0-9]+)/)?.[1] || 
-                         `TXN${Date.now()}`;
-    const razorpayRef = invoice.notes?.match(/Razorpay Payment ID: ([A-Za-z0-9_]+)/)?.[1] || 
-                       `pay_${Date.now()}`;
-    const subscriptionId = invoice.notes?.match(/Subscription ID: ([A-Za-z0-9_]+)/)?.[1] || 
-                          `sub_${Date.now()}`;
-    
+    const transactionId = invoice.notes?.match(/Transaction ID: ([A-Za-z0-9]+)/)?.[1] || `TXN${Date.now()}`
+    const razorpayRef = invoice.notes?.match(/Razorpay Payment ID: ([A-Za-z0-9_]+)/)?.[1] || `pay_${Date.now()}`
+    const subscriptionId = invoice.notes?.match(/Subscription ID: ([A-Za-z0-9_]+)/)?.[1] || `sub_${Date.now()}`
+
     // Generate terms and conditions if available
-    let termsHTML = '';
+    let termsHTML = ""
     if (settings.termsAndConditions) {
       termsHTML = `
         <div class="terms">
           <h3>Terms and Conditions</h3>
           <p>${settings.termsAndConditions}</p>
         </div>
-      `;
+      `
     }
 
     // Status color based on payment status
-    const statusColor = invoice.status.toLowerCase() === 'paid' || 
-                        invoice.status.toLowerCase() === 'completed' ? 
-                        '#16a34a' : '#ef4444';
-    
+    const statusColor =
+      invoice.status.toLowerCase() === "paid" || invoice.status.toLowerCase() === "completed" ? "#16a34a" : "#ef4444"
+
     // Generate full HTML invoice
     const html = `
     <!DOCTYPE html>
@@ -472,22 +550,23 @@ export async function generateInvoicePDF(invoice: Invoice, settings: InvoiceSett
           <div class="company-details">
             ${(() => {
               // Use branding logo if available, fall back to settings logo
-              const brandingLogo = brandingSettings && typeof brandingSettings === 'object' ? (brandingSettings as any).logoUrl : null;
-              const logo = brandingLogo || settings.logoUrl;
-              return logo ? `<img src="${logo}" alt="Company Logo" class="logo">` : '';
+              const brandingLogo =
+                brandingSettings && typeof brandingSettings === "object" ? (brandingSettings as any).logoUrl : null
+              const logo = brandingLogo || settings.logoUrl
+              return logo ? `<img src="${logo}" alt="Company Logo" class="logo">` : ""
             })()}
-            <div class="company-name">${companyDetails.companyName || 'Company Name'}</div>
+            <div class="company-name">${companyDetails.companyName || "Company Name"}</div>
             <div class="app-name">${
-              brandingSettings && typeof brandingSettings === 'object' 
-                ? (brandingSettings as any).appName || 'atScribe' 
-                : 'atScribe'
+              brandingSettings && typeof brandingSettings === "object"
+                ? (brandingSettings as any).appName || "atScribe"
+                : "atScribe"
             } - ${
-              brandingSettings && typeof brandingSettings === 'object' 
-                ? (brandingSettings as any).appTagline || 'AI-powered resume and career tools' 
-                : 'AI-powered resume and career tools'
+              brandingSettings && typeof brandingSettings === "object"
+                ? (brandingSettings as any).appTagline || "AI-powered resume and career tools"
+                : "AI-powered resume and career tools"
             }</div>
             <div class="company-address">${companyAddress}</div>
-            ${companyDetails.gstin ? `<div class="company-gstin">GSTIN: ${companyDetails.gstin}</div>` : ''}
+            ${companyDetails.gstin ? `<div class="company-gstin">GSTIN: ${companyDetails.gstin}</div>` : ""}
           </div>
           <div class="invoice-meta">
             <div class="invoice-number">Invoice #${invoice.invoiceNumber}</div>
@@ -500,14 +579,14 @@ export async function generateInvoicePDF(invoice: Invoice, settings: InvoiceSett
         <div class="billing-container">
           <div class="billing-info">
             <h3>Bill To</h3>
-            <div class="billing-details">${billingDetails.fullName || ''}</div>
-            ${billingDetails.companyName ? `<div class="billing-details">${billingDetails.companyName}</div>` : ''}
-            <div class="billing-details">${billingDetails.addressLine1 || ''}</div>
-            ${billingDetails.addressLine2 ? `<div class="billing-details">${billingDetails.addressLine2}</div>` : ''}
+            <div class="billing-details">${billingDetails.fullName || ""}</div>
+            ${billingDetails.companyName ? `<div class="billing-details">${billingDetails.companyName}</div>` : ""}
+            <div class="billing-details">${billingDetails.addressLine1 || ""}</div>
+            ${billingDetails.addressLine2 ? `<div class="billing-details">${billingDetails.addressLine2}</div>` : ""}
             <div class="billing-details">${billingDetails.city}, ${billingDetails.state} ${billingDetails.postalCode}</div>
             <div class="billing-details">${billingDetails.country}</div>
-            ${billingDetails.taxId ? `<div class="billing-details">Tax ID: ${billingDetails.taxId}</div>` : ''}
-            <div class="billing-details">Email: ${billingDetails.email || ''}</div>
+            ${billingDetails.taxId ? `<div class="billing-details">Tax ID: ${billingDetails.taxId}</div>` : ""}
+            <div class="billing-details">Email: ${billingDetails.email || ""}</div>
           </div>
           
           <div class="billing-meta">
@@ -515,14 +594,18 @@ export async function generateInvoicePDF(invoice: Invoice, settings: InvoiceSett
             <div class="billing-details">
               <div><strong>Invoice Total:</strong> ${formatCurrency(invoice.total, invoice.currency)}</div>
               <div><strong>Payment Status:</strong> ${invoice.status.toUpperCase()}</div>
-              ${invoice.paidAt ? `<div><strong>Paid On:</strong> ${formatDate(invoice.paidAt)}</div>` : ''}
+              ${invoice.paidAt ? `<div><strong>Paid On:</strong> ${formatDate(invoice.paidAt)}</div>` : ""}
             </div>
             
-            ${invoice.nextPaymentDate ? `
+            ${
+              invoice.nextPaymentDate
+                ? `
             <div class="next-payment">
               <div><strong>Next Payment:</strong> ${formatDate(invoice.nextPaymentDate)}</div>
             </div>
-            ` : ''}
+            `
+                : ""
+            }
           </div>
         </div>
         
@@ -541,13 +624,16 @@ export async function generateInvoicePDF(invoice: Invoice, settings: InvoiceSett
         </table>
         
         <table class="summary-table">
-          ${invoice.currency === 'INR' ? `
+          ${
+            invoice.currency === "INR"
+              ? `
           <tr>
             <td>Total (incl. GST)</td>
             <td>${formatCurrency(invoice.total, invoice.currency)}</td>
           </tr>
           ${taxBreakdownHTML}
-          ` : `
+          `
+              : `
           <tr>
             <td>Subtotal</td>
             <td>${formatCurrency(invoice.subtotal, invoice.currency)}</td>
@@ -557,22 +643,31 @@ export async function generateInvoicePDF(invoice: Invoice, settings: InvoiceSett
             <td>Total</td>
             <td>${formatCurrency(invoice.total, invoice.currency)}</td>
           </tr>
-          `}
+          `
+          }
         </table>
         
-        ${invoice.notes ? `
+        ${
+          invoice.notes
+            ? `
         <div class="notes-section">
           <h3>Notes</h3>
           <div class="notes-content">${invoice.notes}</div>
         </div>
-        ` : ''}
+        `
+            : ""
+        }
         
-        ${settings.termsAndConditions ? `
+        ${
+          settings.termsAndConditions
+            ? `
         <div class="notes-section">
           <h3>Terms & Conditions</h3>
           <div class="notes-content">${settings.termsAndConditions}</div>
         </div>
-        ` : ''}
+        `
+            : ""
+        }
         
         <div class="reference-section">
           <h3>Reference Information</h3>
@@ -589,83 +684,86 @@ export async function generateInvoicePDF(invoice: Invoice, settings: InvoiceSett
         
         <div class="footer">
           ${settings.footerText || `Thank you for your business!`}
-          ${invoice.currency === 'INR' ? '<p>Prices are inclusive of GST as per Indian tax regulations.</p>' : ''}
+          ${invoice.currency === "INR" ? "<p>Prices are inclusive of GST as per Indian tax regulations.</p>" : ""}
         </div>
       </div>
     </body>
     </html>
-    `;
+    `
 
     // Create a temporary HTML file
-    const timestamp = Date.now();
-    const htmlPath = path.join(TEMP_DIR, `invoice-${invoice.invoiceNumber}-${timestamp}.html`);
-    await fs.writeFile(htmlPath, html);
+    const timestamp = Date.now()
+    htmlPath = path.join(TEMP_DIR, `invoice-${invoice.invoiceNumber}-${timestamp}.html`)
+    await fs.writeFile(htmlPath, html)
 
     // Launch puppeteer and generate PDF
-    const browser = await puppeteer.launch({
-      headless: true,
-      executablePath: '/usr/bin/google-chrome',
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-accelerated-2d-canvas',
-        '--no-first-run',
-        '--disable-gpu',
-        '--disable-background-timer-throttling',
-        '--disable-backgrounding-occluded-windows',
-        '--disable-renderer-backgrounding'
-      ]
-    });
-    
-    try {
-      const page = await browser.newPage();
-      
-      // Set a longer timeout for navigation
-      await page.goto(`file://${htmlPath}`, { 
-        waitUntil: 'networkidle0',
-        timeout: 30000 
-      });
-      
-      // Wait for any fonts or styles to load
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Set PDF options for high-quality output with optimized margins
-      const pdfBuffer = await page.pdf({
-        format: 'A4',
-        printBackground: true,
-        margin: {
-          top: '0.7cm',
-          right: '0.7cm',
-          bottom: '0.7cm',
-          left: '0.7cm'
-        },
-        preferCSSPageSize: true,
-        displayHeaderFooter: false
-      });
-      
-      console.log(`Successfully generated PDF for invoice #${invoice.invoiceNumber} using puppeteer, size: ${pdfBuffer.length} bytes`);
-      
-      // Convert the Uint8Array to a Buffer object
-      return Buffer.from(pdfBuffer);
-    } finally {
-      // Ensure browser is always closed, even if there's an error
+    const options = getChromeOptions()
+    browser = await puppeteer.launch(options)
+
+    const page = await browser.newPage()
+
+    // Set a longer timeout for navigation
+    await page.goto(`file://${htmlPath}`, {
+      waitUntil: "networkidle0",
+      timeout: 30000,
+    })
+
+    // Wait for any fonts or styles to load
+    await new Promise((resolve) => setTimeout(resolve, 2000))
+
+    // Set PDF options for high-quality output with optimized margins
+    const pdfBuffer = await page.pdf({
+      format: "A4",
+      printBackground: true,
+      margin: {
+        top: "0.7cm",
+        right: "0.7cm",
+        bottom: "0.7cm",
+        left: "0.7cm",
+      },
+      preferCSSPageSize: true,
+      displayHeaderFooter: false,
+    })
+
+    console.log(
+      `Successfully generated PDF for invoice #${invoice.invoiceNumber} using puppeteer, size: ${pdfBuffer.length} bytes`,
+    )
+
+    // Convert the Uint8Array to a Buffer object
+    return Buffer.from(pdfBuffer)
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    console.error("Error generating PDF with puppeteer:", error)
+
+    // Provide more specific error information
+    if (error instanceof Error && error.message.includes("Browser was not found")) {
+      console.error("Chrome executable not found. Please ensure Chrome is properly installed in the Docker container.")
+      console.error("Available Chrome paths checked:", [
+        "/usr/bin/google-chrome-stable",
+        "/usr/bin/google-chrome",
+        "/usr/bin/chromium-browser",
+        "/usr/bin/chromium",
+      ])
+    }
+
+    throw new Error(`Failed to generate PDF with puppeteer: ${errorMessage}`)
+  } finally {
+    // Ensure browser is always closed, even if there's an error
+    if (browser) {
       try {
-        await browser.close();
+        await browser.close()
       } catch (closeError) {
-        console.warn('Error closing browser:', closeError);
-      }
-      
-      // Remove the temp HTML file after PDF generation
-      try {
-        await fs.unlink(htmlPath);
-      } catch (cleanupError) {
-        console.warn(`Could not remove temporary file ${htmlPath}:`, cleanupError);
+        console.warn("Error closing browser:", closeError)
       }
     }
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error('Error generating PDF with puppeteer:', error);
-    throw new Error(`Failed to generate PDF with puppeteer: ${errorMessage}`);
+
+    // Remove the temp HTML file after PDF generation
+    if (htmlPath) {
+      try {
+        await fs.unlink(htmlPath)
+      } catch (cleanupError) {
+        console.warn(`Could not remove temporary file ${htmlPath}:`, cleanupError)
+      }
+    }
   }
-} 
+}

@@ -5,13 +5,12 @@ FROM --platform=linux/amd64 node:18-bullseye AS base
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 
 # Install Google Chrome Stable and fonts
-# Note: this installs the necessary libs to make the browser work with Puppeteer.
 RUN apt-get update && apt-get install -y \
     wget \
     gnupg \
     ca-certificates \
-    && wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - \
-    && sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list' \
+    && wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /usr/share/keyrings/googlechrome-linux-keyring.gpg \
+    && sh -c 'echo "deb [arch=amd64 signed-by=/usr/share/keyrings/googlechrome-linux-keyring.gpg] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list' \
     && apt-get update \
     && apt-get install -y google-chrome-stable --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
@@ -29,6 +28,17 @@ RUN apt-get update && apt-get install -y \
     fonts-thai-tlwg \
     fonts-kacst \
     fonts-freefont-ttf \
+    # Additional dependencies for Chrome
+    libnss3 \
+    libatk-bridge2.0-0 \
+    libdrm2 \
+    libxkbcommon0 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxrandr2 \
+    libgbm1 \
+    libxss1 \
+    libasound2 \
     # Clean up
     && rm -rf /var/lib/apt/lists/*
 
@@ -36,6 +46,11 @@ RUN apt-get update && apt-get install -y \
 RUN groupadd -r pptruser && useradd -r -g pptruser -G audio,video pptruser \
     && mkdir -p /home/pptruser/Downloads \
     && chown -R pptruser:pptruser /home/pptruser
+
+# Verify Chrome installation and get the actual path
+RUN which google-chrome-stable || echo "Chrome not found in PATH" \
+    && ls -la /usr/bin/google-chrome* || echo "No chrome binaries found" \
+    && google-chrome-stable --version || echo "Chrome version check failed"
 
 WORKDIR /app
 
@@ -92,4 +107,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD node -e "require('http').get('http://localhost:3000/api/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"
 
 # Start production server
-CMD ["npm", "run", "start:prod"] 
+CMD ["npm", "run", "start:prod"]
