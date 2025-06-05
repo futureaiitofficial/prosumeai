@@ -30,7 +30,7 @@ const getTestEmailTemplate = (branding: BrandingSettings) => {
   const footerText = branding?.footerText || "© 2023 atScribe. All rights reserved.";
 
   // Use absolute URL for logo
-  const baseUrl = process.env.BASE_URL || "http://localhost:5173";
+  const baseUrl = process.env.ORIGIN_URL || process.env.VITE_APP_URL || process.env.BASE_URL || "http://localhost:5173";
   const absoluteLogoUrl = logoUrl.startsWith('http') ? logoUrl : `${baseUrl}${logoUrl}`;
 
   return `

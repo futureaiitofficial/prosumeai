@@ -536,7 +536,7 @@ function setupAuthRoutes(app: Express) {
         
         // Send email verification email
         try {
-          const baseUrl = process.env.BASE_URL || 'http://localhost:5173';
+          const baseUrl = process.env.ORIGIN_URL || process.env.VITE_APP_URL || process.env.BASE_URL || 'http://localhost:5173';
           const verificationLink = `${baseUrl}/verify-email?token=${verificationToken}&userId=${user.id}`;
           
           EmailService.sendEmailVerificationEmail(user.email, user.username, verificationLink)
@@ -637,7 +637,7 @@ function setupAuthRoutes(app: Express) {
               resetPasswordExpiry: resetExpiry
             }).catch(err => console.error(`Error saving reset token: ${err}`));
             
-            const baseURL = process.env.BASE_URL || 'http://localhost:5173';
+            const baseURL = process.env.ORIGIN_URL || process.env.VITE_APP_URL || process.env.BASE_URL || 'http://localhost:5173';
             // Match the reset password format expected by the client
             const resetLink = `${baseURL}/reset-password?token=${resetToken}&userId=${user.id}`;
             
@@ -1016,7 +1016,7 @@ function setupPasswordRoutes(app: Express) {
 
       // Send password changed notification email
       try {
-        const baseUrl = process.env.BASE_URL || 'http://localhost:5173';
+        const baseUrl = process.env.ORIGIN_URL || process.env.VITE_APP_URL || process.env.BASE_URL || 'http://localhost:5173';
         const resetLink = `${baseUrl}/forgot-password`;
         
         EmailService.sendPasswordChangedEmail(user.email, user.username, resetLink)
@@ -1096,7 +1096,7 @@ function setupPasswordRoutes(app: Express) {
       });
       
       // Send password reset email
-      const baseUrl = process.env.BASE_URL || 'http://localhost:5173';
+      const baseUrl = process.env.ORIGIN_URL || process.env.VITE_APP_URL || process.env.BASE_URL || 'http://localhost:5173';
       const resetLink = `${baseUrl}/reset-password?token=${resetToken}&userId=${user.id}`;
       
       try {
@@ -1295,7 +1295,7 @@ function setupPasswordRoutes(app: Express) {
       
       // Send password changed notification email
       try {
-        const baseUrl = process.env.BASE_URL || 'http://localhost:5173';
+        const baseUrl = process.env.ORIGIN_URL || process.env.VITE_APP_URL || process.env.BASE_URL || 'http://localhost:5173';
         const resetLink = `${baseUrl}/forgot-password`;
         
         EmailService.sendPasswordChangedEmail(user.email, user.username, resetLink)
@@ -1434,7 +1434,7 @@ function setupUserRoutes(app: Express) {
       });
       
       // Build verification link
-      const baseUrl = process.env.BASE_URL || 'http://localhost:5173';
+      const baseUrl = process.env.ORIGIN_URL || process.env.VITE_APP_URL || process.env.BASE_URL || 'http://localhost:5173';
       const verificationLink = `${baseUrl}/verify-email?token=${verificationToken}&userId=${user.id}`;
       
       // Send verification email

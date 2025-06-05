@@ -2,7 +2,7 @@
 
 ## 🚀 Complete Development to Production Pipeline
 
-This guide covers the complete workflow for making changes and deploying them to your VPS after initial production deployment.
+This guide covers the complete workflow for making changes and deploying them to your VPS after initial production deployment, including the new image architecture for persistent storage.
 
 ## 📋 Prerequisites
 
@@ -10,6 +10,31 @@ This guide covers the complete workflow for making changes and deploying them to
 - Git repository (GitHub/GitLab/etc.)
 - SSH access to VPS
 - Domain pointing to VPS IP
+
+## 🖼️ **NEW: Image Architecture Overview**
+
+**Important**: The image system has been redesigned for better deployment persistence:
+
+### **Static Images** (Part of Codebase)
+- **Location**: `/app/public/images/` (inside container)
+- **Content**: Dashboard previews, template thumbnails, blog static images
+- **Deployment**: Automatically updated with code pushes
+- **Volume Mount**: ❌ **NO MOUNT NEEDED** - these come with the code
+
+### **Dynamic Images** (User Uploads)
+- **Location**: `/app/server/uploads/` (volume mounted)
+- **Content**: User uploaded files, blog featured images, template uploads
+- **Deployment**: ✅ **PERSISTS** across deployments
+- **Volume Mount**: ✅ **REQUIRED** - mounted to host directory
+
+### **Volume Mount Configuration**
+```yaml
+# In docker-compose.yml
+volumes:
+  - /opt/atscribe/uploads:/app/server/uploads  # ✅ User uploads persist
+  - /opt/atscribe/logs:/app/logs              # ✅ Logs persist
+  # Note: NO mount for /app/public/images - static images come with code
+```
 
 ## 🔄 Development Workflow
 
@@ -21,7 +46,7 @@ npm run dev
 docker compose -f docker-compose.yml -f docker-compose.override.yml up -d
 
 # Make your changes
-# Test locally
+# Test locally (including image functionality)
 # Commit changes
 git add .
 git commit -m "feat: add new feature"
@@ -33,8 +58,10 @@ git push origin main
 # Test production build locally
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 
-# Verify everything works
+# Verify everything works (especially images)
 curl http://localhost:3000/api/health
+curl http://localhost:3000/images/dashboard-preview.svg  # Static image
+curl http://localhost:3000/uploads/blog/images/test.jpg   # Dynamic image (if exists)
 
 # Clean up local production test
 docker compose -f docker-compose.yml -f docker-compose.prod.yml down
@@ -53,6 +80,10 @@ ssh user@your-vps-ip
 git clone https://github.com/yourusername/ProsumeAI.git
 cd ProsumeAI
 
+# Create required directories for persistent data
+sudo mkdir -p /opt/atscribe/{uploads,logs}
+sudo chown -R $(whoami):$(whoami) /opt/atscribe
+
 # Create production environment file
 cp .env.example .env.production
 nano .env.production  # Configure with production values
@@ -67,14 +98,15 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 ssh user@your-vps-ip
 cd ProsumeAI
 
-# Pull latest changes
+# Pull latest changes (includes new static images)
 git pull origin main
 
-# Rebuild and deploy
+# Rebuild and deploy (user uploads remain intact)
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 
-# Verify deployment
+# Verify deployment and images
 docker compose -f docker-compose.yml -f docker-compose.prod.yml logs -f app
+curl http://localhost:3000/images/dashboard-preview.svg  # Test static images
 ```
 
 ### Method 2: Deployment Script (Recommended)
@@ -90,7 +122,7 @@ nano deploy.sh
 ```bash
 #!/bin/bash
 
-# ProsumeAI VPS Deployment Script
+# ProsumeAI VPS Deployment Script with Image Architecture Support
 set -e
 
 PROJECT_DIR="/home/$(whoami)/ProsumeAI"
@@ -106,7 +138,7 @@ cd $PROJECT_DIR
 echo "Creating backup..." | tee -a $LOG_FILE
 ./scripts/backup/backup-db.sh
 
-# Pull latest changes
+# Pull latest changes (includes updated static images)
 echo "Pulling latest changes..." | tee -a $LOG_FILE
 git fetch origin
 git reset --hard origin/main
@@ -117,31 +149,36 @@ if git diff --quiet HEAD~1 HEAD; then
     exit 0
 fi
 
+# Verify upload directories exist
+echo "Ensuring upload directories exist..." | tee -a $LOG_FILE
+mkdir -p /opt/atscribe/{uploads,logs}
+mkdir -p /opt/atscribe/uploads/{blog/images,templates,branding}
+
 # Build and deploy with zero downtime
 echo "Deploying new version..." | tee -a $LOG_FILE
 
-# Method A: Rolling update (recommended)
+# Rolling update (user uploads persist automatically)
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build --no-deps app
-
-# Method B: Full restart (if needed)
-# docker compose -f docker-compose.yml -f docker-compose.prod.yml down
-# docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 
 # Wait for health check
 echo "Waiting for application to start..." | tee -a $LOG_FILE
 sleep 30
 
-# Verify deployment
+# Verify deployment and image serving
 if curl -f http://localhost:3000/api/health > /dev/null 2>&1; then
+    echo "✅ Health check passed!" | tee -a $LOG_FILE
+    
+    # Test image serving
+    if curl -f http://localhost:3000/images/dashboard-preview.svg > /dev/null 2>&1; then
+        echo "✅ Static images working!" | tee -a $LOG_FILE
+    else
+        echo "⚠️ Warning: Static images may not be working" | tee -a $LOG_FILE
+    fi
+    
     echo "✅ Deployment successful!" | tee -a $LOG_FILE
     
     # Clean up old Docker images
     docker image prune -f
-    
-    # Send success notification (optional)
-    # curl -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
-    #      -d "chat_id=$TELEGRAM_CHAT_ID" \
-    #      -d "text=✅ ProsumeAI deployed successfully on $(date)"
     
 else
     echo "❌ Deployment failed! Rolling back..." | tee -a $LOG_FILE
@@ -192,20 +229,74 @@ jobs:
         key: ${{ secrets.VPS_SSH_KEY }}
         script: |
           cd ProsumeAI
+          # Ensure upload directories exist before deployment
+          mkdir -p /opt/atscribe/{uploads,logs}
+          mkdir -p /opt/atscribe/uploads/{blog/images,templates,branding}
           ./deploy.sh
 ```
 
-#### Setup GitHub Secrets
-- `VPS_HOST`: Your VPS IP address
-- `VPS_USERNAME`: SSH username
-- `VPS_SSH_KEY`: Private SSH key content
+## 🖼️ **Image Management in Deployments**
+
+### What Happens During Deployment
+
+#### ✅ **Static Images** (Automatically Updated)
+- Dashboard previews, template thumbnails
+- Blog static images (part of design)
+- UI icons and graphics
+- **Action**: Automatically updated with code push
+- **Location**: Inside container at `/app/public/images/`
+
+#### ✅ **Dynamic Images** (Persist Across Deployments)
+- User uploaded blog images
+- Custom template thumbnails
+- Branding assets uploaded via admin
+- **Action**: Remain intact during deployment
+- **Location**: Host directory `/opt/atscribe/uploads/`
+
+### Volume Mount Strategy
+```yaml
+# docker-compose.prod.yml
+volumes:
+  # ✅ REQUIRED: User uploads must persist
+  - /opt/atscribe/uploads:/app/server/uploads
+  
+  # ✅ REQUIRED: Logs must persist  
+  - /opt/atscribe/logs:/app/logs
+  
+  # ❌ REMOVED: No longer mount public/images
+  # Static images come with codebase now!
+```
+
+### Directory Structure on VPS
+```
+/opt/atscribe/
+├── uploads/           # ✅ Persists across deployments
+│   ├── blog/
+│   │   └── images/    # Blog featured images
+│   ├── templates/     # Custom template images
+│   └── branding/      # Logo/favicon uploads
+└── logs/              # ✅ Persists across deployments
+    └── server.log
+
+/home/user/ProsumeAI/
+├── public/
+│   └── images/        # ✅ Static images (updated with code)
+└── server/
+    └── uploads/       # ❌ No files here (volume mounted)
+```
 
 ## 🛡️ Zero-Downtime Deployment Strategies
 
 ### Rolling Update (Recommended)
 ```bash
-# Update only the app container, keeping database running
+# Update only the app container, keeping database and uploads intact
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build --no-deps app
+
+# Benefits:
+# ✅ Database stays running
+# ✅ User uploads remain accessible
+# ✅ Static images updated automatically
+# ✅ Zero downtime
 ```
 
 ### Blue-Green Deployment
@@ -213,8 +304,10 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build --
 # Start new version alongside current
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build --scale app=2
 
-# Test new version
+# Test new version (both static and dynamic images)
 curl http://localhost:3000/api/health
+curl http://localhost:3000/images/dashboard-preview.svg
+curl http://localhost:3000/uploads/blog/images/test.jpg
 
 # Switch traffic (requires load balancer)
 # Remove old version
@@ -236,6 +329,9 @@ alias vps-status="ssh user@your-vps-ip 'cd ProsumeAI && docker compose -f docker
 
 # View VPS logs
 alias vps-logs="ssh user@your-vps-ip 'cd ProsumeAI && docker compose -f docker-compose.yml -f docker-compose.prod.yml logs -f app'"
+
+# Test image serving
+alias vps-test-images="ssh user@your-vps-ip 'curl -I http://localhost:3000/images/dashboard-preview.svg && curl -I http://localhost:3000/uploads/blog/images/'"
 ```
 
 ### VPS Monitoring
@@ -248,6 +344,13 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml logs -f app
 
 # Monitor resources
 docker stats
+
+# Check image serving
+curl -I http://localhost:3000/images/dashboard-preview.svg  # Static
+curl -I http://localhost:3000/uploads/blog/images/         # Dynamic
+
+# Check upload directory sizes
+du -sh /opt/atscribe/uploads/
 
 # Check disk space
 df -h
@@ -267,11 +370,11 @@ tail -f deploy.log
 ssh user@your-vps-ip
 cd ProsumeAI
 
-# Rollback to previous commit
+# Rollback to previous commit (static images rollback too)
 git log --oneline -5  # See recent commits
 git reset --hard COMMIT_HASH  # Replace with specific commit
 
-# Redeploy
+# Redeploy (user uploads remain intact)
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build --no-deps app
 ```
 
@@ -298,7 +401,11 @@ TELEGRAM_CHAT_ID="your_chat_id"
 # Success notification
 curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
      -d "chat_id=$TELEGRAM_CHAT_ID" \
-     -d "text=✅ ProsumeAI deployed successfully $(date)"
+     -d "text=✅ ProsumeAI deployed successfully $(date)
+     
+🖼️ Static images: Updated with codebase
+💾 User uploads: Preserved and accessible
+🔗 Health check: Passed"
 
 # Failure notification  
 curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
@@ -312,6 +419,16 @@ curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
 ```bash
 # Application not responding
 docker compose -f docker-compose.yml -f docker-compose.prod.yml restart app
+
+# Images not loading
+# Check static images (should work immediately after deployment)
+curl -I http://localhost:3000/images/dashboard-preview.svg
+
+# Check dynamic images (should persist from before)
+ls -la /opt/atscribe/uploads/blog/images/
+
+# Check upload serving route
+curl -I http://localhost:3000/uploads/blog/images/
 
 # Database connection issues
 docker compose -f docker-compose.yml -f docker-compose.prod.yml restart db
@@ -331,11 +448,38 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml down
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 ```
 
+### Image-Specific Troubleshooting
+```bash
+# Static images not loading
+echo "Check if codebase was pulled correctly:"
+ls -la public/images/
+git status
+
+# Dynamic images not loading
+echo "Check upload directories and permissions:"
+ls -la /opt/atscribe/uploads/
+docker compose exec app ls -la /app/server/uploads/
+
+# Image serving route not working
+echo "Check server logs for route errors:"
+docker compose logs app | grep -E "(uploads|images|static)"
+
+# Volume mount issues
+echo "Verify volume mounts:"
+docker compose config | grep -A 5 volumes
+```
+
 ### Emergency Recovery
 ```bash
 # Complete reset (last resort)
 docker compose -f docker-compose.yml -f docker-compose.prod.yml down -v
 git reset --hard origin/main
+
+# Recreate upload directories
+mkdir -p /opt/atscribe/{uploads,logs}
+mkdir -p /opt/atscribe/uploads/{blog/images,templates,branding}
+
+# Restart
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 
 # Restore from backup
@@ -352,8 +496,11 @@ crontab -e
 # Add daily backup at 2 AM
 0 2 * * * cd /home/$(whoami)/ProsumeAI && ./scripts/backup/backup-db.sh
 
-# Add weekly full backup on Sundays at 3 AM
+# Add weekly full backup on Sundays at 3 AM (includes uploads)
 0 3 * * 0 cd /home/$(whoami)/ProsumeAI && ./scripts/backup/backup-full.sh
+
+# Add monthly upload directory backup
+0 4 1 * * tar -czf /home/$(whoami)/backups/uploads_$(date +%Y%m).tar.gz -C /opt/atscribe uploads/
 ```
 
 ### Log Rotation
@@ -380,8 +527,10 @@ sudo nano /etc/logrotate.d/prosumeai
 - Use rolling updates for zero downtime
 - Monitor logs after deployment
 - Keep deployment scripts in version control
-- Set up automated backups
+- Set up automated backups (database + uploads)
 - Use environment-specific configuration
+- **NEW**: Verify both static and dynamic images after deployment
+- **NEW**: Ensure upload directories exist before deployment
 
 ### ❌ Don'ts
 - Don't deploy directly to production without testing
@@ -390,5 +539,57 @@ sudo nano /etc/logrotate.d/prosumeai
 - Don't ignore deployment logs
 - Don't store secrets in version control
 - Don't make manual changes on VPS
+- **NEW**: Don't mount `/app/public/images` (static images come with code)
+- **NEW**: Don't store user uploads in the codebase directory
 
-Your VPS deployment workflow is now complete with automated deployments, rollback procedures, and monitoring! 🚀 
+## 🚀 **Migration Guide for Existing Deployments**
+
+If you have an existing deployment, follow these steps to migrate to the new image architecture:
+
+### 1. Backup Current State
+```bash
+# SSH into VPS
+ssh user@your-vps-ip
+cd ProsumeAI
+
+# Backup database
+./scripts/backup/backup-db.sh
+
+# Backup current images (if any user uploads exist)
+mkdir -p /opt/atscribe/migration-backup
+cp -r public/images/blog/ /opt/atscribe/migration-backup/ 2>/dev/null || true
+```
+
+### 2. Update Configuration
+```bash
+# Pull latest code with new image architecture
+git pull origin main
+
+# Remove old image volume mount from docker-compose if it exists
+# The new config should not mount public/images
+```
+
+### 3. Create Upload Directories
+```bash
+# Create required persistent directories
+mkdir -p /opt/atscribe/{uploads,logs}
+mkdir -p /opt/atscribe/uploads/{blog/images,templates,branding}
+
+# Move any existing user uploads to persistent storage
+if [ -d "/opt/atscribe/migration-backup/blog" ]; then
+    cp -r /opt/atscribe/migration-backup/blog/* /opt/atscribe/uploads/blog/images/
+    echo "✅ Migrated existing blog images to persistent storage"
+fi
+```
+
+### 4. Deploy New Version
+```bash
+# Deploy with new architecture
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+
+# Verify migration
+curl http://localhost:3000/images/dashboard-preview.svg  # Static images
+curl http://localhost:3000/uploads/blog/images/          # Dynamic images
+```
+
+Your VPS deployment workflow is now complete with the new image architecture for optimal persistence and deployment efficiency! 🚀 

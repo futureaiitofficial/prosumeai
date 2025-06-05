@@ -7,6 +7,9 @@ Welcome to the ProsumeAI documentation! This directory contains all the guides, 
 ### 🚀 [Deployment](./deployment/)
 Production and infrastructure setup guides:
 - **[Production VPS Deployment Guide](./deployment/PRODUCTION_DEPLOYMENT_GUIDE.md)** - Complete guide for deploying to VPS with data migration
+- **[VPS Deployment Workflow](./deployment/VPS_DEPLOYMENT_WORKFLOW.md)** - Complete development to production pipeline
+- **[Portainer Git Deployment](./deployment/PORTAINER_GIT_DEPLOYMENT.md)** - Deploy using Portainer with Git integration
+- **[Image Architecture Guide](./deployment/IMAGE_ARCHITECTURE_GUIDE.md)** - 🆕 Dual image system for optimal persistence
 - **[Docker Development Setup](./deployment/DOCKER_DEVELOPMENT_SETUP.md)** - Setting up development environment
 - **[Docker Security Guide](./deployment/DOCKER_SECURITY_GUIDE.md)** - Security best practices for Docker deployment
 - **[Docker Email Issue Fix](./deployment/DOCKER_EMAIL_ISSUE_FIXED.md)** - Email configuration fixes
@@ -48,9 +51,12 @@ Utility scripts organized by purpose:
 2. [Template System Guide](./guides/template-system-guide.md)
 
 ### For DevOps/Deployment
-1. [Production Deployment Guide](./deployment/PRODUCTION_DEPLOYMENT_GUIDE.md)
-2. [Security Implementation](./security/SECURITY_IMPLEMENTATION_GUIDE.md)
-3. [Backup Scripts Setup](../scripts/backup/)
+1. [Image Architecture Guide](./deployment/IMAGE_ARCHITECTURE_GUIDE.md) - 🆕 **Start here for new deployments**
+2. [Production Deployment Guide](./deployment/PRODUCTION_DEPLOYMENT_GUIDE.md)
+3. [VPS Deployment Workflow](./deployment/VPS_DEPLOYMENT_WORKFLOW.md)
+4. [Portainer Git Deployment](./deployment/PORTAINER_GIT_DEPLOYMENT.md)
+5. [Security Implementation](./security/SECURITY_IMPLEMENTATION_GUIDE.md)
+6. [Backup Scripts Setup](../scripts/backup/)
 
 ### For Feature Development
 1. [Blog Images System](./features/BLOG_IMAGES_FIX.md)
@@ -58,10 +64,22 @@ Utility scripts organized by purpose:
 
 ## 🔍 Need Help?
 
-- **Issues with images?** → [Blog Images Fix](./features/BLOG_IMAGES_FIX.md)
+- **🆕 Images not loading?** → [Image Architecture Guide](./deployment/IMAGE_ARCHITECTURE_GUIDE.md)
+- **Issues with blog images?** → [Blog Images Fix](./features/BLOG_IMAGES_FIX.md)
 - **Deployment problems?** → [Production Deployment Guide](./deployment/PRODUCTION_DEPLOYMENT_GUIDE.md)
+- **Git-based deployment?** → [Portainer Git Deployment](./deployment/PORTAINER_GIT_DEPLOYMENT.md)
 - **Development setup?** → [Docker Hot Reload Setup](./development/DOCKER_DEVELOPMENT_HOT_RELOAD.md)
 - **Security concerns?** → [Security Implementation Guide](./security/SECURITY_IMPLEMENTATION_GUIDE.md)
+
+## 🆕 Latest Updates
+
+### **Image Architecture Revolution** 🖼️
+ProsumeAI now features a revolutionary dual image architecture:
+- **Static Images**: Automatically update with code deployments
+- **Dynamic Images**: User uploads persist across all deployments
+- **Zero Data Loss**: Perfect balance of automatic updates and data persistence
+
+📖 **[Read the Image Architecture Guide](./deployment/IMAGE_ARCHITECTURE_GUIDE.md)**
 
 ## 📝 Contributing to Documentation
 
@@ -70,3 +88,4 @@ When adding new documentation:
 2. Update this README.md index
 3. Use clear, descriptive filenames
 4. Include emoji icons for better visual organization 
+5. **For deployment docs**: Include image architecture considerations 

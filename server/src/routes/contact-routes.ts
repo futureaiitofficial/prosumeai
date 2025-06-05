@@ -293,7 +293,7 @@ const getContactEmailTemplate = (formData: ContactFormData, branding: BrandingSe
   const footerText = branding?.footerText || "© 2023 atScribe. All rights reserved.";
 
   // Use absolute URL for logo
-  const baseUrl = process.env.BASE_URL || "http://localhost:3000";
+  const baseUrl = process.env.ORIGIN_URL || process.env.VITE_APP_URL || process.env.BASE_URL || "http://localhost:3000";
   const absoluteLogoUrl = logoUrl.startsWith('http') ? logoUrl : `${baseUrl}${logoUrl}`;
 
   return `
@@ -460,7 +460,7 @@ const getAutoReplyTemplate = (formData: ContactFormData, branding: BrandingSetti
   const footerText = branding?.footerText || "© 2023 atScribe. All rights reserved.";
 
   // Use absolute URL for logo
-  const baseUrl = process.env.BASE_URL || "http://localhost:3000";
+  const baseUrl = process.env.ORIGIN_URL || process.env.VITE_APP_URL || process.env.BASE_URL || "http://localhost:3000";
   const absoluteLogoUrl = logoUrl.startsWith('http') ? logoUrl : `${baseUrl}${logoUrl}`;
 
   return `

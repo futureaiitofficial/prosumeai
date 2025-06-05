@@ -58,6 +58,7 @@ services:
       VITE_API_URL: ${VITE_API_URL}
       VITE_APP_URL: ${VITE_APP_URL}
       ORIGIN_URL: ${ORIGIN_URL}
+      BASE_URL: ${ORIGIN_URL}
       CORS_ORIGIN: ${CORS_ORIGIN}
       
       # Enhanced networking for geolocation

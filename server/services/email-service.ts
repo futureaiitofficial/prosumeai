@@ -54,8 +54,8 @@ const getPasswordResetTemplate = (username: string, resetLink: string, branding:
   const logoUrl = branding?.logoUrl || "/logo.png";
   const footerText = branding?.footerText || "© 2025 atScribe. All rights reserved.";
 
-  // Use absolute URL for logo
-  const baseUrl = process.env.BASE_URL || "http://localhost:5173";
+  // Use absolute URL for logo - prioritize production environment variables
+  const baseUrl = process.env.ORIGIN_URL || process.env.VITE_APP_URL || process.env.BASE_URL || "http://localhost:5173";
   const absoluteLogoUrl = logoUrl.startsWith('http') ? logoUrl : `${baseUrl}${logoUrl}`;
 
   return `
@@ -175,8 +175,8 @@ const getWelcomeTemplate = (username: string, branding: BrandingSettings) => {
   const logoUrl = branding?.logoUrl || "/logo.png";
   const footerText = branding?.footerText || "© 2023 atScribe. All rights reserved.";
 
-  // Use absolute URL for logo
-  const baseUrl = process.env.BASE_URL || "http://localhost:5173";
+  // Use absolute URL for logo - prioritize production environment variables
+  const baseUrl = process.env.ORIGIN_URL || process.env.VITE_APP_URL || process.env.BASE_URL || "http://localhost:5173";
   const absoluteLogoUrl = logoUrl.startsWith('http') ? logoUrl : `${baseUrl}${logoUrl}`;
 
   return `
