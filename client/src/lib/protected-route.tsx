@@ -4,6 +4,8 @@ import { Route, Redirect, useLocation } from "wouter";
 import { useEffect, useState } from "react";
 import { queryClient } from "./queryClient";
 import { VerificationGate } from "@/components/auth/verification-gate";
+import { checkAuthStatus } from "./auth-utils";
+import { authLogger } from "./logger";
 
 export function ProtectedRoute({
   path,
@@ -27,54 +29,25 @@ export function ProtectedRoute({
       const verifySession = async () => {
         setVerifyingSession(true);
         try {
-          console.log("Checking session status manually");
+          authLogger.log("Checking session status manually");
           
-          // Make sure to include proper headers for cross-origin requests
-          const response = await fetch('/api/user', {
-            method: 'GET',
-            credentials: 'include', // Critical for cookies
-            headers: {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-              'Cache-Control': 'no-cache',
-              'Pragma': 'no-cache'
-            },
-            mode: 'cors',
-            cache: 'no-store'
-          });
+          // Use silent auth check to avoid console errors
+          const authStatus = await checkAuthStatus();
           
-          console.log("Session check response status:", response.status);
-          console.log("Session check response headers:", 
-            Array.from(response.headers.entries())
-              .map(([key, value]) => `${key}: ${value}`)
-              .join(', ')
-          );
-          
-          // Log document cookie - helpful for debugging
-          console.log("Document cookies:", document.cookie);
-          
-          if (response.ok) {
+          if (authStatus.isAuthenticated && authStatus.user) {
             // Session is valid, but user data wasn't loaded properly
-            console.log("Session valid but user data missing, trying to restore");
-            try {
-              const userData = await response.json();
-              console.log("Retrieved user data:", userData);
-              queryClient.setQueryData(["/api/user"], userData);
-              setSessionValid(true);
-              
-              // Force refetch all relevant data
-              queryClient.invalidateQueries();
-            } catch (parseError) {
-              console.error("Error parsing user data:", parseError);
-              setSessionValid(false);
-            }
+            authLogger.log("Session valid but user data missing, trying to restore");
+            queryClient.setQueryData(["/api/user"], authStatus.user);
+            setSessionValid(true);
+            
+            // Force refetch all relevant data
+            queryClient.invalidateQueries();
           } else {
-            console.log("Session verification failed, status:", response.status);
-            // Try a login refresh if needed
+            authLogger.log("Session verification failed - user not authenticated");
             setSessionValid(false);
           }
         } catch (error) {
-          console.error("Error verifying session:", error);
+          authLogger.error("Error verifying session:", error);
           setSessionValid(false);
         } finally {
           setVerifyingSession(false);
@@ -99,7 +72,7 @@ export function ProtectedRoute({
         }
 
         if (!user && sessionValid === false) {
-          console.log("User not authenticated, redirecting to /auth");
+          authLogger.log("User not authenticated, redirecting to /auth");
           return <Redirect to="/auth" />;
         }
 

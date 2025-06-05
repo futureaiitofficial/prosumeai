@@ -14,6 +14,7 @@ import {
 } from "../lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
+import { authLogger } from "@/lib/logger";
 
 type AuthContextType = {
   user: SelectUser | null;
@@ -36,7 +37,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     // Handler for custom session invalidation events
     const handleSessionInvalidated = (event: CustomEvent<{ message: string }>) => {
-      console.log('[AUTH DEBUG] Detected session invalidation event', event.detail);
+      authLogger.log('Detected session invalidation event', event.detail);
       
       // Clear user data
       queryClient.setQueryData(["/api/user"], null);
@@ -56,7 +57,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Handler for localStorage events (cross-tab communication)
     const handleStorageEvent = (event: StorageEvent) => {
       if (event.key === 'session_invalidated' && event.newValue) {
-        console.log('[AUTH DEBUG] Detected session invalidation from another tab');
+        authLogger.log('Detected session invalidation from another tab');
         
         // Clear session invalidation flag
         localStorage.removeItem('session_invalidated');
@@ -102,9 +103,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             'Pragma': 'no-cache'
           }
         });
-        console.log('[AUTH DEBUG] Session ping successful');
+        authLogger.log('Session ping successful');
       } catch (error) {
-        console.error('[AUTH DEBUG] Session ping failed:', error);
+        authLogger.error('Session ping failed:', error);
       }
     };
     
@@ -125,24 +126,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   } = useQuery<SelectUser | null, Error>({
     queryKey: ["/api/user"],
     queryFn: getQueryFn({ on401: "returnNull" }),
-    staleTime: 1000 * 60 * 5, // 5 minutes
+    staleTime: 1000 * 60 * 10, // 10 minutes
     gcTime: 1000 * 60 * 30, // 30 minutes (formerly cacheTime)
     refetchOnMount: true,
-    refetchOnReconnect: true,
-    refetchOnWindowFocus: true, // Refetch on window focus to maintain session
-    refetchInterval: 1000 * 60 * 10, // Refresh every 10 minutes to keep session alive
+    refetchOnReconnect: false, // Reduce unnecessary refetches
+    refetchOnWindowFocus: false, // Only refetch when explicitly needed
+    refetchInterval: false, // Disable automatic refetching to prevent 401 spam
+    retry: (failureCount, error: any) => {
+      // Don't retry 401 errors as they're expected for non-authenticated users
+      if (error?.statusCode === 401 || error?.status === 401) {
+        return false;
+      }
+      // Retry other errors up to 2 times
+      return failureCount < 2;
+    },
   });
 
   // Preserve user data as is, including passwordExpired flag
   const user = rawUser;
-  console.log("[AUTH DEBUG] User data from API:", user);
+  authLogger.log("User data from API:", user);
   if (user) {
-    console.log("[AUTH DEBUG] passwordExpired flag:", (user as any).passwordExpired);
+    authLogger.log("passwordExpired flag:", (user as any).passwordExpired);
   }
 
   const loginMutation = useMutation({
     mutationFn: async (credentials: LoginData) => {
-      console.log("[AUTH DEBUG] Login attempt for:", credentials.username);
+      authLogger.log("Login attempt for:", credentials.username);
       try {
         // Reset session invalidation flag before attempting login
         resetSessionInvalidation();

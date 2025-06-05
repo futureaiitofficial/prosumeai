@@ -12,6 +12,8 @@ import DefaultLayout from "@/components/layouts/default-layout";
 import { calculateATSScore } from "@/lib/ats-score";
 import { ResumeData } from "@/types/resume";
 import { handleSubscriptionError } from "@/utils/error-handler";
+import { checkAuthStatus } from "@/lib/auth-utils";
+import { logger, authLogger } from "@/lib/logger";
 
 interface KeywordCategory {
   name: string;
@@ -83,21 +85,14 @@ export default function KeywordGenerator() {
 
   // Ensure authentication is maintained
   useEffect(() => {
-    // Force refresh authentication status
-    fetch('/api/user', {
-      method: 'GET',
-      credentials: 'include',
-      headers: {
-        'Cache-Control': 'no-cache',
-        'Pragma': 'no-cache'
-      }
-    }).then(res => {
-      if (!res.ok) {
-        console.error('Authentication check failed in KeywordGenerator');
+    // Force refresh authentication status using silent check
+    checkAuthStatus().then(authStatus => {
+      if (!authStatus.isAuthenticated) {
+        authLogger.log('User not authenticated in KeywordGenerator');
         // Redirect will be handled by ProtectedRoute component
       }
     }).catch(err => {
-      console.error('Error checking authentication:', err);
+      authLogger.log('Auth check failed (expected on public pages):', err);
     });
   }, []);
 
@@ -126,7 +121,7 @@ export default function KeywordGenerator() {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
 
-      console.log("Sending request to analyze job description API...");
+      logger.debug("Sending request to analyze job description API...");
       
       // Call the AI endpoint using the relative path with error handling
       const response = await fetch("/api/ai/analyze-job-description", {
@@ -141,7 +136,7 @@ export default function KeywordGenerator() {
       // Clear the timeout since we got a response
       clearTimeout(timeoutId);
       
-      console.log(`API Response Status: ${response.status}`);
+      logger.debug(`API Response Status: ${response.status}`);
 
       // Check for specific error status codes for better error messages
       if (!response.ok) {
@@ -205,7 +200,7 @@ export default function KeywordGenerator() {
       let apiResponse;
       try {
         apiResponse = await response.json();
-        console.log("API response successfully parsed:", apiResponse);
+        logger.debug("API response successfully parsed:", apiResponse);
       } catch (jsonError) {
         console.error("Failed to parse API response:", jsonError);
         toast({
@@ -225,7 +220,7 @@ export default function KeywordGenerator() {
       
       // Process the response to make it more ATS-friendly
       const processedResponse = processKeywordsForATS(apiResponse);
-      console.log("Processed response:", processedResponse);
+      logger.debug("Processed response:", processedResponse);
       
       // Extract all keywords from all categories
       const allKeywords: string[] = [];
@@ -260,7 +255,7 @@ export default function KeywordGenerator() {
         certifications: categorized.certifications
       };
       
-      console.log("Categorized keywords:", data);
+      logger.debug("Categorized keywords:", data);
       setKeywordData(data);
       setFlattenedKeywords(allKeywords);
       
@@ -569,7 +564,7 @@ export default function KeywordGenerator() {
     // Only render when we have words and we're on the word cloud tab
     if (!words.length || !wordCloudRef.current || activeTab !== "wordCloud") return;
     
-    console.log("Rendering word cloud with", words.length, "words");
+    logger.debug("Rendering word cloud with", words.length, "words");
     
     // Clear any existing content
     const container = wordCloudRef.current;

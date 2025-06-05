@@ -64,6 +64,8 @@ import AdminBlog from '@/pages/admin/blog';
 import BlogNew from '@/pages/admin/blog-new';
 import BlogPage from '@/pages/blog';
 import BlogPostPage from '@/pages/blog-post';
+import { checkAuthStatus } from '@/lib/auth-utils';
+import { logger } from '@/lib/logger';
 
 // Session Recovery component to handle network disconnections
 function SessionRecovery() {
@@ -72,44 +74,37 @@ function SessionRecovery() {
   useEffect(() => {
     // Function to handle going offline
     const handleOffline = () => {
-      console.log('Network disconnected');
+      logger.debug('Network disconnected');
       setLastOnline(Date.now());
     };
     
     // Function to handle coming back online
     const handleOnline = async () => {
-      console.log('Network reconnected');
+      logger.debug('Network reconnected');
       
       // If we were offline for more than 1 minute, verify session
       if (lastOnline && (Date.now() - lastOnline > 60000)) {
-        console.log('Checking session after network reconnection');
+        logger.debug('Checking session after network reconnection');
         
         try {
-          // Make a request to verify the session is still valid
-          const response = await fetch('/api/user', {
-            method: 'GET',
-            credentials: 'include',
-            headers: {
-              'Cache-Control': 'no-cache',
-              'Pragma': 'no-cache'
-            }
-          });
+          // Check auth status without logging 401 errors
+          const authStatus = await checkAuthStatus();
           
-          if (response.ok) {
+          if (authStatus.isAuthenticated && authStatus.user) {
             // Session is valid, refresh user data
-            const userData = await response.json();
-            queryClient.setQueryData(["/api/user"], userData);
-            console.log('Session recovered after network reconnection');
+            queryClient.setQueryData(["/api/user"], authStatus.user);
+            logger.debug('Session recovered after network reconnection');
             
             // Refresh other essential data
             queryClient.invalidateQueries();
           } else {
-            console.log('Session expired during network disconnection');
+            // No active session (401 or other issue)
+            logger.debug('No active session found after network reconnection');
             queryClient.setQueryData(["/api/user"], null);
-            // Don't redirect here, let the protected routes handle it
           }
         } catch (error) {
-          console.error('Error verifying session after reconnection:', error);
+          // Network errors are expected when offline/reconnecting - don't log as error
+          logger.debug('Network error during session verification (expected):', error);
         }
       }
       

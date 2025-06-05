@@ -781,7 +781,13 @@ router.post('/analyze-job-description',
       
       try {
         // Note: Feature usage tracking is now handled by the middleware
-        const result = await analyzeJobDescription(jobDescription);
+        // Add timeout wrapper to prevent hanging requests
+        const analysisPromise = analyzeJobDescription(jobDescription);
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('Request timeout - analysis took too long')), 45000); // 45 second timeout
+        });
+        
+        const result = await Promise.race([analysisPromise, timeoutPromise]);
         
         // Validate the result to ensure it contains expected data
         if (!result || typeof result !== 'object') {
@@ -831,6 +837,11 @@ router.post('/analyze-job-description',
           return res.status(429).json({
             message: 'Token usage limit exceeded. Please try again later or upgrade your plan.',
             error: 'TOKEN_LIMIT_EXCEEDED'
+          });
+        } else if (error.message.includes('timeout')) {
+          return res.status(408).json({
+            message: 'Request timeout - the analysis is taking too long. Please try with a shorter job description.',
+            error: 'REQUEST_TIMEOUT'
           });
         }
         
@@ -1275,16 +1286,21 @@ router.post('/parse-resume',
             throw new Error("Could not extract text from document. The file may be corrupted or password-protected.");
           }
           
-          // Use the OpenAI-based parser on the extracted text
-          const resumeData = await aiParseResume(extractedText);
+          // Use the OpenAI-based parser on the extracted text with timeout
+          const parsePromise = aiParseResume(extractedText);
+          const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('Resume parsing timeout - file too complex')), 60000); // 60 second timeout
+          });
+          
+          const resumeData = await Promise.race([parsePromise, timeoutPromise]);
           
           // Clean up the temporary file after parsing
           fs.unlinkSync(file.path);
           
           // Track token usage for AI-specific metrics
           if (req.isAuthenticated() && req.user) {
-            // Approximate token usage for sophisticated parsing
-            const estimatedTokens = Math.min(extractedText.length / 4, 10000);
+            // Approximate token usage for sophisticated parsing (round to integer)
+            const estimatedTokens = Math.round(Math.min(extractedText.length / 4, 10000));
             await trackTokenUsage(req.user.id, 'ai_generation', estimatedTokens);
           }
           
@@ -1311,6 +1327,14 @@ router.post('/parse-resume',
             return res.status(429).json({
               message: "AI service is currently overloaded. Please try again in a few minutes.",
               error: "RATE_LIMIT_EXCEEDED"
+            });
+          }
+          
+          // Handle timeouts
+          if (parseError.message.includes('timeout')) {
+            return res.status(408).json({
+              message: "Resume parsing is taking too long. Please try with a simpler file or shorter content.",
+              error: "PARSING_TIMEOUT"
             });
           }
           
@@ -1341,6 +1365,14 @@ router.post('/parse-resume',
         return res.status(503).json({
           message: "AI service is not properly configured. Please contact support.",
           error: "AI_SERVICE_ERROR"
+        });
+      }
+      
+      // Handle timeout errors
+      if (error.message.includes('timeout')) {
+        return res.status(408).json({
+          message: "Request timeout - parsing is taking too long. Please try with a simpler file.",
+          error: "REQUEST_TIMEOUT"
         });
       }
       

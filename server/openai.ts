@@ -13,7 +13,11 @@ let cachedApiKey: { key: string; expires: number } | null = null;
 const CACHE_TTL = 10 * 60 * 1000; // 10 minutes in milliseconds
 
 // Initialize with a placeholder, will be updated with actual key when needed
-const openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || 'placeholder' });
+const openaiClient = new OpenAI({ 
+  apiKey: process.env.OPENAI_API_KEY || 'placeholder',
+  timeout: 60 * 1000, // 60 second timeout
+  maxRetries: 2, // Retry failed requests up to 2 times
+});
 
 // Function to update the API key
 export async function updateApiKey(): Promise<boolean> {
@@ -296,6 +300,8 @@ export async function parseResume(resumeText: string): Promise<any> {
           }
         ],
         max_tokens: 4000
+      }, {
+        timeout: 45000 // 45 second timeout for complex parsing
       });
 
       const firstPassContent = firstPassResponse.choices[0].message.content;
@@ -405,6 +411,8 @@ export async function parseResume(resumeText: string): Promise<any> {
         ],
         response_format: { type: "json_object" },
         max_tokens: 4000
+      }, {
+        timeout: 45000 // 45 second timeout for complex parsing
       });
 
       const secondPassContent = secondPassResponse.choices[0].message.content;

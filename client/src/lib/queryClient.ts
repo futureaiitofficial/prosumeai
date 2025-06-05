@@ -7,9 +7,11 @@ export const SESSION_INVALIDATED_EVENT = 'session_invalidated';
 let isSessionInvalidated = false;
 
 // Reset the session invalidation flag (called after successful login)
+import { logger, authLogger } from './logger';
+
 export function resetSessionInvalidation() {
   isSessionInvalidated = false;
-  console.log('Session invalidation flag reset');
+  authLogger.log('Session invalidation flag reset');
 }
 
 // Define a function to emit session invalidation events
@@ -176,11 +178,11 @@ export const getQueryFn: <T>(options: {
   async ({ queryKey }) => {
     // If session is already invalidated, don't make additional requests
     if (isSessionInvalidated) {
-      console.log('Prevented additional request after session invalidation:', queryKey[0]);
+      authLogger.log('Prevented additional request after session invalidation:', queryKey[0]);
       return null;
     }
 
-    console.log('Making API request to:', queryKey[0]);
+    logger.debug('Making API request to:', queryKey[0]);
 
     const res = await fetch(queryKey[0] as string, {
       credentials: "include",
@@ -195,6 +197,12 @@ export const getQueryFn: <T>(options: {
 
     // Check for 401 responses
     if (res.status === 401) {
+      // For /api/user endpoint, 401 is expected when not logged in
+      if ((queryKey[0] as string).includes('/api/user') && unauthorizedBehavior === "returnNull") {
+        authLogger.log('User not authenticated (expected for public pages)');
+        return null;
+      }
+      
       // Try to check if this is a session invalidation due to another login
       try {
         const errorData = await res.json().catch(() => ({}));
