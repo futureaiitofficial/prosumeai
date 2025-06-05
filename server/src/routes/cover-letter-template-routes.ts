@@ -2,60 +2,9 @@ import express from 'express';
 import fs from 'fs-extra';
 import path from 'path';
 import puppeteer from 'puppeteer';
+import { getChromeOptions } from '../../utils/chrome-detector';
 
-// Enhanced Chrome launch arguments for Docker production environments
-const getChromeLaunchArgs = () => {
-  return [
-    '--no-sandbox',
-    '--disable-setuid-sandbox',
-    '--disable-dev-shm-usage',
-    '--disable-accelerated-2d-canvas',
-    '--no-first-run',
-    '--no-zygote',
-    '--single-process',
-    '--disable-gpu',
-    '--disable-web-security',
-    '--disable-features=VizDisplayCompositor',
-    '--disable-background-timer-throttling',
-    '--disable-backgrounding-occluded-windows',
-    '--disable-renderer-backgrounding',
-    '--disable-extensions',
-    '--disable-plugins',
-    '--disable-default-apps',
-    '--disable-hang-monitor',
-    '--disable-prompt-on-repost',
-    '--disable-sync',
-    '--metrics-recording-only',
-    '--no-default-browser-check',
-    '--safebrowsing-disable-auto-update',
-    '--disable-background-networking',
-    // Additional Docker-specific flags to prevent crashes
-    '--disable-ipc-flooding-protection',
-    '--disable-component-extensions-with-background-pages',
-    '--disable-features=TranslateUI',
-    '--disable-component-update',
-    '--disable-client-side-phishing-detection',
-    '--mute-audio',
-    '--no-pings',
-    '--disable-logging',
-    '--disable-permissions-api',
-    '--ignore-certificate-errors',
-    '--disable-canvas-aa',
-    '--disable-3d-apis',
-    '--disable-bundled-ppapi-flash',
-    '--disable-notifications',
-    '--disable-desktop-notifications',
-    '--disable-translate',
-    '--disable-file-system',
-    '--disable-reading-from-canvas',
-    '--disable-web-bluetooth',
-    '--disable-audio-output',
-    // Memory and resource constraints for containers
-    '--memory-pressure-off',
-    '--max_old_space_size=4096',
-    '--js-flags=--max-old-space-size=4096'
-  ];
-};
+// Chrome launch options are now handled by chrome-detector utility
 
 // Define the type locally instead of importing
 interface CoverLetterData {
@@ -135,18 +84,7 @@ export function registerCoverLetterTemplateRoutes(app: express.Express) {
       await fs.writeFile(tempHtmlPath, htmlContent, 'utf8');
       console.log(`Temporary HTML file created at ${tempHtmlPath}`);
       
-      const browser = await puppeteer.launch({
-        headless: true,
-        executablePath: '/usr/bin/google-chrome',
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-accelerated-2d-canvas',
-          '--no-first-run',
-          '--disable-gpu'
-        ]
-      });
+      const browser = await puppeteer.launch(getChromeOptions());
       
       try {
         const page = await browser.newPage();
@@ -256,18 +194,7 @@ export function registerCoverLetterTemplateRoutes(app: express.Express) {
       await fs.writeFile(tempHtmlPath, htmlContent, 'utf8');
       console.log(`Cover letter preview HTML file created at ${tempHtmlPath}`);
       
-      const browser = await puppeteer.launch({
-        headless: true,
-        executablePath: '/usr/bin/google-chrome',
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-accelerated-2d-canvas',
-          '--no-first-run',
-          '--disable-gpu'
-        ]
-      });
+      const browser = await puppeteer.launch(getChromeOptions());
       
       try {
         const page = await browser.newPage();

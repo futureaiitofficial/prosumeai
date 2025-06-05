@@ -6,6 +6,7 @@ import { generateLatexResume } from '../utils/simple-templates';
 import { createSimplePDF, generateLatexFile } from '../utils/pdf-generator';
 import puppeteer from 'puppeteer';
 import { type ResumeData } from '../../types/resume';
+import { getChromeOptions } from '../../utils/chrome-detector';
 
 export function registerResumeTemplateRoutes(app: express.Express) {
   // Generate LaTeX content from resume data
@@ -225,18 +226,7 @@ export function registerResumeTemplateRoutes(app: express.Express) {
       await fs.writeFile(tempHtmlPath, htmlContent, 'utf8');
       console.log(`Temporary HTML file created at ${tempHtmlPath}`);
       
-      const browser = await puppeteer.launch({
-        headless: true,
-        executablePath: '/usr/bin/google-chrome',
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-accelerated-2d-canvas',
-          '--no-first-run',
-          '--disable-gpu'
-        ]
-      });
+      const browser = await puppeteer.launch(getChromeOptions());
       
       try {
         const page = await browser.newPage();
@@ -374,18 +364,7 @@ export function registerResumeTemplateRoutes(app: express.Express) {
       await fs.writeFile(tempHtmlPath, htmlContent, 'utf8');
       console.log(`Temporary preview HTML file created at ${tempHtmlPath}`);
       
-      const browser = await puppeteer.launch({
-        headless: true,
-        executablePath: '/usr/bin/google-chrome',
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-accelerated-2d-canvas',
-          '--no-first-run',
-          '--disable-gpu'
-        ]
-      });
+      const browser = await puppeteer.launch(getChromeOptions());
       
       try {
         const page = await browser.newPage();
@@ -571,18 +550,7 @@ export function registerResumeTemplateRoutes(app: express.Express) {
       await fs.writeFile(tempHtmlPath, htmlContent, 'utf8');
       console.log(`PDF preview HTML file created at ${tempHtmlPath}`);
       
-      const browser = await puppeteer.launch({
-        headless: true,
-        executablePath: '/usr/bin/google-chrome',
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-accelerated-2d-canvas',
-          '--no-first-run',
-          '--disable-gpu'
-        ]
-      });
+      const browser = await puppeteer.launch(getChromeOptions());
       
       try {
         const page = await browser.newPage();

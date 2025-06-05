@@ -4,6 +4,7 @@ import path from "path"
 import { fileURLToPath } from "url"
 import type { Invoice, InvoiceSettings } from "./pdf-service.d"
 import os from "os"
+import { getChromeOptions } from "../utils/chrome-detector"
 
 // Make __dirname available in ESM
 const __filename = fileURLToPath(import.meta.url)
@@ -26,65 +27,7 @@ try {
   console.error("Error cleaning up temp files:", err)
 }
 
-// Function to detect Chrome executable path
-function getChromePath(): string {
-  const possiblePaths = [
-    "/usr/bin/google-chrome-stable",
-    "/usr/bin/google-chrome",
-    "/usr/bin/chromium-browser",
-    "/usr/bin/chromium",
-    "/snap/bin/chromium",
-    process.env.CHROME_BIN,
-    process.env.PUPPETEER_EXECUTABLE_PATH,
-  ].filter(Boolean)
-
-  for (const chromePath of possiblePaths) {
-    if (chromePath && fs.existsSync(chromePath)) {
-      console.log(`Found Chrome at: ${chromePath}`)
-      return chromePath
-    }
-  }
-
-  // If no path found, let Puppeteer use its default
-  console.log("No Chrome executable found, using Puppeteer default")
-  return ""
-}
-
-// Get Chrome launch options
-function getChromeOptions() {
-  const chromePath = getChromePath()
-
-  const baseOptions = {
-    headless: true,
-    args: [
-      "--no-sandbox",
-      "--disable-setuid-sandbox",
-      "--disable-dev-shm-usage",
-      "--disable-accelerated-2d-canvas",
-      "--no-first-run",
-      "--disable-gpu",
-      "--disable-background-timer-throttling",
-      "--disable-backgrounding-occluded-windows",
-      "--disable-renderer-backgrounding",
-      "--disable-features=TranslateUI",
-      "--disable-ipc-flooding-protection",
-      "--disable-web-security",
-      "--disable-features=VizDisplayCompositor",
-      "--run-all-compositor-stages-before-draw",
-      "--disable-extensions",
-    ],
-  }
-
-  // Only set executablePath if we found a valid Chrome installation
-  if (chromePath) {
-    return {
-      ...baseOptions,
-      executablePath: chromePath,
-    }
-  }
-
-  return baseOptions
-}
+// Chrome detection and launch options are now handled by the shared chrome-detector utility
 
 // Export for server startup
 export async function initializePuppeteerPDFService(): Promise<boolean> {
@@ -738,12 +681,7 @@ export async function generateInvoicePDF(invoice: Invoice, settings: InvoiceSett
     // Provide more specific error information
     if (error instanceof Error && error.message.includes("Browser was not found")) {
       console.error("Chrome executable not found. Please ensure Chrome is properly installed in the Docker container.")
-      console.error("Available Chrome paths checked:", [
-        "/usr/bin/google-chrome-stable",
-        "/usr/bin/google-chrome",
-        "/usr/bin/chromium-browser",
-        "/usr/bin/chromium",
-      ])
+      console.error("Chrome detection is handled by the chrome-detector utility.")
     }
 
     throw new Error(`Failed to generate PDF with puppeteer: ${errorMessage}`)
