@@ -1,0 +1,24 @@
+User-agent: *
+Allow: /
+
+# Sitemap
+Sitemap: https://atscribe.com/sitemap.xml
+
+# Crawl-delay for bots
+Crawl-delay: 1
+
+# Disallow admin and private areas
+Disallow: /admin/
+Disallow: /api/
+Disallow: /auth/
+Disallow: /uploads/
+Disallow: /temp/
+Disallow: /logs/
+
+# Allow important pages
+Allow: /
+Allow: /pricing
+Allow: /features
+Allow: /blog/
+Allow: /resume/
+Allow: /cover-letter/ 

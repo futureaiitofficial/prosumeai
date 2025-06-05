@@ -71,6 +71,61 @@ export default defineConfig({
     outDir: path.resolve(__dirname, "dist/public"),
     emptyOutDir: true,
     sourcemap: process.env.NODE_ENV === 'production' ? false : true,
+    // Performance optimizations
+    rollupOptions: {
+      output: {
+        // Code splitting for better caching
+        manualChunks: {
+          // Vendor chunks for better caching
+          'vendor-react': ['react', 'react-dom'],
+          'vendor-ui': [
+            '@radix-ui/react-dialog',
+            '@radix-ui/react-dropdown-menu',
+            '@radix-ui/react-tabs',
+            '@radix-ui/react-accordion',
+            '@radix-ui/react-select',
+          ],
+          'vendor-forms': [
+            'react-hook-form',
+            '@hookform/resolvers',
+            'zod'
+          ],
+          'vendor-charts': [
+            '@nivo/bar',
+            '@nivo/line', 
+            '@nivo/pie',
+            'recharts'
+          ],
+          'vendor-editor': [
+            '@tiptap/react',
+            '@tiptap/starter-kit',
+            '@tiptap/extension-color',
+            '@tiptap/extension-image',
+            '@tiptap/extension-link'
+          ],
+          'vendor-utils': [
+            'date-fns',
+            'clsx',
+            'tailwind-merge',
+            'lucide-react'
+          ]
+        },
+        // Optimize chunk file names
+        chunkFileNames: 'assets/[name]-[hash].js',
+        entryFileNames: 'assets/[name]-[hash].js',
+        assetFileNames: 'assets/[name]-[hash].[ext]'
+      }
+    },
+    // Optimize build performance
+    minify: 'terser',
+    terserOptions: {
+      compress: {
+        drop_console: process.env.NODE_ENV === 'production',
+        drop_debugger: process.env.NODE_ENV === 'production',
+      },
+    },
+    // Reduce chunk size warnings threshold
+    chunkSizeWarningLimit: 1000,
   },
   publicDir: path.resolve(__dirname, "public"),
   server: {
@@ -121,5 +176,8 @@ export default defineConfig({
     esbuildOptions: {
       jsx: 'automatic',
     }
+  },
+  css: {
+    devSourcemap: process.env.NODE_ENV !== 'production'
   }
 });

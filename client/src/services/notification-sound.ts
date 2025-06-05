@@ -16,9 +16,9 @@ export class NotificationSoundService {
 
   private async initializeAudio() {
     try {
-      // Primary method: HTML5 Audio
+      // Primary method: HTML5 Audio - Load lazily, don't preload
       this.audio = new Audio('/sounds/notification.wav');
-      this.audio.preload = 'auto';
+      this.audio.preload = 'none'; // Changed from 'auto' to 'none'
       this.audio.volume = 0.3; // Default volume (30%)
 
       // Secondary method: Web Audio API for programmatic fallback
@@ -53,7 +53,11 @@ export class NotificationSoundService {
         await this.audioContext.resume();
       }
 
-      if (this.audio) {
+      // Prefer programmatic beep over large audio file for performance
+      if (this.audioContext && this.audioContext.state === 'running') {
+        await this.playFallbackBeep();
+      } else if (this.audio) {
+        // Only load the audio file if Web Audio API is not available
         // Reset audio to beginning
         this.audio.currentTime = 0;
         
@@ -70,7 +74,7 @@ export class NotificationSoundService {
     } catch (error) {
       console.warn('Failed to play notification sound:', error);
       
-      // If HTML5 audio fails, try fallback beep
+      // If primary method fails, try fallback beep
       try {
         await this.playFallbackBeep();
       } catch (fallbackError) {

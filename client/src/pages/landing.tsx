@@ -239,7 +239,11 @@ export default function LandingPage() {
                 className="w-full sm:w-auto flex"
               >
                 <a 
-                  onClick={() => scrollToElement('features')} 
+                  href="#features"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    scrollToElement('features');
+                  }}
                   className="inline-flex items-center justify-center px-8 py-4 border-2 border-indigo-400 text-indigo-200 hover:bg-indigo-800/30 hover:border-indigo-300 hover:text-indigo-100 font-medium rounded-md transition-all duration-300 w-full h-[56px] sm:w-auto min-w-[180px] cursor-pointer"
                 >
                   <span className="flex items-center">
@@ -280,6 +284,9 @@ export default function LandingPage() {
                   src="/images/dashboard-preview.svg" 
                   alt={`${branding.appName} Dashboard - AI-powered ATS resume builder and job application tracker`} 
                   className="w-full h-auto" 
+                  width="800"
+                  height="600"
+                  loading="eager"
                 />
                 <motion.div 
                   className="absolute inset-0 bg-gradient-to-t from-indigo-900/50 to-transparent"

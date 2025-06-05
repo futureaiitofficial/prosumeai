@@ -216,6 +216,7 @@
     "zod-validation-error": "^3.4.0"
   },
   "devDependencies": {
+    "@fullhuman/postcss-purgecss": "^7.0.2",
     "@replit/vite-plugin-cartographer": "^0.0.11",
     "@replit/vite-plugin-runtime-error-modal": "^0.0.3",
     "@tailwindcss/typography": "^0.5.15",
@@ -249,6 +250,7 @@
     "jest-environment-jsdom": "^29.7.0",
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.14",
+    "terser": "^5.40.0",
     "ts-jest": "^29.3.1",
     "ts-node": "^10.9.2",
     "tsx": "^4.19.1",
