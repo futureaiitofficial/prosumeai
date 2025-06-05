@@ -2,7 +2,7 @@ import express from 'express';
 import fs from 'fs-extra';
 import path from 'path';
 import puppeteer from 'puppeteer';
-import { getChromeOptions } from '../../utils/chrome-detector';
+import { getChromeOptions, getMinimalChromeOptions } from '../../utils/chrome-detector';
 
 // Chrome launch options are now handled by chrome-detector utility
 
@@ -84,7 +84,10 @@ export function registerCoverLetterTemplateRoutes(app: express.Express) {
       await fs.writeFile(tempHtmlPath, htmlContent, 'utf8');
       console.log(`Temporary HTML file created at ${tempHtmlPath}`);
       
-      const browser = await puppeteer.launch(getChromeOptions());
+      const browser = await puppeteer.launch(getChromeOptions()).catch(async (error) => {
+        console.warn("Full Chrome options failed, trying minimal options:", error);
+        return puppeteer.launch(getMinimalChromeOptions());
+      });
       
       try {
         const page = await browser.newPage();
@@ -194,7 +197,10 @@ export function registerCoverLetterTemplateRoutes(app: express.Express) {
       await fs.writeFile(tempHtmlPath, htmlContent, 'utf8');
       console.log(`Cover letter preview HTML file created at ${tempHtmlPath}`);
       
-      const browser = await puppeteer.launch(getChromeOptions());
+      const browser = await puppeteer.launch(getChromeOptions()).catch(async (error) => {
+        console.warn("Full Chrome options failed, trying minimal options:", error);
+        return puppeteer.launch(getMinimalChromeOptions());
+      });
       
       try {
         const page = await browser.newPage();

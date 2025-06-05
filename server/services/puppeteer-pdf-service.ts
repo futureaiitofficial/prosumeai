@@ -4,7 +4,7 @@ import path from "path"
 import { fileURLToPath } from "url"
 import type { Invoice, InvoiceSettings } from "./pdf-service.d"
 import os from "os"
-import { getChromeOptions } from "../utils/chrome-detector"
+import { getChromeOptions, getMinimalChromeOptions } from "../utils/chrome-detector"
 
 // Make __dirname available in ESM
 const __filename = fileURLToPath(import.meta.url)
@@ -34,11 +34,19 @@ export async function initializePuppeteerPDFService(): Promise<boolean> {
   try {
     console.log("Initializing Puppeteer PDF service...")
 
-    // Test to make sure puppeteer can launch with Chrome
-    const options = getChromeOptions()
+    // Try full Chrome options first
+    let options = getChromeOptions()
     console.log("Chrome launch options:", JSON.stringify(options, null, 2))
 
-    const browser = await puppeteer.launch(options)
+    let browser
+    try {
+      browser = await puppeteer.launch(options)
+    } catch (error) {
+      console.warn("Full Chrome options failed, trying minimal options:", error)
+      options = getMinimalChromeOptions()
+      console.log("Minimal Chrome launch options:", JSON.stringify(options, null, 2))
+      browser = await puppeteer.launch(options)
+    }
 
     // Test basic functionality
     const page = await browser.newPage()
@@ -639,9 +647,15 @@ export async function generateInvoicePDF(invoice: Invoice, settings: InvoiceSett
     htmlPath = path.join(TEMP_DIR, `invoice-${invoice.invoiceNumber}-${timestamp}.html`)
     await fs.writeFile(htmlPath, html)
 
-    // Launch puppeteer and generate PDF
-    const options = getChromeOptions()
-    browser = await puppeteer.launch(options)
+    // Launch puppeteer and generate PDF with fallback strategy
+    let options = getChromeOptions()
+    try {
+      browser = await puppeteer.launch(options)
+    } catch (error) {
+      console.warn("Full Chrome options failed for PDF generation, trying minimal options:", error)
+      options = getMinimalChromeOptions()
+      browser = await puppeteer.launch(options)
+    }
 
     const page = await browser.newPage()
 

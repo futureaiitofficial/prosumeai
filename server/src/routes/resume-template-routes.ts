@@ -6,7 +6,7 @@ import { generateLatexResume } from '../utils/simple-templates';
 import { createSimplePDF, generateLatexFile } from '../utils/pdf-generator';
 import puppeteer from 'puppeteer';
 import { type ResumeData } from '../../types/resume';
-import { getChromeOptions } from '../../utils/chrome-detector';
+import { getChromeOptions, getMinimalChromeOptions } from '../../utils/chrome-detector';
 
 export function registerResumeTemplateRoutes(app: express.Express) {
   // Generate LaTeX content from resume data
@@ -226,7 +226,10 @@ export function registerResumeTemplateRoutes(app: express.Express) {
       await fs.writeFile(tempHtmlPath, htmlContent, 'utf8');
       console.log(`Temporary HTML file created at ${tempHtmlPath}`);
       
-      const browser = await puppeteer.launch(getChromeOptions());
+      const browser = await puppeteer.launch(getChromeOptions()).catch(async (error) => {
+        console.warn("Full Chrome options failed, trying minimal options:", error);
+        return puppeteer.launch(getMinimalChromeOptions());
+      });
       
       try {
         const page = await browser.newPage();
@@ -364,7 +367,10 @@ export function registerResumeTemplateRoutes(app: express.Express) {
       await fs.writeFile(tempHtmlPath, htmlContent, 'utf8');
       console.log(`Temporary preview HTML file created at ${tempHtmlPath}`);
       
-      const browser = await puppeteer.launch(getChromeOptions());
+      const browser = await puppeteer.launch(getChromeOptions()).catch(async (error) => {
+        console.warn("Full Chrome options failed, trying minimal options:", error);
+        return puppeteer.launch(getMinimalChromeOptions());
+      });
       
       try {
         const page = await browser.newPage();
@@ -550,7 +556,10 @@ export function registerResumeTemplateRoutes(app: express.Express) {
       await fs.writeFile(tempHtmlPath, htmlContent, 'utf8');
       console.log(`PDF preview HTML file created at ${tempHtmlPath}`);
       
-      const browser = await puppeteer.launch(getChromeOptions());
+      const browser = await puppeteer.launch(getChromeOptions()).catch(async (error) => {
+        console.warn("Full Chrome options failed, trying minimal options:", error);
+        return puppeteer.launch(getMinimalChromeOptions());
+      });
       
       try {
         const page = await browser.newPage();
