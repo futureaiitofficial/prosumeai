@@ -24,8 +24,8 @@ services:
 
   atscribe_app:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: /home/futureaiit/docker/atscribe/app
+      dockerfile: /home/futureaiit/docker/atscribe/app/Dockerfile
       target: production
     ports:
       - "3000:3000"
