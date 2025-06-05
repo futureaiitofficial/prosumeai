@@ -93,7 +93,7 @@
   
   /* Disable hover effects on mobile to avoid performance issues */
   @media (hover: none) {
-    .landing-page .hover\:* {
+    .landing-page [class*="hover:"] {
       transition: none !important;
     }
   }

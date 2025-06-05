@@ -34,14 +34,17 @@ export async function initializePuppeteerPDFService(): Promise<boolean> {
     // Test to make sure puppeteer can launch with Google Chrome
     const browser = await puppeteer.launch({
       headless: true,
-      executablePath: '/usr/bin/google-chrome',
+      executablePath: '/usr/bin/google-chrome-stable',
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
         '--disable-accelerated-2d-canvas',
         '--no-first-run',
-        '--disable-gpu'
+        '--disable-gpu',
+        '--disable-background-timer-throttling',
+        '--disable-backgrounding-occluded-windows',
+        '--disable-renderer-backgrounding'
       ]
     });
     
@@ -601,14 +604,17 @@ export async function generateInvoicePDF(invoice: Invoice, settings: InvoiceSett
     // Launch puppeteer and generate PDF
     const browser = await puppeteer.launch({
       headless: true,
-      executablePath: '/usr/bin/google-chrome',
+      executablePath: '/usr/bin/google-chrome-stable',
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
         '--disable-accelerated-2d-canvas',
         '--no-first-run',
-        '--disable-gpu'
+        '--disable-gpu',
+        '--disable-background-timer-throttling',
+        '--disable-backgrounding-occluded-windows',
+        '--disable-renderer-backgrounding'
       ]
     });
     
