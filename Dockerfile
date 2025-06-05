@@ -108,15 +108,15 @@ CMD ["npm", "run", "dev:server"]
 
 # Production stage  
 FROM base AS production
-USER pptruser
 
-# Build the application
+# Build the application as root first (needed for write permissions)
 RUN npm run build
 
 # Remove dev dependencies to reduce image size
 RUN npm ci --only=production && npm cache clean --force
 
-# Create non-root user for production
+# Set proper permissions and switch to pptruser for running the app
+RUN chown -R pptruser:pptruser /app
 USER pptruser
 
 EXPOSE 3000
