@@ -3,6 +3,60 @@ import fs from 'fs-extra';
 import path from 'path';
 import puppeteer from 'puppeteer';
 
+// Enhanced Chrome launch arguments for Docker production environments
+const getChromeLaunchArgs = () => {
+  return [
+    '--no-sandbox',
+    '--disable-setuid-sandbox',
+    '--disable-dev-shm-usage',
+    '--disable-accelerated-2d-canvas',
+    '--no-first-run',
+    '--no-zygote',
+    '--single-process',
+    '--disable-gpu',
+    '--disable-web-security',
+    '--disable-features=VizDisplayCompositor',
+    '--disable-background-timer-throttling',
+    '--disable-backgrounding-occluded-windows',
+    '--disable-renderer-backgrounding',
+    '--disable-extensions',
+    '--disable-plugins',
+    '--disable-default-apps',
+    '--disable-hang-monitor',
+    '--disable-prompt-on-repost',
+    '--disable-sync',
+    '--metrics-recording-only',
+    '--no-default-browser-check',
+    '--safebrowsing-disable-auto-update',
+    '--disable-background-networking',
+    // Additional Docker-specific flags to prevent crashes
+    '--disable-ipc-flooding-protection',
+    '--disable-component-extensions-with-background-pages',
+    '--disable-features=TranslateUI',
+    '--disable-component-update',
+    '--disable-client-side-phishing-detection',
+    '--mute-audio',
+    '--no-pings',
+    '--disable-logging',
+    '--disable-permissions-api',
+    '--ignore-certificate-errors',
+    '--disable-canvas-aa',
+    '--disable-3d-apis',
+    '--disable-bundled-ppapi-flash',
+    '--disable-notifications',
+    '--disable-desktop-notifications',
+    '--disable-translate',
+    '--disable-file-system',
+    '--disable-reading-from-canvas',
+    '--disable-web-bluetooth',
+    '--disable-audio-output',
+    // Memory and resource constraints for containers
+    '--memory-pressure-off',
+    '--max_old_space_size=4096',
+    '--js-flags=--max-old-space-size=4096'
+  ];
+};
+
 // Define the type locally instead of importing
 interface CoverLetterData {
   id?: number;
@@ -93,18 +147,9 @@ export function registerCoverLetterTemplateRoutes(app: express.Express) {
       // Launch Puppeteer
       const browser = await puppeteer.launch({
         headless: true,
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-accelerated-2d-canvas',
-          '--no-first-run',
-          '--no-zygote',
-          '--single-process',
-          '--disable-gpu',
-          '--disable-web-security',
-          '--disable-features=VizDisplayCompositor'
-        ]
+        args: getChromeLaunchArgs(),
+        timeout: 90000, // 90 second timeout
+        protocolTimeout: 240000 // 4 minute protocol timeout
       });
       
       try {
@@ -114,6 +159,7 @@ export function registerCoverLetterTemplateRoutes(app: express.Express) {
         // Load the HTML file
         await page.goto(`file://${tempHtmlPath}`, {
           waitUntil: 'networkidle0',
+          timeout: 60000
         });
         
         // Set media type to print for better styling
@@ -121,7 +167,7 @@ export function registerCoverLetterTemplateRoutes(app: express.Express) {
         
         // Wait for fonts and content to load
         await page.evaluate(() => document.fonts.ready);
-        await new Promise(resolve => setTimeout(resolve, 1500));
+        await new Promise(resolve => setTimeout(resolve, 2000));
         
         // Log container height for debugging
         const containerHeight = await page.evaluate(() => {
@@ -142,7 +188,8 @@ export function registerCoverLetterTemplateRoutes(app: express.Express) {
             right: '0',
             bottom: '0',
             left: '0'
-          }
+          },
+          timeout: 90000 // 90 second timeout for PDF generation
         });
         
         console.log(`PDF generated at ${tempPdfPath}`);
@@ -153,22 +200,32 @@ export function registerCoverLetterTemplateRoutes(app: express.Express) {
         // Set response headers
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `attachment; filename=${data.fullName?.replace(/[^a-zA-Z0-9]/g, '_') || 'Cover_Letter'}_${new Date().toISOString().split('T')[0]}.pdf`);
+        res.setHeader('Content-Length', pdfBuffer.length.toString());
         
         // Send the PDF
-        res.send(pdfBuffer);
-      } catch (error: any) {
-        console.error('Error during cover letter PDF generation:', error);
-        res.status(500).json({ message: "Failed to generate PDF", details: error.message });
+        res.end(pdfBuffer);
+        
+        // Clean up temp files
+        try {
+          await fs.unlink(tempHtmlPath);
+          await fs.unlink(tempPdfPath);
+        } catch (cleanupError) {
+          console.warn('Could not remove temporary files:', cleanupError);
+        }
+        
       } finally {
-        await browser.close();
-        await fs.remove(tempHtmlPath).catch(e => console.error("Cleanup failed:", e));
-        await fs.remove(tempPdfPath).catch(e => console.error("Cleanup failed:", e));
+        try {
+          await browser.close();
+        } catch (closeError) {
+          console.warn('Error closing browser:', closeError);
+        }
       }
-    } catch (error: any) {
-      console.error('Error in cover letter generate-pdf route:', error);
+      
+    } catch (error) {
+      console.error('Error generating PDF:', error);
       res.status(500).json({ 
-        message: "Failed to process cover letter PDF request", 
-        error: error.message 
+        message: 'Failed to process PDF request', 
+        error: error instanceof Error ? error.message : String(error)
       });
     }
   });

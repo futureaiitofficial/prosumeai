@@ -26,6 +26,64 @@ try {
   console.error('Error cleaning up temp files:', err);
 }
 
+// Enhanced Chrome launch arguments for Docker production environments
+const getChromeLaunchArgs = () => {
+  return [
+    '--no-sandbox',
+    '--disable-setuid-sandbox',
+    '--disable-dev-shm-usage',
+    '--disable-accelerated-2d-canvas',
+    '--no-first-run',
+    '--no-zygote',
+    '--single-process',
+    '--disable-gpu',
+    '--disable-web-security',
+    '--disable-features=VizDisplayCompositor',
+    '--disable-background-timer-throttling',
+    '--disable-backgrounding-occluded-windows',
+    '--disable-renderer-backgrounding',
+    '--disable-extensions',
+    '--disable-plugins',
+    '--disable-default-apps',
+    '--disable-hang-monitor',
+    '--disable-prompt-on-repost',
+    '--disable-sync',
+    '--metrics-recording-only',
+    '--no-default-browser-check',
+    '--safebrowsing-disable-auto-update',
+    '--disable-background-networking',
+    // Additional Docker-specific flags to prevent crashes
+    '--disable-ipc-flooding-protection',
+    '--disable-backgrounding-occluded-windows',
+    '--disable-component-extensions-with-background-pages',
+    '--disable-features=TranslateUI',
+    '--disable-component-update',
+    '--disable-client-side-phishing-detection',
+    '--disable-default-apps',
+    '--mute-audio',
+    '--no-default-browser-check',
+    '--no-pings',
+    '--disable-logging',
+    '--disable-permissions-api',
+    '--ignore-certificate-errors',
+    '--disable-canvas-aa',
+    '--disable-3d-apis',
+    '--disable-bundled-ppapi-flash',
+    '--disable-logging',
+    '--disable-notifications',
+    '--disable-desktop-notifications',
+    '--disable-translate',
+    '--disable-file-system',
+    '--disable-reading-from-canvas',
+    '--disable-web-bluetooth',
+    '--disable-audio-output',
+    // Memory and resource constraints for containers
+    '--memory-pressure-off',
+    '--max_old_space_size=4096',
+    '--js-flags=--max-old-space-size=4096'
+  ];
+};
+
 // Export for server startup
 export async function initializePuppeteerPDFService(): Promise<boolean> {
   try {
@@ -35,34 +93,12 @@ export async function initializePuppeteerPDFService(): Promise<boolean> {
     const browser = await Promise.race([
       puppeteer.launch({
         headless: 'new' as any,
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-accelerated-2d-canvas',
-          '--no-first-run',
-          '--no-zygote',
-          '--single-process',
-          '--disable-gpu',
-          '--disable-web-security',
-          '--disable-features=VizDisplayCompositor',
-          '--disable-background-timer-throttling',
-          '--disable-backgrounding-occluded-windows',
-          '--disable-renderer-backgrounding',
-          '--disable-extensions',
-          '--disable-plugins',
-          '--disable-default-apps',
-          '--disable-hang-monitor',
-          '--disable-prompt-on-repost',
-          '--disable-sync',
-          '--metrics-recording-only',
-          '--no-default-browser-check',
-          '--safebrowsing-disable-auto-update',
-          '--disable-background-networking'
-        ]
+        args: getChromeLaunchArgs(),
+        timeout: 60000, // Increased timeout
+        protocolTimeout: 180000 // 3 minute protocol timeout
       }),
       new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Puppeteer launch timeout')), 30000)
+        setTimeout(() => reject(new Error('Puppeteer launch timeout')), 45000)
       )
     ]) as any;
     
@@ -684,32 +720,9 @@ export async function generateInvoicePDF(invoice: Invoice, settings: InvoiceSett
     // Launch puppeteer and generate PDF
     const browser = await puppeteer.launch({
       headless: 'new' as any,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-accelerated-2d-canvas',
-        '--no-first-run',
-        '--no-zygote',
-        '--single-process',
-        '--disable-gpu',
-        '--disable-web-security',
-        '--disable-features=VizDisplayCompositor',
-        '--disable-background-timer-throttling',
-        '--disable-backgrounding-occluded-windows',
-        '--disable-renderer-backgrounding',
-        '--disable-extensions',
-        '--disable-plugins',
-        '--disable-default-apps',
-        '--disable-hang-monitor',
-        '--disable-prompt-on-repost',
-        '--disable-sync',
-        '--metrics-recording-only',
-        '--no-default-browser-check',
-        '--safebrowsing-disable-auto-update',
-        '--disable-background-networking'
-      ],
-      timeout: 60000 // 60 second timeout
+      args: getChromeLaunchArgs(),
+      timeout: 90000, // 90 second timeout
+      protocolTimeout: 240000 // 4 minute protocol timeout
     });
     
     try {
@@ -718,11 +731,11 @@ export async function generateInvoicePDF(invoice: Invoice, settings: InvoiceSett
       // Set a longer timeout for navigation
       await page.goto(`file://${htmlPath}`, { 
         waitUntil: 'networkidle0',
-        timeout: 30000 
+        timeout: 60000 
       });
       
       // Wait for any fonts or styles to load
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await new Promise(resolve => setTimeout(resolve, 3000));
       
       // Set PDF options for high-quality output with optimized margins
       const pdfBuffer = await page.pdf({
@@ -736,7 +749,7 @@ export async function generateInvoicePDF(invoice: Invoice, settings: InvoiceSett
         },
         preferCSSPageSize: true,
         displayHeaderFooter: false,
-        timeout: 60000 // 60 second timeout for PDF generation
+        timeout: 90000 // 90 second timeout for PDF generation
       });
       
       console.log(`Successfully generated PDF for invoice #${invoice.invoiceNumber} using puppeteer, size: ${pdfBuffer.length} bytes`);
