@@ -26,81 +26,24 @@ try {
   console.error('Error cleaning up temp files:', err);
 }
 
-// Enhanced Chrome launch arguments for Docker production environments
-const getChromeLaunchArgs = () => {
-  return [
-    '--no-sandbox',
-    '--disable-setuid-sandbox',
-    '--disable-dev-shm-usage',
-    '--disable-accelerated-2d-canvas',
-    '--no-first-run',
-    '--no-zygote',
-    '--single-process',
-    '--disable-gpu',
-    '--disable-web-security',
-    '--disable-features=VizDisplayCompositor',
-    '--disable-background-timer-throttling',
-    '--disable-backgrounding-occluded-windows',
-    '--disable-renderer-backgrounding',
-    '--disable-extensions',
-    '--disable-plugins',
-    '--disable-default-apps',
-    '--disable-hang-monitor',
-    '--disable-prompt-on-repost',
-    '--disable-sync',
-    '--metrics-recording-only',
-    '--no-default-browser-check',
-    '--safebrowsing-disable-auto-update',
-    '--disable-background-networking',
-    // Additional Docker-specific flags to prevent crashes
-    '--disable-ipc-flooding-protection',
-    '--disable-backgrounding-occluded-windows',
-    '--disable-component-extensions-with-background-pages',
-    '--disable-features=TranslateUI',
-    '--disable-component-update',
-    '--disable-client-side-phishing-detection',
-    '--disable-default-apps',
-    '--mute-audio',
-    '--no-default-browser-check',
-    '--no-pings',
-    '--disable-logging',
-    '--disable-permissions-api',
-    '--ignore-certificate-errors',
-    '--disable-canvas-aa',
-    '--disable-3d-apis',
-    '--disable-bundled-ppapi-flash',
-    '--disable-logging',
-    '--disable-notifications',
-    '--disable-desktop-notifications',
-    '--disable-translate',
-    '--disable-file-system',
-    '--disable-reading-from-canvas',
-    '--disable-web-bluetooth',
-    '--disable-audio-output',
-    // Memory and resource constraints for containers
-    '--memory-pressure-off',
-    '--max_old_space_size=4096',
-    '--js-flags=--max-old-space-size=4096'
-  ];
-};
-
 // Export for server startup
 export async function initializePuppeteerPDFService(): Promise<boolean> {
   try {
     console.log('Initializing Puppeteer PDF service...');
     
-    // Test to make sure puppeteer can launch with a timeout
-    const browser = await Promise.race([
-      puppeteer.launch({
-        headless: 'new' as any,
-        args: getChromeLaunchArgs(),
-        timeout: 60000, // Increased timeout
-        protocolTimeout: 180000 // 3 minute protocol timeout
-      }),
-      new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Puppeteer launch timeout')), 45000)
-      )
-    ]) as any;
+    // Test to make sure puppeteer can launch with Google Chrome
+    const browser = await puppeteer.launch({
+      headless: true,
+      executablePath: '/usr/bin/google-chrome',
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-accelerated-2d-canvas',
+        '--no-first-run',
+        '--disable-gpu'
+      ]
+    });
     
     await browser.close();
     console.log('Puppeteer PDF service initialized successfully');
@@ -212,103 +155,41 @@ export async function generateInvoicePDF(invoice: Invoice, settings: InvoiceSett
     // Generate items HTML
     let itemsHTML = '';
     let subtotal = 0;
-    
-    // Get subscription plan name for better item description
-    const subscriptionPlan = invoice.subscriptionPlan || 'Subscription';
-    
-    // Format next payment date if available
-    const nextPaymentDate = invoice.nextPaymentDate ? formatDate(invoice.nextPaymentDate) : 'Not available';
-    
-    // Get transaction reference IDs
-    const transactionId = invoice.transactionId || 'N/A';
-    const razorpayRef = invoice.gatewayTransactionId || invoice.razorpayPaymentId || 'N/A';
-    const subscriptionId = invoice.subscriptionId || 'N/A';
-    
-    // Process tax breakdown for display
-    let taxBreakdownHTML = '';
-    if (parseFloat(invoice.taxAmount) > 0) {
-      // For GST in India, tax is inclusive - show it differently
-      if (invoice.currency === 'INR') {
-        taxBreakdownHTML += `
-          <tr>
-            <td>Subtotal (excl. GST)</td>
-            <td>${formatCurrency(invoice.subtotal, invoice.currency)}</td>
-          </tr>
-        `;
-        
-        // Add detailed tax breakdown if available
-        if (invoice.taxDetails && invoice.taxDetails.taxBreakdown && invoice.taxDetails.taxBreakdown.length > 0) {
-          invoice.taxDetails.taxBreakdown.forEach((tax: any) => {
-            taxBreakdownHTML += `
-              <tr>
-                <td>${tax.name} (${tax.percentage}%) included</td>
-                <td>${formatCurrency(tax.amount, invoice.currency)}</td>
-              </tr>
-            `;
-          });
-        } else {
-          taxBreakdownHTML += `
-            <tr>
-              <td>GST (18%) included</td>
-              <td>${formatCurrency(invoice.taxAmount, invoice.currency)}</td>
-            </tr>
-          `;
-        }
-      } else {
-        // For non-INR currencies, show standard tax breakdown only if tax amount is significant
-        // (this should never happen for USD based on our updates, but keeping for completeness)
-        const minTaxThreshold = 0.01; // Minimum threshold to show tax
-        const taxAmount = parseFloat(invoice.taxAmount);
-        if (taxAmount > minTaxThreshold) {
-          taxBreakdownHTML += `
-            <tr>
-              <td>Tax</td>
-              <td>${formatCurrency(invoice.taxAmount, invoice.currency)}</td>
-            </tr>
-          `;
-          
-          // Add detailed tax breakdown if available
-          if (invoice.taxDetails && invoice.taxDetails.taxBreakdown && invoice.taxDetails.taxBreakdown.length > 0) {
-            invoice.taxDetails.taxBreakdown.forEach((tax: any) => {
-              taxBreakdownHTML += `
-                <tr>
-                  <td><small>${tax.name} (${tax.percentage}%)</small></td>
-                  <td><small>${formatCurrency(tax.amount, invoice.currency)}</small></td>
-                </tr>
-              `;
-            });
-          }
-        }
-      }
-    }
-    
-    items.forEach(item => {
-      const itemTotal = parseFloat(item.total.toString());
-      subtotal += itemTotal;
-      
-      // Use the actual item description from the invoice
-      const itemDescription = item.description || `${subscriptionPlan} Plan`;
-      
+
+    for (const item of items) {
+      const quantity = item.quantity || 1;
+      const unitPrice = item.unitPrice || 0;
+      const amount = quantity * unitPrice;
+      subtotal += amount;
+
       itemsHTML += `
         <tr>
-          <td>${itemDescription}</td>
-          <td class="text-center">${item.quantity || 1}</td>
-          <td class="text-right">${formatCurrency(item.unitPrice, invoice.currency)}</td>
-          <td class="text-right">${formatCurrency(item.total, invoice.currency)}</td>
+          <td>${item.description || 'Service'}</td>
+          <td class="text-center">${quantity}</td>
+          <td class="text-right">${formatCurrency(unitPrice, invoice.currency)}</td>
+          <td class="text-right">${formatCurrency(amount, invoice.currency)}</td>
         </tr>
       `;
-    });
-    
-    // Generate notes section if available
-    let notesHTML = '';
-    if (invoice.notes) {
-      notesHTML = `
-        <div class="notes">
-          <h3>Notes</h3>
-          <p>${invoice.notes}</p>
-        </div>
+    }
+
+    // Generate tax breakdown HTML
+    let taxBreakdownHTML = '';
+    for (const tax of taxBreakdown) {
+      taxBreakdownHTML += `
+        <tr>
+          <td>${tax.name}</td>
+          <td>${formatCurrency(tax.amount, invoice.currency)}</td>
+        </tr>
       `;
     }
+
+    // Extract reference information from notes or generate defaults
+    const transactionId = invoice.notes?.match(/Transaction ID: ([A-Za-z0-9]+)/)?.[1] || 
+                         `TXN${Date.now()}`;
+    const razorpayRef = invoice.notes?.match(/Razorpay Payment ID: ([A-Za-z0-9_]+)/)?.[1] || 
+                       `pay_${Date.now()}`;
+    const subscriptionId = invoice.notes?.match(/Subscription ID: ([A-Za-z0-9_]+)/)?.[1] || 
+                          `sub_${Date.now()}`;
     
     // Generate terms and conditions if available
     let termsHTML = '';
@@ -719,10 +600,16 @@ export async function generateInvoicePDF(invoice: Invoice, settings: InvoiceSett
 
     // Launch puppeteer and generate PDF
     const browser = await puppeteer.launch({
-      headless: 'new' as any,
-      args: getChromeLaunchArgs(),
-      timeout: 90000, // 90 second timeout
-      protocolTimeout: 240000 // 4 minute protocol timeout
+      headless: true,
+      executablePath: '/usr/bin/google-chrome',
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-accelerated-2d-canvas',
+        '--no-first-run',
+        '--disable-gpu'
+      ]
     });
     
     try {
@@ -731,11 +618,11 @@ export async function generateInvoicePDF(invoice: Invoice, settings: InvoiceSett
       // Set a longer timeout for navigation
       await page.goto(`file://${htmlPath}`, { 
         waitUntil: 'networkidle0',
-        timeout: 60000 
+        timeout: 30000 
       });
       
       // Wait for any fonts or styles to load
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      await new Promise(resolve => setTimeout(resolve, 2000));
       
       // Set PDF options for high-quality output with optimized margins
       const pdfBuffer = await page.pdf({
@@ -748,8 +635,7 @@ export async function generateInvoicePDF(invoice: Invoice, settings: InvoiceSett
           left: '0.7cm'
         },
         preferCSSPageSize: true,
-        displayHeaderFooter: false,
-        timeout: 90000 // 90 second timeout for PDF generation
+        displayHeaderFooter: false
       });
       
       console.log(`Successfully generated PDF for invoice #${invoice.invoiceNumber} using puppeteer, size: ${pdfBuffer.length} bytes`);

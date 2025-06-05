@@ -7,60 +7,6 @@ import { createSimplePDF, generateLatexFile } from '../utils/pdf-generator';
 import puppeteer from 'puppeteer';
 import { type ResumeData } from '../../types/resume';
 
-// Enhanced Chrome launch arguments for Docker production environments
-const getChromeLaunchArgs = () => {
-  return [
-    '--no-sandbox',
-    '--disable-setuid-sandbox',
-    '--disable-dev-shm-usage',
-    '--disable-accelerated-2d-canvas',
-    '--no-first-run',
-    '--no-zygote',
-    '--single-process',
-    '--disable-gpu',
-    '--disable-web-security',
-    '--disable-features=VizDisplayCompositor',
-    '--disable-background-timer-throttling',
-    '--disable-backgrounding-occluded-windows',
-    '--disable-renderer-backgrounding',
-    '--disable-extensions',
-    '--disable-plugins',
-    '--disable-default-apps',
-    '--disable-hang-monitor',
-    '--disable-prompt-on-repost',
-    '--disable-sync',
-    '--metrics-recording-only',
-    '--no-default-browser-check',
-    '--safebrowsing-disable-auto-update',
-    '--disable-background-networking',
-    // Additional Docker-specific flags to prevent crashes
-    '--disable-ipc-flooding-protection',
-    '--disable-component-extensions-with-background-pages',
-    '--disable-features=TranslateUI',
-    '--disable-component-update',
-    '--disable-client-side-phishing-detection',
-    '--mute-audio',
-    '--no-pings',
-    '--disable-logging',
-    '--disable-permissions-api',
-    '--ignore-certificate-errors',
-    '--disable-canvas-aa',
-    '--disable-3d-apis',
-    '--disable-bundled-ppapi-flash',
-    '--disable-notifications',
-    '--disable-desktop-notifications',
-    '--disable-translate',
-    '--disable-file-system',
-    '--disable-reading-from-canvas',
-    '--disable-web-bluetooth',
-    '--disable-audio-output',
-    // Memory and resource constraints for containers
-    '--memory-pressure-off',
-    '--max_old_space_size=4096',
-    '--js-flags=--max-old-space-size=4096'
-  ];
-};
-
 export function registerResumeTemplateRoutes(app: express.Express) {
   // Generate LaTeX content from resume data
   app.post('/api/resume/generate-latex', async (req, res) => {
@@ -281,20 +227,23 @@ export function registerResumeTemplateRoutes(app: express.Express) {
       
       const browser = await puppeteer.launch({
         headless: true,
-        args: getChromeLaunchArgs(),
-        timeout: 90000, // 90 second timeout
-        protocolTimeout: 240000 // 4 minute protocol timeout
+        executablePath: '/usr/bin/google-chrome',
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-accelerated-2d-canvas',
+          '--no-first-run',
+          '--disable-gpu'
+        ]
       });
       
       try {
         const page = await browser.newPage();
-        await page.goto(`file://${tempHtmlPath}`, { 
-          waitUntil: 'networkidle0',
-          timeout: 60000
-        });
+        await page.goto(`file://${tempHtmlPath}`, { waitUntil: 'networkidle0' });
         await page.emulateMediaType('print');
         await page.evaluate(() => document.fonts.ready);
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        await new Promise(resolve => setTimeout(resolve, 1500));
         
         const containerHeight = await page.evaluate(() => {
           const container = document.querySelector('.resume-container');
@@ -313,8 +262,7 @@ export function registerResumeTemplateRoutes(app: express.Express) {
             right: '0',
             bottom: '0',
             left: '0'
-          },
-          timeout: 90000 // 90 second timeout for PDF generation
+          }
         });
         
         console.log(`PDF generated at ${tempPdfPath}`);
@@ -323,31 +271,27 @@ export function registerResumeTemplateRoutes(app: express.Express) {
         
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `attachment; filename=${data.fullName?.replace(/[^a-zA-Z0-9]/g, '_') || 'Resume'}_${new Date().toISOString().split('T')[0]}.pdf`);
-        res.setHeader('Content-Length', pdfBuffer.length.toString());
         
-        res.end(pdfBuffer);
-        
-        // Clean up temp files
+        res.send(pdfBuffer);
+      } catch (error: any) {
+        console.error('Error in PDF generation:', error);
+        res.status(500).json({ 
+          message: "Failed to generate PDF", 
+          error: error.message 
+        });
+      } finally {
+        await browser.close();
         try {
           await fs.unlink(tempHtmlPath);
-          await fs.unlink(tempPdfPath);
-        } catch (cleanupError) {
-          console.warn('Could not remove temporary files:', cleanupError);
-        }
-        
-      } finally {
-        try {
-          await browser.close();
-        } catch (closeError) {
-          console.warn('Error closing browser:', closeError);
+        } catch (err) {
+          console.error('Failed to delete temp HTML:', err);
         }
       }
-      
-    } catch (error) {
-      console.error('Error generating PDF:', error);
+    } catch (error: any) {
+      console.error('Error in generate-pdf route:', error);
       res.status(500).json({ 
-        message: 'Failed to process PDF request', 
-        error: error instanceof Error ? error.message : String(error)
+        message: "Failed to process PDF request", 
+        error: error.message 
       });
     }
   });
@@ -432,20 +376,23 @@ export function registerResumeTemplateRoutes(app: express.Express) {
       
       const browser = await puppeteer.launch({
         headless: true,
-        args: getChromeLaunchArgs(),
-        timeout: 90000, // 90 second timeout
-        protocolTimeout: 240000 // 4 minute protocol timeout
+        executablePath: '/usr/bin/google-chrome',
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-accelerated-2d-canvas',
+          '--no-first-run',
+          '--disable-gpu'
+        ]
       });
       
       try {
         const page = await browser.newPage();
-        await page.goto(`file://${tempHtmlPath}`, { 
-          waitUntil: 'networkidle0',
-          timeout: 60000
-        });
+        await page.goto(`file://${tempHtmlPath}`, { waitUntil: 'networkidle0' });
         await page.emulateMediaType('print');
         await page.evaluate(() => document.fonts.ready);
-        await new Promise(resolve => setTimeout(resolve, 1500));
+        await new Promise(resolve => setTimeout(resolve, 1000));
         
         // Calculate accurate page breaks using the same logic as PDF generation
         const pageInfo = await page.evaluate(() => {
@@ -474,28 +421,33 @@ export function registerResumeTemplateRoutes(app: express.Express) {
         
         console.log('Server-calculated page info:', pageInfo);
         
-        res.json(pageInfo);
+        res.json({
+          pageBreaks: pageInfo.pageBreaks,
+          totalPages: pageInfo.totalPages,
+          containerHeight: pageInfo.containerHeightMm,
+          success: true
+        });
         
-        // Clean up temp file
+      } catch (error: any) {
+        console.error('Error in preview info generation:', error);
+        res.status(500).json({ 
+          message: "Failed to generate preview info", 
+          error: error.message 
+        });
+      } finally {
+        await browser.close();
         try {
           await fs.unlink(tempHtmlPath);
-        } catch (cleanupError) {
-          console.warn('Could not remove temporary file:', cleanupError);
-        }
-        
-      } finally {
-        try {
-          await browser.close();
-        } catch (closeError) {
-          console.warn('Error closing browser:', closeError);
+        } catch (err) {
+          console.error('Failed to delete temp HTML:', err);
         }
       }
       
-    } catch (error) {
-      console.error('Error generating page info:', error);
+    } catch (error: any) {
+      console.error('Error in generate-preview-info route:', error);
       res.status(500).json({ 
-        message: 'Failed to process page info request', 
-        error: error instanceof Error ? error.message : String(error)
+        message: "Failed to process preview info request", 
+        error: error.message 
       });
     }
   });
@@ -621,20 +573,23 @@ export function registerResumeTemplateRoutes(app: express.Express) {
       
       const browser = await puppeteer.launch({
         headless: true,
-        args: getChromeLaunchArgs(),
-        timeout: 90000, // 90 second timeout
-        protocolTimeout: 240000 // 4 minute protocol timeout
+        executablePath: '/usr/bin/google-chrome',
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-accelerated-2d-canvas',
+          '--no-first-run',
+          '--disable-gpu'
+        ]
       });
       
       try {
         const page = await browser.newPage();
-        await page.goto(`file://${tempHtmlPath}`, { 
-          waitUntil: 'networkidle0',
-          timeout: 60000
-        });
+        await page.goto(`file://${tempHtmlPath}`, { waitUntil: 'networkidle0' });
         await page.emulateMediaType('print');
         await page.evaluate(() => document.fonts.ready);
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        await new Promise(resolve => setTimeout(resolve, 1500));
         
         // Generate PDF first to determine exact page count
         const tempPdfPath = path.join(tempDir, `preview-pdf-${Date.now()}.pdf`);
@@ -650,8 +605,7 @@ export function registerResumeTemplateRoutes(app: express.Express) {
             right: '0',
             bottom: '0',
             left: '0'
-          },
-          timeout: 90000 // 90 second timeout for PDF generation
+          }
         });
         
         // Get the actual page count from the generated PDF
@@ -665,57 +619,77 @@ export function registerResumeTemplateRoutes(app: express.Express) {
         
         console.log(`Actual PDF page count: ${actualPageCount}`);
         
-        // Now take screenshots of each page
-        const screenshots = [];
-        for (let pageIndex = 0; pageIndex < actualPageCount; pageIndex++) {
-          try {
-            const screenshotBuffer = await page.screenshot({
-              type: 'png',
-              fullPage: false,
-              clip: {
-                x: 0,
-                y: pageIndex * (297 * (96 / 25.4)), // Calculate Y offset for each page
-                width: 210 * (96 / 25.4), // A4 width in pixels
-                height: 297 * (96 / 25.4)  // A4 height in pixels
-              }
-            });
-            
-            screenshots.push({
-              page: pageIndex + 1,
-              data: `data:image/png;base64,${Buffer.from(screenshotBuffer).toString('base64')}`
-            });
-          } catch (screenshotError) {
-            console.warn(`Failed to capture screenshot for page ${pageIndex + 1}:`, screenshotError);
-            // Continue with other pages
-          }
+        // Calculate accurate page breaks based on actual PDF pages
+        const pageBreaks = [];
+        for (let page = 1; page < actualPageCount; page++) {
+          pageBreaks.push(page * 297); // Page breaks in mm
+        }
+        
+        // Now capture page images for preview
+        const pageImages = [];
+        
+        for (let pageNum = 1; pageNum <= actualPageCount; pageNum++) {
+          // Set viewport to A4 size for accurate rendering
+          await page.setViewport({
+            width: 794,  // A4 width in pixels at 96 DPI
+            height: 1123, // A4 height in pixels at 96 DPI
+            deviceScaleFactor: 2 // High DPI for better quality
+          });
+          
+          // Take screenshot of specific page area
+          const pageYOffset = (pageNum - 1) * 1123; // Height of previous pages
+          
+          const screenshot = await page.screenshot({
+            type: 'png',
+            clip: {
+              x: 0,
+              y: pageYOffset,
+              width: 794,
+              height: 1123
+            }
+          });
+          
+          pageImages.push({
+            page: pageNum,
+            image: Buffer.from(screenshot).toString('base64')
+          });
         }
         
         res.json({
+          pageBreaks,
           totalPages: actualPageCount,
-          screenshots
+          pageImages,
+          success: true,
+          message: `Generated ${actualPageCount} page preview images`
         });
         
-        // Clean up temp files
+        // Cleanup
         try {
-          await fs.unlink(tempHtmlPath);
-          await fs.unlink(tempPdfPath);
-        } catch (cleanupError) {
-          console.warn('Could not remove temporary files:', cleanupError);
+          await fs.remove(tempPdfPath);
+        } catch (err) {
+          console.error('Failed to delete temp PDF:', err);
         }
         
+      } catch (error: any) {
+        console.error('Error in PDF preview generation:', error);
+        res.status(500).json({ 
+          message: "Failed to generate PDF preview", 
+          error: error.message 
+        });
       } finally {
+        await browser.close();
         try {
-          await browser.close();
-        } catch (closeError) {
-          console.warn('Error closing browser:', closeError);
+          await fs.unlink(tempHtmlPath);
+        } catch (err) {
+          console.error('Failed to delete temp HTML:', err);
         }
       }
       
-    } catch (error) {
-      console.error('Error generating PDF preview:', error);
+    } catch (error: any) {
+      console.error('Error in generate-pdf-preview route:', error);
       res.status(500).json({ 
-        message: 'Failed to process PDF preview request', 
-        error: error instanceof Error ? error.message : String(error)
+        message: "Failed to process PDF preview request", 
+        error: error.message 
       });
     }
   });

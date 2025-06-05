@@ -1,53 +1,26 @@
 # Use Node.js 18 on Debian Bullseye (force x86_64 platform for Puppeteer compatibility)
 FROM --platform=linux/amd64 node:18-bullseye-slim AS base
 
-# Install dependencies for Chrome and Puppeteer
+# We don't need the standalone Chromium
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+
+# Install Google Chrome Stable and fonts
+# Note: this installs the necessary libs to make the browser work with Puppeteer.
+RUN apt-get update && apt-get install curl gnupg -y \
+  && curl --location --silent https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - \
+  && sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list' \
+  && apt-get update \
+  && apt-get install google-chrome-stable -y --no-install-recommends \
+  && rm -rf /var/lib/apt/lists/*
+
+# Install dependencies for native packages and additional fonts
 RUN apt-get update && apt-get install -y \
     # Dependencies for native packages
     python3 \
     make \
     g++ \
-    # Chrome dependencies and tools
-    wget \
-    gnupg \
-    ca-certificates \
-    apt-transport-https \
-    fonts-liberation \
-    libappindicator3-1 \
-    libasound2 \
-    libatk-bridge2.0-0 \
-    libatk1.0-0 \
-    libc6 \
-    libcairo2 \
-    libcups2 \
-    libdbus-1-3 \
-    libexpat1 \
-    libfontconfig1 \
-    libgbm1 \
-    libgcc1 \
-    libglib2.0-0 \
-    libgtk-3-0 \
-    libnspr4 \
-    libnss3 \
-    libpango-1.0-0 \
-    libpangocairo-1.0-0 \
-    libstdc++6 \
-    libx11-6 \
-    libx11-xcb1 \
-    libxcb1 \
-    libxcomposite1 \
-    libxcursor1 \
-    libxdamage1 \
-    libxext6 \
-    libxfixes3 \
-    libxi6 \
-    libxrandr2 \
-    libxrender1 \
-    libxss1 \
-    libxtst6 \
-    lsb-release \
-    xdg-utils \
     # Additional fonts for better PDF rendering
+    fonts-liberation \
     fonts-ipafont-gothic \
     fonts-wqy-zenhei \
     fonts-thai-tlwg \
@@ -73,16 +46,6 @@ COPY theme.json ./
 
 # Install dependencies first (as root to access npm global installs)
 RUN npm ci --include=dev
-
-# Change ownership of node_modules and switch to pptruser for Chrome installation
-RUN chown -R pptruser:pptruser /app
-USER pptruser
-
-# Install Chrome through Puppeteer as the correct user
-RUN npx puppeteer browsers install chrome
-
-# Switch back to root for final setup
-USER root
 
 # Copy source code
 COPY client/ ./client/

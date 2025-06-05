@@ -76,30 +76,26 @@ interface CoverLetterData {
 }
 
 export function registerCoverLetterTemplateRoutes(app: express.Express) {
-  // Generate and download PDF for cover letter template
+  // Generate cover letter PDF
   app.post('/api/cover-letter-templates/generate-pdf', async (req, res) => {
-    // Authentication check
     if (!req.isAuthenticated() || !req.user) {
       return res.status(401).json({ message: "Unauthorized" });
     }
-
+    
     try {
       const { html, styles, data } = req.body;
       
       if (!html) {
         return res.status(400).json({ error: 'HTML content is required' });
       }
+
+      console.log('Starting cover letter PDF generation with Puppeteer');
       
-      console.log('Starting PDF generation with Puppeteer for cover letter');
-      
-      // Create a temporary HTML file
       const tempDir = path.join(process.cwd(), 'temp');
       await fs.ensureDir(tempDir);
       
       const tempHtmlPath = path.join(tempDir, `cover-letter-${Date.now()}.html`);
-      const tempPdfPath = path.join(tempDir, `cover-letter-${Date.now()}.pdf`);
       
-      // Create the HTML content
       const htmlContent = `
 <!DOCTYPE html>
 <html>
@@ -109,7 +105,7 @@ export function registerCoverLetterTemplateRoutes(app: express.Express) {
   <style>
     @page {
       size: A4;
-      margin: 0;
+      margin: 20mm;
     }
     html, body {
       margin: 0;
@@ -118,17 +114,13 @@ export function registerCoverLetterTemplateRoutes(app: express.Express) {
       print-color-adjust: exact;
       background-color: white;
       font-family: Arial, sans-serif;
-      width: 100%;
-      height: 100%;
     }
     .cover-letter-container {
       width: 100%;
-      height: 100%;
+      min-height: 100vh;
       padding: 0;
       margin: 0;
       box-sizing: border-box;
-      position: relative;
-      overflow: visible;
     }
     ${styles || ''}
   </style>
@@ -140,92 +132,202 @@ export function registerCoverLetterTemplateRoutes(app: express.Express) {
 </body>
 </html>`;
       
-      // Write the HTML to a temp file
       await fs.writeFile(tempHtmlPath, htmlContent, 'utf8');
       console.log(`Temporary HTML file created at ${tempHtmlPath}`);
       
-      // Launch Puppeteer
       const browser = await puppeteer.launch({
         headless: true,
-        args: getChromeLaunchArgs(),
-        timeout: 90000, // 90 second timeout
-        protocolTimeout: 240000 // 4 minute protocol timeout
+        executablePath: '/usr/bin/google-chrome',
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-accelerated-2d-canvas',
+          '--no-first-run',
+          '--disable-gpu'
+        ]
       });
       
       try {
-        // Open a new page
         const page = await browser.newPage();
-        
-        // Load the HTML file
-        await page.goto(`file://${tempHtmlPath}`, {
-          waitUntil: 'networkidle0',
-          timeout: 60000
-        });
-        
-        // Set media type to print for better styling
+        await page.goto(`file://${tempHtmlPath}`, { waitUntil: 'networkidle0' });
         await page.emulateMediaType('print');
-        
-        // Wait for fonts and content to load
         await page.evaluate(() => document.fonts.ready);
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        await new Promise(resolve => setTimeout(resolve, 1000));
         
-        // Log container height for debugging
-        const containerHeight = await page.evaluate(() => {
-          const container = document.querySelector('.cover-letter-container');
-          return container ? container.scrollHeight : 0;
-        });
-        console.log(`Cover letter container height: ${containerHeight}px`);
-        
-        // Generate PDF
-        await page.pdf({
-          path: tempPdfPath,
+        const pdfBuffer = await page.pdf({
           format: 'A4',
           printBackground: true,
           preferCSSPageSize: false,
           displayHeaderFooter: false,
           margin: {
-            top: '0',
-            right: '0',
-            bottom: '0',
-            left: '0'
-          },
-          timeout: 90000 // 90 second timeout for PDF generation
+            top: '20mm',
+            right: '20mm',
+            bottom: '20mm',
+            left: '20mm'
+          }
         });
         
-        console.log(`PDF generated at ${tempPdfPath}`);
+        console.log(`Cover letter PDF generated, size: ${pdfBuffer.length} bytes`);
         
-        // Read the PDF file
-        const pdfBuffer = await fs.readFile(tempPdfPath);
-        
-        // Set response headers
         res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', `attachment; filename=${data.fullName?.replace(/[^a-zA-Z0-9]/g, '_') || 'Cover_Letter'}_${new Date().toISOString().split('T')[0]}.pdf`);
-        res.setHeader('Content-Length', pdfBuffer.length.toString());
+        res.setHeader('Content-Disposition', `attachment; filename=${data.applicantName?.replace(/[^a-zA-Z0-9]/g, '_') || 'CoverLetter'}_${new Date().toISOString().split('T')[0]}.pdf`);
         
-        // Send the PDF
-        res.end(pdfBuffer);
-        
-        // Clean up temp files
+        res.send(Buffer.from(pdfBuffer));
+      } catch (error: any) {
+        console.error('Error in cover letter PDF generation:', error);
+        res.status(500).json({ 
+          message: "Failed to generate cover letter PDF", 
+          error: error.message 
+        });
+      } finally {
+        await browser.close();
         try {
           await fs.unlink(tempHtmlPath);
-          await fs.unlink(tempPdfPath);
-        } catch (cleanupError) {
-          console.warn('Could not remove temporary files:', cleanupError);
+        } catch (err) {
+          console.error('Failed to delete temp HTML:', err);
         }
+      }
+    } catch (error: any) {
+      console.error('Error in cover letter generate-pdf route:', error);
+      res.status(500).json({ 
+        message: "Failed to process cover letter PDF request", 
+        error: error.message 
+      });
+    }
+  });
+
+  // Generate cover letter preview info
+  app.post('/api/cover-letter-templates/generate-page-info', async (req, res) => {
+    if (!req.isAuthenticated() || !req.user) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    
+    try {
+      const { html, styles } = req.body;
+      
+      if (!html) {
+        return res.status(400).json({ error: 'HTML content is required' });
+      }
+
+      console.log('Generating cover letter preview info with Puppeteer');
+      
+      const tempDir = path.join(process.cwd(), 'temp');
+      await fs.ensureDir(tempDir);
+      
+      const tempHtmlPath = path.join(tempDir, `cover-letter-preview-${Date.now()}.html`);
+      
+      const htmlContent = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Cover Letter Preview</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 20mm;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+      background-color: white;
+      font-family: Arial, sans-serif;
+    }
+    .cover-letter-container {
+      width: 100%;
+      min-height: 100vh;
+      padding: 0;
+      margin: 0;
+      box-sizing: border-box;
+    }
+    ${styles || ''}
+  </style>
+</head>
+<body>
+  <div class="cover-letter-container">
+    ${html}
+  </div>
+</body>
+</html>`;
+      
+      await fs.writeFile(tempHtmlPath, htmlContent, 'utf8');
+      console.log(`Cover letter preview HTML file created at ${tempHtmlPath}`);
+      
+      const browser = await puppeteer.launch({
+        headless: true,
+        executablePath: '/usr/bin/google-chrome',
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-accelerated-2d-canvas',
+          '--no-first-run',
+          '--disable-gpu'
+        ]
+      });
+      
+      try {
+        const page = await browser.newPage();
+        await page.goto(`file://${tempHtmlPath}`, { waitUntil: 'networkidle0' });
+        await page.emulateMediaType('print');
+        await page.evaluate(() => document.fonts.ready);
+        await new Promise(resolve => setTimeout(resolve, 1000));
         
+        // Calculate page info for cover letter
+        const pageInfo = await page.evaluate(() => {
+          const container = document.querySelector('.cover-letter-container');
+          if (!container) return { pageBreaks: [], totalPages: 1 };
+          
+          const containerHeight = container.scrollHeight;
+          const pageHeightPx = 297 * (96 / 25.4); // 297mm in pixels at 96 DPI
+          
+          const totalPages = Math.ceil(containerHeight / pageHeightPx);
+          
+          const pageBreaks = [];
+          for (let page = 1; page < totalPages; page++) {
+            pageBreaks.push(page * 297);
+          }
+          
+          return {
+            pageBreaks,
+            totalPages,
+            containerHeightPx: containerHeight,
+            containerHeightMm: Math.round(containerHeight / (96 / 25.4))
+          };
+        });
+        
+        console.log('Cover letter page info:', pageInfo);
+        
+        res.json({
+          pageBreaks: pageInfo.pageBreaks,
+          totalPages: pageInfo.totalPages,
+          containerHeight: pageInfo.containerHeightMm,
+          success: true
+        });
+        
+      } catch (error: any) {
+        console.error('Error in cover letter preview info generation:', error);
+        res.status(500).json({ 
+          message: "Failed to generate cover letter preview info", 
+          error: error.message 
+        });
       } finally {
+        await browser.close();
         try {
-          await browser.close();
-        } catch (closeError) {
-          console.warn('Error closing browser:', closeError);
+          await fs.unlink(tempHtmlPath);
+        } catch (err) {
+          console.error('Failed to delete temp HTML:', err);
         }
       }
       
-    } catch (error) {
-      console.error('Error generating PDF:', error);
+    } catch (error: any) {
+      console.error('Error in cover letter generate-page-info route:', error);
       res.status(500).json({ 
-        message: 'Failed to process PDF request', 
-        error: error instanceof Error ? error.message : String(error)
+        message: "Failed to process cover letter preview info request", 
+        error: error.message 
       });
     }
   });
