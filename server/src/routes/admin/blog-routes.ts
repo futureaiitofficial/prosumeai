@@ -9,7 +9,7 @@ import fs from "fs";
 // Configure multer for featured image uploads
 const blogImageStorage = multer.diskStorage({
   destination: function (req, file, cb) {
-    const uploadDir = path.join(process.cwd(), 'public', 'images', 'blog');
+    const uploadDir = path.join(process.cwd(), 'server', 'uploads', 'blog', 'images');
     
     // Create directory if it doesn't exist
     if (!fs.existsSync(uploadDir)) {
@@ -344,7 +344,7 @@ export function registerBlogAdminRoutes(app: Express) {
         return res.status(400).json({ message: "No image file provided" });
       }
 
-      const imageUrl = `/images/blog/${req.file.filename}`;
+      const imageUrl = `/uploads/blog/images/${req.file.filename}`;
       
       return res.json({ 
         message: "Image uploaded successfully",
@@ -773,10 +773,10 @@ export function registerBlogAdminRoutes(app: Express) {
         let shouldUpdate = false;
         let updatedPost = { ...post };
         
-        // Update featured image URL from protected format to simple public format
+        // Update featured image URL from protected format to uploads format
         if (post.featuredImage && post.featuredImage.includes('/api/blog/protected-media/featured/')) {
           const filename = post.featuredImage.replace('/api/blog/protected-media/featured/', '');
-          updatedPost.featuredImage = `/images/blog/${filename}`;
+          updatedPost.featuredImage = `/uploads/blog/images/${filename}`;
           shouldUpdate = true;
           console.log(`Updated featured image for post "${post.title}"`);
         }
@@ -786,35 +786,35 @@ export function registerBlogAdminRoutes(app: Express) {
           let updatedContent = post.content;
           const originalContent = updatedContent;
           
-          // Update protected media references to simple public paths
+          // Update protected media references to uploads paths
           updatedContent = updatedContent.replace(
             /\/api\/blog\/protected-media\/featured\/([^"'\s>]+)/g,
-            '/images/blog/$1'
+            '/uploads/blog/images/$1'
           );
           
           updatedContent = updatedContent.replace(
             /\/api\/blog\/protected-media\/images\/([^"'\s>]+)/g,
-            '/images/blog/$1'
+            '/uploads/blog/images/$1'
           );
           
           updatedContent = updatedContent.replace(
             /\/api\/blog\/protected-media\/videos\/([^"'\s>]+)/g,
-            '/images/blog/$1'
+            '/uploads/blog/videos/$1'
           );
           
           updatedContent = updatedContent.replace(
             /\/api\/blog\/protected-media\/audio\/([^"'\s>]+)/g,
-            '/images/blog/$1'
+            '/uploads/blog/audio/$1'
           );
           
           updatedContent = updatedContent.replace(
             /\/api\/blog\/protected-media\/documents\/([^"'\s>]+)/g,
-            '/images/blog/$1'
+            '/uploads/blog/documents/$1'
           );
           
           updatedContent = updatedContent.replace(
             /\/api\/blog\/protected-media\/other\/([^"'\s>]+)/g,
-            '/images/blog/$1'
+            '/uploads/blog/other/$1'
           );
           
           if (updatedContent !== originalContent) {

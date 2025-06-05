@@ -490,7 +490,7 @@ export function registerTemplateRoutes(app: express.Express) {
   app.get("/api/templates/images", async (req, res) => {
     try {
       console.log("Getting template images for public use");
-      const imagesDir = path.join(process.cwd(), 'public', 'images', 'templates');
+      const imagesDir = path.join(process.cwd(), 'server', 'uploads', 'templates');
       
       // Create directory if it doesn't exist
       if (!fs.existsSync(imagesDir)) {
@@ -543,7 +543,7 @@ export function registerTemplateRoutes(app: express.Express) {
             // Check if the file path is used in any active template
             const isUsed = activeThumbnails.some(thumbnail => 
               thumbnail.includes(file) || 
-              thumbnail.endsWith(`/images/templates/${file}`)
+              thumbnail.endsWith(`/uploads/templates/${file}`)
             );
             
             if (!isUsed) {
@@ -562,7 +562,7 @@ export function registerTemplateRoutes(app: express.Express) {
       // Map to relative URLs for consistency
       const images = filteredFiles.map(file => ({
         name: file,
-        url: `/images/templates/${file}`,
+        url: `/uploads/templates/${file}`,
         size: fs.statSync(path.join(imagesDir, file)).size
       }));
       
@@ -745,7 +745,7 @@ export function registerTemplateRoutes(app: express.Express) {
       console.log("Running template image repair utility");
       
       // Get the images directory
-      const imagesDir = path.join(process.cwd(), 'public', 'images', 'templates');
+      const imagesDir = path.join(process.cwd(), 'server', 'uploads', 'templates');
       
       // Create directory if it doesn't exist
       if (!fs.existsSync(imagesDir)) {
@@ -779,7 +779,7 @@ export function registerTemplateRoutes(app: express.Express) {
         
         if (matchingFile && (!template.thumbnail || template.thumbnail === '')) {
           // Update template with thumbnail
-          const thumbnailUrl = `/images/templates/${matchingFile}`;
+          const thumbnailUrl = `/uploads/templates/${matchingFile}`;
           
           await db.update(resumeTemplates)
             .set({ 
@@ -815,7 +815,7 @@ export function registerTemplateRoutes(app: express.Express) {
         
         if (matchingFile && (!template.thumbnail || template.thumbnail === '')) {
           // Update template with thumbnail
-          const thumbnailUrl = `/images/templates/${matchingFile}`;
+          const thumbnailUrl = `/uploads/templates/${matchingFile}`;
           
           await db.update(coverLetterTemplates)
             .set({ 

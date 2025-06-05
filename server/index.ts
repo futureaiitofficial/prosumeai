@@ -109,6 +109,10 @@ applySessionCookiePatch(app);
 app.use(express.static('public'));
 console.log('Static file serving configured for public directory');
 
+// Serve uploaded files from the server/uploads directory
+app.use('/uploads', express.static(join(process.cwd(), 'server/uploads')));
+console.log('Upload file serving configured for server/uploads directory');
+
 // Set trust proxy for production behind load balancers or when using ngrok
 if (app.get("env") === "production") {
   app.set("trust proxy", 1);

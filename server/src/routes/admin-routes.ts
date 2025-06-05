@@ -48,7 +48,7 @@ const serverRoot = path.resolve(__dirname, '..', '..');
 // Configure multer for file uploads
 const templateStorage = multer.diskStorage({
   destination: function (req, file, cb) {
-    const uploadDir = path.join(process.cwd(), 'public', 'images', 'templates');
+    const uploadDir = path.join(process.cwd(), 'server', 'uploads', 'templates');
     
     // Create directory if it doesn't exist
     if (!fs.existsSync(uploadDir)) {
@@ -913,7 +913,7 @@ export function registerAdminRoutes(app: Express) {
       res.header('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
       res.header('Access-Control-Allow-Headers', 'Content-Type');
       
-      const imagesDir = path.join(process.cwd(), 'public', 'images', 'templates');
+      const imagesDir = path.join(process.cwd(), 'server', 'uploads', 'templates');
       
       // Create directory if it doesn't exist
       if (!fs.existsSync(imagesDir)) {
@@ -927,7 +927,7 @@ export function registerAdminRoutes(app: Express) {
       // Map to full URLs - use relative URLs instead of absolute to avoid CORS issues
       const images = files.map(file => ({
         name: file,
-        url: `/images/templates/${file}`,
+        url: `/uploads/templates/${file}`,
         size: fs.statSync(path.join(imagesDir, file)).size
       }));
       
@@ -957,7 +957,7 @@ export function registerAdminRoutes(app: Express) {
       // Get the file information
       const filename = req.file.filename;
       // Use relative URL instead of absolute to avoid CORS issues
-      const imageUrl = `/images/templates/${filename}`;
+      const imageUrl = `/uploads/templates/${filename}`;
       
       // Log success information
       console.log(`Template image uploaded: ${filename} for template ID: ${templateId}`);
@@ -983,7 +983,7 @@ export function registerAdminRoutes(app: Express) {
       res.header('Access-Control-Allow-Origin', '*');
       
       const filename = req.params.filename;
-      const filePath = path.join(process.cwd(), 'public', 'images', 'templates', filename);
+      const filePath = path.join(process.cwd(), 'server', 'uploads', 'templates', filename);
       
       console.log(`Attempting to delete template image: ${filename}`);
       console.log(`File path: ${filePath}`);
@@ -2627,7 +2627,7 @@ export function registerAdminRoutes(app: Express) {
         return res.status(400).json({ message: 'No logo image provided' });
       }
       
-      const logoDir = path.join(process.cwd(), 'public', 'images', 'branding');
+      const logoDir = path.join(process.cwd(), 'server', 'uploads', 'branding');
       
       // Create directory if it doesn't exist
       if (!fs.existsSync(logoDir)) {
@@ -2643,7 +2643,7 @@ export function registerAdminRoutes(app: Express) {
       fs.renameSync(req.file.path, filePath);
       
       // Create URL for the logo
-      const logoUrl = `/images/branding/${fileName}`;
+      const logoUrl = `/uploads/branding/${fileName}`;
       
       // Update branding settings with new logo URL
       const existingSettings = await db.select().from(brandingSettings).limit(1);
@@ -2674,7 +2674,7 @@ export function registerAdminRoutes(app: Express) {
         return res.status(400).json({ message: 'No favicon image provided' });
       }
       
-      const faviconDir = path.join(process.cwd(), 'public', 'images', 'branding');
+      const faviconDir = path.join(process.cwd(), 'server', 'uploads', 'branding');
       
       // Create directory if it doesn't exist
       if (!fs.existsSync(faviconDir)) {
@@ -2690,7 +2690,7 @@ export function registerAdminRoutes(app: Express) {
       fs.renameSync(req.file.path, filePath);
       
       // Create URL for the favicon
-      const faviconUrl = `/images/branding/${fileName}`;
+      const faviconUrl = `/uploads/branding/${fileName}`;
       
       // Update branding settings with new favicon URL
       const existingSettings = await db.select().from(brandingSettings).limit(1);

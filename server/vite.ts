@@ -51,7 +51,7 @@ export async function setupVite(app: Express, server: Server) {
     // Apply Vite middlewares only to non-API requests and non-static files
     app.use((req, res, next) => {
       // Skip Vite for API routes and static files - let Express handle them
-      if (req.path.startsWith('/api/') || req.path.startsWith('/images/') || req.path.startsWith('/sounds/')) {
+      if (req.path.startsWith('/api/') || req.path.startsWith('/images/') || req.path.startsWith('/sounds/') || req.path.startsWith('/uploads/')) {
         return next();
       }
       // For all other routes, use Vite middleware
@@ -64,7 +64,7 @@ export async function setupVite(app: Express, server: Server) {
       const url = req.originalUrl;
 
       // Skip processing for API routes and static files
-      if (url.startsWith('/api/') || url.startsWith('/images/') || url.startsWith('/sounds/')) {
+      if (url.startsWith('/api/') || url.startsWith('/images/') || url.startsWith('/sounds/') || url.startsWith('/uploads/')) {
         return next();
       }
       
