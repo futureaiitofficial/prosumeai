@@ -1,8 +1,6 @@
 # Production docker-compose configuration
 # Use: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 
-version: '3'
-
 services:
   atscribe_db:
     image: postgres:17-alpine
@@ -26,7 +24,7 @@ services:
 
   atscribe_app:
     build:
-      context: /home/futureaiit/docker/atscribe/app
+      context: .
       dockerfile: Dockerfile
       target: production
     ports:
