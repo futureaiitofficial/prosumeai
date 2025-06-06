@@ -21,4 +21,6 @@ Allow: /pricing
 Allow: /features
 Allow: /blog/
 Allow: /resume/
-Allow: /cover-letter/ 
+Allow: /resume-builder-ai
+Allow: /cover-letter/
+Allow: /cover-letter-ai 
