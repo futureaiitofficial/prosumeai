@@ -185,9 +185,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.log("[AUTH DEBUG] Document cookies:", document.cookie);
         
         if (!res.ok) {
-          const errorText = await res.text();
-          console.error("[AUTH DEBUG] Login error response:", errorText);
-          throw new Error(errorText || "Login failed");
+          let errorMessage = "Login failed";
+          try {
+            // Get response text first, then try to parse as JSON
+            const responseText = await res.text();
+            console.error("[AUTH DEBUG] Login error response (raw):", responseText);
+            
+            try {
+              const errorData = JSON.parse(responseText);
+              errorMessage = errorData.message || errorData.error || "Login failed";
+              console.error("[AUTH DEBUG] Login error response (parsed):", errorData);
+            } catch (jsonError) {
+              // If JSON parsing fails, use the raw text
+              errorMessage = responseText || "Login failed";
+              console.error("[AUTH DEBUG] Could not parse as JSON, using raw text");
+            }
+          } catch (textError) {
+            console.error("[AUTH DEBUG] Could not read error response:", textError);
+          }
+          throw new Error(errorMessage);
         }
         
         const userData = await res.json();

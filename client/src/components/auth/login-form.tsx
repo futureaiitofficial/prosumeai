@@ -76,58 +76,33 @@ export default function LoginForm() {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.6 }}
-      className="space-y-4"
+      className="space-y-3"
     >
       {/* Error message from login attempt */}
       {loginMutation.isError && (
-        <Alert variant="destructive" className="mb-4">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertTitle className="text-sm font-medium">Login failed</AlertTitle>
-          <AlertDescription className="text-xs">
-            {(() => {
-              const error = loginMutation.error;
-              // Handle different error formats
-              if (error instanceof Error) {
-                try {
-                  // Try to parse JSON from error message
-                  const errorData = JSON.parse(error.message);
-                  return errorData.message || "Invalid username or password. Please try again.";
-                } catch {
-                  // If not JSON, return the error message directly
-                  return error.message || "Invalid username or password. Please try again.";
-                }
-              } else if (typeof error === 'object' && error !== null) {
-                // Handle error object
-                return (error as any).message || "Invalid username or password. Please try again.";
-              } else if (typeof error === 'string') {
-                // Handle string error
-                try {
-                  const errorData = JSON.parse(error);
-                  return errorData.message || "Invalid username or password. Please try again.";
-                } catch {
-                  return error || "Invalid username or password. Please try again.";
-                }
-              }
-              // Default error message
-              return "Invalid username or password. Please try again.";
-            })()}
+        <Alert variant="destructive" className="py-2 px-3">
+          <AlertTriangle className="h-3 w-3" />
+          <AlertTitle className="text-xs font-medium">Login failed</AlertTitle>
+          <AlertDescription className="text-xs mt-1">
+            {loginMutation.error?.message || "Invalid username or password. Please try again."}
           </AlertDescription>
         </Alert>
       )}
 
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
           <FormField
             control={form.control}
             name="username"
             render={({ field }) => (
-              <FormItem>
-                <FormLabel className="text-sm font-medium text-gray-700">Username</FormLabel>
+              <FormItem className="space-y-1">
+                <FormLabel className="text-xs font-medium text-gray-700">Username</FormLabel>
                 <FormControl>
                   <Input 
                     placeholder="Your username" 
                     {...field}
-                    className="h-9 rounded-lg border-gray-300 bg-white/50 focus:border-indigo-500 focus:ring-indigo-500"
+                    autoComplete="username"
+                    className="h-8 text-sm rounded-md border-gray-300 bg-white/50 focus:border-indigo-500 focus:ring-indigo-500"
                     disabled={loginMutation.isPending}
                     onChange={(e) => {
                       field.onChange(e);
@@ -167,9 +142,9 @@ export default function LoginForm() {
             control={form.control}
             name="password"
             render={({ field }) => (
-              <FormItem>
+              <FormItem className="space-y-1">
                 <div className="flex items-center justify-between">
-                  <FormLabel className="text-sm font-medium text-gray-700">Password</FormLabel>
+                  <FormLabel className="text-xs font-medium text-gray-700">Password</FormLabel>
                 </div>
                 <FormControl>
                   <div className="relative">
@@ -177,7 +152,8 @@ export default function LoginForm() {
                       type={showPassword ? "text" : "password"} 
                       placeholder="Your password" 
                       {...field}
-                      className="h-9 rounded-lg border-gray-300 bg-white/50 focus:border-indigo-500 focus:ring-indigo-500 pr-10"
+                      autoComplete="current-password"
+                      className="h-8 text-sm rounded-md border-gray-300 bg-white/50 focus:border-indigo-500 focus:ring-indigo-500 pr-8"
                       disabled={loginMutation.isPending}
                       onFocus={(e) => {
                         handlePasswordFocus(true);
@@ -209,10 +185,10 @@ export default function LoginForm() {
                       type="button"
                       variant="ghost"
                       size="icon"
-                      className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 text-gray-500"
+                      className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6 text-gray-500"
                       onClick={() => setShowPassword(!showPassword)}
                     >
-                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                      {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
                     </Button>
                   </div>
                 </FormControl>
@@ -221,14 +197,16 @@ export default function LoginForm() {
             )}
           />
           
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
+          <div className="flex items-center justify-between py-1">
+            <div className="flex items-center space-x-1.5">
               <input
                 type="checkbox"
-                id="remember"
-                className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                id="remember-me"
+                name="remember"
+                autoComplete="off"
+                className="h-3 w-3 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
               />
-              <label htmlFor="remember" className="text-sm text-gray-600">
+              <label htmlFor="remember-me" className="text-xs text-gray-600">
                 Remember me
               </label>
             </div>
@@ -241,12 +219,12 @@ export default function LoginForm() {
 
           <Button 
             type="submit" 
-            className="w-full bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white h-10 rounded-lg font-medium" 
+            className="w-full bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white h-8 rounded-md font-medium text-sm" 
             disabled={loginMutation.isPending}
           >
             {loginMutation.isPending ? (
               <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <Loader2 className="mr-2 h-3 w-3 animate-spin" />
                 Signing in...
               </>
             ) : (

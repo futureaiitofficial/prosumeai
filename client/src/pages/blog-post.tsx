@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo, lazy, Suspense } from 'react';
 import { Link, useParams, useLocation } from 'wouter';
 import { motion } from 'framer-motion';
 import { format } from 'date-fns';
@@ -34,6 +34,9 @@ import { useBranding } from '@/components/branding/branding-provider';
 import { useQuery } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import axios from 'axios';
+
+// Lazy load non-critical components
+const RelatedPosts = lazy(() => import('@/components/blog/related-posts'));
 
 interface BlogPost {
   id: number;
@@ -80,115 +83,150 @@ interface BlogSettings {
   socialShareButtons: string[];
 }
 
+// Optimized image component with lazy loading
+const OptimizedImage: React.FC<{
+  src: string;
+  alt: string;
+  className?: string;
+  aspectRatio?: string;
+}> = ({ src, alt, className = "", aspectRatio = "aspect-video" }) => {
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [error, setError] = useState(false);
+
+  return (
+    <div className={`${aspectRatio} bg-gray-100 rounded-lg overflow-hidden ${className}`}>
+      {!error ? (
+        <img
+          src={src}
+          alt={alt}
+          className={`w-full h-full object-cover transition-opacity duration-300 ${
+            isLoaded ? 'opacity-100' : 'opacity-0'
+          }`}
+          loading="lazy"
+          onLoad={() => setIsLoaded(true)}
+          onError={() => setError(true)}
+        />
+      ) : (
+        <div className="w-full h-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
+          <span className="text-gray-400 text-sm">Image unavailable</span>
+        </div>
+      )}
+      {!isLoaded && !error && (
+        <div className="absolute inset-0 bg-gray-200 animate-pulse"></div>
+      )}
+    </div>
+  );
+};
+
 export default function BlogPostPage() {
   const { appName } = useBranding();
   const { toast } = useToast();
   const { slug } = useParams<{ slug: string }>();
   const [, setLocation] = useLocation();
   const [showShareMenu, setShowShareMenu] = useState(false);
-  const [tableOfContents, setTableOfContents] = useState<Array<{
-    id: string;
-    text: string;
-    level: number;
-  }>>([]);
 
-  // Fetch blog settings
+  // Fetch blog settings with caching
   const { data: blogSettings } = useQuery<BlogSettings>({
     queryKey: ['/api/blog/settings'],
     queryFn: async () => {
       const response = await axios.get('/api/blog/settings');
       return response.data;
-    }
+    },
+    staleTime: 1000 * 60 * 10, // 10 minutes
+    gcTime: 1000 * 60 * 30, // 30 minutes
   });
 
-  // Fetch the blog post
+  // Fetch the blog post with optimized caching
   const { data: post, isLoading, error } = useQuery<BlogPost>({
     queryKey: ['/api/blog/posts', slug],
     queryFn: async () => {
       const response = await axios.get(`/api/blog/posts/${slug}`);
       return response.data;
     },
-    enabled: !!slug
+    enabled: !!slug,
+    staleTime: 1000 * 60 * 5, // 5 minutes
+    gcTime: 1000 * 60 * 15, // 15 minutes
   });
 
-  // Fetch related posts
+  // Fetch related posts only after main post loads and limit to 3
   const { data: relatedPosts = [] } = useQuery<BlogPost[]>({
     queryKey: ['/api/blog/related', post?.category?.id],
     queryFn: async () => {
       if (!post?.category?.id) return [];
-      const response = await axios.get(`/api/blog/posts?categoryId=${post.category.id}&limit=3`);
-      return response.data.posts.filter((p: BlogPost) => p.id !== post.id).slice(0, 3);
+      const response = await axios.get(`/api/blog/posts?categoryId=${post.category.id}&limit=3&exclude=${post.id}`);
+      return response.data.posts || [];
     },
-    enabled: !!post?.category?.id
+    enabled: !!post?.category?.id,
+    staleTime: 1000 * 60 * 10, // 10 minutes
   });
 
-  // Fetch categories
-  const { data: categories = [] } = useQuery({
-    queryKey: ['/api/blog/categories'],
+  // Lazy load sidebar data only when needed
+  const { data: sidebarData } = useQuery({
+    queryKey: ['/api/blog/sidebar', post?.id],
     queryFn: async () => {
-      const response = await axios.get('/api/blog/categories');
-      return response.data;
-    }
-  });
-
-  // Fetch recent posts for sidebar
-  const { data: recentPosts = [] } = useQuery<BlogPost[]>({
-    queryKey: ['/api/blog/recent'],
-    queryFn: async () => {
-      const response = await axios.get('/api/blog/recent?limit=6');
-      return response.data.filter((p: BlogPost) => p.id !== post?.id);
+      const [categoriesRes, recentPostsRes] = await Promise.all([
+        axios.get('/api/blog/categories?limit=6'),
+        axios.get(`/api/blog/recent?limit=6${post?.id ? `&exclude=${post.id}` : ''}`)
+      ]);
+      
+      return {
+        categories: categoriesRes.data || [],
+        recentPosts: recentPostsRes.data || []
+      };
     },
-    enabled: !!post
+    enabled: !!post,
+    staleTime: 1000 * 60 * 15, // 15 minutes
   });
 
-  // Generate table of contents
-  useEffect(() => {
-    if (post?.content && blogSettings?.enableTableOfContents) {
+  // Memoize table of contents generation
+  const tableOfContents = useMemo(() => {
+    if (!post?.content || !blogSettings?.enableTableOfContents) return [];
+    
+    try {
       const tempDiv = document.createElement('div');
       tempDiv.innerHTML = post.content;
       
       const headings = tempDiv.querySelectorAll('h1, h2, h3, h4, h5, h6');
-      const toc = Array.from(headings).map((heading, index) => {
-        const id = `heading-${index}`;
-        return {
-          id,
-          text: heading.textContent || '',
-          level: parseInt(heading.tagName.charAt(1))
-        };
-      });
-      
-      setTableOfContents(toc);
+      return Array.from(headings).map((heading, index) => ({
+        id: `heading-${index}`,
+        text: heading.textContent || '',
+        level: parseInt(heading.tagName.charAt(1))
+      }));
+    } catch (error) {
+      console.error('Error generating table of contents:', error);
+      return [];
     }
   }, [post?.content, blogSettings?.enableTableOfContents]);
 
-  // Update document title and meta tags
+  // Update document title and meta tags efficiently
   useEffect(() => {
-    if (post) {
-      document.title = post.seoTitle || post.title;
-      
-      // Update meta description
+    if (!post) return;
+
+    const originalTitle = document.title;
+    document.title = post.seoTitle || post.title;
+    
+    // Batch DOM updates
+    requestAnimationFrame(() => {
       const metaDescription = document.querySelector('meta[name="description"]');
       if (metaDescription) {
         metaDescription.setAttribute('content', post.seoDescription || post.excerpt || '');
       }
       
-      // Update meta keywords
       const metaKeywords = document.querySelector('meta[name="keywords"]');
       if (metaKeywords && post.seoKeywords) {
         metaKeywords.setAttribute('content', post.seoKeywords);
       }
       
-      // Update canonical URL
       const canonicalLink = document.querySelector('link[rel="canonical"]');
       if (canonicalLink) {
         canonicalLink.setAttribute('href', post.canonicalUrl || window.location.href);
       }
-    }
+    });
     
     return () => {
-      document.title = appName;
+      document.title = originalTitle;
     };
-  }, [post, appName]);
+  }, [post]);
 
   const sharePost = (platform: string) => {
     const url = window.location.href;
@@ -231,8 +269,8 @@ export default function BlogPostPage() {
     }
   };
 
-  // Process content to add IDs to headings for table of contents
-  const processedContent = React.useMemo(() => {
+  // Memoize processed content
+  const processedContent = useMemo(() => {
     if (!post?.content) return '';
     
     let content = post.content;
@@ -424,13 +462,12 @@ export default function BlogPostPage() {
                   transition={{ duration: 0.6, delay: 0.2 }}
                   className="mb-12"
                 >
-                  <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden">
-                    <img
-                      src={post.featuredImage}
-                      alt={post.featuredImageAlt || post.title}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
+                  <OptimizedImage
+                    src={post.featuredImage}
+                    alt={post.featuredImageAlt || post.title}
+                    aspectRatio="aspect-video"
+                    className="rounded-lg overflow-hidden"
+                  />
                 </motion.div>
               )}
 
@@ -480,185 +517,148 @@ export default function BlogPostPage() {
             </article>
           </div>
 
-          {/* Sidebar */}
-          <motion.aside
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.6, delay: 0.8 }}
-            className="lg:col-span-1"
-          >
-            <div className="sticky top-24 space-y-6">
-              {/* Call to Action Card */}
-              <Card className="border-0 shadow-sm bg-gradient-to-br from-indigo-50 to-purple-50 border border-indigo-100">
-                <CardContent className="p-6 text-center">
-                  <div className="mb-4">
-                    <div className="w-16 h-16 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 20 20">
-                        <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    </div>
-                    <h3 className="text-lg font-bold text-gray-900 mb-2">
-                      Upgrade your resume in minutes
-                    </h3>
-                    <p className="text-sm text-gray-600 mb-4 leading-relaxed">
-                      Use this AI resume builder to create an ATS resume and get more interviews.
-                    </p>
-                    <Link href="/register">
-                      <Button className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium">
-                        Upgrade Your Resume
-                      </Button>
-                    </Link>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Resume Resources */}
-              <Card className="border-0 shadow-sm bg-green-50 border border-green-100">
-                <CardHeader className="pb-4">
-                  <CardTitle className="text-lg font-semibold text-gray-900">
-                    Categories
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <div className="space-y-3">
-                    {categories.slice(0, 6).map((category: any) => (
-                      <Link 
-                        key={category.id} 
-                        href={`/blog?category=${category.slug}`} 
-                        className="block text-sm text-gray-600 hover:text-green-600 transition-colors"
-                      >
-                        {category.name} ({category.postCount})
+          {/* Sidebar - Only render when data is available */}
+          {sidebarData && (
+            <motion.aside
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.6, delay: 0.8 }}
+              className="lg:col-span-1"
+            >
+              <div className="sticky top-24 space-y-6">
+                {/* Call to Action Card */}
+                <Card className="border-0 shadow-sm bg-gradient-to-br from-indigo-50 to-purple-50 border border-indigo-100">
+                  <CardContent className="p-6 text-center">
+                    <div className="mb-4">
+                      <div className="w-16 h-16 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </div>
+                      <h3 className="text-lg font-bold text-gray-900 mb-2">
+                        Upgrade your resume in minutes
+                      </h3>
+                      <p className="text-sm text-gray-600 mb-4 leading-relaxed">
+                        Use this AI resume builder to create an ATS resume and get more interviews.
+                      </p>
+                      <Link href="/register">
+                        <Button className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium">
+                          Upgrade Your Resume
+                        </Button>
                       </Link>
-                    ))}
-                    {categories.length === 0 && (
-                      <p className="text-sm text-gray-500">No categories available</p>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
+                    </div>
+                  </CardContent>
+                </Card>
 
-              {/* Continue Reading */}
-              <Card className="border-0 shadow-sm bg-amber-50 border border-amber-100">
-                <CardHeader className="pb-4">
-                  <CardTitle className="text-lg font-semibold text-gray-900">
-                    Continue Reading
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <p className="text-sm text-gray-600 mb-4">
-                    Check more recommended readings to get the job of your dreams.
-                  </p>
-                  <div className="space-y-4">
-                    {recentPosts.slice(0, 3).map((recentPost: BlogPost) => (
-                      <div key={recentPost.id} className="border-b pb-3 last:border-b-0">
-                        <div className="flex gap-3">
-                          <div className="w-16 h-12 bg-gray-100 rounded flex-shrink-0 overflow-hidden">
-                            {recentPost.featuredImage ? (
-                              <img 
-                                src={recentPost.featuredImage} 
-                                alt={recentPost.title}
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <div className="w-full h-full bg-gradient-to-br from-indigo-100 to-purple-100"></div>
-                            )}
-                          </div>
-                          <div className="flex-1">
-                            <Link href={`/blog/${recentPost.slug}`} className="block">
-                              <h4 className="text-sm font-medium text-gray-900 hover:text-amber-600 transition-colors line-clamp-2 mb-1">
-                                {recentPost.title}
-                              </h4>
-                              <div className="flex items-center gap-2 text-xs text-gray-500">
-                                <span>{recentPost.category?.name || 'BLOG'}</span>
-                                <span>•</span>
-                                {blogSettings?.enableReadTime && recentPost.readTime && (
-                                  <span>{recentPost.readTime} min read</span>
-                                )}
-                              </div>
-                            </Link>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                    {recentPosts.length === 0 && (
-                      <p className="text-sm text-gray-500">No recent posts available</p>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Get Started Section */}
-              <Card className="border-0 shadow-sm bg-slate-50 border border-slate-100">
-                <CardHeader className="pb-4">
-                  <CardTitle className="text-lg font-semibold text-gray-900">
-                    Get started
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <div className="space-y-2">
-                    <Link href="/register" className="block text-sm text-gray-600 hover:text-slate-600 transition-colors">
-                      • Create Resume
-                    </Link>
-                    <Link href="/pricing" className="block text-sm text-gray-600 hover:text-slate-600 transition-colors">
-                      • Pricing
-                    </Link>
-                    <Link href="/terms" className="block text-sm text-gray-600 hover:text-slate-600 transition-colors">
-                      • Terms of Service
-                    </Link>
-                    <Link href="/privacy" className="block text-sm text-gray-600 hover:text-slate-600 transition-colors">
-                      • Privacy Policy
-                    </Link>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </motion.aside>
-        </div>
-
-        {/* Related Posts */}
-        {relatedPosts.length > 0 && (
-          <motion.section
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 1.0 }}
-            className="mt-20 pt-12 border-t"
-          >
-            <h2 className="text-2xl font-bold text-gray-900 mb-8">Continue Reading</h2>
-            <p className="text-gray-600 mb-8">Check more recommended readings to get the job of your dreams.</p>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {relatedPosts.map((relatedPost) => (
-                <Card key={relatedPost.id} className="border-0 shadow-sm hover:shadow-md transition-shadow">
-                  <Link href={`/blog/${relatedPost.slug}`}>
-                    {relatedPost.featuredImage && (
-                      <div className="aspect-video bg-gray-100 overflow-hidden rounded-t-lg">
-                        <img
-                          src={relatedPost.featuredImage}
-                          alt={relatedPost.title}
-                          className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
-                        />
-                      </div>
-                    )}
-                    <CardContent className="p-6">
-                      {relatedPost.category && (
-                        <Badge variant="secondary" className="mb-3 text-xs uppercase tracking-wide">
-                          {relatedPost.category.name}
-                        </Badge>
-                      )}
-                      <CardTitle className="text-lg line-clamp-2 hover:text-indigo-600 transition-colors mb-2">
-                        {relatedPost.title}
+                {/* Categories */}
+                {sidebarData.categories.length > 0 && (
+                  <Card className="border-0 shadow-sm bg-green-50 border border-green-100">
+                    <CardHeader className="pb-4">
+                      <CardTitle className="text-lg font-semibold text-gray-900">
+                        Categories
                       </CardTitle>
-                      <div className="flex items-center gap-4 text-sm text-gray-500">
-                        <span>Pub: {format(new Date(relatedPost.publishedAt || relatedPost.createdAt), 'M/d/yyyy')}</span>
-                        {blogSettings?.enableReadTime && relatedPost.readTime && (
-                          <span>{relatedPost.readTime} min read</span>
-                        )}
+                    </CardHeader>
+                    <CardContent className="pt-0">
+                      <div className="space-y-3">
+                        {sidebarData.categories.map((category: any) => (
+                          <Link 
+                            key={category.id} 
+                            href={`/blog?category=${category.slug}`} 
+                            className="block text-sm text-gray-600 hover:text-green-600 transition-colors"
+                          >
+                            {category.name} ({category.postCount || 0})
+                          </Link>
+                        ))}
                       </div>
                     </CardContent>
-                  </Link>
+                  </Card>
+                )}
+
+                {/* Recent Posts */}
+                {sidebarData.recentPosts.length > 0 && (
+                  <Card className="border-0 shadow-sm bg-amber-50 border border-amber-100">
+                    <CardHeader className="pb-4">
+                      <CardTitle className="text-lg font-semibold text-gray-900">
+                        Continue Reading
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="pt-0">
+                      <div className="space-y-4">
+                        {sidebarData.recentPosts.slice(0, 3).map((recentPost: BlogPost) => (
+                          <div key={recentPost.id} className="border-b pb-3 last:border-b-0">
+                            <div className="flex gap-3">
+                              <div className="w-16 h-12 bg-gray-100 rounded flex-shrink-0 overflow-hidden">
+                                {recentPost.featuredImage ? (
+                                  <OptimizedImage
+                                    src={recentPost.featuredImage} 
+                                    alt={recentPost.title}
+                                    className="w-full h-full"
+                                    aspectRatio=""
+                                  />
+                                ) : (
+                                  <div className="w-full h-full bg-gradient-to-br from-indigo-100 to-purple-100"></div>
+                                )}
+                              </div>
+                              <div className="flex-1">
+                                <Link href={`/blog/${recentPost.slug}`} className="block">
+                                  <h4 className="text-sm font-medium text-gray-900 hover:text-amber-600 transition-colors line-clamp-2 mb-1">
+                                    {recentPost.title}
+                                  </h4>
+                                  <div className="flex items-center gap-2 text-xs text-gray-500">
+                                    <span>{recentPost.category?.name || 'BLOG'}</span>
+                                    <span>•</span>
+                                    {blogSettings?.enableReadTime && recentPost.readTime && (
+                                      <span>{recentPost.readTime} min read</span>
+                                    )}
+                                  </div>
+                                </Link>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Get Started Section */}
+                <Card className="border-0 shadow-sm bg-slate-50 border border-slate-100">
+                  <CardHeader className="pb-4">
+                    <CardTitle className="text-lg font-semibold text-gray-900">
+                      Get started
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    <div className="space-y-2">
+                      <Link href="/register" className="block text-sm text-gray-600 hover:text-slate-600 transition-colors">
+                        • Create Resume
+                      </Link>
+                      <Link href="/pricing" className="block text-sm text-gray-600 hover:text-slate-600 transition-colors">
+                        • Pricing
+                      </Link>
+                      <Link href="/terms" className="block text-sm text-gray-600 hover:text-slate-600 transition-colors">
+                        • Terms of Service
+                      </Link>
+                      <Link href="/privacy" className="block text-sm text-gray-600 hover:text-slate-600 transition-colors">
+                        • Privacy Policy
+                      </Link>
+                    </div>
+                  </CardContent>
                 </Card>
-              ))}
-            </div>
-          </motion.section>
+              </div>
+            </motion.aside>
+          )}
+        </div>
+
+        {/* Related Posts - Lazy loaded */}
+        {relatedPosts.length > 0 && (
+          <Suspense fallback={<div className="mt-20 pt-12 border-t text-center">Loading related posts...</div>}>
+            <RelatedPosts 
+              posts={relatedPosts} 
+              blogSettings={blogSettings}
+              appName={appName}
+            />
+          </Suspense>
         )}
       </div>
 

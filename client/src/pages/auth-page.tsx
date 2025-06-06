@@ -1,14 +1,12 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useLocation, useSearch } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import LoginForm from "@/components/auth/login-form";
-import RegisterForm from "@/components/auth/register-form";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { useBranding } from "@/components/branding/branding-provider";
 
-// New advanced mascot component with eye animations
+// Compact mascot component with eye animations
 const AuthMascot = () => {
   const [isPasswordField, setIsPasswordField] = useState(false);
   const [eyePosition, setEyePosition] = useState({ x: 0, y: 0 });
@@ -332,62 +330,11 @@ const AuthMascot = () => {
   );
 };
 
-// Ensure the component is mobile-responsive - now global for the page  
-const Prevent_ScrollingEffect = () => {
-  useEffect(() => {
-    // Add CSS directly to ensure scroll prevention
-    const styleEl = document.createElement('style');
-    styleEl.innerHTML = `
-      body {
-        overflow: hidden !important;
-        position: fixed !important;
-        width: 100% !important;
-        height: 100% !important;
-        max-width: 100vw !important;
-        overscroll-behavior: none !important;
-        touch-action: pan-y !important;
-      }
-      
-      html {
-        overflow: hidden !important;
-        max-width: 100vw !important;
-      }
-      
-      .auth-container {
-        overflow-y: auto !important;
-        overflow-x: hidden !important;
-        max-height: 100vh !important;
-        width: 100% !important;
-        max-width: 100vw !important;
-        position: absolute !important;
-        top: 0 !important;
-        right: 0 !important;
-        bottom: 0 !important;
-        left: 0 !important;
-      }
-      
-      .auth-card {
-        max-height: calc(100vh - 2rem) !important;
-        overflow-y: auto !important;
-        -webkit-overflow-scrolling: touch !important;
-      }
-    `;
-    document.head.appendChild(styleEl);
-    
-    return () => {
-      document.head.removeChild(styleEl);
-    };
-  }, []);
-  
-  return null;
-};
-
 export default function AuthPage() {
   const branding = useBranding();
   const [location, navigate] = useLocation();
   const search = useSearch();
   const { user, isLoading } = useAuth();
-  const [activeTab, setActiveTab] = useState<string>("login");
   const [showSignupCTA, setShowSignupCTA] = useState<boolean>(false);
   
   // Check if there's a redirect parameter
@@ -413,58 +360,54 @@ export default function AuthPage() {
     return () => clearTimeout(timer);
   }, []);
 
-  const handleTabChange = (value: string) => {
-    setActiveTab(value);
-  };
-
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-slate-100">
+      <div className="flex items-center justify-center h-screen bg-slate-100">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-100 flex">
-      <Prevent_ScrollingEffect />
-      
-      <div className="flex flex-col md:flex-row w-full">
-        {/* Illustration column - hidden on mobile */}
-        <div className="hidden md:flex md:w-1/2 bg-primary items-center justify-center relative overflow-hidden">
+    <div className="h-screen bg-slate-100 w-full overflow-hidden">
+      <div className="flex h-full w-full">
+        {/* Illustration column - hidden on small screens, shown on large screens */}
+        <div className="hidden lg:flex lg:w-1/2 bg-primary items-center justify-center relative">
           <div className="absolute inset-0 bg-primary-pattern opacity-10"></div>
           
-          <div className="relative z-10 p-8 md:p-12 lg:p-16 max-w-lg">
-            <h1 className="text-white text-3xl md:text-4xl lg:text-5xl font-bold mb-6">
+          <div className="relative z-10 px-6 xl:px-12 max-w-lg w-full">
+            <h1 className="text-white text-2xl xl:text-3xl font-bold mb-4">
               Welcome to {branding.appName}
             </h1>
-            <p className="text-primary-foreground/80 text-lg mb-8">
+            <p className="text-primary-foreground/80 text-sm xl:text-base mb-6">
               The AI-powered resume builder that helps you land your dream job. Craft standout resumes tailored to each job application in minutes.
             </p>
             
-            <div className="flex flex-col space-y-8 items-center">
-              <AuthMascot />
+            <div className="flex flex-col space-y-4 items-center">
+              <div className="w-32 h-32 xl:w-40 xl:h-40">
+                <AuthMascot />
+              </div>
               
-              <div className="bg-white/10 rounded-lg p-6 backdrop-blur-sm">
-                <h3 className="text-white text-xl font-medium mb-3">Why choose {branding.appName}?</h3>
-                <ul className="space-y-2 text-primary-foreground/80">
+              <div className="bg-white/10 rounded-lg p-4 backdrop-blur-sm w-full">
+                <h3 className="text-white text-lg font-medium mb-3">Why choose {branding.appName}?</h3>
+                <ul className="space-y-2 text-primary-foreground/80 text-sm">
                   <li className="flex items-start">
-                    <svg className="h-5 w-5 text-green-400 mr-2 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg className="h-4 w-4 text-green-400 mr-2 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
                     </svg>
-                    <span>AI-powered resume tailoring for specific job listings</span>
+                    <span>AI-powered resume tailoring</span>
                   </li>
                   <li className="flex items-start">
-                    <svg className="h-5 w-5 text-green-400 mr-2 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg className="h-4 w-4 text-green-400 mr-2 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
                     </svg>
-                    <span>ATS-friendly templates that pass screening systems</span>
+                    <span>ATS-friendly templates</span>
                   </li>
                   <li className="flex items-start">
-                    <svg className="h-5 w-5 text-green-400 mr-2 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg className="h-4 w-4 text-green-400 mr-2 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
                     </svg>
-                    <span>AI cover letter generation that highlights your strengths</span>
+                    <span>AI cover letter generation</span>
                   </li>
                 </ul>
               </div>
@@ -472,25 +415,26 @@ export default function AuthPage() {
           </div>
         </div>
         
-        {/* Form column */}
-        <div className="w-full md:w-1/2 flex items-center justify-center p-6 md:p-12">
-          <div className="w-full max-w-md">
-            <div className="text-center mb-8">
-              <h2 className="text-2xl font-bold">Log in to your account</h2>
-              <p className="text-slate-600 mt-2">
+        {/* Form column - full width on mobile/tablet, half width on large screens */}
+        <div className="w-full lg:w-1/2 flex items-center justify-center p-4 lg:p-6">
+          <div className="w-full max-w-sm lg:max-w-md">
+            {/* Mobile mascot - only shown on small screens */}
+            <div className="flex lg:hidden justify-center mb-4">
+              <div className="w-20 h-20">
+                <AuthMascot />
+              </div>
+            </div>
+
+            <div className="text-center mb-6">
+              <h2 className="text-xl lg:text-2xl font-bold text-slate-900">Log in to your account</h2>
+              <p className="text-slate-600 mt-1 text-sm">
                 Enter your credentials to access your account
               </p>
             </div>
             
-            <Tabs defaultValue="login" className="w-full" onValueChange={handleTabChange}>
-              <TabsList className="grid w-full grid-cols-1">
-                <TabsTrigger value="login">Login</TabsTrigger>
-              </TabsList>
-              
-              <TabsContent value="login" className="mt-6">
-                <LoginForm />
-              </TabsContent>
-            </Tabs>
+            <div className="w-full">
+              <LoginForm />
+            </div>
             
             <AnimatePresence>
               {showSignupCTA && (
@@ -498,13 +442,13 @@ export default function AuthPage() {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: 20 }}
-                  className="mt-8 p-4 bg-blue-50 border border-blue-100 rounded-lg"
+                  className="mt-4 p-3 bg-blue-50 border border-blue-100 rounded-lg"
                 >
-                  <h3 className="text-lg font-medium text-blue-900 mb-2">Don't have an account yet?</h3>
-                  <p className="text-blue-700 mb-4">Create a free account and start building ATS-friendly resumes today!</p>
+                  <h3 className="text-base font-medium text-blue-900 mb-1">Don't have an account yet?</h3>
+                  <p className="text-blue-700 mb-3 text-sm">Create a free account and start building ATS-friendly resumes today!</p>
                   <Button 
                     onClick={() => navigate('/register')} 
-                    className="w-full bg-blue-600 hover:bg-blue-700"
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-sm py-2"
                   >
                     Create Free Account
                   </Button>

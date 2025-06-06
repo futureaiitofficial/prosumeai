@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import { Helmet } from 'react-helmet';
 import { Link, useLocation } from 'wouter';
 import { useQuery } from '@tanstack/react-query';
@@ -13,6 +13,10 @@ import SharedFooter from '@/components/layouts/SharedFooter';
 import { useBranding } from '@/components/branding/branding-provider';
 import { useAuth } from '@/hooks/use-auth';
 import { useRegion } from '@/hooks/use-region';
+
+// Lazy load heavy components
+const FeatureComparison = lazy(() => import('../components/pricing/feature-comparison'));
+const FAQ = lazy(() => import('../components/pricing/faq'));
 
 // Reuse the interfaces from the subscription page
 interface SubscriptionPlan {
@@ -64,6 +68,7 @@ const PricingPage: React.FC = () => {
   const { user, isLoading: isAuthLoading } = useAuth();
   const [location, navigate] = useLocation();
   const [highlightedPlan, setHighlightedPlan] = useState<string | null>(null);
+  const [showFeatureComparison, setShowFeatureComparison] = useState(false);
   
   // Use the region hook instead of direct state and API calls
   const { 
@@ -72,28 +77,23 @@ const PricingPage: React.FC = () => {
     formatCurrency 
   } = useRegion();
 
-  // Fetch available plans
-  const { data: plansData, isLoading: isPlansLoading, error: plansError } = useQuery({
-    queryKey: ['subscriptionPlans'],
+  // Fetch plans and features data together with optimized caching
+  const { data: pricingData, isLoading: isPricingLoading, error: pricingError } = useQuery({
+    queryKey: ['pricingPageData'],
     queryFn: async () => {
-      const response = await apiRequest('GET', '/api/public/subscription-plans');
-      const data = await response.json();
-      console.log('Fetched subscription plans:', data);
-      return data;
-    }
-  });
-
-  // Fetch all plan features
-  const { data: allPlanFeatures, isLoading: isAllFeaturesLoading } = useQuery({
-    queryKey: ['allPlanFeatures'],
-    queryFn: async () => {
-      const response = await apiRequest('GET', '/api/public/plan-features');
-      const data = await response.json();
+      const [plansRes, featuresRes] = await Promise.all([
+        apiRequest('GET', '/api/public/subscription-plans'),
+        apiRequest('GET', '/api/public/plan-features')
+      ]);
       
-      // Transform the data into a map by planId for easier lookup
+      const [plansData, featuresData] = await Promise.all([
+        plansRes.json(),
+        featuresRes.json()
+      ]);
+      
+      // Transform features data into a map by planId for easier lookup
       const featuresByPlan: { [key: number]: PlanFeature[] } = {};
-      // Check if data is an array or nested
-      const featuresArray = Array.isArray(data) ? data : data.features || [];
+      const featuresArray = Array.isArray(featuresData) ? featuresData : featuresData.features || [];
       featuresArray.forEach((feature: any) => {
         const planId = feature.planId || feature.plan_id;
         if (planId) {
@@ -103,8 +103,14 @@ const PricingPage: React.FC = () => {
           featuresByPlan[planId].push(feature);
         }
       });
-      return { featuresByPlan };
-    }
+      
+      return {
+        plans: plansData || [],
+        featuresByPlan
+      };
+    },
+    staleTime: 1000 * 60 * 10, // 10 minutes
+    gcTime: 1000 * 60 * 30, // 30 minutes
   });
 
   // Effect to scroll to the features section when URL has #features
@@ -114,103 +120,107 @@ const PricingPage: React.FC = () => {
     }
   }, [location]);
 
-  // Get price display based on user region
-  const getPriceDisplay = (plan: any) => {
-    // Only show as free if the plan is explicitly marked as freemium
-    if (plan.isFreemium) {
-      return 'Free';
-    }
-    
-    // Check if the plan has displayPrice and displayCurrency fields from the server
-    if (plan.displayPrice && plan.displayCurrency) {
-      return formatCurrency(parseFloat(plan.displayPrice));
-    }
-    
-    // Try to get pricing for user's region first
-    const regionPricing = plan.pricing?.find((p: any) => p.targetRegion === userRegion.region);
-    if (regionPricing) {
-      return formatCurrency(parseFloat(regionPricing.price));
-    }
-    
-    // Fallback to global pricing
-    const pricing = plan.pricing?.find((p: any) => p.targetRegion === 'GLOBAL');
-    if (pricing) {
-      return formatCurrency(parseFloat(pricing.price));
-    }
-    
-    // Only if we can't find any pricing information, check the plan's base price
-    // If it's 0, then show as Free
-    if (plan.price === '0' || plan.price === '0.00' || 
-        (typeof plan.price === 'number' && plan.price === 0) || 
-        !plan.pricing || plan.pricing.length === 0) {
-      return 'Free';
-    }
-    
-    // Default fallback to plan price
-    return formatCurrency(parseFloat(plan.price || '0'));
-  };
+  // Get price display based on user region - memoized for performance
+  const getPriceDisplay = useMemo(() => {
+    return (plan: any) => {
+      // Only show as free if the plan is explicitly marked as freemium
+      if (plan.isFreemium) {
+        return 'Free';
+      }
+      
+      // Check if the plan has displayPrice and displayCurrency fields from the server
+      if (plan.displayPrice && plan.displayCurrency) {
+        return formatCurrency(parseFloat(plan.displayPrice));
+      }
+      
+      // Try to get pricing for user's region first
+      const regionPricing = plan.pricing?.find((p: any) => p.targetRegion === userRegion.region);
+      if (regionPricing) {
+        return formatCurrency(parseFloat(regionPricing.price));
+      }
+      
+      // Fallback to global pricing
+      const pricing = plan.pricing?.find((p: any) => p.targetRegion === 'GLOBAL');
+      if (pricing) {
+        return formatCurrency(parseFloat(pricing.price));
+      }
+      
+      // Only if we can't find any pricing information, check the plan's base price
+      if (plan.price === '0' || plan.price === '0.00' || 
+          (typeof plan.price === 'number' && plan.price === 0) || 
+          !plan.pricing || plan.pricing.length === 0) {
+        return 'Free';
+      }
+      
+      // Default fallback to plan price
+      return formatCurrency(parseFloat(plan.price || '0'));
+    };
+  }, [userRegion.region, formatCurrency]);
 
-  // Function to format token counts with "K" for thousands
-  const formatTokenCount = (count: number | string): string => {
-    if (typeof count === 'string') {
-      count = parseInt(count, 10);
-    }
-    
-    if (isNaN(count)) return '0 tokens';
-    
-    if (count >= 1000) {
-      return `${(count / 1000).toLocaleString(undefined, { maximumFractionDigits: 1 })}K tokens`;
-    }
-    
-    return `${count} tokens`;
-  };
+  // Function to format token counts with "K" for thousands - memoized
+  const formatTokenCount = useMemo(() => {
+    return (count: number | string): string => {
+      if (typeof count === 'string') {
+        count = parseInt(count, 10);
+      }
+      
+      if (isNaN(count)) return '0 tokens';
+      
+      if (count >= 1000) {
+        return `${(count / 1000).toLocaleString(undefined, { maximumFractionDigits: 1 })}K tokens`;
+      }
+      
+      return `${count} tokens`;
+    };
+  }, []);
 
-  // Function to format feature value display
-  const getFeatureValueDisplay = (feature: PlanFeature): string => {
-    // For token-related features, format with K and add "tokens"
-    if (feature.featureName.toLowerCase().includes('token') || 
-        feature.featureName.toLowerCase().includes('generation') || 
-        feature.featureName.toLowerCase().includes('ai')) {
-      return formatTokenCount(feature.limitValue);
-    }
-    
-    // Special handling for Resume, Cover Letter, and Job Application counts
-    if (feature.featureName.includes('Resume') && feature.limitType === 'COUNT') {
-      return feature.limitValue === 1 ? '1 resume' : `${feature.limitValue} resumes`;
-    }
-    
-    if (feature.featureName.includes('Cover letter') && feature.limitType === 'COUNT') {
-      return feature.limitValue === 1 ? '1 cover letter' : `${feature.limitValue} cover letters`;
-    }
-    
-    if (feature.featureName.includes('Job Application') && feature.limitType === 'COUNT') {
-      return feature.limitValue === 1 ? '1 application' : `${feature.limitValue} applications`;
-    }
-    
-    // For other COUNT features
-    if (feature.limitType === 'COUNT') {
-      return feature.limitValue.toString();
-    }
-    
-    // For UNLIMITED features
-    if (feature.limitType === 'UNLIMITED') {
-      return 'Unlimited';
-    }
-    
-    return '';
-  };
+  // Function to format feature value display - memoized
+  const getFeatureValueDisplay = useMemo(() => {
+    return (feature: PlanFeature): string => {
+      // For token-related features, format with K and add "tokens"
+      if (feature.featureName.toLowerCase().includes('token') || 
+          feature.featureName.toLowerCase().includes('generation') || 
+          feature.featureName.toLowerCase().includes('ai')) {
+        return formatTokenCount(feature.limitValue);
+      }
+      
+      // Special handling for Resume, Cover Letter, and Job Application counts
+      if (feature.featureName.includes('Resume') && feature.limitType === 'COUNT') {
+        return feature.limitValue === 1 ? '1 resume' : `${feature.limitValue} resumes`;
+      }
+      
+      if (feature.featureName.includes('Cover letter') && feature.limitType === 'COUNT') {
+        return feature.limitValue === 1 ? '1 cover letter' : `${feature.limitValue} cover letters`;
+      }
+      
+      if (feature.featureName.includes('Job Application') && feature.limitType === 'COUNT') {
+        return feature.limitValue === 1 ? '1 application' : `${feature.limitValue} applications`;
+      }
+      
+      // For other COUNT features
+      if (feature.limitType === 'COUNT') {
+        return feature.limitValue.toString();
+      }
+      
+      // For UNLIMITED features
+      if (feature.limitType === 'UNLIMITED') {
+        return 'Unlimited';
+      }
+      
+      return '';
+    };
+  }, [formatTokenCount]);
 
-  const isLoading = isPlansLoading || isAllFeaturesLoading;
-  const plans = plansData || [];
-  const allFeaturesByPlan = allPlanFeatures?.featuresByPlan || {};
+  const isLoading = isPricingLoading || isRegionLoading;
+  const plans = pricingData?.plans || [];
+  const allFeaturesByPlan = pricingData?.featuresByPlan || {};
 
-  // Filter plans by active status and prioritize monthly plans
-  const filteredPlans = plans.filter((plan: SubscriptionPlan) => 
-    plan.active && (plan.isFreemium || plan.billingCycle === 'MONTHLY')
-  );
+  // Filter and sort plans - memoized for performance
+  const sortedPlans = useMemo(() => {
+    const filteredPlans = plans.filter((plan: SubscriptionPlan) => 
+      plan.active && (plan.isFreemium || plan.billingCycle === 'MONTHLY')
+    );
 
-  // Sort plans by price (from lowest to highest)
-  const sortedPlans = React.useMemo(() => {
     return [...filteredPlans].sort((a, b) => {
       // Free plans should come first
       if (a.isFreemium && !b.isFreemium) return -1;
@@ -230,10 +240,10 @@ const PricingPage: React.FC = () => {
       
       return aNumericPrice - bNumericPrice;
     });
-  }, [filteredPlans, userRegion.region]);
+  }, [plans, userRegion.region]);
 
-  // Get unique features across all plans
-  const uniqueFeatures = React.useMemo(() => {
+  // Get unique features across all plans - memoized
+  const uniqueFeatures = useMemo(() => {
     return Object.entries(allFeaturesByPlan).reduce((features: PlanFeature[], [planId, planFeatures]) => {
       planFeatures.forEach(feature => {
         if (!features.some(f => f.featureId === feature.featureId)) {
@@ -425,7 +435,7 @@ const PricingPage: React.FC = () => {
                 })}
               </div>
             
-              {/* Key Benefits Section - Added to highlight value */}
+              {/* Key Benefits Section - Made Mobile Responsive */}
               <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 mb-24">
                 <h2 className="text-3xl font-bold text-center mb-16">Why Choose {branding.appName}?</h2>
                 
@@ -471,111 +481,35 @@ const PricingPage: React.FC = () => {
                 </div>
               </div>
             
-              {/* Feature Comparison Section - Made Mobile Responsive */}
+              {/* Feature Comparison Section - Lazy loaded */}
               <div className="mt-24 bg-gray-50 py-12">
                 <h2 className="text-3xl font-bold text-center mb-10 text-indigo-900">Compare All Features</h2>
                 
-                {/* Mobile Feature Comparison - Horizontal Scrollable Table */}
-                <div className="block md:hidden">
-                  <div className="overflow-x-auto pb-6 -mx-4 px-4">
-                    <div className="min-w-[640px]">
-                      <table className="w-full border-collapse border">
-                        <thead className="bg-indigo-50 sticky top-0">
-                          <tr>
-                            <th className="p-3 text-left text-sm font-medium text-indigo-700 border-b border-r">Feature</th>
-                            {sortedPlans.map((plan: SubscriptionPlan) => (
-                              <th key={plan.id} className="p-3 text-center text-sm font-medium text-indigo-700 border-b border-r">
-                                <div className="font-medium">{plan.name}</div>
-                                <div className="text-xs mt-1">{getPriceDisplay(plan)}</div>
-                              </th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody className="bg-white">
-                          {uniqueFeatures.map(feature => (
-                            <tr key={feature.featureId} className="border-b">
-                              <td className="p-3 text-sm border-r">{feature.featureName}</td>
-                              {sortedPlans.map((plan: SubscriptionPlan) => {
-                                const planFeature = allFeaturesByPlan[plan.id]?.find(
-                                  f => f.featureId === feature.featureId
-                                );
-                                
-                                return (
-                                  <td key={`${plan.id}-${feature.featureId}`} className="p-3 text-center text-sm border-r">
-                                    {planFeature ? (
-                                      planFeature.limitType === 'BOOLEAN' ? (
-                                        planFeature.isEnabled ? (
-                                          <Check className="h-5 w-5 text-green-600 mx-auto" />
-                                        ) : (
-                                          <X className="h-5 w-5 text-red-600 mx-auto" />
-                                        )
-                                      ) : (
-                                        <span>{getFeatureValueDisplay(planFeature)}</span>
-                                      )
-                                    ) : (
-                                      <X className="h-5 w-5 text-red-600 mx-auto" />
-                                    )}
-                                  </td>
-                                );
-                              })}
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                      <div className="text-xs text-gray-500 mt-2 text-center italic">Swipe horizontally to view all plan features</div>
+                <div className="text-center mb-6">
+                  <Button 
+                    onClick={() => setShowFeatureComparison(!showFeatureComparison)}
+                    variant="outline"
+                    className="hover:bg-indigo-50"
+                  >
+                    {showFeatureComparison ? 'Hide' : 'Show'} Feature Comparison
+                  </Button>
+                </div>
+
+                {showFeatureComparison && (
+                  <Suspense fallback={
+                    <div className="flex items-center justify-center py-12">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
                     </div>
-                  </div>
-                </div>
-                
-                {/* Desktop Feature Comparison Table (hidden on mobile) */}
-                <div className="hidden md:block overflow-x-auto max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                  <table className="min-w-full divide-y divide-gray-200 border">
-                    <thead className="bg-indigo-50">
-                      <tr>
-                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-indigo-700 uppercase tracking-wider border-r w-1/5">
-                          Feature
-                        </th>
-                        {sortedPlans.map((plan: SubscriptionPlan) => (
-                          <th key={plan.id} scope="col" className="px-6 py-3 text-center text-xs font-medium text-indigo-700 uppercase tracking-wider border-r last:border-r-0 w-1/5">
-                            {plan.name}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {uniqueFeatures.map((feature: PlanFeature) => (
-                        <tr key={feature.featureId}>
-                          <td className="px-6 py-4 whitespace-normal text-sm text-gray-900 border-r w-1/5">
-                            {feature.featureName}
-                          </td>
-                          {sortedPlans.map((plan: SubscriptionPlan) => {
-                            const planFeature = allFeaturesByPlan[plan.id]?.find(
-                              (f: PlanFeature) => f.featureId === feature.featureId
-                            );
-                            
-                            return (
-                              <td key={`${plan.id}-${feature.featureId}`} className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center border-r last:border-r-0 w-1/5">
-                                {planFeature ? (
-                                  planFeature.limitType === 'BOOLEAN' ? (
-                                    planFeature.isEnabled ? (
-                                      <Check className="h-5 w-5 text-green-600 mx-auto" />
-                                    ) : (
-                                      <X className="h-5 w-5 text-red-600 mx-auto" />
-                                    )
-                                  ) : (
-                                    <span>{getFeatureValueDisplay(planFeature)}</span>
-                                  )
-                                ) : (
-                                  <X className="h-5 w-5 text-red-600 mx-auto" />
-                                )}
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                  }>
+                    <FeatureComparison 
+                      plans={sortedPlans}
+                      features={uniqueFeatures}
+                      allFeaturesByPlan={allFeaturesByPlan}
+                      getFeatureValueDisplay={getFeatureValueDisplay}
+                      getPriceDisplay={getPriceDisplay}
+                    />
+                  </Suspense>
+                )}
               </div>
             </>
           )}
@@ -638,51 +572,16 @@ const PricingPage: React.FC = () => {
         </div>
       </div>
       
-      {/* FAQ Section */}
-      <div className="bg-indigo-50 py-12 md:py-16 lg:py-20">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h2 className="text-3xl font-bold text-center mb-2 text-indigo-900">Frequently Asked Questions</h2>
-          <p className="text-center text-gray-600 mb-10">Everything you need to know about our plans and pricing</p>
-          <div className="space-y-6">
-            <div className="bg-white p-6 rounded-lg shadow-sm hover:shadow-md transition-shadow">
-              <h3 className="text-xl font-semibold mb-2 text-indigo-900">Do I need a credit card to get started?</h3>
-              <p className="text-gray-600">No! You can start with our Entry plan completely free, no credit card required. You only need to provide payment details when you're ready to upgrade to a paid plan.</p>
-            </div>
-            
-            <div className="bg-white p-6 rounded-lg shadow-sm hover:shadow-md transition-shadow">
-              <h3 className="text-xl font-semibold mb-2 text-indigo-900">What payment methods do you accept?</h3>
-              <p className="text-gray-600">We accept all major credit cards, PayPal, and local payment methods depending on your region. Our payment process is secure and encrypted.</p>
-            </div>
-            
-            <div className="bg-white p-6 rounded-lg shadow-sm hover:shadow-md transition-shadow">
-              <h3 className="text-xl font-semibold mb-2 text-indigo-900">Can I cancel my subscription anytime?</h3>
-              <p className="text-gray-600">Absolutely! You can cancel your subscription at any time with just a few clicks. You'll continue to have access to your plan until the end of your billing period, no questions asked.</p>
-            </div>
-            
-            <div className="bg-white p-6 rounded-lg shadow-sm hover:shadow-md transition-shadow">
-              <h3 className="text-xl font-semibold mb-2 text-indigo-900">Is there a refund policy?</h3>
-              <p className="text-gray-600">Yes, we offer a 14-day money-back guarantee if you're not satisfied with our service. Simply contact our support team within 14 days of your purchase to request a refund.</p>
-            </div>
-            
-            <div className="bg-white p-6 rounded-lg shadow-sm hover:shadow-md transition-shadow">
-              <h3 className="text-xl font-semibold mb-2 text-indigo-900">How do I upgrade my plan?</h3>
-              <p className="text-gray-600">Upgrading is simple! Just log in to your account, go to your subscription settings, and select the plan you want to upgrade to. The price difference will be prorated for the remainder of your billing cycle.</p>
-            </div>
-            
-            <div className="bg-white p-6 rounded-lg shadow-sm hover:shadow-md transition-shadow">
-              <h3 className="text-xl font-semibold mb-2 text-indigo-900">Do you offer discounts for students?</h3>
-              <p className="text-gray-600">Yes! Our plans are already designed to be affordable for students, but we also offer special educational discounts. Contact our support team with your student ID for more information.</p>
-            </div>
-          </div>
-          
-          <div className="mt-10 text-center">
-            <p className="text-gray-600 mb-4">Still have questions? We're here to help!</p>
-            <a href={`mailto:support@${branding.appName}.com`} className="text-indigo-600 hover:text-indigo-800 font-medium">
-              Contact our support team →
-            </a>
+      {/* FAQ Section - Lazy loaded */}
+      <Suspense fallback={
+        <div className="bg-indigo-50 py-12 md:py-16 lg:py-20">
+          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center">Loading FAQ...</div>
           </div>
         </div>
-      </div>
+      }>
+        <FAQ appName={branding.appName} />
+      </Suspense>
 
       {/* Call to Action Section */}
       <div className="bg-gradient-to-r from-indigo-950 via-indigo-900 to-purple-900 text-white py-16 md:py-20">

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link, useLocation, useSearch } from 'wouter';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
@@ -89,6 +89,58 @@ interface BlogSettings {
   socialShareButtons: string[];
 }
 
+// Custom hook for debounced value
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+}
+
+// Optimized image component
+const OptimizedImage: React.FC<{
+  src: string;
+  alt: string;
+  className?: string;
+  aspectRatio?: string;
+}> = ({ src, alt, className = "", aspectRatio = "aspect-video" }) => {
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [error, setError] = useState(false);
+
+  return (
+    <div className={`${aspectRatio} bg-gradient-to-br from-indigo-100 to-purple-100 rounded-lg overflow-hidden ${className}`}>
+      {!error ? (
+        <img
+          src={src}
+          alt={alt}
+          className={`w-full h-full object-cover transition-opacity duration-300 ${
+            isLoaded ? 'opacity-100' : 'opacity-0'
+          }`}
+          loading="lazy"
+          onLoad={() => setIsLoaded(true)}
+          onError={() => setError(true)}
+        />
+      ) : (
+        <div className="w-full h-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
+          <span className="text-gray-400 text-sm">Image unavailable</span>
+        </div>
+      )}
+      {!isLoaded && !error && (
+        <div className="absolute inset-0 bg-gray-200 animate-pulse"></div>
+      )}
+    </div>
+  );
+};
+
 export default function BlogPage() {
   const { appName } = useBranding();
   const [, setLocation] = useLocation();
@@ -107,40 +159,49 @@ export default function BlogPage() {
   const [selectedTag, setSelectedTag] = useState(tagParam);
   const [showFilters, setShowFilters] = useState(false);
 
-  // Fetch blog settings
+  // Debounce search term for better performance
+  const debouncedSearchTerm = useDebounce(searchTerm, 500);
+
+  // Fetch blog settings with enhanced caching
   const { data: blogSettings } = useQuery<BlogSettings>({
     queryKey: ['/api/blog/settings'],
     queryFn: async () => {
       const response = await axios.get('/api/blog/settings');
       return response.data;
-    }
+    },
+    staleTime: 1000 * 60 * 15, // 15 minutes
+    gcTime: 1000 * 60 * 60, // 1 hour
   });
 
-  // Fetch categories
-  const { data: categories = [] } = useQuery<BlogCategory[]>({
-    queryKey: ['/api/blog/categories'],
+  // Fetch static data (categories and tags) with long cache
+  const { data: staticData } = useQuery({
+    queryKey: ['/api/blog/static-data'],
     queryFn: async () => {
-      const response = await axios.get('/api/blog/categories');
-      return response.data;
-    }
+      const [categoriesRes, tagsRes] = await Promise.all([
+        axios.get('/api/blog/categories'),
+        axios.get('/api/blog/tags')
+      ]);
+      
+      return {
+        categories: categoriesRes.data || [],
+        tags: tagsRes.data || []
+      };
+    },
+    staleTime: 1000 * 60 * 20, // 20 minutes
+    gcTime: 1000 * 60 * 60, // 1 hour
   });
 
-  // Fetch tags
-  const { data: tags = [] } = useQuery<BlogTag[]>({
-    queryKey: ['/api/blog/tags'],
-    queryFn: async () => {
-      const response = await axios.get('/api/blog/tags');
-      return response.data;
-    }
-  });
+  const categories = staticData?.categories || [];
+  const tags = staticData?.tags || [];
 
-  // Fetch posts
-  const { data: postsData, isLoading } = useQuery({
+  // Fetch posts with optimized query key
+  const { data: postsData, isLoading: isPostsLoading } = useQuery({
     queryKey: ['/api/blog/posts', {
       page: currentPage,
       category: selectedCategory,
-      search: searchTerm,
-      tag: selectedTag
+      search: debouncedSearchTerm,
+      tag: selectedTag,
+      limit: blogSettings?.postsPerPage || 10
     }],
     queryFn: async () => {
       const params = new URLSearchParams({
@@ -149,20 +210,18 @@ export default function BlogPage() {
       });
       
       if (selectedCategory) {
-        // Find category ID by slug
-        const category = categories.find(cat => cat.slug === selectedCategory);
+        const category = categories.find((cat: BlogCategory) => cat.slug === selectedCategory);
         if (category) {
           params.set('categoryId', category.id.toString());
         }
       }
       
-      if (searchTerm.trim()) {
-        params.set('search', searchTerm.trim());
+      if (debouncedSearchTerm.trim()) {
+        params.set('search', debouncedSearchTerm.trim());
       }
       
       if (selectedTag) {
-        // Find tag ID by slug
-        const tag = tags.find(t => t.slug === selectedTag);
+        const tag = tags.find((t: BlogTag) => t.slug === selectedTag);
         if (tag) {
           params.set('tagId', tag.id.toString());
         }
@@ -171,59 +230,70 @@ export default function BlogPage() {
       const response = await axios.get(`/api/blog/posts?${params.toString()}`);
       return response.data;
     },
-    enabled: !!(blogSettings && categories.length > 0 && tags.length > 0)
+    enabled: !!(blogSettings && categories.length > 0 && tags.length > 0),
+    staleTime: 1000 * 60 * 5, // 5 minutes
+    gcTime: 1000 * 60 * 15, // 15 minutes
   });
 
-  // Fetch featured posts
+  // Fetch featured posts separately with longer cache
   const { data: featuredPosts = [] } = useQuery<BlogPost[]>({
     queryKey: ['/api/blog/featured'],
     queryFn: async () => {
       const response = await axios.get('/api/blog/featured?limit=3');
-      return response.data;
-    }
+      return response.data || [];
+    },
+    staleTime: 1000 * 60 * 30, // 30 minutes
+    gcTime: 1000 * 60 * 60, // 1 hour
   });
 
-  // Update URL when filters change
+  // Update URL when filters change (debounced)
   useEffect(() => {
-    const params = new URLSearchParams();
-    
-    if (currentPage > 1) params.set('page', currentPage.toString());
-    if (selectedCategory) params.set('category', selectedCategory);
-    if (searchTerm.trim()) params.set('q', searchTerm.trim());
-    if (selectedTag) params.set('tag', selectedTag);
-    
-    const newSearch = params.toString();
-    const newPath = newSearch ? `/blog?${newSearch}` : '/blog';
-    
-    if (newPath !== window.location.pathname + window.location.search) {
-      window.history.replaceState({}, '', newPath);
-    }
-  }, [currentPage, selectedCategory, searchTerm, selectedTag]);
+    const timeoutId = setTimeout(() => {
+      const params = new URLSearchParams();
+      
+      if (currentPage > 1) params.set('page', currentPage.toString());
+      if (selectedCategory) params.set('category', selectedCategory);
+      if (debouncedSearchTerm.trim()) params.set('q', debouncedSearchTerm.trim());
+      if (selectedTag) params.set('tag', selectedTag);
+      
+      const newSearch = params.toString();
+      const newPath = newSearch ? `/blog?${newSearch}` : '/blog';
+      
+      if (newPath !== window.location.pathname + window.location.search) {
+        window.history.replaceState({}, '', newPath);
+      }
+    }, 300);
 
-  const handleSearch = (term: string) => {
+    return () => clearTimeout(timeoutId);
+  }, [currentPage, selectedCategory, debouncedSearchTerm, selectedTag]);
+
+  const handleSearch = useCallback((term: string) => {
     setSearchTerm(term);
     setCurrentPage(1);
-  };
+  }, []);
 
-  const handleCategoryChange = (categorySlug: string) => {
+  const handleCategoryChange = useCallback((categorySlug: string) => {
     setSelectedCategory(categorySlug === 'all' ? '' : categorySlug);
     setCurrentPage(1);
-  };
+  }, []);
 
-  const handleTagSelect = (tagSlug: string) => {
+  const handleTagSelect = useCallback((tagSlug: string) => {
     setSelectedTag(tagSlug);
     setCurrentPage(1);
     setShowFilters(false);
-  };
+  }, []);
 
-  const clearFilters = () => {
+  const clearFilters = useCallback(() => {
     setSelectedCategory('');
     setSearchTerm('');
     setSelectedTag('');
     setCurrentPage(1);
-  };
+  }, []);
 
-  const activeFiltersCount = [selectedCategory, searchTerm, selectedTag].filter(Boolean).length;
+  const activeFiltersCount = useMemo(() => 
+    [selectedCategory, debouncedSearchTerm, selectedTag].filter(Boolean).length,
+    [selectedCategory, debouncedSearchTerm, selectedTag]
+  );
 
   // Animation variants
   const containerVariants = {
@@ -241,12 +311,14 @@ export default function BlogPage() {
     show: { opacity: 1, y: 0 }
   };
 
-  const getReadingTime = (post: BlogPost) => {
+  const getReadingTime = useCallback((post: BlogPost) => {
     if (blogSettings?.enableReadTime && post.readTime) {
       return `${post.readTime} min read`;
     }
     return null;
-  };
+  }, [blogSettings?.enableReadTime]);
+
+  const isLoading = isPostsLoading || !staticData;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
@@ -300,7 +372,7 @@ export default function BlogPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Categories</SelectItem>
-                    {categories.map((category) => (
+                    {categories.map((category: BlogCategory) => (
                       <SelectItem key={category.id} value={category.slug}>
                         {category.name} ({category.postCount})
                       </SelectItem>
@@ -347,7 +419,7 @@ export default function BlogPage() {
                 >
                   <h3 className="font-semibold mb-3">Filter by Tags</h3>
                   <div className="flex flex-wrap gap-2">
-                    {tags.slice(0, 10).map((tag) => (
+                    {tags.slice(0, 10).map((tag: BlogTag) => (
                       <Badge
                         key={tag.id}
                         variant={selectedTag === tag.slug ? "default" : "outline"}
@@ -391,13 +463,12 @@ export default function BlogPage() {
                           {/* Featured Image */}
                           {post.featuredImage && (
                             <div className="md:col-span-1">
-                              <div className="aspect-video md:aspect-square bg-gradient-to-br from-indigo-100 to-purple-100 rounded-lg overflow-hidden">
-                                <img
-                                  src={post.featuredImage}
-                                  alt={post.featuredImageAlt || post.title}
-                                  className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
-                                />
-                              </div>
+                              <OptimizedImage
+                                src={post.featuredImage}
+                                alt={post.featuredImageAlt || post.title}
+                                aspectRatio="aspect-video md:aspect-square"
+                                className="rounded-lg overflow-hidden"
+                              />
                             </div>
                           )}
                           
@@ -542,91 +613,94 @@ export default function BlogPage() {
             )}
           </div>
 
-          {/* Sidebar */}
-          <div className="space-y-8">
-            {/* Featured Posts */}
-            {featuredPosts.length > 0 && (
+          {/* Sidebar - Only render when static data is loaded */}
+          {staticData && (
+            <div className="space-y-8">
+              {/* Featured Posts */}
+              {featuredPosts.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Featured Articles</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {featuredPosts.map((post) => (
+                      <Link key={post.id} href={`/blog/${post.slug}`}>
+                        <div className="flex gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer">
+                          {post.featuredImage && (
+                            <div className="w-16 h-16 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-lg overflow-hidden flex-shrink-0">
+                              <OptimizedImage
+                                src={post.featuredImage}
+                                alt={post.title}
+                                className="w-full h-full"
+                                aspectRatio=""
+                              />
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-medium text-sm line-clamp-2 mb-1">
+                              {post.title}
+                            </h4>
+                            <p className="text-xs text-gray-500">
+                              {format(new Date(post.publishedAt || post.createdAt), 'MMM d')}
+                            </p>
+                          </div>
+                        </div>
+                      </Link>
+                    ))}
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Categories */}
               <Card>
                 <CardHeader>
-                  <CardTitle>Featured Articles</CardTitle>
+                  <CardTitle>Categories</CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  {featuredPosts.map((post) => (
-                    <Link key={post.id} href={`/blog/${post.slug}`}>
-                      <div className="flex gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer">
-                        {post.featuredImage && (
-                          <div className="w-16 h-16 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-lg overflow-hidden flex-shrink-0">
-                            <img
-                              src={post.featuredImage}
-                              alt={post.title}
-                              className="w-full h-full object-cover"
-                            />
-                          </div>
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <h4 className="font-medium text-sm line-clamp-2 mb-1">
-                            {post.title}
-                          </h4>
-                          <p className="text-xs text-gray-500">
-                            {format(new Date(post.publishedAt || post.createdAt), 'MMM d')}
-                          </p>
-                        </div>
+                <CardContent>
+                  <div className="space-y-2">
+                    {categories.map((category: BlogCategory) => (
+                      <div key={category.id}>
+                        <Button
+                          variant="ghost"
+                          className="w-full justify-between p-2 h-auto"
+                          onClick={() => handleCategoryChange(category.slug)}
+                        >
+                          <span className={selectedCategory === category.slug ? 'font-semibold' : ''}>
+                            {category.name}
+                          </span>
+                          <Badge variant="secondary" className="ml-2">
+                            {category.postCount}
+                          </Badge>
+                        </Button>
                       </div>
-                    </Link>
-                  ))}
+                    ))}
+                  </div>
                 </CardContent>
               </Card>
-            )}
 
-            {/* Categories */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Categories</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {categories.map((category) => (
-                    <div key={category.id}>
-                      <Button
-                        variant="ghost"
-                        className="w-full justify-between p-2 h-auto"
-                        onClick={() => handleCategoryChange(category.slug)}
+              {/* Popular Tags */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Popular Tags</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-wrap gap-2">
+                    {tags.slice(0, 15).map((tag: BlogTag) => (
+                      <Badge
+                        key={tag.id}
+                        variant={selectedTag === tag.slug ? "default" : "outline"}
+                        className="cursor-pointer hover:bg-indigo-100"
+                        style={{ backgroundColor: selectedTag === tag.slug ? tag.color : undefined }}
+                        onClick={() => handleTagSelect(tag.slug)}
                       >
-                        <span className={selectedCategory === category.slug ? 'font-semibold' : ''}>
-                          {category.name}
-                        </span>
-                        <Badge variant="secondary" className="ml-2">
-                          {category.postCount}
-                        </Badge>
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Popular Tags */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Popular Tags</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-wrap gap-2">
-                  {tags.slice(0, 15).map((tag) => (
-                    <Badge
-                      key={tag.id}
-                      variant={selectedTag === tag.slug ? "default" : "outline"}
-                      className="cursor-pointer hover:bg-indigo-100"
-                      style={{ backgroundColor: selectedTag === tag.slug ? tag.color : undefined }}
-                      onClick={() => handleTagSelect(tag.slug)}
-                    >
-                      {tag.name} ({tag.postCount})
-                    </Badge>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+                        {tag.name} ({tag.postCount})
+                      </Badge>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
         </div>
       </div>
 
