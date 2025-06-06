@@ -7,12 +7,14 @@ import { Button } from "@/components/ui/button";
 interface CoverLetterPreviewProps {
   data: any; // Use any to accept the builder's data format
   hideDownloadButton?: boolean; // Add prop to hide download button
+  inMobileModal?: boolean; // Add prop to indicate if preview is in mobile modal
+  inDesktopPreview?: boolean; // Add prop to indicate if preview is in desktop preview panel
 }
 
 // REMOVE: Don't register templates at the module level
 // This causes recursive imports and stack overflow
 
-export default function CoverLetterPreview({ data, hideDownloadButton = false }: CoverLetterPreviewProps) {
+export default function CoverLetterPreview({ data, hideDownloadButton = false, inMobileModal = false, inDesktopPreview = false }: CoverLetterPreviewProps) {
   // Add zoom control with better initial value
   const [scale, setScale] = useState(1);
   // Track viewport width for responsive adjustments
@@ -21,7 +23,7 @@ export default function CoverLetterPreview({ data, hideDownloadButton = false }:
   const [isDarkMode, setIsDarkMode] = useState(false);
 
   // Calculate adaptive zoom based on screen size
-  const calculateAdaptiveZoom = () => {
+  const calculateAdaptiveZoom = useCallback(() => {
     const width = window.innerWidth;
     const height = window.innerHeight;
     
@@ -30,20 +32,28 @@ export default function CoverLetterPreview({ data, hideDownloadButton = false }:
     const paperWidth = 794;
     const paperHeight = 1123;
     
-    // Account for the split layout - the preview typically takes about 60% of width on desktop
-    // and full width on mobile, minus padding and controls
+    // Calculate available space more accurately
     let availableWidth, availableHeight;
     
-    if (isMobile) {
+    if (inMobileModal) {
+      // In mobile modal, use most of the screen space
+      availableWidth = width - 24;
+      availableHeight = height - 80; // Account for modal header/controls
+    } else if (inDesktopPreview) {
+      // For desktop preview panel (side-by-side layout)
+      const previewPanelWidth = width * 0.55; // Preview panel takes about 55% of screen width
+      availableWidth = previewPanelWidth - 40;
+      availableHeight = height - 160;
+    } else if (isMobile) {
       // On mobile, use most of the screen width
-      availableWidth = width - 40; // Account for padding
+      availableWidth = width - 32; // Account for padding
       availableHeight = height - 180; // Account for header, controls, and navigation
     } else {
-      // On desktop, account for the sidebar (cover letter form takes ~40% of width)
+      // On desktop in standard layout, account for the form sidebar
       // The preview area is approximately 60% of the total width
-      const previewAreaWidth = width * 0.6; // Approximate preview area width
-      availableWidth = previewAreaWidth - 100; // Account for padding within preview area
-      availableHeight = height - 200; // Account for header, controls, and padding
+      const previewAreaWidth = width * 0.6;
+      availableWidth = previewAreaWidth - 100;
+      availableHeight = height - 200;
     }
     
     // Calculate scale to fit both width and height
@@ -54,17 +64,17 @@ export default function CoverLetterPreview({ data, hideDownloadButton = false }:
     let adaptiveScale = Math.min(scaleByWidth, scaleByHeight);
     
     // Apply reasonable bounds with better defaults for different screen sizes
-    if (isMobile) {
-      adaptiveScale = Math.max(0.4, Math.min(1.0, adaptiveScale));
+    if (isMobile || inMobileModal) {
+      adaptiveScale = Math.max(0.4, Math.min(0.9, adaptiveScale));
+    } else if (inDesktopPreview) {
+      adaptiveScale = Math.max(0.42, Math.min(0.85, adaptiveScale));
     } else {
-      adaptiveScale = Math.max(0.5, Math.min(1.2, adaptiveScale));
+      adaptiveScale = Math.max(0.45, Math.min(1.0, adaptiveScale));
     }
     
     // Round to nearest 0.05 for cleaner values
-    const finalScale = Math.round(adaptiveScale * 20) / 20;
-    
-    return finalScale;
-  };
+    return Math.round(adaptiveScale * 20) / 20;
+  }, [isMobile, inMobileModal, inDesktopPreview]);
   
   // Listen for window resize to adjust UI for mobile/desktop
   useEffect(() => {
@@ -112,7 +122,7 @@ export default function CoverLetterPreview({ data, hideDownloadButton = false }:
       observer.disconnect();
       clearTimeout(resizeTimeout);
     };
-  }, [isMobile]);
+  }, [calculateAdaptiveZoom]);
 
   // Get the template component and render the cover letter
   const renderCoverLetterTemplate = () => {
@@ -182,10 +192,34 @@ export default function CoverLetterPreview({ data, hideDownloadButton = false }:
     setScale(adaptiveZoom);
   };
 
+  // Handle scroll positioning when scale changes (especially important for mobile zoom)
+  useEffect(() => {
+    // Small delay to ensure DOM has updated with new scale
+    const timer = setTimeout(() => {
+      const scrollContainer = document.querySelector('.flex-1.overflow-auto');
+      const previewContainer = document.querySelector('.cover-letter-preview-container');
+      
+      if (scrollContainer && previewContainer && (isMobile || inMobileModal)) {
+        // When zoomed in significantly, center the content initially
+        if (scale > 0.7) {
+          const containerWidth = scrollContainer.clientWidth;
+          const contentWidth = 794 * scale; // A4 width * scale
+          const scrollLeft = Math.max(0, (contentWidth - containerWidth) / 2);
+          
+          scrollContainer.scrollLeft = scrollLeft;
+          scrollContainer.scrollTop = 0; // Reset to top when zooming
+        }
+      }
+    }, 50);
+
+    return () => clearTimeout(timer);
+  }, [scale, isMobile, inMobileModal]);
+
+
   return (
-    <div className="flex h-full w-full flex-col relative">
+    <div className={`flex h-full w-full flex-col relative ${inMobileModal || inDesktopPreview ? 'pt-0 mt-0' : ''}`}>
       {/* Controls bar - Fixed positioning with higher z-index */}
-      <div className={`${isMobile ? 'sticky top-0' : 'absolute top-0'} right-0 left-0 z-20 bg-white dark:bg-slate-900 bg-opacity-95 dark:bg-opacity-95 backdrop-blur-sm p-3 rounded-t-lg flex justify-between items-center border-b border-gray-200 dark:border-slate-700 shadow-sm`}>
+      <div className={`${(isMobile || inMobileModal) ? 'sticky top-0' : 'absolute top-0'} right-0 left-0 z-20 bg-white dark:bg-slate-900 bg-opacity-95 dark:bg-opacity-95 backdrop-blur-sm ${inMobileModal ? 'p-2' : 'p-3'} rounded-t-lg flex justify-between items-center border-b border-gray-200 dark:border-slate-700 shadow-sm`}>
         <div className="text-xs font-medium text-gray-500 dark:text-gray-400 truncate max-w-[40%]">
           {data?.template && (
             <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 capitalize">
@@ -199,15 +233,15 @@ export default function CoverLetterPreview({ data, hideDownloadButton = false }:
             <Button 
               variant="ghost" 
               size="icon" 
-              className="h-7 w-7 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
+              className={`${inMobileModal ? 'h-6 w-6' : 'h-7 w-7'} text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200`}
               onClick={zoomOut}
               title="Zoom out"
             >
-              <ZoomOut className="h-4 w-4" />
+              <ZoomOut className={`${inMobileModal ? 'h-3 w-3' : 'h-4 w-4'}`} />
             </Button>
             <button
               onClick={resetToAdaptiveZoom}
-              className="text-xs text-gray-600 dark:text-gray-300 font-medium px-2 py-1 hover:bg-gray-200 dark:hover:bg-slate-700 rounded transition-colors"
+              className={`text-xs text-gray-600 dark:text-gray-300 font-medium ${inMobileModal ? 'px-1 py-0.5 text-[10px]' : 'px-2 py-1 text-xs'} hover:bg-gray-200 dark:hover:bg-slate-700 rounded transition-colors`}
               title="Reset to fit screen"
             >
               {Math.round(scale * 100)}%
@@ -215,29 +249,52 @@ export default function CoverLetterPreview({ data, hideDownloadButton = false }:
             <Button 
               variant="ghost" 
               size="icon" 
-              className="h-7 w-7 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
+              className={`${inMobileModal ? 'h-6 w-6' : 'h-7 w-7'} text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200`}
               onClick={zoomIn}
               title="Zoom in"
             >
-              <ZoomIn className="h-4 w-4" />
+              <ZoomIn className={`${inMobileModal ? 'h-3 w-3' : 'h-4 w-4'}`} />
             </Button>
           </div>
         </div>
       </div>
       
       {/* Preview area with proper spacing to avoid overlap */}
-      <div className={`flex-1 flex items-start justify-center overflow-auto bg-gradient-to-br from-gray-100 to-gray-200 dark:from-slate-800 dark:to-slate-900 rounded-lg ${isMobile ? 'pt-20 pb-4 px-2' : 'pt-24 pb-8 px-8'}`}>
+      <div 
+        className={`flex-1 overflow-auto bg-gradient-to-br from-gray-100 to-gray-200 dark:from-slate-800 dark:to-slate-900 rounded-lg ${
+          inMobileModal 
+            ? 'pt-16 pb-4 px-2' 
+            : inDesktopPreview 
+              ? 'pt-20 pb-4 px-4'
+              : isMobile 
+                ? 'pt-20 pb-4 px-2' 
+                : 'pt-24 pb-8 px-8'
+        }`}
+        style={{
+          // Enable smooth scrolling and proper touch scrolling on mobile
+          WebkitOverflowScrolling: 'touch',
+          scrollBehavior: 'smooth',
+          // Ensure scrollbars are visible when needed
+          overflowX: 'auto',
+          overflowY: 'auto',
+        }}
+      >
         {hasCoverLetterData ? (
           <div 
-            className="cover-letter-preview-container transition-all duration-300 ease-in-out w-full flex items-start justify-center relative z-10"
+            className="cover-letter-preview-container transition-all duration-300 ease-in-out flex items-start justify-center relative z-10"
             style={{
               transformOrigin: 'top center',
-              paddingTop: isMobile ? '10px' : '20px',
-              paddingBottom: isMobile ? '10px' : '20px',
+              paddingTop: (isMobile || inMobileModal) ? '10px' : '20px',
+              paddingBottom: (isMobile || inMobileModal) ? '10px' : '20px',
+              // Calculate minimum dimensions based on scaled content
+              minWidth: `${794 * scale + 40}px`, // A4 width * scale + padding
+              minHeight: `${1123 * scale + 40}px`, // A4 height * scale + padding
+              width: scale > 0.8 ? `${794 * scale + 40}px` : '100%',
+              height: scale > 0.8 ? `${1123 * scale + 40}px` : 'auto',
             }}
           >
             {/* Drop shadow and paper effect - only on larger screens */}
-            {!isMobile && (
+            {!isMobile && !inMobileModal && (
               <>
                 <div className="absolute -bottom-2 left-1 right-1 bg-black opacity-5 blur-md rounded-lg" style={{ transform: `scale(${scale})`, transformOrigin: 'top center', height: 'calc(100% + 8px)' }}></div>
                 <div className="absolute -right-2 top-1 bottom-1 bg-black opacity-5 blur-md rounded-lg" style={{ transform: `scale(${scale})`, transformOrigin: 'top center', width: 'calc(210mm + 8px)' }}></div>
@@ -246,20 +303,20 @@ export default function CoverLetterPreview({ data, hideDownloadButton = false }:
             
             {/* Main cover letter paper - always white even in dark mode */}
             <div 
-              className="bg-white rounded-md shadow-lg relative z-10"
+              className={`bg-white rounded-md shadow-lg relative z-10 ${inMobileModal || inDesktopPreview ? 'rounded-t-none' : ''}`}
               style={{
                 width: '210mm',
-                minHeight: isMobile ? 'auto' : '297mm',
+                minHeight: (isMobile || inMobileModal) ? 'auto' : '297mm',
                 height: 'auto',
                 transform: `scale(${scale})`,
                 transformOrigin: 'top center',
-                boxShadow: isMobile 
+                boxShadow: (isMobile || inMobileModal) 
                   ? (isDarkMode ? '0 4px 12px rgba(0,0,0,0.3)' : '0 4px 12px rgba(0,0,0,0.1)')
                   : (isDarkMode ? '0 10px 30px rgba(0,0,0,0.3), 0 2px 8px rgba(0,0,0,0.25)' : '0 10px 30px rgba(0,0,0,0.15), 0 2px 8px rgba(0,0,0,0.12)')
               }}
             >
               <div 
-                className="w-full relative z-20"
+                className="w-full h-full relative z-20"
                 style={{ backgroundColor: 'white' }}
               >
                 {/* Always show the template preview */}
@@ -281,11 +338,11 @@ export default function CoverLetterPreview({ data, hideDownloadButton = false }:
       </div>
       
       {/* Mobile indicator for zoom controls */}
-      {isMobile && hasCoverLetterData && (
+      {(isMobile || inMobileModal) && hasCoverLetterData && (
         <div className="absolute bottom-4 left-0 right-0 flex justify-center pointer-events-none z-10">
           <div className="bg-black/20 dark:bg-white/20 rounded-full py-1 px-3 backdrop-blur-sm">
             <p className="text-xs text-black/70 dark:text-white/70 text-center">
-              Pinch to zoom • Current: {Math.round(scale * 100)}%
+              {scale > 0.7 ? 'Swipe to scroll • ' : 'Pinch to zoom • '}Current: {Math.round(scale * 100)}%
             </p>
           </div>
         </div>

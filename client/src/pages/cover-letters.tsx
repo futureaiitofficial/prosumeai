@@ -210,7 +210,7 @@ export default function CoverLetters() {
   const renderTemplateSelection = () => (
     <div className="grid gap-2">
       <Label htmlFor="template">Template</Label>
-      <div className="grid grid-cols-2 gap-3 mt-1">
+      <div className="grid grid-cols-1 xs:grid-cols-2 gap-3 mt-1">
         {Object.entries(coverLetterTemplateMetadata).map(([id, template]) => {
           const imageUrl = getTemplateImageUrl(id);
           return (
@@ -243,15 +243,16 @@ export default function CoverLetters() {
 
   return (
     <DefaultLayout pageTitle="Cover Letters" pageDescription="Create and customize cover letters for different job applications">
-      <div className="flex justify-end mb-6">
+      <div className="flex justify-between sm:justify-end items-center mb-6">
+        <h1 className="text-xl font-semibold sm:hidden">Cover Letters</h1>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Create New Cover Letter
+            <Button className="h-9 text-xs sm:text-sm px-3 flex-shrink-0">
+              <Plus className="h-4 w-4 mr-1 sm:mr-2 flex-shrink-0" />
+              <span className="whitespace-nowrap">New Cover Letter</span>
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-4xl">
+          <DialogContent className="w-[95vw] max-w-4xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
             <DialogHeader>
               <DialogTitle>Create New Cover Letter</DialogTitle>
               <DialogDescription>
@@ -259,21 +260,23 @@ export default function CoverLetters() {
               </DialogDescription>
             </DialogHeader>
             
-            <Tabs defaultValue="manual" className="mt-4">
+            <Tabs defaultValue="manual" className="mt-3 sm:mt-4">
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="manual" className="flex items-center gap-2">
                   <FileText className="h-4 w-4" />
-                  Write Manually
+                  <span className="sm:inline">Write Manually</span>
+                  <span className="inline sm:hidden">Manual</span>
                 </TabsTrigger>
                 <TabsTrigger value="ai" className="flex items-center gap-2">
                   <Wand2 className="h-4 w-4" />
-                  AI Generated
+                  <span className="sm:inline">AI Generated</span>
+                  <span className="inline sm:hidden">AI</span>
                 </TabsTrigger>
               </TabsList>
               
               <TabsContent value="manual">
                 <form onSubmit={handleSubmit}>
-                  <div className="grid gap-4 py-4">
+                  <div className="grid gap-3 sm:gap-4 py-3 sm:py-4">
                     <div className="grid gap-2">
                       <Label htmlFor="title">Cover Letter Title</Label>
                       <Input 
@@ -297,7 +300,7 @@ export default function CoverLetters() {
                         placeholder="Enter your cover letter content" 
                         value={formData.content}
                         onChange={handleChange}
-                        rows={10}
+                        rows={8}
                         required
                       />
                     </div>
@@ -306,6 +309,7 @@ export default function CoverLetters() {
                     <Button 
                       type="submit" 
                       disabled={createCoverLetterMutation.isPending}
+                      className="w-full sm:w-auto"
                     >
                       {createCoverLetterMutation.isPending ? "Creating..." : "Create Cover Letter"}
                     </Button>
@@ -326,7 +330,7 @@ export default function CoverLetters() {
                     />
                   </div>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="grid gap-2">
                       <Label htmlFor="ai-job-title">Job Title</Label>
                       <Input 
@@ -350,7 +354,7 @@ export default function CoverLetters() {
                     </div>
                   </div>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="grid gap-2">
                       <Label htmlFor="ai-recipient">Recipient Name (Optional)</Label>
                       <Input 
@@ -397,7 +401,7 @@ export default function CoverLetters() {
                     <p className="text-sm text-muted-foreground">
                       Select a resume to help tailor your cover letter
                     </p>
-                    <div className="grid gap-2 mt-2">
+                    <div className="grid gap-2 mt-2 w-full">
                       <Select
                         value={aiForm.resumeId?.toString() || "none"}
                         onValueChange={(value) => setAiForm({...aiForm, resumeId: value !== "none" ? parseInt(value) : null})}
@@ -448,11 +452,11 @@ export default function CoverLetters() {
       </div>
 
       {isLoading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
           {[1, 2, 3].map((i) => (
-            <Card key={i} className="animate-pulse">
+            <Card key={i} className="animate-pulse w-full">
               <CardHeader className="h-20 bg-gray-200 dark:bg-gray-800 rounded-t-lg" />
-              <CardContent className="p-6">
+              <CardContent className="p-4 sm:p-6">
                 <div className="h-4 bg-gray-200 dark:bg-gray-800 rounded-full w-3/4 mb-4" />
                 <div className="h-3 bg-gray-200 dark:bg-gray-800 rounded-full w-full mb-2" />
                 <div className="h-3 bg-gray-200 dark:bg-gray-800 rounded-full w-5/6" />
@@ -461,7 +465,7 @@ export default function CoverLetters() {
           ))}
         </div>
       ) : coverLetters.length === 0 ? (
-        <Card className="w-full h-60 flex flex-col items-center justify-center text-center p-6">
+        <Card className="w-full h-60 flex flex-col items-center justify-center text-center p-4 sm:p-6">
           <CardContent>
             <div className="flex flex-col items-center space-y-4">
               <div className="rounded-full bg-secondary-50 p-4 dark:bg-secondary-900">
@@ -471,26 +475,26 @@ export default function CoverLetters() {
               <p className="text-sm text-gray-500 dark:text-gray-400">
                 Create your first cover letter to enhance your job applications.
               </p>
-              <Button onClick={() => setOpen(true)}>Create Cover Letter</Button>
+              <Button onClick={() => setOpen(true)} className="w-full sm:w-auto">Create Cover Letter</Button>
             </div>
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
           {coverLetters.map((coverLetter) => (
-            <Card key={coverLetter.id}>
+            <Card key={coverLetter.id} className="w-full">
               <CardHeader>
                 <CardTitle>{coverLetter.title}</CardTitle>
                 <CardDescription>
                   {coverLetter.jobTitle ? `${coverLetter.jobTitle} at ${coverLetter.company || 'Company'}` : 'Cover Letter'}
                 </CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-4 sm:p-6">
                 <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-3">
                   {coverLetter.content}
                 </p>
               </CardContent>
-              <CardFooter className="flex justify-between">
+              <CardFooter className="flex justify-between p-4">
                 <Button 
                   variant="outline" 
                   size="sm"

@@ -74,6 +74,48 @@
     font-feature-settings: "rlig" 1, "calt" 1;
   }
   
+  /* Remove ALL default browser focus outlines to prevent black borders */
+  *:focus,
+  *:focus-visible,
+  input:focus,
+  input:focus-visible,
+  textarea:focus,
+  textarea:focus-visible,
+  select:focus,
+  select:focus-visible,
+  button:focus,
+  button:focus-visible,
+  [role="textbox"]:focus,
+  [contenteditable]:focus {
+    outline: none !important;
+    outline-width: 0 !important;
+    outline-style: none !important;
+    outline-color: transparent !important;
+    outline-offset: 0 !important;
+    box-shadow: none !important;
+  }
+  
+  /* Apply our custom focus styles only where we want them */
+  .focus-ring:focus-visible,
+  input.focus-ring:focus-visible,
+  textarea.focus-ring:focus-visible,
+  select.focus-ring:focus-visible {
+    @apply ring-2 ring-primary ring-offset-2;
+  }
+  
+  /* Specific fixes for form elements */
+  input[type="text"]:focus,
+  input[type="email"]:focus,
+  input[type="password"]:focus,
+  input[type="tel"]:focus,
+  input[type="url"]:focus,
+  input[type="search"]:focus,
+  textarea:focus {
+    outline: none !important;
+    border-color: hsl(var(--primary)) !important;
+    box-shadow: 0 0 0 2px hsl(var(--primary) / 0.2) !important;
+  }
+  
   /* Landing page specific optimizations */
   .landing-page {
     scroll-behavior: smooth;

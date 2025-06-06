@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
-import { Plus, Wand2, FileText, Briefcase, ChevronRight, ArrowLeft, FileEdit, FileDown, Building, Lock, AlertTriangle, Loader2, Sparkles, Eye } from "lucide-react";
+import { Plus, Wand2, FileText, Briefcase, ChevronRight, ArrowLeft, FileEdit, FileDown, Building, Lock, AlertTriangle, Loader2, Sparkles, Eye, X } from "lucide-react";
 import { handleSubscriptionError } from "@/utils/error-handler";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -25,8 +25,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { coverLetterTemplates as importedTemplates } from "@/templates/registerCoverLetterTemplates";
-import { TokenUsage } from "@/components/ui/token-usage";
-import { useTokenWarning } from "@/hooks/use-token-warning";
+// Token usage imports removed
 import CoverLetterTemplateSelection from "@/components/resume-builder/cover-letter-template-selection";
 import CoverLetterPreview from "@/components/resume-builder/cover-letter-preview";
 
@@ -282,8 +281,7 @@ export default function CoverLetterBuilder() {
     }
   });
 
-  // Add this near other hooks in the component
-  const { WarningDialog: TokenWarningDialog } = useTokenWarning("GENERATE_COVER_LETTER", 75);
+  // Token warning dialog removed
 
   // Function to generate content based on resume, job details, etc.
   const generateContent = async () => {
@@ -1179,28 +1177,30 @@ export default function CoverLetterBuilder() {
       
       case "content":
         return (
-          <div className="space-y-6">
+          <div className="space-y-4">
             <div>
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-lg font-semibold">Content</h2>
-                <div className="flex space-x-2">
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-3 sm:mb-4 gap-2 sm:gap-0">
+                <h2 className="text-base sm:text-lg font-semibold">Content</h2>
+                <div className="flex flex-wrap gap-2 w-full sm:w-auto">
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={generateContent}
                     disabled={isGenerating}
+                    className="flex-1 sm:flex-none justify-center text-xs sm:text-sm px-2 h-8 sm:h-9"
                   >
                     {isGenerating ? "Generating..." : "Generate with AI"}
-                    <Wand2 className="ml-2 h-4 w-4" />
+                    <Wand2 className="ml-1 sm:ml-2 h-3 w-3 sm:h-4 sm:w-4" />
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={enhanceContent}
                     disabled={isGenerating || !formData.content}
+                    className="flex-1 sm:flex-none justify-center text-xs sm:text-sm px-2 h-8 sm:h-9"
                   >
                     {isGenerating ? "Enhancing..." : "Enhance Content"}
-                    <FileEdit className="ml-2 h-4 w-4" />
+                    <FileEdit className="ml-1 sm:ml-2 h-3 w-3 sm:h-4 sm:w-4" />
                   </Button>
                 </div>
               </div>
@@ -1209,7 +1209,7 @@ export default function CoverLetterBuilder() {
                 value={formData.content}
                 onChange={(e) => handleInputChange(e, setFormData)}
                 placeholder="Write or generate your cover letter content..."
-                className="h-80"
+                className="h-[calc(60vh-180px)] sm:h-80 min-h-[200px] w-full"
               />
             </div>
           </div>
@@ -1277,26 +1277,25 @@ export default function CoverLetterBuilder() {
                 </Card>
                 
                 {/* Cover Letter Preview - same design as resume builder */}
-                <div className="hidden lg:block h-full bg-gradient-to-br from-gray-50 to-gray-100 dark:from-slate-950 dark:to-slate-900 border-l dark:border-slate-800">
-                  <div className="h-full flex flex-col">
-                    <div className="flex-1 overflow-hidden relative">
-                      <div className="absolute inset-0">
-                        <CoverLetterPreview 
-                          data={{
-                            template: formData.template,
-                            title: formData.title,
-                            fullName: personalInfo.fullName,
-                            email: personalInfo.email,
-                            phone: personalInfo.phone,
-                            address: personalInfo.address,
-                            recipientName: companyInfo.recipientName,
-                            companyName: companyInfo.companyName,
-                            jobTitle: jobDetails.jobTitle,
-                            content: formData.content
-                          }} 
-                          hideDownloadButton={true} 
-                        />
-                      </div>
+                <div className="hidden xl:block flex-1 h-[calc(100vh-150px)] bg-gradient-to-br from-gray-50 to-gray-100 dark:from-slate-950 dark:to-slate-900 border-l dark:border-slate-800 rounded-lg overflow-hidden">
+                  <div className="w-full h-full overflow-auto p-0">
+                    <div className="w-full mx-auto h-full p-0">
+                      <CoverLetterPreview 
+                        inDesktopPreview={true}
+                        data={{
+                          template: formData.template,
+                          title: formData.title,
+                          fullName: personalInfo.fullName,
+                          email: personalInfo.email,
+                          phone: personalInfo.phone,
+                          address: personalInfo.address,
+                          recipientName: companyInfo.recipientName,
+                          companyName: companyInfo.companyName,
+                          jobTitle: jobDetails.jobTitle,
+                          content: formData.content
+                        }} 
+                        hideDownloadButton={true} 
+                      />
                     </div>
                   </div>
                 </div>
@@ -1385,12 +1384,13 @@ export default function CoverLetterBuilder() {
     }
   }, [coverLetters, createCoverLetterMutation.isPending, updateCoverLetterMutation.isPending]);
 
-  return (
-    <div className="flex flex-col min-h-screen">
-      <Header />
-      <div className="flex flex-1 bg-gray-50 dark:bg-slate-950">
+    return (
+    <>
+      <div className="flex flex-col h-screen bg-gray-50 dark:bg-slate-950">
+        <Header />
+        <div className="flex flex-1 overflow-hidden">
         {/* Step sidebar */}
-        <div className="w-64 bg-card border-r p-4 hidden md:block dark:border-slate-800">
+        <div className="w-64 bg-card border-r p-4 hidden md:block dark:border-slate-800 flex-shrink-0">
           <h2 className="font-semibold mb-6">Build Your Cover Letter</h2>
           <ul className="space-y-1">
             {[
@@ -1419,109 +1419,120 @@ export default function CoverLetterBuilder() {
               </li>
             ))}
           </ul>
-          
-          <TokenUsage featureCode="GENERATE_COVER_LETTER" compact={true} className="mt-2" />
         </div>
 
         {/* Main content */}
-        <div className="flex-1 p-6">
-          <div className="flex items-center mb-6 justify-between">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => window.location.href = "/cover-letters"}
-              className="mr-4"
-            >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Cover Letters
-            </Button>
-            
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => window.location.href = "/cover-letter-builder"}
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Create New Cover Letter
-            </Button>
-          </div>
-
-          {/* Mobile step indicator with DIRECT step navigation */}
-          <div className="block md:hidden mb-4">
-            <div className="grid grid-cols-3 gap-1 mb-2">
-              <Button 
-                variant={currentStep === "template" ? "default" : "outline"} 
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="flex-shrink-0 p-6 pb-0">
+            <div className="flex items-center mb-4 sm:mb-6 justify-between flex-wrap gap-2">
+              <Button
+                variant="ghost"
                 size="sm"
-                onClick={() => setCurrentStep("template")}
+                onClick={() => window.location.href = "/cover-letters"}
+                className="h-9 text-xs sm:text-sm px-2 sm:px-3"
               >
-                Template
+                <ArrowLeft className="h-4 w-4 mr-1 sm:mr-2 flex-shrink-0" />
+                <span className="whitespace-nowrap">Back to Cover Letters</span>
               </Button>
-              <Button 
-                variant={currentStep === "job-details" ? "default" : "outline"} 
+              
+              <Button
+                variant="outline"
                 size="sm"
-                onClick={() => setCurrentStep("job-details")}
+                onClick={() => window.location.href = "/cover-letter-builder"}
+                className="h-9 text-xs sm:text-sm px-2 sm:px-3"
               >
-                Job Details
-              </Button>
-              <Button 
-                variant={currentStep === "personal-info" ? "default" : "outline"} 
-                size="sm"
-                onClick={() => setCurrentStep("personal-info")}
-              >
-                Personal
+                <Plus className="h-4 w-4 mr-1 sm:mr-2 flex-shrink-0" />
+                <span className="whitespace-nowrap">New Cover Letter</span>
               </Button>
             </div>
-            <div className="grid grid-cols-3 gap-1">
-              <Button 
-                variant={currentStep === "company-info" ? "default" : "outline"} 
+
+            {/* Mobile step indicator with DIRECT step navigation */}
+            <div className="sm:hidden flex flex-col gap-2 mb-4">
+              <div className="grid grid-cols-3 gap-1.5">
+                <Button 
+                  variant={currentStep === "template" ? "default" : "outline"} 
+                  size="sm"
+                  className="h-10 px-2 text-xs"
+                  onClick={() => setCurrentStep("template")}
+                >
+                  <span className="truncate">Template</span>
+                </Button>
+                <Button 
+                  variant={currentStep === "job-details" ? "default" : "outline"} 
+                  size="sm"
+                  className="h-10 px-2 text-xs"
+                  onClick={() => setCurrentStep("job-details")}
+                >
+                  <span className="truncate">Job Details</span>
+                </Button>
+                <Button 
+                  variant={currentStep === "personal-info" ? "default" : "outline"} 
+                  size="sm"
+                  className="h-10 px-2 text-xs"
+                  onClick={() => setCurrentStep("personal-info")}
+                >
+                  <span className="truncate">Personal</span>
+                </Button>
+              </div>
+              <div className="grid grid-cols-3 gap-1.5">
+                <Button 
+                  variant={currentStep === "company-info" ? "default" : "outline"} 
+                  size="sm"
+                  className="h-10 px-2 text-xs"
+                  onClick={() => setCurrentStep("company-info")}
+                >
+                  <span className="truncate">Company</span>
+                </Button>
+                <Button 
+                  variant={currentStep === "content" ? "default" : "outline"} 
+                  size="sm"
+                  className="h-10 px-2 text-xs"
+                  onClick={() => setCurrentStep("content")}
+                >
+                  <span className="truncate">Content</span>
+                </Button>
+                <Button 
+                  variant={currentStep === "export" ? "default" : "outline"} 
+                  size="sm"
+                  className="h-10 px-2 text-xs"
+                  onClick={() => setCurrentStep("export")}
+                >
+                  <span className="truncate">Export</span>
+                </Button>
+              </div>
+            </div>
+
+            {/* Mobile preview button */}
+            <div className="block xl:hidden mb-4">
+              <Button
+                variant="outline"
                 size="sm"
-                onClick={() => setCurrentStep("company-info")}
+                onClick={() => setShowMobilePreview(true)}
+                className="w-full h-10 flex items-center justify-center"
               >
-                Company
-              </Button>
-              <Button 
-                variant={currentStep === "content" ? "default" : "outline"} 
-                size="sm"
-                onClick={() => setCurrentStep("content")}
-              >
-                Content
-              </Button>
-              <Button 
-                variant={currentStep === "export" ? "default" : "outline"} 
-                size="sm"
-                onClick={() => setCurrentStep("export")}
-              >
-                Export
+                <Eye className="h-4 w-4 mr-2" />
+                Preview Cover Letter
               </Button>
             </div>
-          </div>
-
-          {/* Mobile preview button */}
-          <div className="block lg:hidden mb-4">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowMobilePreview(true)}
-              className="w-full"
-            >
-              <Eye className="h-4 w-4 mr-2" />
-              Preview Cover Letter
-            </Button>
           </div>
 
           {/* Builder content */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-4">
+          <div className="flex-1 flex flex-col xl:flex-row gap-6 px-6 pb-6 overflow-hidden">
             {/* Form area */}
-            <div className="bg-card p-6 rounded-lg shadow-sm border dark:border-slate-800">
-              {renderStepContent()}
+            <div className="bg-card p-3 sm:p-6 rounded-lg shadow-sm border dark:border-slate-800 xl:w-[45%] w-full flex flex-col overflow-hidden">
+              <div className="flex-1 overflow-y-auto">
+                {renderStepContent()}
+              </div>
               
               {/* Navigation buttons */}
-              <div className="flex justify-between mt-8">
-                <div className="flex gap-2">
-                  <Button
+              <div className="flex-shrink-0 flex justify-between mt-6 sm:mt-8 pt-4 border-t">
+                <div className="flex gap-1 sm:gap-2">
+                  <Button 
                     variant="outline"
                     onClick={() => handleStepNavigation('prev')}
                     disabled={currentStep === "template"}
+                    size="sm"
+                    className="h-10 px-3 sm:px-4 text-xs sm:text-sm"
                   >
                     Back
                   </Button>
@@ -1537,6 +1548,8 @@ export default function CoverLetterBuilder() {
                         createCoverLetterMutation.isPending || 
                         updateCoverLetterMutation.isPending
                       }
+                      size="sm"
+                      className="h-10 px-3 sm:px-4 text-xs sm:text-sm"
                     >
                       {createCoverLetterMutation.isPending || updateCoverLetterMutation.isPending ? "Saving..." : "Save Progress"}
                     </Button>
@@ -1554,9 +1567,11 @@ export default function CoverLetterBuilder() {
                       createCoverLetterMutation.isPending || 
                       updateCoverLetterMutation.isPending
                     }
+                    size="sm"
+                    className="h-10 px-3 sm:px-4 text-xs sm:text-sm"
                   >
                     {createCoverLetterMutation.isPending || updateCoverLetterMutation.isPending ? 
-                     "Saving..." : isEditing ? "Update Cover Letter" : "Save Cover Letter"}
+                     "Saving..." : isEditing ? "Update" : "Save"}
                   </Button>
                 ) : (
                   <Button 
@@ -1566,6 +1581,8 @@ export default function CoverLetterBuilder() {
                       (currentStep === "company-info" && !companyInfo.companyName) ||
                       (currentStep === "content" && !formData.content)
                     }
+                    size="sm"
+                    className="h-10 px-3 sm:px-4 text-xs sm:text-sm"
                   >
                     Continue
                   </Button>
@@ -1574,37 +1591,48 @@ export default function CoverLetterBuilder() {
             </div>
 
             {/* Preview area */}
-            <div className="bg-card border rounded-lg shadow-sm h-[842px] w-full max-w-[595px] overflow-hidden hidden lg:block dark:border-slate-800">
-              <div className="h-full w-full overflow-auto">
-                <CoverLetterPreview 
-                  data={{
-                    template: formData.template,
-                    title: formData.title,
-                    fullName: personalInfo.fullName,
-                    email: personalInfo.email,
-                    phone: personalInfo.phone,
-                    address: personalInfo.address,
-                    recipientName: companyInfo.recipientName,
-                    companyName: companyInfo.companyName,
-                    jobTitle: jobDetails.jobTitle,
-                    content: formData.content
-                  }} 
-                  hideDownloadButton={true} 
-                />
-              </div>
+            <div className="hidden xl:block flex-1 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-slate-950 dark:to-slate-900 border-l dark:border-slate-800 rounded-lg overflow-hidden">
+              <CoverLetterPreview 
+                inDesktopPreview={true}
+                data={{
+                  template: formData.template,
+                  title: formData.title,
+                  fullName: personalInfo.fullName,
+                  email: personalInfo.email,
+                  phone: personalInfo.phone,
+                  address: personalInfo.address,
+                  recipientName: companyInfo.recipientName,
+                  companyName: companyInfo.companyName,
+                  jobTitle: jobDetails.jobTitle,
+                  content: formData.content
+                }} 
+                hideDownloadButton={true} 
+              />
             </div>
           </div>
         </div>
       </div>
+      </div>
       
       {/* Mobile Preview Dialog */}
       <Dialog open={showMobilePreview} onOpenChange={setShowMobilePreview}>
-        <DialogContent className="max-w-full h-[90vh] p-0">
-          <DialogHeader className="px-4 py-2 border-b">
-            <DialogTitle>Cover Letter Preview</DialogTitle>
+        <DialogContent className="max-w-full w-[98vw] h-[95vh] max-h-[95vh] p-0 flex flex-col overflow-hidden">
+          <DialogHeader className="px-3 py-2 border-b">
+            <div className="flex justify-between items-center">
+              <DialogTitle className="text-base">Cover Letter Preview</DialogTitle>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="h-7 w-7 p-0" 
+                onClick={() => setShowMobilePreview(false)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
           </DialogHeader>
-          <div className="flex-1 overflow-auto">
+          <div className="flex-1 bg-gradient-to-br from-gray-100 to-gray-200 dark:from-slate-800 dark:to-slate-900 pt-0 pb-0 px-0 overflow-hidden">
             <CoverLetterPreview 
+              inMobileModal={true}
               data={{
                 template: formData.template,
                 title: formData.title,
@@ -1622,9 +1650,6 @@ export default function CoverLetterBuilder() {
           </div>
         </DialogContent>
       </Dialog>
-      
-      {/* Add the token warning dialog */}
-      <TokenWarningDialog />
-    </div>
+    </>
   );
 }

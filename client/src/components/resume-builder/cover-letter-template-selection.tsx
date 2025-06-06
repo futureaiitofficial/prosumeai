@@ -389,46 +389,45 @@ export default function CoverLetterTemplateSelection({ selectedTemplate, onChang
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {/* Header Section */}
-      <div className="text-center">
+      <div className="text-center pb-2">
         <motion.h2 
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="text-2xl font-bold text-gray-900 mb-6"
+          className="text-xl sm:text-2xl font-bold text-gray-900 mb-2"
         >
           Select Your Cover Letter Template
         </motion.h2>
+        <p className="text-sm text-gray-500 max-w-md mx-auto">
+          Choose a professional template that best represents your personal brand and career goals
+        </p>
       </div>
 
       {/* Template Display */}
-      <div className="relative max-w-4xl mx-auto">
-        <div className="flex items-center justify-center">
-          {/* Previous Button */}
+      <div className="relative w-full max-w-5xl mx-auto px-2 sm:px-4">
+        <div className="flex items-center justify-center min-h-[420px]">
+                        {/* Previous Button */}
           <button
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              console.log('❌ Previous button clicked! Current state before:', { currentIndex, templatesLength: templates.length });
               goToPrevious();
-              setTimeout(() => {
-                console.log('❌ Previous button clicked! Current state after:', { currentIndex });
-              }, 100);
             }}
             disabled={templates.length <= 1}
-            className={`absolute left-4 top-1/2 transform -translate-y-1/2 w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center transition-all duration-200 z-10 border-2 ${
+            className={`absolute left-0 sm:left-2 md:left-4 top-1/2 transform -translate-y-1/2 w-10 h-10 sm:w-12 sm:h-12 bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-full shadow-lg flex items-center justify-center transition-all duration-200 z-10 border focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${
               templates.length <= 1 
-                ? 'border-gray-200 text-gray-400 cursor-not-allowed' 
-                : 'border-indigo-300 text-indigo-600 hover:text-white hover:bg-indigo-500 hover:shadow-xl hover:scale-110'
+                ? 'border-gray-200 dark:border-gray-700 text-gray-400 dark:text-gray-600 cursor-not-allowed' 
+                : 'border-gray-200 dark:border-slate-700 text-gray-700 dark:text-gray-300 hover:text-white dark:hover:text-white hover:bg-primary hover:border-primary dark:hover:bg-primary dark:hover:border-primary hover:shadow-xl hover:scale-105'
             }`}
           >
-            <ChevronLeft className="w-6 h-6" />
+            <ChevronLeft className="w-5 h-5 sm:w-6 sm:h-6" />
           </button>
 
           {/* Template Container */}
-          <div className="w-full max-w-md mx-auto px-16">
+          <div className="w-full max-w-sm sm:max-w-md lg:max-w-lg mx-auto px-4 sm:px-8 md:px-12">
             <div 
-              className="relative cursor-grab active:cursor-grabbing"
+              className="relative cursor-grab active:cursor-grabbing select-none"
               onMouseDown={handleMouseDown}
               onMouseMove={handleMouseMove}
               onMouseUp={handleMouseUp}
@@ -447,46 +446,70 @@ export default function CoverLetterTemplateSelection({ selectedTemplate, onChang
                 initial={{ opacity: 0, scale: 0.9, x: 50 }}
                 animate={{ opacity: 1, scale: 1, x: 0 }}
                 transition={{ duration: 0.3 }}
-                className="bg-white rounded-xl shadow-xl overflow-hidden border-4 border-indigo-400"
+                className={`bg-white dark:bg-slate-900 rounded-xl shadow-xl overflow-hidden max-w-full ${
+                  currentTemplate.id === selectedTemplate 
+                    ? 'ring-4 ring-primary/80 border border-primary' 
+                    : 'border border-gray-200 dark:border-slate-700'
+                }`}
                 onClick={() => {
                   console.log('Template clicked, selecting:', currentTemplate.id);
                   onChange(currentTemplate.id);
                 }}
               >
                 {/* Template Image - Increased aspect ratio */}
-                <div className="relative aspect-[1/1.3] bg-gray-50">
+                <div className="relative aspect-[1/1.2] sm:aspect-[1/1.3] bg-gray-50 dark:bg-slate-800">
                   {currentTemplate.previewImage ? (
-                    <img 
-                      src={currentTemplate.previewImage} 
-                      alt={`${currentTemplate.name} template preview`}
-                      className="w-full h-full object-cover object-top"
-                      onError={(e) => {
-                        console.error('Image failed to load:', currentTemplate.previewImage);
-                        e.currentTarget.src = '/placeholder-image.png';
-                      }}
-                    />
+                    <div className="relative w-full h-full">
+                      <img 
+                        src={currentTemplate.previewImage} 
+                        alt={`${currentTemplate.name} template preview`}
+                        className="w-full h-full object-cover object-top transition-all duration-300 hover:scale-[1.02]"
+                        onError={(e) => {
+                          console.error('Image failed to load:', currentTemplate.previewImage);
+                          e.currentTarget.src = '/placeholder-image.png';
+                        }}
+                      />
+                      {currentTemplate.id === selectedTemplate && (
+                        <div className="absolute top-3 right-3 bg-primary text-white rounded-full p-1 shadow-md">
+                          <Check className="w-4 h-4" />
+                        </div>
+                      )}
+                    </div>
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-100 via-gray-50 to-slate-100">
+                    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-100 via-gray-50 to-slate-100 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
                       <div className="text-center py-6">
-                        <div className="w-16 h-16 mx-auto mb-3 bg-white rounded-2xl flex items-center justify-center text-slate-400 shadow-lg border border-slate-200">
+                        <div className="w-16 h-16 mx-auto mb-3 bg-white dark:bg-slate-700 rounded-2xl flex items-center justify-center text-slate-400 dark:text-slate-300 shadow-lg border border-slate-200 dark:border-slate-600">
                           <Sparkles className="w-8 h-8" />
                         </div>
-                        <p className="text-slate-500 font-medium text-sm">Template Preview</p>
-                        <p className="text-slate-400 mt-1 text-xs">Coming Soon</p>
+                        <p className="text-slate-500 dark:text-slate-400 font-medium text-sm">Template Preview</p>
+                        <p className="text-slate-400 dark:text-slate-500 mt-1 text-xs">Coming Soon</p>
                       </div>
                     </div>
                   )}
                 </div>
 
                 {/* Template Name and Description */}
-                <div className="text-center bg-white p-4">
-                  <h3 className="font-semibold text-gray-900 text-base mb-1">
+                <div className="text-center bg-white dark:bg-slate-900 p-4 sm:p-5">
+                  <h3 className="font-semibold text-gray-900 dark:text-white text-sm sm:text-base mb-1">
                     {currentTemplate.name}
                   </h3>
-                  <p className="text-xs text-gray-600 mb-2">
+                  <p className="text-xs text-gray-600 dark:text-gray-400 mb-2 line-clamp-2">
                     {currentTemplate.description}
                   </p>
-                  <p className="text-sm text-indigo-600">Template {currentIndex + 1} of {templates.length}</p>
+                  <div className="flex justify-between items-center mt-3">
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Template {currentIndex + 1} of {templates.length}</p>
+                    <Button 
+                      size="sm" 
+                      variant={currentTemplate.id === selectedTemplate ? "default" : "outline"}
+                      className="h-8 text-xs px-3"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onChange(currentTemplate.id);
+                      }}
+                    >
+                      {currentTemplate.id === selectedTemplate ? "Selected" : "Select"}
+                    </Button>
+                  </div>
                 </div>
               </motion.div>
             </div>
@@ -497,61 +520,47 @@ export default function CoverLetterTemplateSelection({ selectedTemplate, onChang
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              console.log('➡️ Next button clicked! Current state before:', { currentIndex, templatesLength: templates.length });
               goToNext();
-              setTimeout(() => {
-                console.log('➡️ Next button clicked! Current state after:', { currentIndex });
-              }, 100);
             }}
             disabled={templates.length <= 1}
-            className={`absolute right-4 top-1/2 transform -translate-y-1/2 w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center transition-all duration-200 z-10 border-2 ${
+            className={`absolute right-0 sm:right-2 md:right-4 top-1/2 transform -translate-y-1/2 w-10 h-10 sm:w-12 sm:h-12 bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-full shadow-lg flex items-center justify-center transition-all duration-200 z-10 border focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${
               templates.length <= 1 
-                ? 'border-gray-200 text-gray-400 cursor-not-allowed' 
-                : 'border-indigo-300 text-indigo-600 hover:text-white hover:bg-indigo-500 hover:shadow-xl hover:scale-110'
+                ? 'border-gray-200 dark:border-gray-700 text-gray-400 dark:text-gray-600 cursor-not-allowed' 
+                : 'border-gray-200 dark:border-slate-700 text-gray-700 dark:text-gray-300 hover:text-white dark:hover:text-white hover:bg-primary hover:border-primary dark:hover:bg-primary dark:hover:border-primary hover:shadow-xl hover:scale-105'
             }`}
           >
-            <ChevronRight className="w-6 h-6" />
+            <ChevronRight className="w-5 h-5 sm:w-6 sm:h-6" />
           </button>
         </div>
+      </div>
 
-        {/* Use This Template Button */}
-        <div className="text-center mt-6">
-          <Button
-            onClick={() => {
-              console.log('Use Template button clicked for:', currentTemplate.id);
-              onChange(currentTemplate.id);
-            }}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white text-base px-8 py-3 rounded-xl font-semibold transition-all duration-200 transform hover:scale-105 shadow-lg"
-            size="lg"
-          >
-            Use This Template: {currentTemplate.name}
-          </Button>
-        </div>
+      {/* Selection Controls */}
+      <div className="flex flex-wrap justify-center mt-6 mb-2 gap-x-2 gap-y-3 px-2">
+        {templates.map((template, index) => (
+          <button
+            key={template.id}
+            onClick={() => setCurrentIndex(index)}
+            className={`w-2.5 h-2.5 rounded-full transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 ${
+              currentIndex === index
+                ? 'bg-primary scale-125'
+                : 'bg-gray-300 dark:bg-gray-700 hover:bg-gray-400 dark:hover:bg-gray-600'
+            }`}
+            aria-label={`View template ${index + 1}`}
+          />
+        ))}
+      </div>
 
-        {/* Template Indicators */}
-        <div className="flex justify-center mt-4 space-x-2">
-          {templates.map((template, index) => (
-            <button
-              key={`indicator-${template.id}-${index}`}
-              onClick={() => {
-                console.log('Indicator clicked, switching to index:', index, 'template:', template.name);
-                setCurrentIndex(index);
-              }}
-              className={`w-2.5 h-2.5 rounded-full transition-all duration-200 ${
-                index === currentIndex 
-                  ? 'bg-indigo-500 scale-125' 
-                  : 'bg-gray-300 hover:bg-gray-400'
-              }`}
-            />
-          ))}
-        </div>
-
-        {/* Template Counter */}
-        <div className="text-center mt-3">
-          <p className="text-gray-500 text-sm">
-            Template {currentIndex + 1} of {templates.length} - {currentTemplate.name}
-          </p>
-        </div>
+      {/* Use Selected Template Button */}
+      <div className="flex justify-center pt-4 pb-6">
+        <Button 
+          onClick={() => onChange(currentTemplate.id)}
+          className="shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-[1.02] px-8 sm:px-10 py-2.5 sm:py-3 rounded-md font-semibold text-sm sm:text-base"
+        >
+          <div className="flex items-center gap-2">
+            <Check className="w-4 h-4" />
+            <span>Use {currentTemplate.name} Template</span>
+          </div>
+        </Button>
       </div>
     </div>
   );
