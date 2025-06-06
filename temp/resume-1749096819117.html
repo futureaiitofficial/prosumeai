@@ -1,0 +1,94 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Resume</title>
+  <style>
+    @page {
+      size: A4;
+      margin-top: 5mm;  /* Small top margin for second and subsequent pages */
+      margin-right: 0;
+      margin-bottom: 0;
+      margin-left: 0;
+    }
+    
+    /* First page should have no top margin */
+    @page :first {
+      margin: 0;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+      background-color: white;
+      font-family: Arial, sans-serif;
+      width: 100%;
+      height: 100%;
+    }
+    .resume-container {
+      width: 100%;
+      height: 100%;
+      padding: 0;
+      margin: 0;
+      box-sizing: border-box;
+      position: relative;
+      overflow: visible;
+    }
+    /* Support for vertical dividers across page breaks */
+    [data-template-id="elegant-divider"] .vertical-divider {
+      page-break-inside: auto;
+      page-break-before: auto;
+      page-break-after: auto;
+      -webkit-column-break-inside: auto;
+      break-inside: auto;
+      position: absolute;
+      height: 100%;
+    }
+    /* Better approach for showing dividers on each page - ONLY for Elegant Divider template */
+    [data-template-id="elegant-divider"] {
+      position: relative;
+    }
+    
+    [data-template-id="elegant-divider"]::before {
+      content: none;
+    }
+    
+    @media print {
+      [data-template-id="elegant-divider"]::before {
+        content: "";
+        position: fixed;
+        top: 0;
+        left: 32%;
+        height: 100%;
+        width: 1px;
+        background-color: #333;
+        z-index: 1000;
+      }
+    }
+    /* Natural flow styles and overrides */
+    .resume-section {
+      page-break-inside: auto;
+      margin-bottom: 0.2rem;
+      margin-top: 0.5rem;
+    }
+    .resume-section > h2 {
+      page-break-after: avoid;
+      page-break-before: auto;
+      padding-top: 0.2rem;
+      margin-bottom: 0.2rem;
+    }
+    .experience-item, .education-item, .project-item, .certification-item {
+      page-break-inside: avoid;
+      margin-bottom: 0.6rem;
+    }
+    
+  </style>
+</head>
+<body>
+  <div class="resume-container">
+    <div class="resume-container modern-sidebar-template" data-template-id="modern-sidebar" style="width: 210mm; min-height: 297mm; background-color: rgb(255, 255, 255); font-family: Inter; font-size: 9pt; padding: 0px; color: rgb(45, 55, 72); margin: 0px; box-sizing: border-box; line-height: 1.3; position: relative; display: flex; flex-direction: row;"><div class="resume-sidebar" style="width: 32%; background-color: rgb(247, 250, 252); padding: 15mm 12mm; box-sizing: border-box; border-right-width: 1px; border-right-style: solid; border-right-color: rgb(226, 232, 240);"><div style="margin-bottom: 12pt;"><h3 style="font-family: Inter; font-size: 9pt; font-weight: 700; color: rgb(26, 32, 44); margin-bottom: 4pt; text-transform: uppercase; letter-spacing: 0.5pt; border-bottom-width: 1pt; border-bottom-style: solid; border-bottom-color: rgb(226, 232, 240); padding-bottom: 2pt;">Contact</h3><div style="display: flex; align-items: flex-start; margin-bottom: 3pt; font-size: 8pt; color: rgb(45, 55, 72); line-height: 1.2;"><span style="font-weight: 600; min-width: 20pt; margin-right: 4pt; color: rgb(74, 85, 104);">Email:</span><span>samantha.raynor87@gmail.com</span></div><div style="display: flex; align-items: flex-start; margin-bottom: 3pt; font-size: 8pt; color: rgb(45, 55, 72); line-height: 1.2;"><span style="font-weight: 600; min-width: 20pt; margin-right: 4pt; color: rgb(74, 85, 104);">Phone:</span><span>(555) 123-4567</span></div><div style="display: flex; align-items: flex-start; margin-bottom: 3pt; font-size: 8pt; color: rgb(45, 55, 72); line-height: 1.2;"><span style="font-weight: 600; min-width: 20pt; margin-right: 4pt; color: rgb(74, 85, 104);">Location:</span><span>Chicago, IL</span></div><div style="display: flex; align-items: flex-start; margin-bottom: 3pt; font-size: 8pt; color: rgb(45, 55, 72); line-height: 1.2;"><span style="font-weight: 600; min-width: 20pt; margin-right: 4pt; color: rgb(74, 85, 104);">LinkedIn:</span><a href="https://linkedin.com/in/samantharaynor" target="_blank" rel="noopener noreferrer" style="color: rgb(26, 32, 44); text-decoration: none; word-break: break-all;">linkedin.com/in/samantharaynor</a></div><div style="display: flex; align-items: flex-start; margin-bottom: 3pt; font-size: 8pt; color: rgb(45, 55, 72); line-height: 1.2;"><span style="font-weight: 600; min-width: 20pt; margin-right: 4pt; color: rgb(74, 85, 104);">Portfolio:</span><a href="https://samantharaynor.dev" target="_blank" rel="noopener noreferrer" style="color: rgb(26, 32, 44); text-decoration: none; word-break: break-all;">samantharaynor.dev/</a></div></div><div style="margin-bottom: 12pt;"><h3 style="font-family: Inter; font-size: 9pt; font-weight: 700; color: rgb(26, 32, 44); margin-bottom: 4pt; text-transform: uppercase; letter-spacing: 0.5pt; border-bottom-width: 1pt; border-bottom-style: solid; border-bottom-color: rgb(226, 232, 240); padding-bottom: 2pt;">Education</h3><div class="education-item" style="margin-bottom: 6pt; break-inside: avoid;"><div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1pt;"><div style="font-size: 8pt; font-weight: 600; color: rgb(26, 32, 44); margin: 0px 0px 1pt; line-height: 1.2;">Master of Science in Health Informatics</div><div style="font-size: 7pt; color: rgb(113, 128, 150); font-style: italic; text-align: right; flex-shrink: 0; margin-left: 4pt;">2021-08-11 - 2023-05-09</div></div><div style="font-size: 7pt; color: rgb(74, 85, 104); line-height: 1.2; margin: 0px;">University of Illinois at Chicago</div></div><div class="education-item" style="margin-bottom: 6pt; break-inside: avoid;"><div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1pt;"><div style="font-size: 8pt; font-weight: 600; color: rgb(26, 32, 44); margin: 0px 0px 1pt; line-height: 1.2;">Bachelor of Science in Biology</div><div style="font-size: 7pt; color: rgb(113, 128, 150); font-style: italic; text-align: right; flex-shrink: 0; margin-left: 4pt;">2016-08-08 - 2020-09-18</div></div><div style="font-size: 7pt; color: rgb(74, 85, 104); line-height: 1.2; margin: 0px;">Loyola University Chicago</div></div></div><div style="margin-bottom: 12pt;"><h3 style="font-family: Inter; font-size: 9pt; font-weight: 700; color: rgb(26, 32, 44); margin-bottom: 4pt; text-transform: uppercase; letter-spacing: 0.5pt; border-bottom-width: 1pt; border-bottom-style: solid; border-bottom-color: rgb(226, 232, 240); padding-bottom: 2pt;">Skills</h3><div style="display: flex; flex-direction: column; gap: 6pt;"><div class="skills-category-soft-skills"><div style="font-weight: 600; color: rgb(26, 32, 44); margin-bottom: 2pt; font-size: 8pt;">Soft Skills</div><div style="font-size: 8pt; line-height: 1.2; color: rgb(45, 55, 72);">Detail-oriented, Analytical, Collaborating, Develop dashboards and visualizations, Analytical thinking, Problem-solving, Attention to detail, Communication skills, Team collaboration, Time management, Adaptability, Critical thinking, Project management, Stakeholder engagement</div></div><div class="skills-category-technical-skills"><div style="font-weight: 600; color: rgb(26, 32, 44); margin-bottom: 2pt; font-size: 8pt;">Technical Skills</div><div style="font-size: 8pt; line-height: 1.2; color: rgb(45, 55, 72);">Sql, Python, Data analysis, Healthcare analytics, Data visualization, Power bi, Tableau, Exploratory data analysis, Quality improvement initiatives, Performance improvement, R, Microsoft excel, Sas, Healthcare data analytics, Statistical analysis, Data mining</div></div></div></div><div style="margin-bottom: 12pt;"><h3 style="font-family: Inter; font-size: 9pt; font-weight: 700; color: rgb(26, 32, 44); margin-bottom: 4pt; text-transform: uppercase; letter-spacing: 0.5pt; border-bottom-width: 1pt; border-bottom-style: solid; border-bottom-color: rgb(226, 232, 240); padding-bottom: 2pt;">Projects</h3><div class="project-item" style="margin-bottom: 6pt; break-inside: avoid;"><div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1pt;"><div style="font-size: 8pt; font-weight: 600; color: rgb(26, 32, 44); margin: 0px 0px 1pt; line-height: 1.2;">Predicting Patient Readmission Risk</div><div style="font-size: 7pt; color: rgb(113, 128, 150); font-style: italic; text-align: right; flex-shrink: 0; margin-left: 4pt;">2023-01-01 - 2023-03-05</div></div><div style="font-size: 7pt; color: rgb(74, 85, 104); line-height: 1.2; margin: 0px;">Used logistic regression to identify patients at high risk of 30-day hospital readmission.</div><div style="font-size: 7pt; color: rgb(74, 85, 104); line-height: 1.2; margin: 2pt 0px 0px; font-weight: 500;">Tech: Python, Scikit-learn, Pandas, Jupyter</div><a href="https://samantharaynor.dev/readmission-risk" target="_blank" rel="noopener noreferrer" style="color: rgb(26, 32, 44); text-decoration: none; word-break: break-all; font-size: 7pt; display: block; margin-top: 1pt;">samantharaynor.dev/readmission-risk</a></div></div><div style="margin-bottom: 12pt;"><h3 style="font-family: Inter; font-size: 9pt; font-weight: 700; color: rgb(26, 32, 44); margin-bottom: 4pt; text-transform: uppercase; letter-spacing: 0.5pt; border-bottom-width: 1pt; border-bottom-style: solid; border-bottom-color: rgb(226, 232, 240); padding-bottom: 2pt;">Certifications</h3><div class="certification-item" style="margin-bottom: 6pt; break-inside: avoid;"><div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1pt;"><div style="font-size: 8pt; font-weight: 600; color: rgb(26, 32, 44); margin: 0px 0px 1pt; line-height: 1.2;">Certified Health Data Analyst (CHDA)</div><div style="font-size: 7pt; color: rgb(113, 128, 150); font-style: italic; text-align: right; flex-shrink: 0; margin-left: 4pt;">2023-07-05</div></div><div style="font-size: 7pt; color: rgb(74, 85, 104); line-height: 1.2; margin: 0px;">American Health Information Management Association (AHIMA)</div></div><div class="certification-item" style="margin-bottom: 6pt; break-inside: avoid;"><div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1pt;"><div style="font-size: 8pt; font-weight: 600; color: rgb(26, 32, 44); margin: 0px 0px 1pt; line-height: 1.2;">HIPAA for Healthcare Professionals</div><div style="font-size: 7pt; color: rgb(113, 128, 150); font-style: italic; text-align: right; flex-shrink: 0; margin-left: 4pt;">2023-01-30</div></div><div style="font-size: 7pt; color: rgb(74, 85, 104); line-height: 1.2; margin: 0px;">Udemy</div></div></div></div><div class="resume-main-content" style="width: 68%; padding: 15mm; box-sizing: border-box;"><div style="margin-bottom: 15pt;"><h1 style="font-family: Inter; font-size: 18pt; font-weight: 700; color: rgb(26, 32, 44); margin: 0px 0px 3pt; line-height: 1.1;">Samantha Raynor</h1><h2 style="font-size: 11pt; color: rgb(74, 85, 104); margin: 0px 0px 12pt; font-weight: 400;">Data Analyst - Healthcare Operations</h2></div><section class="resume-section summary-section" style="margin-bottom: 12pt;"><h3 style="font-family: Inter; font-size: 11pt; font-weight: 700; color: rgb(26, 32, 44); margin-bottom: 6pt; padding-bottom: 2pt; border-bottom-width: 1.5pt; border-bottom-style: solid; border-bottom-color: rgb(26, 32, 44); text-transform: uppercase; letter-spacing: 0.5pt; break-after: avoid;">Professional Summary</h3><p style="font-size: 9pt; line-height: 1.2; color: rgb(45, 55, 72); margin: 3pt 0px;">Detail-oriented Data Analyst with experience at Amazon, skilled in SQL, Python, and healthcare data analysis. Proficient in Power BI and Tableau, adept at identifying care gaps. Supports performance improvement with actionable insights.</p></section><section class="resume-section experience-section" style="margin-bottom: 12pt;"><h3 style="font-family: Inter; font-size: 11pt; font-weight: 700; color: rgb(26, 32, 44); margin-bottom: 6pt; padding-bottom: 2pt; border-bottom-width: 1.5pt; border-bottom-style: solid; border-bottom-color: rgb(26, 32, 44); text-transform: uppercase; letter-spacing: 0.5pt; break-after: avoid;">Experience</h3><div class="experience-item" style="margin-bottom: 8pt; break-inside: avoid;"><div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1pt;"><h4 style="font-size: 10pt; font-weight: 700; color: rgb(26, 32, 44); margin: 0px 0px 1pt; line-height: 1.2; break-after: avoid;">Data Analyst</h4><div style="font-size: 8pt; color: rgb(113, 128, 150); font-weight: 500; margin: 0px 0px 3pt; font-style: italic;">2025-06-02 - Present</div></div><h5 style="font-size: 9pt; color: rgb(74, 85, 104); margin: 0px 0px 1pt; font-weight: 500;">Amazon • New York</h5><ul style="list-style-type: none; padding: 0px; margin: 3pt 0px;"><li style="position: relative; padding-left: 8pt; margin-bottom: 2pt; font-size: 8pt; line-height: 1.2; color: rgb(45, 55, 72); break-inside: avoid;"><span style="position: absolute; left: 0px; top: 0.5pt; color: rgb(26, 32, 44); font-weight: bold;">•</span>Enhanced data-driven decision-making by developing dynamic dashboards using Power BI and Tableau, leading to a 30% increase in operational efficiency.</li><li style="position: relative; padding-left: 8pt; margin-bottom: 2pt; font-size: 8pt; line-height: 1.2; color: rgb(45, 55, 72); break-inside: avoid;"><span style="position: absolute; left: 0px; top: 0.5pt; color: rgb(26, 32, 44); font-weight: bold;">•</span>Implemented advanced SQL queries to clean and analyze large datasets, improving data accuracy and reducing processing time by 20%.</li><li style="position: relative; padding-left: 8pt; margin-bottom: 2pt; font-size: 8pt; line-height: 1.2; color: rgb(45, 55, 72); break-inside: avoid;"><span style="position: absolute; left: 0px; top: 0.5pt; color: rgb(26, 32, 44); font-weight: bold;">•</span>Collaborated with cross-functional teams to identify operational inefficiencies, resulting in a 15% reduction in resource allocation costs.</li><li style="position: relative; padding-left: 8pt; margin-bottom: 2pt; font-size: 8pt; line-height: 1.2; color: rgb(45, 55, 72); break-inside: avoid;"><span style="position: absolute; left: 0px; top: 0.5pt; color: rgb(26, 32, 44); font-weight: bold;">•</span>Conducted exploratory data analysis using Python to uncover actionable insights, facilitating a 25% improvement in performance metrics.</li></ul></div><div class="experience-item" style="margin-bottom: 8pt; break-inside: avoid;"><div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1pt;"><h4 style="font-size: 10pt; font-weight: 700; color: rgb(26, 32, 44); margin: 0px 0px 1pt; line-height: 1.2; break-after: avoid;">Data Analyst</h4><div style="font-size: 8pt; color: rgb(113, 128, 150); font-weight: 500; margin: 0px 0px 3pt; font-style: italic;">2025-06-02 - Present</div></div><h5 style="font-size: 9pt; color: rgb(74, 85, 104); margin: 0px 0px 1pt; font-weight: 500;">Amazon • New York</h5><ul style="list-style-type: none; padding: 0px; margin: 3pt 0px;"><li style="position: relative; padding-left: 8pt; margin-bottom: 2pt; font-size: 8pt; line-height: 1.2; color: rgb(45, 55, 72); break-inside: avoid;"><span style="position: absolute; left: 0px; top: 0.5pt; color: rgb(26, 32, 44); font-weight: bold;">•</span>Enhanced data-driven decision-making by developing dynamic dashboards using Power BI and Tableau, leading to a 30% increase in operational efficiency.</li><li style="position: relative; padding-left: 8pt; margin-bottom: 2pt; font-size: 8pt; line-height: 1.2; color: rgb(45, 55, 72); break-inside: avoid;"><span style="position: absolute; left: 0px; top: 0.5pt; color: rgb(26, 32, 44); font-weight: bold;">•</span>Implemented advanced SQL queries to clean and analyze large datasets, improving data accuracy and reducing processing time by 20%.</li><li style="position: relative; padding-left: 8pt; margin-bottom: 2pt; font-size: 8pt; line-height: 1.2; color: rgb(45, 55, 72); break-inside: avoid;"><span style="position: absolute; left: 0px; top: 0.5pt; color: rgb(26, 32, 44); font-weight: bold;">•</span>Collaborated with cross-functional teams to identify operational inefficiencies, resulting in a 15% reduction in resource allocation costs.</li><li style="position: relative; padding-left: 8pt; margin-bottom: 2pt; font-size: 8pt; line-height: 1.2; color: rgb(45, 55, 72); break-inside: avoid;"><span style="position: absolute; left: 0px; top: 0.5pt; color: rgb(26, 32, 44); font-weight: bold;">•</span>Conducted exploratory data analysis using Python to uncover actionable insights, facilitating a 25% improvement in performance metrics.</li></ul></div></section><section class="resume-section publications-section" style="margin-bottom: 12pt;"><h3 style="font-family: Inter; font-size: 11pt; font-weight: 700; color: rgb(26, 32, 44); margin-bottom: 6pt; padding-bottom: 2pt; border-bottom-width: 1.5pt; border-bottom-style: solid; border-bottom-color: rgb(26, 32, 44); text-transform: uppercase; letter-spacing: 0.5pt; break-after: avoid;">Publications</h3><div class="publication-item" style="margin-bottom: 8pt; break-inside: avoid;"><p style="font-size: 9pt; line-height: 1.2; color: rgb(45, 55, 72); margin: 0px; font-style: normal;"><span style="font-weight: 500;">Samantha Raynor, Dr. Alan Chen, Priya Mehta</span>. <span>(2023-03-04). </span><span style="font-style: italic;">Predictive Modeling for 30-Day Hospital Readmission in Diabetic Patients</span>. <span style="font-weight: 500;">Journal of Biomedical Informatics</span>. <a href="https://10.1016/j.jbi.2023.104352" target="_blank" rel="noopener noreferrer" style="color: rgb(26, 32, 44); text-decoration: none; word-break: break-all; font-size: 9pt;">https://10.1016/j.jbi.2023.104352</a></p></div><div class="publication-item" style="margin-bottom: 8pt; break-inside: avoid;"><p style="font-size: 9pt; line-height: 1.2; color: rgb(45, 55, 72); margin: 0px; font-style: normal;"><span style="font-weight: 500;">Samantha Raynor, Dr. Lisa Kim</span>. <span>(2022-10-20). </span><span style="font-style: italic;">Evaluating NLP Techniques for Analyzing Patient Sentiment in Post-Discharge Surveys</span>. <span style="font-weight: 500;">JMIR Medical Informatics</span>. <a href="https://10.2196/32789" target="_blank" rel="noopener noreferrer" style="color: rgb(26, 32, 44); text-decoration: none; word-break: break-all; font-size: 9pt;">https://10.2196/32789</a></p></div></section></div></div>
+  </div>
+</body>
+</html>
