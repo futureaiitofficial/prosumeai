@@ -480,6 +480,31 @@ export default function LandingPage() {
                   <span className="text-slate-700">Real-time ATS score calculation with improvement suggestions</span>
                 </li>
               </ul>
+              
+              {/* Learn More Button for Resume Builder AI */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5, delay: 0.3 }}
+                className="text-center lg:text-left"
+              >
+                <Link href="/resume-builder-ai">
+                  <motion.a 
+                    className="inline-flex items-center justify-center px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg transition-all duration-300 shadow-lg shadow-indigo-600/30"
+                    whileHover={{ scale: 1.05, y: -2 }}
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+                    </svg>
+                    Learn More About AI Resume Builder
+                    <svg className="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path>
+                    </svg>
+                  </motion.a>
+                </Link>
+              </motion.div>
             </div>
             
             <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-2 lg:grid-cols-2 gap-6">
@@ -742,11 +767,28 @@ export default function LandingPage() {
                   <span className="text-slate-700 text-sm md:text-base">Multiple export formats with perfect formatting</span>
                 </li>
               </ul>
-              <Link href="/register">
-                <a className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-md transition-colors inline-block">
-                  Create Your Cover Letter
-                </a>
-              </Link>
+              <div className="flex flex-col sm:flex-row gap-4">
+                <Link href="/register">
+                  <a className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-md transition-colors inline-block">
+                    Create Your Cover Letter
+                  </a>
+                </Link>
+                <Link href="/cover-letter-ai">
+                  <motion.a 
+                    className="inline-flex items-center justify-center px-6 py-3 border border-indigo-600 hover:bg-indigo-50 text-indigo-600 font-medium rounded-md transition-all duration-300"
+                    whileHover={{ scale: 1.05, y: -2 }}
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+                    </svg>
+                    Learn About AI Cover Letters
+                    <svg className="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path>
+                    </svg>
+                  </motion.a>
+                </Link>
+              </div>
             </motion.div>
           </div>
         </div>

@@ -11,6 +11,12 @@ export default function TermsOfServicePage() {
     window.scrollTo(0, 0);
   }, []);
 
+  // Handle back navigation
+  const handleBack = () => {
+    // Force navigation to home page
+    window.location.href = "/";
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="container mx-auto px-4 py-8 md:py-12">
@@ -18,7 +24,7 @@ export default function TermsOfServicePage() {
           <Button 
             variant="ghost" 
             className="mr-4" 
-            onClick={() => setLocation("/auth")}
+            onClick={handleBack}
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back
@@ -558,6 +564,85 @@ export default function TermsOfServicePage() {
               </p>
               <p className="mt-4">
                 We encourage users to report content that violates these Terms by contacting us at support@futureaiit.com.
+              </p>
+              
+              <p className="mt-4">
+                <strong>6.4 User Responsibility for Content Accuracy and Job Applications</strong>
+              </p>
+              <p className="mt-4">
+                You acknowledge and agree that you are solely responsible for the accuracy, completeness, and truthfulness of all information contained in your resumes, cover letters, portfolios, and any other professional documents created through or stored on the Service ("Professional Documents"). The following terms apply specifically to your Professional Documents and job applications:
+              </p>
+              <p className="mt-4">
+                <strong>Truthfulness and Accuracy:</strong> All information you include in your Professional Documents must be accurate, truthful, and verifiable. You represent and warrant that all qualifications, work experience, education, skills, certifications, achievements, and other claims made in your Professional Documents are genuine and can be substantiated with appropriate documentation or references.
+              </p>
+              <p className="mt-4">
+                <strong>No Company Verification:</strong> The Company does not verify, validate, or confirm the accuracy of any information contained in your Professional Documents. While our AI may provide suggestions for optimization, formatting, or content enhancement, we do not review, fact-check, or validate the underlying claims, qualifications, or experiences you include in your documents.
+              </p>
+              <p className="mt-4">
+                <strong>Job Application Responsibility:</strong> When you submit job applications using Professional Documents created through our Service, you are making representations to potential employers about your qualifications and background. You acknowledge that:
+              </p>
+              <p className="mt-4">
+                <strong>Personal Declaration:</strong> By submitting any job application, you are personally declaring that all information furnished is true, complete, and accurate to the best of your knowledge.
+              </p>
+              <p className="mt-4">
+                <strong>Legal Consequences:</strong> Providing false, misleading, or inaccurate information in job applications may have serious legal and professional consequences, including but not limited to termination of employment, legal action by employers, damage to professional reputation, and potential criminal charges for fraud in certain jurisdictions.
+              </p>
+              <p className="mt-4">
+                <strong>Employer Verification:</strong> Employers may conduct background checks, reference verification, and other due diligence procedures to verify the information in your application. You are responsible for ensuring that all information can withstand such scrutiny.
+              </p>
+              <p className="mt-4">
+                <strong>Company Disclaimer:</strong> The Company explicitly disclaims any responsibility or liability for:
+              </p>
+              <p className="mt-4">
+                <strong>False Information:</strong> Any false, misleading, or inaccurate information contained in your Professional Documents, regardless of whether such information was included by you directly or incorporated through AI suggestions that you accepted.
+              </p>
+              <p className="mt-4">
+                <strong>Employment Consequences:</strong> Any consequences arising from the use of your Professional Documents in job applications, including but not limited to rejection of applications, termination of employment, legal action by employers, or damage to your professional reputation.
+              </p>
+              <p className="mt-4">
+                <strong>Third-Party Actions:</strong> Any claims, demands, or legal action brought against you by employers, recruitment agencies, or other third parties based on information contained in your Professional Documents.
+              </p>
+              <p className="mt-4">
+                <strong>Regulatory Compliance:</strong> Any violations of employment laws, professional regulations, or industry standards that may result from inaccurate information in your Professional Documents.
+              </p>
+              <p className="mt-4">
+                <strong>AI Suggestions Disclaimer:</strong> While our AI provides content suggestions and optimizations, you acknowledge that:
+              </p>
+              <p className="mt-4">
+                <strong>User Control:</strong> You have complete control over what information to include, modify, or remove from your Professional Documents.
+              </p>
+              <p className="mt-4">
+                <strong>Final Responsibility:</strong> You are ultimately responsible for reviewing, verifying, and approving all content before using it in job applications.
+              </p>
+              <p className="mt-4">
+                <strong>No Endorsement:</strong> AI suggestions do not constitute an endorsement or verification of the accuracy of any information by the Company.
+              </p>
+              <p className="mt-4">
+                <strong>Indemnification:</strong> You agree to indemnify, defend, and hold harmless the Company, its officers, directors, employees, agents, and affiliates from and against any and all claims, damages, obligations, losses, liabilities, costs, and expenses (including attorney's fees) arising from or related to:
+              </p>
+              <p className="mt-4">
+                <strong>Content Inaccuracy:</strong> Any inaccurate, false, or misleading information contained in your Professional Documents.
+              </p>
+              <p className="mt-4">
+                <strong>Application Consequences:</strong> Any consequences arising from your use of Professional Documents in job applications or employment-related activities.
+              </p>
+              <p className="mt-4">
+                <strong>Third-Party Claims:</strong> Any third-party claims or legal action related to information contained in your Professional Documents.
+              </p>
+              <p className="mt-4">
+                <strong>Best Practices Recommendation:</strong> We strongly recommend that you:
+              </p>
+              <p className="mt-4">
+                <strong>Regular Review:</strong> Regularly review and update your Professional Documents to ensure accuracy and currency.
+              </p>
+              <p className="mt-4">
+                <strong>Documentation:</strong> Maintain supporting documentation for all claims made in your Professional Documents.
+              </p>
+              <p className="mt-4">
+                <strong>Professional Advice:</strong> Consult with career counselors, legal advisors, or other professionals if you have questions about what information to include in your Professional Documents.
+              </p>
+              <p className="mt-4">
+                <strong>Verification:</strong> Verify that all information is current and accurate before submitting any job application.
               </p>
             </div>
 

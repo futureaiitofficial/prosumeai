@@ -6,7 +6,7 @@ import { registerCoverLetterTemplates } from "./templates/registerCoverLetterTem
 registerTemplates();
 registerCoverLetterTemplates();
 
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -64,8 +64,12 @@ import AdminBlog from '@/pages/admin/blog';
 import BlogNew from '@/pages/admin/blog-new';
 import BlogPage from '@/pages/blog';
 import BlogPostPage from '@/pages/blog-post';
+import ResumeBuilderAI from '@/pages/resume-builder-ai';
+import CoverLetterAI from '@/pages/cover-letter-ai';
+import CareersPage from '@/pages/careers';
 import { checkAuthStatus } from '@/lib/auth-utils';
 import { logger } from '@/lib/logger';
+import ScrollToTop from '@/components/ScrollToTop';
 
 // Session Recovery component to handle network disconnections
 function SessionRecovery() {
@@ -137,6 +141,8 @@ function Router() {
       <Route path="/about" component={AboutPage} />
       <Route path="/pricing" component={PricingPage} />
       <Route path="/contact" component={ContactPage} />
+      <Route path="/resume-builder-ai" component={ResumeBuilderAI} />
+      <Route path="/cover-letter-ai" component={CoverLetterAI} />
       <Route path="/auth" component={AuthPage} />
       <Route path="/register" component={RegisterPage} />
       <Route path="/forgot-password" component={ForgotPasswordPage} />
@@ -145,6 +151,7 @@ function Router() {
       <Route path="/verify-2fa" component={VerifyTwoFactorPage} />
       <Route path="/terms" component={TermsOfServicePage} />
       <Route path="/privacy" component={PrivacyPolicyPage} />
+      <Route path="/careers" component={CareersPage} />
       
       {/* Public Blog Routes */}
       <Route path="/blog" component={BlogPage} />
@@ -222,6 +229,7 @@ export default function App() {
             <SidebarProvider>
               <NotificationProvider>
                 <SessionRecovery />
+                <ScrollToTop />
                 <Router />
                 <Toaster />
               </NotificationProvider>

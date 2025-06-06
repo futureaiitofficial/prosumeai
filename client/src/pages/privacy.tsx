@@ -11,6 +11,12 @@ export default function PrivacyPolicyPage() {
     window.scrollTo(0, 0);
   }, []);
 
+  // Handle back navigation
+  const handleBack = () => {
+    // Force navigation to home page
+    window.location.href = "/";
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="container mx-auto px-4 py-8 md:py-12">
@@ -18,7 +24,7 @@ export default function PrivacyPolicyPage() {
           <Button 
             variant="ghost" 
             className="mr-4" 
-            onClick={() => setLocation("/auth")}
+            onClick={handleBack}
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back

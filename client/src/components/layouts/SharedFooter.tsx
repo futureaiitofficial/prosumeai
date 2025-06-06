@@ -50,6 +50,8 @@ export default function SharedFooter() {
             <div>
               <h4 className="text-base md:text-lg font-semibold mb-3 md:mb-4">Product</h4>
               <ul className="space-y-2">
+                <li><Link href="/resume-builder-ai"><a className="text-slate-400 hover:text-indigo-400 transition-colors text-sm md:text-base">AI Resume Builder</a></Link></li>
+                <li><Link href="/cover-letter-ai"><a className="text-slate-400 hover:text-indigo-400 transition-colors text-sm md:text-base">AI Cover Letter Builder</a></Link></li>
                 <li><Link href="/#features"><a className="text-slate-400 hover:text-indigo-400 transition-colors text-sm md:text-base">Features</a></Link></li>
                 <li><Link href="/pricing"><a className="text-slate-400 hover:text-indigo-400 transition-colors text-sm md:text-base">Pricing</a></Link></li>
               </ul>
@@ -83,6 +85,7 @@ export default function SharedFooter() {
               <h4 className="text-base md:text-lg font-semibold mb-3 md:mb-4">Company</h4>
               <ul className="space-y-2">
                 <li><Link href="/about"><a className="text-slate-400 hover:text-indigo-400 transition-colors text-sm md:text-base">About Us</a></Link></li>
+                <li><Link href="/careers"><a className="text-slate-400 hover:text-indigo-400 transition-colors text-sm md:text-base">Careers</a></Link></li>
                 <li><Link href="/contact"><a className="text-slate-400 hover:text-indigo-400 transition-colors text-sm md:text-base">Contact</a></Link></li>
               </ul>
             </div>
