@@ -32,13 +32,27 @@ export function generateDeviceId(): string {
     hash = hash & hash; // Convert to 32bit integer
   }
   
-  // Convert to a hex string
+  // Convert to a hex string - this should be deterministic for the same device
   const hashString = Math.abs(hash).toString(16);
   
-  // Add a random part for additional entropy
-  const randomPart = Math.random().toString(36).substring(2, 10);
+  // Add a secondary hash for additional entropy but still deterministic
+  const additionalInfo = [
+    navigator.maxTouchPoints || 0,
+    navigator.cookieEnabled ? 1 : 0,
+    navigator.onLine ? 1 : 0,
+    screen.pixelDepth
+  ].join('|');
   
-  return `${hashString}-${randomPart}`;
+  let secondaryHash = 0;
+  for (let i = 0; i < additionalInfo.length; i++) {
+    const char = additionalInfo.charCodeAt(i);
+    secondaryHash = ((secondaryHash << 5) - secondaryHash) + char;
+    secondaryHash = secondaryHash & secondaryHash;
+  }
+  
+  const secondaryHashString = Math.abs(secondaryHash).toString(16);
+  
+  return `${hashString}-${secondaryHashString}`;
 }
 
 /**

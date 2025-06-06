@@ -454,8 +454,6 @@ export async function trackUserDevice(req: Request, userId: number): Promise<voi
     // Get or generate device ID (ideally this would be done client-side with a fingerprinting library)
     const deviceId = req.cookies['device_id'] || generateDeviceId(req);
     
-    console.log(`Tracking user device - User: ${userId}, IP: ${clientIp}, DeviceID: ${deviceId}`);
-    
     // Store the device tracking information in database
     await db.insert(appSettings)
       .values({

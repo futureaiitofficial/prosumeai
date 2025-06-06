@@ -15,6 +15,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { authLogger } from "@/lib/logger";
+import { getOrCreateDeviceId } from "@/utils/device-utils";
 
 type AuthContextType = {
   user: SelectUser | null;
@@ -156,9 +157,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Reset session invalidation flag before attempting login
         resetSessionInvalidation();
         
-        // Explicitly stringify the body to ensure it's sent correctly
-        const requestBody = JSON.stringify(credentials);
-        console.log("[AUTH DEBUG] Request body:", requestBody);
+        // Get device ID for device recognition
+        const deviceId = getOrCreateDeviceId();
+        
+        // Include device ID in login request
+        const requestBody = JSON.stringify({
+          ...credentials,
+          deviceId
+        });
         
         const res = await fetch('/api/login', {
           method: 'POST',
@@ -174,31 +180,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           mode: 'cors', // Ensure CORS mode is set
         });
         
-        console.log("[AUTH DEBUG] Login response status:", res.status);
-        console.log("[AUTH DEBUG] Login response headers:", 
-          Array.from(res.headers.entries())
-            .map(([key, value]) => `${key}: ${value}`)
-            .join(', ')
-        );
-        
-        // Log document cookie
-        console.log("[AUTH DEBUG] Document cookies:", document.cookie);
-        
         if (!res.ok) {
           let errorMessage = "Login failed";
           try {
             // Get response text first, then try to parse as JSON
             const responseText = await res.text();
-            console.error("[AUTH DEBUG] Login error response (raw):", responseText);
             
             try {
               const errorData = JSON.parse(responseText);
               errorMessage = errorData.message || errorData.error || "Login failed";
-              console.error("[AUTH DEBUG] Login error response (parsed):", errorData);
             } catch (jsonError) {
               // If JSON parsing fails, use the raw text
               errorMessage = responseText || "Login failed";
-              console.error("[AUTH DEBUG] Could not parse as JSON, using raw text");
             }
           } catch (textError) {
             console.error("[AUTH DEBUG] Could not read error response:", textError);
@@ -207,23 +200,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         
         const userData = await res.json();
-        console.log("[AUTH DEBUG] Login response data:", userData);
         return userData;
       } catch (error) {
-        console.error("[AUTH DEBUG] Login fetch error:", error);
         throw error;
       }
     },
     onSuccess: (userData) => {
-      console.log("[AUTH DEBUG] Login success, user data:", userData);
-      console.log("[AUTH DEBUG] passwordExpired flag in response:", (userData as any).passwordExpired);
-      console.log("[AUTH DEBUG] requiresTwoFactor flag in response:", (userData as any).requiresTwoFactor);
-      
       queryClient.setQueryData(["/api/user"], userData);
       
       // Check if password is expired
       if ((userData as any).passwordExpired === true) {
-        console.log("[AUTH DEBUG] Password expired, redirecting to change password");
         toast({
           title: "Password expired",
           description: "Your password has expired. Please reset it now.",
@@ -234,7 +220,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       // Check if 2FA verification is required
       if ((userData as any).requiresTwoFactor === true) {
-        console.log("[AUTH DEBUG] 2FA required, redirecting to verification");
         // Store user ID to maintain context across verification
         localStorage.setItem('pendingTwoFactorUserId', userData.id.toString());
         localStorage.setItem('pendingTwoFactorMethod', (userData as any).twoFactorMethod || 'EMAIL');
@@ -255,10 +240,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       // Redirect to appropriate page based on user role
       if (userData.isAdmin) {
-        console.log("[AUTH DEBUG] Admin user, redirecting to admin dashboard");
         setLocation("/admin/dashboard");
       } else {
-        console.log("[AUTH DEBUG] Regular user, redirecting to dashboard");
         setLocation("/dashboard");
       }
 
@@ -266,7 +249,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       resetSessionInvalidation();
     },
     onError: (error: Error) => {
-      console.error("[AUTH DEBUG] Login error:", error);
       toast({
         title: "Login failed",
         description: error.message,
@@ -303,7 +285,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         await apiRequest("POST", "/api/logout");
       } catch (error) {
-        console.error("Logout error:", error);
         // Even if server-side logout fails, clear client-side state
       }
       // Clear user data regardless of server response to ensure client-side logout
@@ -322,7 +303,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLocation("/");
     },
     onError: (error: Error) => {
-      console.error("Logout client error:", error);
       // Even on error, we should clear user data and redirect
       queryClient.setQueryData(["/api/user"], null);
       queryClient.invalidateQueries();

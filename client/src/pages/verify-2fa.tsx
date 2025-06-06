@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Loader2, Shield, Lock } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useBranding } from '@/components/branding/branding-provider';
+import { getOrCreateDeviceId } from '@/utils/device-utils';
 
 export default function VerifyTwoFactorPage() {
   const [location, setLocation] = useLocation();
@@ -52,6 +53,10 @@ export default function VerifyTwoFactorPage() {
     // Clear the pending verification data
     localStorage.removeItem('pendingTwoFactorUserId');
     localStorage.removeItem('pendingTwoFactorMethod');
+    
+    // Ensure device ID is properly stored for future recognition
+    const deviceId = getOrCreateDeviceId();
+    console.log('[2FA DEBUG] Device ID on verification success:', deviceId);
     
     // Show success message
     toast({
